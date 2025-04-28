@@ -1,10 +1,14 @@
 {
   "name": "msg_rotation_target_web_app",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "zip": "ts-node scripts/zip-dist.ts",
+    "build:zip": "npm run build && npm run zip",
+    "postbuild": "npm run zip",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -14,7 +18,9 @@
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.5.3",
+    "ts-node": "^10.9.2",
     "typescript": "^5.4.5",
-    "vite": "^6.3.3"
+    "vite": "^6.3.3",
+    "vite-plugin-singlefile": "^2.2.0"
   }
 }

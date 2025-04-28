@@ -16,6 +16,7 @@ This app controls a rotation target system via REST API calls, using a minimal a
 - Mobile-first responsive design
 - Fully offline-capable with locally hosted assets
 - Mock server for local development testing
+- Automatic ZIP packaging after build
 
 ---
 
@@ -49,25 +50,34 @@ npm run dev
 ```
 
 - Hot-reloads when you save changes.
+- Uses mock API endpoints (`/api/programs`, `/api/target/turn`, etc.).
 
 ---
 
-### Build Production Files
+### Build for Production and Auto-Generate ZIP
 
-Generate optimized static files for production deployment:
+Generate optimized static files and automatically package them into a versioned ZIP:
 
 ```bash
 npm run build
 ```
 
-Outputs everything into the `/dist` folder, ready for serving from your C application.
+This will:
+
+- Build the project into the `/dist/` folder
+- Automatically create a zip file named:
+
+```
+msg_rotation-target-web-app_<version>.zip
+```
+
+(for example: `msg_rotation-target-web-app_0.1.0.zip`)
+
+✅ You will find the zip file in your project root, ready for flashing or deployment.
 
 ---
 
 ## API Endpoints (Mock Server)
-
-> **NOTE:** Actual endpoints are TBD with @frazze
-
 
 The mock server responds to these API calls:
 
@@ -88,6 +98,7 @@ The mock server responds to these API calls:
 - Local icons (`play.svg`, `stop.svg`) are used to avoid external CDN dependencies — fully offline-ready.
 - Responsive, mobile-first design.
 - Footer text is pinned at the bottom even on tall screens.
+- Build + zip system is fully automated.
 
 ---
 
