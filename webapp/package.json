@@ -1,0 +1,20 @@
+{
+  "name": "msg_rotation_target_web_app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@preact/signals": "^2.0.4",
+    "@shoelace-style/shoelace": "^2.0.0",
+    "preact": "^10.15.1"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.5.3",
+    "typescript": "^5.4.5",
+    "vite": "^6.3.3"
+  }
+}
