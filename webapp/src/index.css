@@ -1,10 +1,41 @@
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
-  background-color: #f9f9f9;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  box-sizing: border-box;
 }
 
-ul {
-  list-style: none;
-  padding: 0;
+#logo {
+  width: 100px;
+  margin: 1rem auto;
+}
+
+.centered {
+  margin: 1rem auto;
+}
+
+.buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+
+footer {
+  margin-top: auto;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+/* ✅ New styles */
+fluent-button.start {
+  background-color: green;
+  color: white;
+}
+
+fluent-button.stop {
+  background-color: red;
+  color: white;
 }
