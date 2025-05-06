@@ -29,37 +29,62 @@ footer {
   color: #666;
 }
 
-fluent-button.start::part(control) {
+button {
+  font-size: 1rem;
+  padding: 0.5rem 1.2rem;
+  border-radius: 6px;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.start {
   background-color: green;
   color: white;
-  /* border: none; */
 }
 
-fluent-button.stop::part(control) {
+button.stop {
   background-color: red;
-  fillColor: red;
   color: white;
-  /* border: none; */
 }
 
-fluent-button.turn::part(control) {
-  background-color: #0084ff;
-  fillColor: red;
+button.primary {
+  background-color: #0078d4;
   color: white;
-  /* border: none; */
 }
 
-
-fluent-button::part(control) {
-  font-weight: bold;
-}
-
-fluent-button img {
+button .icon {
   width: 1em;
   height: 1em;
-  margin-right: 0.5em;
-  vertical-align: middle;
   filter: invert(1);
 }
 
+select {
+  font-size: 1rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  color: #333;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg width='14' height='10' viewBox='0 0 14 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l6 6 6-6' stroke='%23333' stroke-width='2' fill='none' fill-rule='evenodd'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 0.65rem;
+  width: 220px;
+}
+
+select:focus {
+  outline: none;
+  border-color: #0078d4;
+  box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.3);
 }

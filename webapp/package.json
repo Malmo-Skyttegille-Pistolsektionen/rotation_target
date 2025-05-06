@@ -1,18 +1,16 @@
 {
-  "name": "msg_rotation_target_vanilla_fluent_custom",
+  "name": "msg rotation target",
   "version": "0.1.0",
+  "type": "module",
   "private": true,
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "zip": "ts-node scripts/zip-dist.ts"
   },
-  "dependencies": {
-    "@fluentui/web-components": "^2.5.13"
-  },
   "devDependencies": {
-    "vite": "^6.3.3",
+    "ts-node": "^10.9.1",
     "typescript": "^5.4.5",
-    "ts-node": "^10.9.1"
+    "vite": "^6.3.3"
   }
 }

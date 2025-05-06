@@ -4,36 +4,34 @@
 <head>
   <meta charset="UTF-8" />
   <title>MSG Rotation Target</title>
-  <link rel="stylesheet" href="https://unpkg.com/@fluentui/web-components/dist/dark.css"
-    media="(prefers-color-scheme: dark)">
-  <link rel="stylesheet" href="https://unpkg.com/@fluentui/web-components/dist/light.css"
-    media="(prefers-color-scheme: light)">
   <link rel="stylesheet" href="/src/index.css" />
-
-
   <script type="module" src="/src/main.js"></script>
-
 </head>
 
 <body>
   <img src="/msg_logo.png" alt="MSG Logo" id="logo" />
+
   <div class="centered">
-    <fluent-button id="turn-btn" class="turn" appearance="x">Turn Targets</fluent-button>
+    <button id="turn-btn" class="primary">Turn Targets</button>
   </div>
+
   <div class="centered">
-    <fluent-select id="programs"></fluent-select>
+    <select id="programs">
+    </select>
   </div>
+
   <div class="centered buttons">
-    <fluent-button id="start-btn" class="start" appearance="x">
+    <button id="start-btn" class="start" disabled>
       <img src="/icons/play_24_regular.svg" class="icon" />
       Start
-    </fluent-button>
+    </button>
 
-    <fluent-button id="stop-btn" class="stop" appearance="x">
+    <button id="stop-btn" class="stop" disabled>
       <img src="/icons/stop_24_regular.svg" class="icon" />
       Stop
-    </fluent-button>
+    </button>
   </div>
+
   <footer id="footer">Loading version...</footer>
 </body>
 
