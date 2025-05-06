@@ -29,13 +29,37 @@ footer {
   color: #666;
 }
 
-/* ✅ New styles */
-fluent-button.start {
+fluent-button.start::part(control) {
   background-color: green;
   color: white;
+  /* border: none; */
 }
 
-fluent-button.stop {
+fluent-button.stop::part(control) {
   background-color: red;
+  fillColor: red;
   color: white;
+  /* border: none; */
+}
+
+fluent-button.turn::part(control) {
+  background-color: #0084ff;
+  fillColor: red;
+  color: white;
+  /* border: none; */
+}
+
+
+fluent-button::part(control) {
+  font-weight: bold;
+}
+
+fluent-button img {
+  width: 1em;
+  height: 1em;
+  margin-right: 0.5em;
+  vertical-align: middle;
+  filter: invert(1);
+}
+
 }
