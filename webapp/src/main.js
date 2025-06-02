@@ -1,4 +1,5 @@
-
+import { connectToEventStream, EventType  } from './sse-client.js';
+import { fetchPrograms, loadProgram, startProgram, stopProgram } from './rest-client.js';
 
 const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
 const appName = "Malmö Skyttegille Rotation Target";
@@ -8,11 +9,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const select = document.getElementById("programs");
   const startBtn = document.getElementById("start-btn");
   const stopBtn = document.getElementById("stop-btn");
-  const turnBtn = document.getElementById("turn-btn");
   const footer = document.getElementById("footer");
-  
+
   document.title = appTitle;
   footer.textContent = appTitle;
+
   let selectedId = null;
 
   const updateButtons = () => {
@@ -21,54 +22,60 @@ document.addEventListener("DOMContentLoaded", () => {
     stopBtn.disabled = disabled;
   };
 
+  const log = (msg) => console.log("💬", msg);
 
-    // ✅ Add placeholder (not selected)
+  fetchPrograms().then(programs => {
+    select.innerHTML = "";
     const placeholder = document.createElement("option");
     placeholder.disabled = true;
+    placeholder.selected = true;
     placeholder.value = "";
     placeholder.textContent = "Choose program...";
     select.appendChild(placeholder);
-  
-  // Load programs
-  fetch("/api/programs")
-    .then((res) => res.json())
-    .then((data) => {
-      for (const [id, label] of Object.entries(data.programs)) {
-        const option = document.createElement("option");
-        option.value = id;
-        option.textContent = label;
-        select.appendChild(option);
-      }
-    });
+
+    for (const [id, title] of Object.entries(programs)) {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = title;
+      select.appendChild(option);
+    }
+  });
+
+  connectToEventStream((type, data) => {
+    switch (type) {
+      case EventType.ProgramLoaded:
+        log(`Program ${data.id} loaded.`);
+        break;
+      case EventType.SeriesStarted:
+        log(`Series started: ${data.name}`);
+        break;
+      case EventType.SeriesCompleted:
+        log(`Series completed: ${data.name}`);
+        break;
+      case EventType.ProgramCompleted:
+        log(`Program finished.`);
+        break;
+    }
+  });
 
   select.addEventListener("change", (e) => {
     selectedId = e.target.value || null;
     updateButtons();
 
-    if (placeholder.parentNode) {
-      placeholder.parentNode.removeChild(placeholder);
-    }    
+    if (selectedId) {
+      loadProgram(Number(selectedId));
+    }
   });
 
   startBtn.addEventListener("click", () => {
     if (selectedId) {
-      fetch(`/api/programs/start?id=${selectedId}`, { method: "POST" })
-        .then(res => res.json())
-        .then(data => console.log("Start response:", data));
+      startProgram();
     }
   });
 
   stopBtn.addEventListener("click", () => {
     if (selectedId) {
-      fetch(`/api/programs/stop?id=${selectedId}`, { method: "POST" })
-        .then(res => res.json())
-        .then(data => console.log("Stop response:", data));
+      stopProgram();
     }
-  });
-
-  turnBtn.addEventListener("click", () => {
-    fetch("/api/target/turn", { method: "POST" })
-      .then(res => res.json())
-      .then(data => console.log("Turn response:", data));
   });
 });

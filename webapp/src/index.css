@@ -13,6 +13,22 @@ body {
   margin: 1rem auto;
 }
 
+h1 {
+  font-size: 1.75rem;
+  margin: 0;
+}
+
+h2 {
+  margin-top: 2rem;
+  font-size: 1.2rem;
+}
+
+main {
+  padding: 1rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
 .centered {
   margin: 1rem auto;
 }
@@ -87,4 +103,37 @@ select:focus {
   outline: none;
   border-color: #0078d4;
   box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.3);
+}
+
+.audio-upload form {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem auto;
+  align-items: center;
+}
+
+.audio-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 1rem auto;
+  max-width: 400px;
+}
+
+.audio-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem;
+  border-bottom: 1px solid #ddd;
+}
+
+
+.hidden {
+  display: none;
+}
+
+.audio-toggle {
+  margin: 2rem auto;
+  text-align: center;
 }

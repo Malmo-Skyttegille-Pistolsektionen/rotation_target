@@ -1,107 +1,57 @@
-# MSG Rotation Target Web App
+# MSG Shooting Target Web App (Mock Client)
 
-A lightweight web application built for mobile devices, served by a C backend with limited flash memory.
+This is a development setup for the MSG rotation target system frontend using:
 
-This app controls a rotation target system via REST API calls, using a minimal and responsive Preact + Vite frontend.
-
----
+- REST API (OpenAPI 3.1.0)
+- Server-Sent Events (SSE) for real-time updates
+- Mock backend using Vite middleware
 
 ## Features
 
-- List available target programs
-- Select a program
-- Start and Stop selected programs
-- Turn target manually
-- Display version from `package.json`
-- Mobile-first responsive design
-- Fully offline-capable with locally hosted assets
-- Mock server for local development testing
-- Automatic ZIP packaging after build
+- Load and run shooting programs
+- Upload and delete audio files
+- View and track real-time program status
+- Built-in mock server for development
 
----
+## File Overview
 
-## Tech Stack
+| File              | Purpose                                                   |
+|-------------------|-----------------------------------------------------------|
+| `vite.config.ts`  | Vite plugin with REST and SSE mock logic                  |
+| `main.js`         | Application shell wiring up program selection and control |
+| `rest-client.js`  | All REST API interactions from OpenAPI spec               |
+| `sse-client.js`   | SSE connection + event type map                           |
+| `integration-ui.js` | UI logic for audio uploads, status rendering, etc.       |
 
-- [Preact](https://preactjs.com/) + [TypeScript](https://www.typescriptlang.org/)
-- [Vite](https://vitejs.dev/)
-- [Shoelace](https://shoelace.style/) for UI components
-- Local custom icons (`play.svg`, `stop.svg`)
+## SSE Events Handled
 
----
+- `program_loaded`
+- `series_started`
+- `event_started`
+- `series_completed`
+- `series_skipped`
+- `program_completed`
+- `sts_status`
 
-## Development and Build Instructions
+## REST Endpoints (Examples)
 
-### Install Dependencies
-
-First, install all required packages:
-
-```bash
-npm install
+```http
+GET /programs
+POST /programs
+POST /programs/{id}/load
+POST /programs/start
+POST /programs/stop
+POST /programs/skip_to
+GET /status
+GET /audios
+POST /audios/upload
+POST /audios/delete
 ```
 
----
+## Development
 
-### Run Development Server (with mock API)
+Start your Vite dev server and the mock server will intercept requests automatically.
 
-Start a local dev server at `http://localhost:5173`:
-
-```bash
+```
 npm run dev
 ```
-
-- Hot-reloads when you save changes.
-- Uses mock API endpoints (`/api/programs`, `/api/target/turn`, etc.).
-
----
-
-### Build for Production and Auto-Generate ZIP
-
-Generate optimized static files and automatically package them into a versioned ZIP:
-
-```bash
-npm run build
-```
-
-This will:
-
-- Build the project into the `/dist/` folder
-- Automatically create a zip file named:
-
-```
-msg_rotation-target-web-app_<version>.zip
-```
-
-(for example: `msg_rotation-target-web-app_0.1.0.zip`)
-
-✅ You will find the zip file in your project root, ready for flashing or deployment.
-
----
-
-## API Endpoints (Mock Server)
-
-The mock server responds to these API calls:
-
-| Endpoint | Method | Description |
-|:---------|:-------|:------------|
-| `/api/programs` | `GET` | Returns a list of available programs (`["10 seconds", "8 seconds", "6 seconds"]`) |
-| `/api/target/turn` | `POST` | Triggers the target to turn |
-| `/api/programs/:program/start` | `POST` | Starts the selected program |
-| `/api/programs/:program/stop` | `POST` | Stops the selected program |
-
-✅ These mock responses allow you to develop and test the web application without a real backend.
-
----
-
-## Notes
-
-- `__APP_VERSION__` is injected automatically from `package.json` using Vite during build and dev.
-- Local icons (`play.svg`, `stop.svg`) are used to avoid external CDN dependencies — fully offline-ready.
-- Responsive, mobile-first design.
-- Footer text is pinned at the bottom even on tall screens.
-- Build + zip system is fully automated.
-
----
-
-## License
-
-MIT License

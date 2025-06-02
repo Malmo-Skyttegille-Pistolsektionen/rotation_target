@@ -4,35 +4,74 @@
 <head>
   <meta charset="UTF-8" />
   <title>MSG Rotation Target</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="/src/index.css" />
   <script type="module" src="/src/main.js"></script>
 </head>
 
 <body>
-  <img src="/msg_logo.png" alt="MSG Logo" id="logo" />
+  <header>
+    <img src="/msg_logo.png" alt="MSG Logo" id="logo" />
+    <h1>MSG Rotation Target</h1>
+  </header>
 
-  <div class="centered">
-    <button id="turn-btn" class="primary">Turn Targets</button>
-  </div>
+  <main>
+    <section class="status">
+      <h2>Status</h2>
+      <p id="status">Loading status...</p>
+    </section>
 
-  <div class="centered">
-    <select id="programs">
-    </select>
-  </div>
+    <section class="program">
+      <h2>Program Control</h2>
+      <div class="program-select centered">
+        <label for="programs">Select Program:</label>
+        <select id="programs"></select>
+      </div>
 
-  <div class="centered buttons">
-    <button id="start-btn" class="start" disabled>
-      <img src="/icons/play_24_regular.svg" class="icon" />
-      Start
-    </button>
+      <div class="buttons">
+        <button id="start-btn" class="start" disabled>
+          <img src="/icons/play_24_regular.svg" class="icon" />
+          Start
+        </button>
+        <button id="stop-btn" class="stop" disabled>
+          <img src="/icons/stop_24_regular.svg" class="icon" />
+          Stop
+        </button>
+        <button id="turn-btn" class="primary">Turn Targets</button>
+      </div>
+    </section>
 
-    <button id="stop-btn" class="stop" disabled>
-      <img src="/icons/stop_24_regular.svg" class="icon" />
-      Stop
-    </button>
-  </div>
+    <section class="audio-toggle">
+      <button id="toggle-audio" class="primary">Manage Audio</button>
+    </section>
+
+    <div id="audio-section" class="hidden">
+      <section class="audio-upload">
+        <h2>Upload Audio</h2>
+        <form id="audio-form">
+          <input type="file" id="audio-file" accept=".mp3,audio/*" required />
+          <input type="text" id="audio-title" placeholder="Title" required />
+          <select id="audio-codec" required>
+            <option value="pcm">PCM</option>
+            <option value="mp3">MP3</option>
+          </select>
+          <button type="submit" class="primary">Upload</button>
+        </form>
+      </section>
+
+      <section class="audio-list">
+        <h2>Audio Library</h2>
+        <ul id="audio-container"></ul>
+      </section>
+    </div>
+  </main>
 
   <footer id="footer">Loading version...</footer>
-</body>
 
+  <script>
+    document.getElementById("toggle-audio").addEventListener("click", () => {
+      document.getElementById("audio-section").classList.toggle("hidden");
+    });
+  </script>
+</body>
 </html>

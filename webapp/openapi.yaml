@@ -1,0 +1,264 @@
+openapi: 3.1.0
+info:
+  title: MSG Shooting Target System REST API
+  version: 0.1.0
+
+paths:
+  /programs:
+    get:
+      summary: List all programs
+      responses:
+        "200":
+          description: A list of programs
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+    post:
+      summary: Upload a new program
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProgramUpload"
+      responses:
+        "201":
+          description: Program uploaded
+        "400":
+          description: Invalid program structure
+
+  /programs/{id}:
+    get:
+      summary: Get a specific program
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Program found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Program"
+        "404":
+          description: Program not found
+
+  /programs/{id}/load:
+    post:
+      summary: Load a specific program
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Program loaded
+        "404":
+          description: Program ID not found
+
+  /programs/start:
+    post:
+      summary: Start next series
+      responses:
+        "200":
+          description: Series started
+        "400":
+          description: No program loaded
+
+  /programs/stop:
+    post:
+      summary: Stop current series
+      responses:
+        "200":
+          description: Series stopped
+        "400":
+          description: No program running
+
+  /programs/skip_to:
+    post:
+      summary: Skip to a specific series
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                series_index:
+                  type: integer
+      responses:
+        "200":
+          description: Skipped
+        "400":
+          description: No program loaded or invalid series index
+
+  /status:
+    get:
+      summary: Get current program status
+      responses:
+        "200":
+          description: Current program state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgramStatus"
+
+  /audios:
+    get:
+      summary: List all audios
+      responses:
+        "200":
+          description: Built-in and uploaded audio files
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  builtin:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Audio"
+                  uploaded:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Audio"
+
+  /audios/upload:
+    post:
+      summary: Upload a new audio file
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - codec
+                - title
+              properties:
+                file:
+                  type: string
+                  format: binary
+                codec:
+                  type: string
+                  enum: [pcm, mp3]
+                title:
+                  type: string
+    responses:
+      "201":
+        description: Audio uploaded
+      "415":
+        description: Unsupported Media Type — invalid audio format
+
+  /audios/delete:
+    post:
+      summary: Delete an uploaded audio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+      responses:
+        "200":
+          description: Audio deleted
+        "400":
+          description: Audio is in use or cannot be deleted
+        "404":
+          description: Audio not found
+
+components:
+  schemas:
+    Audio:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+
+    Program:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        series:
+          type: array
+          items:
+            $ref: "#/components/schemas/Series"
+
+    ProgramUpload:
+      type: object
+      required: [title, description, series]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        series:
+          type: array
+          items:
+            $ref: "#/components/schemas/Series"
+
+    Series:
+      type: object
+      properties:
+        name:
+          type: string
+        optional:
+          type: boolean
+          default: false
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+
+    Event:
+      type: object
+      properties:
+        duration:
+          type: integer
+          description: |
+            Duration of the event in tenths of a second.
+            For example: 1 = 0.1s, 2 = 0.2s, ..., 10 = 1.0s
+        command:
+          type: string
+        audio_id:
+          type: integer # refers to audio ID
+
+    ProgramStatus:
+      type: object
+      properties:
+        running:
+          type: boolean
+        program_id:
+          type: integer
+          nullable: true
+          description: |
+            If a program is loaded, this is its ID.
+            Null means no program is currently loaded.
+        next_event:
+          type: object
+          description: Optional. Present only if a next event is known.
+          required:
+            - series_index
+            - event_index
+          properties:
+            series_index:
+              type: integer
+            event_index:
+              type: integer
