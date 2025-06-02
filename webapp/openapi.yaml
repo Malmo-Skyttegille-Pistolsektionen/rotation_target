@@ -8,14 +8,21 @@ paths:
     get:
       summary: List all programs
       responses:
-        "200":
-          description: A list of programs
+        '200':
+          description: List of available programs with ID, title, and description
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties:
-                  type: string
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    title:
+                      type: string
+                    description:
+                      type: string
     post:
       summary: Upload a new program
       requestBody:
@@ -23,11 +30,11 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ProgramUpload"
+              $ref: '#/components/schemas/ProgramUpload'
       responses:
-        "201":
+        '201':
           description: Program uploaded
-        "400":
+        '400':
           description: Invalid program structure
 
   /programs/{id}:
@@ -40,13 +47,13 @@ paths:
           schema:
             type: integer
       responses:
-        "200":
+        '200':
           description: Program found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Program"
-        "404":
+                $ref: '#/components/schemas/Program'
+        '404':
           description: Program not found
 
   /programs/{id}/load:
@@ -59,27 +66,27 @@ paths:
           schema:
             type: integer
       responses:
-        "200":
+        '200':
           description: Program loaded
-        "404":
+        '404':
           description: Program ID not found
 
   /programs/start:
     post:
       summary: Start next series
       responses:
-        "200":
+        '200':
           description: Series started
-        "400":
+        '400':
           description: No program loaded
 
   /programs/stop:
     post:
       summary: Stop current series
       responses:
-        "200":
+        '200':
           description: Series stopped
-        "400":
+        '400':
           description: No program running
 
   /programs/skip_to:
@@ -95,27 +102,27 @@ paths:
                 series_index:
                   type: integer
       responses:
-        "200":
+        '200':
           description: Skipped
-        "400":
+        '400':
           description: No program loaded or invalid series index
 
   /status:
     get:
       summary: Get current program status
       responses:
-        "200":
+        '200':
           description: Current program state
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ProgramStatus"
+                $ref: '#/components/schemas/ProgramStatus'
 
   /audios:
     get:
       summary: List all audios
       responses:
-        "200":
+        '200':
           description: Built-in and uploaded audio files
           content:
             application/json:
@@ -125,11 +132,11 @@ paths:
                   builtin:
                     type: array
                     items:
-                      $ref: "#/components/schemas/Audio"
+                      $ref: '#/components/schemas/Audio'
                   uploaded:
                     type: array
                     items:
-                      $ref: "#/components/schemas/Audio"
+                      $ref: '#/components/schemas/Audio'
 
   /audios/upload:
     post:
@@ -153,11 +160,11 @@ paths:
                   enum: [pcm, mp3]
                 title:
                   type: string
-    responses:
-      "201":
-        description: Audio uploaded
-      "415":
-        description: Unsupported Media Type — invalid audio format
+      responses:
+        '201':
+          description: Audio uploaded
+        '415':
+          description: Unsupported Media Type — invalid audio format
 
   /audios/delete:
     post:
@@ -172,11 +179,11 @@ paths:
                 id:
                   type: integer
       responses:
-        "200":
+        '200':
           description: Audio deleted
-        "400":
+        '400':
           description: Audio is in use or cannot be deleted
-        "404":
+        '404':
           description: Audio not found
 
 components:
@@ -199,7 +206,7 @@ components:
         series:
           type: array
           items:
-            $ref: "#/components/schemas/Series"
+            $ref: '#/components/schemas/Series'
 
     ProgramUpload:
       type: object
@@ -212,7 +219,7 @@ components:
         series:
           type: array
           items:
-            $ref: "#/components/schemas/Series"
+            $ref: '#/components/schemas/Series'
 
     Series:
       type: object
@@ -225,7 +232,7 @@ components:
         events:
           type: array
           items:
-            $ref: "#/components/schemas/Event"
+            $ref: '#/components/schemas/Event'
 
     Event:
       type: object
@@ -238,7 +245,7 @@ components:
         command:
           type: string
         audio_id:
-          type: integer # refers to audio ID
+          type: integer  # refers to audio ID
 
     ProgramStatus:
       type: object
@@ -248,9 +255,6 @@ components:
         program_id:
           type: integer
           nullable: true
-          description: |
-            If a program is loaded, this is its ID.
-            Null means no program is currently loaded.
         next_event:
           type: object
           description: Optional. Present only if a next event is known.

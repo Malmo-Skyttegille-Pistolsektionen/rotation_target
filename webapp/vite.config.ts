@@ -47,17 +47,15 @@ export default defineConfig({
 
           if (url.pathname === '/programs' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ 1: "Mock Program" }));
+            res.end(JSON.stringify([
+      { "id": 1, "title": "Mock Program", "description": "Test program with events" }
+    ]));
             return;
           }
 
           if (url.pathname === '/programs/1' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({
-              title: "Mock Program",
-              description: "Test data",
-              series: [{ name: "Main", events: [{ duration: 10, command: "show", audio_id: 101 }] }]
-            }));
+            res.end(JSON.stringify({'title': 'Mock Program', 'description': 'Test data', 'series': [{'name': 'Main Series', 'optional': False, 'events': [{'duration': 10, 'command': 'show', 'audio_id': 101}, {'duration': 5, 'command': 'hide', 'audio_id': 1}]}, {'name': 'Bonus Round', 'optional': True, 'events': [{'duration': 6, 'command': 'toggle', 'audio_id': 2}]}]}));
             return;
           }
 

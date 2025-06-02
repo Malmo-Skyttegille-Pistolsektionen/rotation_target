@@ -1,4 +1,4 @@
-import { connectToEventStream, EventType  } from './sse-client.js';
+import { connectToEventStream, EventType } from './sse-client.js';
 import { fetchPrograms, loadProgram, startProgram, stopProgram } from './rest-client.js';
 
 const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
@@ -33,7 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
     placeholder.textContent = "Choose program...";
     select.appendChild(placeholder);
 
-    for (const [id, title] of Object.entries(programs)) {
+    for (const { id, title } of programs) {
       const option = document.createElement("option");
       option.value = id;
       option.textContent = title;

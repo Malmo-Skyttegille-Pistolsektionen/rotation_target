@@ -12,8 +12,9 @@ export async function showProgramStatus() {
     const status = await getStatus();
     const statusEl = document.getElementById('status');
     const text = status.program_id != null
-    ? `Program ID: ${status.program_id}, Running: ${status.running}, Next Event: ${status.next_event ? `S${status.next_event.series_index}E${status.next_event.event_index}` : 'N/A'}`
-    : "No program loaded";
+      ? `Program ID: ${status.program_id}, Running: ${status.running}, Next Event: ${status.next_event ? `S${status.next_event.series_index}E${status.next_event.event_index}` : 'N/A'}`
+      : "No program loaded";
+
     statusEl.textContent = text;
   } catch (err) {
     log("Failed to get status");
