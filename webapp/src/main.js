@@ -12,28 +12,45 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Populate dropdown
   const selector = document.getElementById("programs");
-  const programs = await fetchPrograms();
-  programs.forEach(({ id, title }) => {
-    const opt = document.createElement("option");
-    opt.value = id;
-    opt.textContent = `${id}: ${title}`;
-    selector.appendChild(opt);
-  });
+
+  // Add default prompt option
+  const defaultOpt = document.createElement("option");
+  defaultOpt.disabled = true;
+  defaultOpt.selected = true;
+  defaultOpt.textContent = "Choose a program";
+  selector.appendChild(defaultOpt);
+
+  try {
+    const programs = await fetchPrograms();
+    console.log("Fetched programs:", programs);
+    programs.forEach(({ id, title }) => {
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = `${id}: ${title}`;
+      selector.appendChild(opt);
+    });
+  } catch (err) {
+    console.error("Error fetching programs:", err);
+  }
 
   selector.addEventListener("change", async () => {
     const id = parseInt(selector.value, 10);
     if (!isNaN(id)) {
+      console.log("Selected program ID:", id);
       await loadProgram(id);
-      const program = await getProgram(id);
-      window.currentProgram = program;
-      renderTimeline(program);
-      setCurrent(0, 0);
+      try {
+        const program = await getProgram(id);
+        console.log("Fetched program data:", program);
+        window.currentProgram = program;
+        renderTimeline(program);
+        setCurrent(0, 0);
+      } catch (err) {
+        console.error("Failed to fetch program by ID:", err);
+      }
     }
   });
 
-  // Attach start/stop buttons
   document.getElementById("start-btn").addEventListener("click", async () => {
     await startProgram();
   });

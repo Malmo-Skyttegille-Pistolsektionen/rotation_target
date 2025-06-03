@@ -1,0 +1,546 @@
+{
+    "title": "Militär Snabbmatch",
+    "description": "Full 3-stage match with 4+2 series per stage",
+    "series": [
+        {
+            "name": "10s Series 1",
+            "optional": false,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 100,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "10s Series 2",
+            "optional": false,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 100,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "10s Series 3",
+            "optional": false,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 100,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "10s Series 4",
+            "optional": false,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 100,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "10s Series 5 (optional)",
+            "optional": true,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 100,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "10s Series 6 (optional)",
+            "optional": true,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 100,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "8s Series 1",
+            "optional": false,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 80,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "8s Series 2",
+            "optional": false,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 80,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "8s Series 3",
+            "optional": false,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 80,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "8s Series 4",
+            "optional": false,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 80,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "8s Series 5 (optional)",
+            "optional": true,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 80,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "8s Series 6 (optional)",
+            "optional": true,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 80,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "6s Series 1",
+            "optional": false,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 60,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "6s Series 2",
+            "optional": false,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 60,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "6s Series 3",
+            "optional": false,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 60,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "6s Series 4",
+            "optional": false,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 60,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "6s Series 5 (optional)",
+            "optional": true,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 60,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        },
+        {
+            "name": "6s Series 6 (optional)",
+            "optional": true,
+            "events": [
+                {
+                    "duration": 600,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 60,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 30,
+                    "audio_id": 1
+                },
+                {
+                    "duration": 10,
+                    "command": "show"
+                }
+            ]
+        }
+    ]
+}

@@ -1,4 +1,7 @@
 import { defineConfig } from 'vite';
+import fs from 'fs';
+
+const program_1_data = JSON.parse(fs.readFileSync('./test/data/program_1.json', 'utf-8'));
 
 export default defineConfig({
   plugins: [
@@ -48,14 +51,14 @@ export default defineConfig({
           if (url.pathname === '/programs' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify([
-      { "id": 1, "title": "Mock Program", "description": "Test program with events" }
-    ]));
+              { "id": 1, "title": program_1_data.title, "description": program_1_data.description }
+            ]));
             return;
           }
 
           if (url.pathname === '/programs/1' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({'title': 'Mock Program', 'description': 'Test data', 'series': [{'name': 'Main Series', 'optional': False, 'events': [{'duration': 10, 'command': 'show', 'audio_id': 101}, {'duration': 5, 'command': 'hide', 'audio_id': 1}]}, {'name': 'Bonus Round', 'optional': True, 'events': [{'duration': 6, 'command': 'toggle', 'audio_id': 2}]}]}));
+            res.end(JSON.stringify(program_1_data));
             return;
           }
 

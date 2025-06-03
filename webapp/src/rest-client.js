@@ -66,3 +66,9 @@ export function deleteAudio(id) {
     body: JSON.stringify({ id })
   });
 }
+
+export async function turnTargets() {
+  const res = await fetch(`/api/target/turn`, { method: 'POST' });
+  if (!res.ok) throw new Error("Failed to turn targets");
+  return res.json();
+}
