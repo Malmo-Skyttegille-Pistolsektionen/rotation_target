@@ -3,8 +3,13 @@ import { renderTimeline, setCurrent, toggleRaw, clearCurrent } from './visualiza
 import { getProgram, fetchPrograms, loadProgram, startProgram, stopProgram, turnTargets } from './rest-client.js';
 import { connectToEventStream } from './sse-client.js';
 
-
 document.addEventListener("DOMContentLoaded", async () => {
+  const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
+  const appName = "Malmö Skyttegille Rotation Target";
+  const appTitle = `${appName} v${appVersion}`;
+  document.title = appTitle;
+  document.getElementById("footer").textContent = appTitle;
+
   document.getElementById("toggle-audio").addEventListener("click", () => {
     document.getElementById("audio-section").classList.toggle("hidden");
   });
@@ -14,10 +19,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       toggleRaw(window.currentProgram);
     }
   });
-
-  const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
-  const appName = "Malmö Skyttegille Rotation Target";
-  const appTitle = `${appName} v${appVersion}`;
 
   const selector = document.getElementById("programs");
 
@@ -91,4 +92,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       handlers[type](payload);
     }
   });
+
+  // Set initial status
+  try {
+    const statusRes = await fetch("/status");
+    const status = await statusRes.json();
+    document.getElementById("status").textContent = status.program_id != null
+      ? "Program ID: " + status.program_id + ", Running: " + status.running + ", Next Event: " +
+      (status.next_event ? "S" + status.next_event.series_index + "E" + status.next_event.event_index : "N/A")
+      : "No program loaded";
+
+  } catch {
+    document.getElementById("status").textContent = "Status unavailable";
+  }
 });
