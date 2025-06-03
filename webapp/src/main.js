@@ -14,12 +14,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("audio-section").classList.toggle("hidden");
   });
 
-  document.getElementById("toggle-raw").addEventListener("click", () => {
+  document.getElementById("show-raw-json").addEventListener("click", () => {
     if (window.currentProgram) {
-      toggleRaw(window.currentProgram);
+      const rawWin = window.open('', '_blank');
+      rawWin.document.write(`<pre>${JSON.stringify(window.currentProgram, null, 2)}</pre>`);
+      rawWin.document.title = "Program JSON";
     }
   });
-
   const selector = document.getElementById("programs");
 
   const defaultOpt = document.createElement("option");
@@ -44,14 +45,26 @@ document.addEventListener("DOMContentLoaded", async () => {
   selector.addEventListener("change", async () => {
     const id = parseInt(selector.value, 10);
     if (!isNaN(id)) {
-      console.log("Selected program ID:", id);
       await loadProgram(id);
       try {
         const program = await getProgram(id);
-        console.log("Fetched program data:", program);
         window.currentProgram = program;
         renderTimeline(program);
         setCurrent(0, 0);
+
+        // Populate series dropdown
+        const seriesDropdown = document.getElementById("series");
+        seriesDropdown.innerHTML = "";
+        program.series.forEach((s, i) => {
+          const opt = document.createElement("option");
+          opt.value = i;
+          opt.textContent = `${i}: ${s.name}`;
+          seriesDropdown.appendChild(opt);
+        });
+        seriesDropdown.classList.remove("hidden");
+
+        document.getElementById("show-raw-json").classList.remove("hidden");
+
       } catch (err) {
         console.error("Failed to fetch program by ID:", err);
       }
@@ -68,6 +81,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("turn-btn").addEventListener("click", async () => {
     await turnTargets();
+  });
+
+  document.getElementById("skip-to-btn").addEventListener("click", async () => {
+    const idx = parseInt(document.getElementById("skip-to-input").value, 10);
+    if (!isNaN(idx)) {
+      await fetch("/programs/skip_to", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ series_index: idx })
+      });
+    }
   });
 
   const handlers = {

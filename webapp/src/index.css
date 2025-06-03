@@ -137,3 +137,95 @@ select:focus {
   margin: 2rem auto;
   text-align: center;
 }
+
+
+.series {
+  display: flex;
+  flex-direction: column;
+  margin: 1rem 0;
+  padding: 0.5rem;
+  border-radius: 8px;
+}
+
+.series.current .events {
+  border: 2px solid black;
+}
+
+.series.optional {
+  background-color: #f9f9f9;
+}
+
+.events {
+  display: flex;
+  justify-content: flex-start;
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.event {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.symbol {
+  font-size: 1.25rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 2px solid black;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.symbol.filled {
+  background-color: black;
+  color: white;
+}
+
+.symbol.empty {
+  background-color: white;
+}
+
+.symbol.A {
+  border: none;
+  font-weight: bold;
+  background: none;
+}
+
+.event.current {
+  outline: 2px dashed green;
+  outline-offset: 4px;
+}
+
+.dur,
+.acc {
+  font-size: 0.8rem;
+}
+
+.buttons {
+  position: sticky;
+  top: 0;
+  background: white;
+  padding: 1rem;
+  z-index: 100;
+  border-bottom: 1px solid #ccc;
+}
+
+.program-controls-row {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+  margin: 1rem auto;
+}
+
+button.hamburger {
+  font-size: 1.5rem;
+  background: none;
+  border: none;
+  color: #0078d4;
+  cursor: pointer;
+}
