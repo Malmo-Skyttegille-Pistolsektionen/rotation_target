@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import fs from 'fs';
+import type { ServerResponse } from 'http'; // add this import at the top
 
 const program_1_data = JSON.parse(fs.readFileSync('./test/data/program_1.json', 'utf-8'));
 
@@ -8,13 +9,20 @@ export default defineConfig({
     {
       name: 'mock-rest-sse',
       configureServer(server) {
-        let currentState = {
+
+        type ProgramState = {
+          running: boolean;
+          program_id: number | null;
+          next_event: { series_index: number; event_index: number } | null;
+        };
+
+        let currentState: ProgramState = {
           running: false,
           program_id: null,
           next_event: null
         };
 
-        const clients = [];
+        const clients: ServerResponse[] = [];
         let uploadedAudios = [
           { id: 101, title: "start.mp3" }
         ];

@@ -1,5 +1,8 @@
-import { renderTimeline, setCurrent, toggleRaw } from './visualization.js';
+
+import { renderTimeline, setCurrent, toggleRaw, clearCurrent } from './visualization.svg.js';
 import { getProgram, fetchPrograms, loadProgram, startProgram, stopProgram, turnTargets } from './rest-client.js';
+import { connectToEventStream } from './sse-client.js';
+
 
 document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("toggle-audio").addEventListener("click", () => {
@@ -12,9 +15,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
+  const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
+  const appName = "Malmö Skyttegille Rotation Target";
+  const appTitle = `${appName} v${appVersion}`;
+
   const selector = document.getElementById("programs");
 
-  // Add default prompt option
   const defaultOpt = document.createElement("option");
   defaultOpt.disabled = true;
   defaultOpt.selected = true;
@@ -61,5 +67,28 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("turn-btn").addEventListener("click", async () => {
     await turnTargets();
+  });
+
+  const handlers = {
+    program_loaded: () => setCurrent(0, 0),
+    series_started: () => setCurrent(0, 0),
+    event_started: ({ series_index, event_index }) => {
+      setCurrent(series_index, event_index);
+    },
+    series_completed: ({ next_series_index }) => {
+      setCurrent(next_series_index, 0);
+    },
+    series_skipped: ({ next_series_index }) => {
+      setCurrent(next_series_index, 0);
+    },
+    program_completed: () => {
+      clearCurrent();
+    }
+  };
+
+  connectToEventStream((type, payload) => {
+    if (handlers[type]) {
+      handlers[type](payload);
+    }
   });
 });
