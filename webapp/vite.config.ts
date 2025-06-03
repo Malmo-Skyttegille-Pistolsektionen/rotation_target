@@ -3,8 +3,13 @@ import fs from 'fs';
 import type { ServerResponse } from 'http'; // add this import at the top
 
 const program_1_data = JSON.parse(fs.readFileSync('./test/data/program_1.json', 'utf-8'));
+const { version } = JSON.parse(fs.readFileSync('./package.json', 'utf-8'));
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(version)
+  },
+
   plugins: [
     {
       name: 'mock-rest-sse',
