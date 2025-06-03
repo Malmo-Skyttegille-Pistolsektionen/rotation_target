@@ -88,10 +88,3 @@ export function clearCurrent() {
   document.querySelectorAll(".event").forEach(e => e.classList.remove("current"));
 }
 
-export function toggleRaw(program) {
-  const raw = document.getElementById("raw");
-  raw.style.display = raw.style.display === "none" ? "block" : "none";
-  if (!raw.textContent) {
-    raw.textContent = JSON.stringify(program, null, 2);
-  }
-}

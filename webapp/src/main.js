@@ -1,5 +1,5 @@
 
-import { renderTimeline, setCurrent, toggleRaw, clearCurrent } from './visualization.svg.js';
+import { renderTimeline, setCurrent, clearCurrent } from './visualization.svg.js';
 import { getProgram, fetchPrograms, loadProgram, startProgram, stopProgram, turnTargets } from './rest-client.js';
 import { connectToEventStream } from './sse-client.js';
 
@@ -81,17 +81,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("turn-btn").addEventListener("click", async () => {
     await turnTargets();
-  });
-
-  document.getElementById("skip-to-btn").addEventListener("click", async () => {
-    const idx = parseInt(document.getElementById("skip-to-input").value, 10);
-    if (!isNaN(idx)) {
-      await fetch("/programs/skip_to", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ series_index: idx })
-      });
-    }
   });
 
   const handlers = {
