@@ -11,7 +11,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("footer").textContent = appTitle;
 
   document.getElementById("toggle-audio").addEventListener("click", () => {
-    document.getElementById("audio-section").classList.toggle("hidden");
+    const menu = document.getElementById("menu");
+    menu.classList.toggle("hidden");
+  });
+
+  document.getElementById("manage-audio").addEventListener("click", () => {
+    const audioSection = document.getElementById("audio-section");
+    audioSection.classList.toggle("hidden");
+    document.getElementById("menu").classList.add("hidden"); // Hide menu after selection
   });
 
   document.getElementById("show-raw-json").addEventListener("click", () => {
@@ -64,6 +71,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         seriesDropdown.classList.remove("hidden");
 
         document.getElementById("show-raw-json").classList.remove("hidden");
+
+        document.getElementById("timeline").classList.remove("hidden");
 
       } catch (err) {
         console.error("Failed to fetch program by ID:", err);

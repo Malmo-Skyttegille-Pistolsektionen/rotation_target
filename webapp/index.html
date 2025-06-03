@@ -41,17 +41,17 @@
         <button id="turn-btn" class="primary">Turn Targets</button>
       </div>
 
-      <section class="visualization">
+      <section id="timeline" class="visualization primary hidden">
         <h2>Program Timeline</h2>
         <div id="timeline"></div>
-        <button id="show-raw-json" class="primary">Show Raw JSON</button>
-        <pre id="raw" class="hidden" style="margin-top:1rem;"></pre>
       </section>
     </section>
 
     <section class="audio-toggle">
-      <button id="toggle-audio" class="hamburger" aria-label="Manage Audio">☰</button>
-
+      <button id="toggle-audio" class="hamburger" aria-label="Menu">☰</button>
+      <ul id="menu" class="hidden">
+        <li><button id="manage-audio" class="menu-item">Manage Audios</button></li>
+      </ul>
     </section>
 
     <div id="audio-section" class="hidden">
@@ -73,15 +73,15 @@
         <ul id="audio-container"></ul>
       </section>
     </div>
-  </main>
 
-  <footer id="footer">Loading version...</footer>
 
-  <script>
-    document.getElementById("toggle-audio").addEventListener("click", () => {
-      document.getElementById("audio-section").classList.toggle("hidden");
-    });
-  </script>
+    <footer id="footer">Loading version...</footer>
+
+    <script>
+      document.getElementById("toggle-audio").addEventListener("click", () => {
+        document.getElementById("audio-section").classList.toggle("hidden");
+      });
+    </script>
 </body>
 
 </html>
