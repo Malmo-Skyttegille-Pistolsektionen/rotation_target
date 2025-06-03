@@ -1,81 +1,48 @@
-import { connectToEventStream, EventType } from './sse-client.js';
-import { fetchPrograms, loadProgram, startProgram, stopProgram } from './rest-client.js';
+import { renderTimeline, setCurrent, toggleRaw } from './visualization.js';
+import { getProgram, fetchPrograms, loadProgram, startProgram, stopProgram, turnTargets } from './rest-client.js';
 
-const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
-const appName = "Malmö Skyttegille Rotation Target";
-const appTitle = `${appName} v${appVersion}`;
+document.addEventListener("DOMContentLoaded", async () => {
+  document.getElementById("toggle-audio").addEventListener("click", () => {
+    document.getElementById("audio-section").classList.toggle("hidden");
+  });
 
-document.addEventListener("DOMContentLoaded", () => {
-  const select = document.getElementById("programs");
-  const startBtn = document.getElementById("start-btn");
-  const stopBtn = document.getElementById("stop-btn");
-  const footer = document.getElementById("footer");
-
-  document.title = appTitle;
-  footer.textContent = appTitle;
-
-  let selectedId = null;
-
-  const updateButtons = () => {
-    const disabled = !selectedId;
-    startBtn.disabled = disabled;
-    stopBtn.disabled = disabled;
-  };
-
-  const log = (msg) => console.log("💬", msg);
-
-  fetchPrograms().then(programs => {
-    select.innerHTML = "";
-    const placeholder = document.createElement("option");
-    placeholder.disabled = true;
-    placeholder.selected = true;
-    placeholder.value = "";
-    placeholder.textContent = "Choose program...";
-    select.appendChild(placeholder);
-
-    for (const { id, title } of programs) {
-      const option = document.createElement("option");
-      option.value = id;
-      option.textContent = title;
-      select.appendChild(option);
+  document.getElementById("toggle-raw").addEventListener("click", () => {
+    if (window.currentProgram) {
+      toggleRaw(window.currentProgram);
     }
   });
 
-  connectToEventStream((type, data) => {
-    switch (type) {
-      case EventType.ProgramLoaded:
-        log(`Program ${data.id} loaded.`);
-        break;
-      case EventType.SeriesStarted:
-        log(`Series started: ${data.name}`);
-        break;
-      case EventType.SeriesCompleted:
-        log(`Series completed: ${data.name}`);
-        break;
-      case EventType.ProgramCompleted:
-        log(`Program finished.`);
-        break;
+  // Populate dropdown
+  const selector = document.getElementById("programs");
+  const programs = await fetchPrograms();
+  programs.forEach(({ id, title }) => {
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = `${id}: ${title}`;
+    selector.appendChild(opt);
+  });
+
+  selector.addEventListener("change", async () => {
+    const id = parseInt(selector.value, 10);
+    if (!isNaN(id)) {
+      await loadProgram(id);
+      const program = await getProgram(id);
+      window.currentProgram = program;
+      renderTimeline(program);
+      setCurrent(0, 0);
     }
   });
 
-  select.addEventListener("change", (e) => {
-    selectedId = e.target.value || null;
-    updateButtons();
-
-    if (selectedId) {
-      loadProgram(Number(selectedId));
-    }
+  // Attach start/stop buttons
+  document.getElementById("start-btn").addEventListener("click", async () => {
+    await startProgram();
   });
 
-  startBtn.addEventListener("click", () => {
-    if (selectedId) {
-      startProgram();
-    }
+  document.getElementById("stop-btn").addEventListener("click", async () => {
+    await stopProgram();
   });
 
-  stopBtn.addEventListener("click", () => {
-    if (selectedId) {
-      stopProgram();
-    }
+  document.getElementById("turn-btn").addEventListener("click", async () => {
+    await turnTargets();
   });
 });
