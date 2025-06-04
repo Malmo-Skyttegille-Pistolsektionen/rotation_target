@@ -1,4 +1,4 @@
-import { SERVER_URL } from "./config.js";
+import { SERVER_SSE_URL } from "./config.js";
 
 export const EventType = {
   ProgramUploaded: 'program_uploaded',
@@ -14,7 +14,7 @@ export const EventType = {
 };
 
 export function connectToEventStream(onEvent) {
-  const source = new EventSource(`${SERVER_URL}/events`, { withCredentials: false });
+  const source = new EventSource(`${SERVER_SSE_URL}`, { withCredentials: false });
 
   Object.values(EventType).forEach(type => {
     source.addEventListener(type, (event) => {

@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import fs from 'fs';
 import type { ServerResponse } from 'http';
+import { SERVER_API_URL, SERVER_SSE_URL } from './src/config.js';
 
 const program_1_data = JSON.parse(fs.readFileSync('./test/data/program_1.json', 'utf-8'));
 const { version } = JSON.parse(fs.readFileSync('./package.json', 'utf-8'));
@@ -95,7 +96,7 @@ export default defineConfig({
         ];
 
         server.middlewares.use((req, res, next) => {
-          const url = new URL(req.url || '', 'http://localhost');
+          const url = new URL(req.url || '', SERVER_API_URL);
 
           if (url.pathname === '/status') {
             res.setHeader('Content-Type', 'application/json');
@@ -265,9 +266,11 @@ export default defineConfig({
       name: 'mock-sse',
       configureServer(server) {
         server.middlewares.use((req, res, next) => {
-          const url = new URL(req.url || '', 'http://localhost');
+          const url = new URL(req.url || '', SERVER_SSE_URL);
+          const SSE_PATHNAME = new URL(SERVER_SSE_URL).pathname;
 
-          if (url.pathname === '/events') {
+
+          if (url.pathname === SSE_PATHNAME) {
             res.writeHead(200, {
               'Content-Type': 'text/event-stream',
               'Cache-Control': 'no-cache',

@@ -1,17 +1,17 @@
-import { SERVER_URL } from "./config.js";
+import { SERVER_API_URL } from "./config.js";
 
 export async function fetchPrograms() {
-  const response = await fetch(`${SERVER_URL}/programs`);
+  const response = await fetch(`${SERVER_API_URL}/programs`);
   return handleResponse(response);
 }
 
 export async function getProgram(id) {
-  const response = await fetch(`${SERVER_URL}/programs/${id}`);
+  const response = await fetch(`${SERVER_API_URL}/programs/${id}`);
   return handleResponse(response);
 }
 
 export async function uploadProgram(program) {
-  const response = await fetch(`${SERVER_URL}/programs`, {
+  const response = await fetch(`${SERVER_API_URL}/programs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(program),
@@ -20,22 +20,22 @@ export async function uploadProgram(program) {
 }
 
 export async function loadProgram(id) {
-  const response = await fetch(`${SERVER_URL}/programs/${id}/load`, { method: "POST" });
+  const response = await fetch(`${SERVER_API_URL}/programs/${id}/load`, { method: "POST" });
   return handleResponse(response);
 }
 
 export async function startProgram() {
-  const response = await fetch(`${SERVER_URL}/programs/start`, { method: "POST" });
+  const response = await fetch(`${SERVER_API_URL}/programs/start`, { method: "POST" });
   return handleResponse(response);
 }
 
 export async function stopProgram() {
-  const response = await fetch(`${SERVER_URL}/programs/stop`, { method: "POST" });
+  const response = await fetch(`${SERVER_API_URL}/programs/stop`, { method: "POST" });
   return handleResponse(response);
 }
 
 export async function skipToSeries(series_index) {
-  const response = await fetch(`${SERVER_URL}/programs/series/skip_to`, {
+  const response = await fetch(`${SERVER_API_URL}/programs/series/skip_to`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ series_index }),
@@ -44,12 +44,12 @@ export async function skipToSeries(series_index) {
 }
 
 export async function getStatus() {
-  const response = await fetch(`${SERVER_URL}/status`);
+  const response = await fetch(`${SERVER_API_URL}/status`);
   return handleResponse(response);
 }
 
 export async function fetchAudios() {
-  const response = await fetch(`${SERVER_URL}/audios`);
+  const response = await fetch(`${SERVER_API_URL}/audios`);
   return handleResponse(response);
 }
 
@@ -59,7 +59,7 @@ export async function uploadAudio({ file, codec, title }) {
   formData.append("codec", codec);
   formData.append("title", title);
 
-  const response = await fetch(`${SERVER_URL}/audios/upload`, {
+  const response = await fetch(`${SERVER_API_URL}/audios/upload`, {
     method: "POST",
     body: formData,
   });
@@ -67,7 +67,7 @@ export async function uploadAudio({ file, codec, title }) {
 }
 
 export async function deleteAudio(id) {
-  const response = await fetch(`${SERVER_URL}/audios/delete`, {
+  const response = await fetch(`${SERVER_API_URL}/audios/delete`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id }),
@@ -75,14 +75,25 @@ export async function deleteAudio(id) {
   return handleResponse(response);
 }
 
-export async function turnTargets() {
-  const response = await fetch(`${SERVER_URL}/api/target/turn`, { method: "POST" });
+// Target endpoints
+export async function showTarget() {
+  const response = await fetch(`${SERVER_API_URL}/targets/show`, { method: 'POST' });
+  return handleResponse(response);
+}
+
+export async function hideTarget() {
+  const response = await fetch(`${SERVER_API_URL} / targets / hide`, { method: 'POST' });
+  return handleResponse(response);
+}
+
+export async function toggleTarget() {
+  const response = await fetch(`${SERVER_API_URL}/targets/toggle`, { method: 'POST' });
   return handleResponse(response);
 }
 
 async function handleResponse(response) {
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.statusText}`);
+    throw new Error('Request failed: ${response.statusText}');
   }
 
   const contentType = response.headers.get("Content-Type");

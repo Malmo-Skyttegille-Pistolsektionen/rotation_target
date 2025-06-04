@@ -123,7 +123,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   turnBtn.addEventListener("click", async () => {
-    await turnTargets();
+    const result = await toggleTarget();
+    console.log('target: ', result.message);
   });
 
   audioForm.addEventListener("submit", async (e) => {
@@ -318,6 +319,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     try {
       const programs = await fetchPrograms();
+      console.log("programs:", programs);
       programs.forEach(({ id, title }) => {
         const opt = document.createElement("option");
         opt.value = id;
