@@ -286,3 +286,21 @@ footer {
   padding: 0.5rem;
   border-bottom: 1px solid #ddd;
 }
+
+#audio-container h3 {
+  margin: 1rem 0 0.5rem;
+  text-align: left;
+  /* Align headers to the left */
+  font-weight: bold;
+}
+
+
+.delete-btn {
+  margin-left: 1rem;
+  padding: 0.25rem 0.5rem;
+  background-color: red;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}

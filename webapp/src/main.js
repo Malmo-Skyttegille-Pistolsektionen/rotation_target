@@ -161,11 +161,54 @@ document.addEventListener("DOMContentLoaded", async () => {
       const container = document.getElementById("audio-container");
       container.innerHTML = "";
 
-      [...builtin, ...uploaded].forEach(audio => {
-        const li = document.createElement("li");
-        li.textContent = `${audio.id}: ${audio.title}`;
-        container.appendChild(li);
-      });
+      // Add Built-in audios
+      if (builtin.length > 0) {
+        const builtinHeader = document.createElement("h3");
+        builtinHeader.textContent = "Built-in:";
+        container.appendChild(builtinHeader);
+
+        const builtinList = document.createElement("ul");
+        builtin.forEach(audio => {
+          const li = document.createElement("li");
+          li.textContent = `${audio.id}: ${audio.title}`;
+          builtinList.appendChild(li);
+        });
+        container.appendChild(builtinList);
+      }
+
+      // Add Uploaded audios
+      if (uploaded.length > 0) {
+        const uploadedHeader = document.createElement("h3");
+        uploadedHeader.textContent = "Uploaded:";
+        container.appendChild(uploadedHeader);
+
+        const uploadedList = document.createElement("ul");
+        uploaded.forEach(audio => {
+          const li = document.createElement("li");
+          li.textContent = `${audio.id}: ${audio.title}`;
+
+          // Add delete button
+          const deleteBtn = document.createElement("button");
+          deleteBtn.textContent = "Delete";
+          deleteBtn.classList.add("delete-btn"); // Add a specific class for delete buttons
+          deleteBtn.addEventListener("click", async () => {
+            if (confirm(`Are you sure you want to delete "${audio.title}"?`)) {
+              try {
+                await deleteAudio(audio.id);
+                alert(`Audio "${audio.title}" deleted successfully.`);
+                await refreshAudioList(); // Refresh the list after deletion
+              } catch (err) {
+                console.error("Failed to delete audio:", err);
+                alert("Failed to delete audio.");
+              }
+            }
+          });
+
+          li.appendChild(deleteBtn);
+          uploadedList.appendChild(li);
+        });
+        container.appendChild(uploadedList);
+      }
     } catch (err) {
       console.error("Error loading audios:", err);
     }
