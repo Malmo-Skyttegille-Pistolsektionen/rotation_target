@@ -9,21 +9,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.title = appTitle;
 
   document.querySelector("#footer span").textContent = appTitle;
-  // // Tab switching
-  // document.getElementById("program-tab-button").addEventListener("click", () => {
-  //   document.getElementById("program-tab-button").classList.add("active");
-  //   document.getElementById("audio-tab-button").classList.remove("active");
-  //   document.getElementById("program-section").classList.remove("hidden");
-  //   document.getElementById("audio-section").classList.add("hidden");
-  // });
+  // Tab switching
+  document.getElementById("program-tab-button").addEventListener("click", () => {
+    document.getElementById("program-tab-button").classList.add("active");
+    document.getElementById("audio-tab-button").classList.remove("active");
+    document.getElementById("program-section").classList.remove("hidden");
+    document.getElementById("audio-section").classList.add("hidden");
+  });
 
-  // document.getElementById("audio-tab-button").addEventListener("click", () => {
-  //   document.getElementById("audio-tab-button").classList.add("active");
-  //   document.getElementById("program-tab-button").classList.remove("active");
-  //   document.getElementById("audio-section").classList.remove("hidden");
-  //   document.getElementById("program-section").classList.add("hidden");
-  //   refreshAudioList();
-  // });
+  document.getElementById("audio-tab-button").addEventListener("click", () => {
+    document.getElementById("audio-tab-button").classList.add("active");
+    document.getElementById("program-tab-button").classList.remove("active");
+    document.getElementById("audio-section").classList.remove("hidden");
+    document.getElementById("program-section").classList.add("hidden");
+    refreshAudioList();
+  });
 
   const programSelect = document.getElementById("choose-program");
   const seriesSelect = document.getElementById("choose-serie");
