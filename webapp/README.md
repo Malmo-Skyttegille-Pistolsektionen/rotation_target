@@ -55,3 +55,5 @@ Start your Vite dev server and the mock server will intercept requests automatic
 ```
 npm run dev
 ```
+
+Then access the web application on http://localhost:5173/
