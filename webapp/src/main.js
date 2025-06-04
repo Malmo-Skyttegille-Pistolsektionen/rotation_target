@@ -10,31 +10,32 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const footer = document.getElementById("footer").textContent = appTitle;
 
-  // Tab switching
-  document.getElementById("program-tab-button").addEventListener("click", () => {
-    document.getElementById("program-tab-button").classList.add("active");
-    document.getElementById("audio-tab-button").classList.remove("active");
-    document.getElementById("program-section").classList.remove("hidden");
-    document.getElementById("audio-section").classList.add("hidden");
-  });
+  // // Tab switching
+  // document.getElementById("program-tab-button").addEventListener("click", () => {
+  //   document.getElementById("program-tab-button").classList.add("active");
+  //   document.getElementById("audio-tab-button").classList.remove("active");
+  //   document.getElementById("program-section").classList.remove("hidden");
+  //   document.getElementById("audio-section").classList.add("hidden");
+  // });
 
-  document.getElementById("audio-tab-button").addEventListener("click", () => {
-    document.getElementById("audio-tab-button").classList.add("active");
-    document.getElementById("program-tab-button").classList.remove("active");
-    document.getElementById("audio-section").classList.remove("hidden");
-    document.getElementById("program-section").classList.add("hidden");
-    refreshAudioList();
-  });
+  // document.getElementById("audio-tab-button").addEventListener("click", () => {
+  //   document.getElementById("audio-tab-button").classList.add("active");
+  //   document.getElementById("program-tab-button").classList.remove("active");
+  //   document.getElementById("audio-section").classList.remove("hidden");
+  //   document.getElementById("program-section").classList.add("hidden");
+  //   refreshAudioList();
+  // });
 
-  const selector = document.getElementById("choose-program");
+  const programSelect = document.getElementById("choose-program");
   const seriesSelect = document.getElementById("choose-serie");
-  const rawBtn = document.getElementById("show-json");
+  const showJsonBtn = document.getElementById("show-json");
+  const timelineWrapperSection = document.getElementById("timeline-wrapper");
 
   const defaultOpt = document.createElement("option");
   defaultOpt.disabled = true;
   defaultOpt.selected = true;
   defaultOpt.textContent = "Choose a program";
-  selector.appendChild(defaultOpt);
+  programSelect.appendChild(defaultOpt);
 
   try {
     const programs = await fetchPrograms();
@@ -42,14 +43,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       const opt = document.createElement("option");
       opt.value = id;
       opt.textContent = `${id}: ${title}`;
-      selector.appendChild(opt);
+      programSelect.appendChild(opt);
     });
   } catch (err) {
     console.error("Error fetching programs:", err);
   }
 
-  selector.addEventListener("change", async () => {
-    const id = parseInt(selector.value, 10);
+  programSelect.addEventListener("change", async () => {
+    const id = parseInt(programSelect.value, 10);
     if (!isNaN(id)) {
       await loadProgram(id);
       try {
@@ -69,12 +70,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         program.series.forEach((s, index) => {
           const opt = document.createElement("option");
           opt.value = index;
-          opt.textContent = s.name;
+          opt.textContent = s.name + (s.optional ? ' (optional)' : '');
           seriesSelect.appendChild(opt);
         });
 
         seriesSelect.classList.remove("hidden");
-        rawBtn.classList.remove("hidden");
+        showJsonBtn.classList.remove("hidden");
+        timelineWrapperSection.classList.remove("hidden");
+
       } catch (err) {
         console.error("Failed to fetch program by ID:", err);
       }
@@ -92,7 +95,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  rawBtn.addEventListener("click", () => {
+  showJsonBtn.addEventListener("click", () => {
     if (window.currentProgram) {
       const raw = JSON.stringify(window.currentProgram, null, 2);
       const blob = new Blob([raw], { type: 'application/json' });

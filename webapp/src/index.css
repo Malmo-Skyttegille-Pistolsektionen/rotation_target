@@ -33,16 +33,27 @@ main {
   margin: 1rem auto;
 }
 
+.program-controls-row {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+  margin: 1rem auto;
+}
+
+.buttons {
+  position: sticky;
+  top: 0;
+  background: white;
+  padding: 1rem;
+  z-index: 100;
+  border-bottom: 1px solid #ccc;
+}
+
 .buttons {
   display: flex;
   justify-content: center;
   gap: 1rem;
-}
-
-footer {
-  margin-top: auto;
-  font-size: 0.875rem;
-  color: #666;
 }
 
 button {
@@ -76,11 +87,12 @@ button.primary {
   color: white;
 }
 
-button .icon {
+button.icon {
   width: 1em;
   height: 1em;
   filter: invert(1);
 }
+
 
 select {
   font-size: 1rem;
@@ -105,37 +117,10 @@ select:focus {
   box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.3);
 }
 
-.audio-upload form {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 1rem auto;
-  align-items: center;
-}
-
-.audio-list ul {
-  list-style: none;
-  padding: 0;
-  margin: 1rem auto;
-  max-width: 400px;
-}
-
-.audio-list li {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.5rem;
-  border-bottom: 1px solid #ddd;
-}
-
 .hidden {
   display: none;
 }
 
-.audio-toggle {
-  margin: 2rem auto;
-  text-align: center;
-}
 
 .series {
   display: flex;
@@ -203,40 +188,44 @@ select:focus {
   font-size: 0.8rem;
 }
 
-.buttons {
-  position: sticky;
-  top: 0;
-  background: white;
-  padding: 1rem;
-  z-index: 100;
-  border-bottom: 1px solid #ccc;
-}
-
-.program-controls-row {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-  align-items: center;
-  margin: 1rem auto;
-}
-
-button.hamburger {
-  font-size: 1.5rem;
-  background: none;
-  border: none;
-  color: #0078d4;
-  cursor: pointer;
-}
-
 #timeline {
   padding-top: 4rem;
   /* or match the height of your .buttons + gap */
 }
 
+footer {
+  margin-top: auto;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+#footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+#footer-logo {
+  height: 24px;
+  width: auto;
+  margin: 10px
+}
+
+
 .tabs {
   display: flex;
   border-bottom: 2px solid #ccc;
   margin-bottom: 1rem;
+}
+
+
+.tab-content.active {
+  display: block;
+}
+
+*/ .tab-content.hidden {
+  display: none;
 }
 
 .tab-button {
@@ -254,30 +243,7 @@ button.hamburger {
   font-weight: bold;
 }
 
-.tab-content {
-  display: none;
-}
 
-.tab-content.active {
-  display: block;
-}
-
-#footer {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-#footer-logo {
-  height: 24px;
-  width: auto;
-  margin: 10px
-}
-
-.tab-content.hidden {
-  display: none;
-}
 
 .tab.active {
   background-color: #444;
@@ -295,4 +261,28 @@ button.hamburger {
   border: 1px solid #ccc;
   padding: 0.5rem 1rem;
   cursor: pointer;
+}
+
+
+.audio-upload form {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem auto;
+  align-items: center;
+}
+
+.audio-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 1rem auto;
+  max-width: 400px;
+}
+
+.audio-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem;
+  border-bottom: 1px solid #ddd;
 }

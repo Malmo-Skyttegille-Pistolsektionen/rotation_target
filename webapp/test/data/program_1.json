@@ -125,7 +125,7 @@
             ]
         },
         {
-            "name": "10s Series 5 (optional)",
+            "name": "10s Series 5",
             "optional": true,
             "events": [
                 {
@@ -155,7 +155,7 @@
             ]
         },
         {
-            "name": "10s Series 6 (optional)",
+            "name": "10s Series 6",
             "optional": true,
             "events": [
                 {
@@ -305,7 +305,7 @@
             ]
         },
         {
-            "name": "8s Series 5 (optional)",
+            "name": "8s Series 5",
             "optional": true,
             "events": [
                 {
@@ -335,7 +335,7 @@
             ]
         },
         {
-            "name": "8s Series 6 (optional)",
+            "name": "8s Series 6",
             "optional": true,
             "events": [
                 {
@@ -485,7 +485,7 @@
             ]
         },
         {
-            "name": "6s Series 5 (optional)",
+            "name": "6s Series 5",
             "optional": true,
             "events": [
                 {
@@ -515,7 +515,7 @@
             ]
         },
         {
-            "name": "6s Series 6 (optional)",
+            "name": "6s Series 6",
             "optional": true,
             "events": [
                 {
