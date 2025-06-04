@@ -158,6 +158,58 @@ export default defineConfig({
             return;
           }
 
+
+          // Audio endpoints
+          if (url.pathname === '/audios' && req.method === 'GET') {
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ builtin: builtinAudios, uploaded: uploadedAudios }));
+            return;
+          }
+
+          if (url.pathname === '/audios/upload' && req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', () => {
+              try {
+                const { title, codec } = JSON.parse(body);
+                const newId = Math.max(...uploadedAudios.map(a => a.id), 100) + 1;
+                const newAudio = { id: newId, title };
+                uploadedAudios.push(newAudio);
+                emit('audio_added', newAudio);
+                res.writeHead(201);
+                res.end(JSON.stringify(newAudio));
+              } catch (err) {
+                res.writeHead(400);
+                res.end(JSON.stringify({ error: 'Invalid request' }));
+              }
+            });
+            return;
+          }
+
+          if (url.pathname === '/audios/delete' && req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', () => {
+              try {
+                const { id } = JSON.parse(body);
+                const index = uploadedAudios.findIndex(audio => audio.id === id);
+                if (index === -1) {
+                  res.writeHead(404);
+                  res.end(JSON.stringify({ error: 'Audio not found' }));
+                  return;
+                }
+                const deletedAudio = uploadedAudios.splice(index, 1)[0];
+                emit('audio_deleted', { id: deletedAudio.id });
+                res.writeHead(200);
+                res.end(JSON.stringify(deletedAudio));
+              } catch (err) {
+                res.writeHead(400);
+                res.end(JSON.stringify({ error: 'Invalid request' }));
+              }
+            });
+            return;
+          }
+
           next();
         });
       }
