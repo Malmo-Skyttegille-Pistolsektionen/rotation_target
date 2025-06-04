@@ -39,8 +39,21 @@ const simulateSeriesEvents = () => {
 
   const series = program_1_data.series[currentState.current_series_index];
   if (!series || !series.events) {
-    emit('series_completed', { program_id: currentState.program_id, series_index: currentState.current_series_index });
+    // Check if there are more series
+    if (currentState.current_series_index + 1 < program_1_data.series.length) {
+      currentState.current_series_index += 1; // Move to the next series
+      currentState.current_event_index = 0; // Reset event index
+      currentState.running_series = false; // Stop running until explicitly started
+      emit('series_next', { program_id: currentState.program_id, series_index: currentState.current_series_index });
+      return;
+    }
+
+    // If no more series, complete the program
+    emit('program_completed', { program_id: currentState.program_id });
     currentState.running_series = false;
+    currentState.program_id = null;
+    currentState.current_series_index = null;
+    currentState.current_event_index = null;
     return;
   }
 
@@ -51,7 +64,22 @@ const simulateSeriesEvents = () => {
     if (eventIndex >= events.length) {
       // All events in the series are completed
       emit('series_completed', { program_id: currentState.program_id, series_index: currentState.current_series_index });
+
+      // Check if there are more series
+      if (currentState.current_series_index + 1 < program_1_data.series.length) {
+        currentState.current_series_index += 1; // Move to the next series
+        currentState.current_event_index = 0; // Reset event index
+        currentState.running_series = false; // Stop running until explicitly started
+        emit('series_next', { program_id: currentState.program_id, series_index: currentState.current_series_index });
+        return;
+      }
+
+      // If no more series, complete the program
+      emit('program_completed', { program_id: currentState.program_id });
       currentState.running_series = false;
+      currentState.program_id = null;
+      currentState.current_series_index = null;
+      currentState.current_event_index = null;
       return;
     }
 

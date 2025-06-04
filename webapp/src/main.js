@@ -89,9 +89,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         startBtn.disabled = false;
         stopBtn.disabled = false;
 
-        // show debug info
-        showProgramStatus();
-
       } catch (err) {
         console.error("Failed to fetch program by ID:", err);
       }
@@ -218,11 +215,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         programState.current_series_index = 0;
         programState.current_event_index = 0;
         console.log('Program uploaded:', programState);
+        showProgramStatus(); // Update status
       },
       [EventType.ProgramStarted]: ({ program_id }) => {
         programState.program_id = program_id;
         programState.series_running = false; // Program started, but no series is running yet
         console.log('Program started:', programState);
+        showProgramStatus(); // Update status
       },
       [EventType.SeriesStarted]: ({ program_id, series_index }) => {
         programState.program_id = program_id;
@@ -231,6 +230,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         programState.current_event_index = 0;
         setCurrent(series_index, 0);
         console.log('Series started:', programState);
+        showProgramStatus(); // Update status
       },
       [EventType.EventStarted]: ({ program_id, series_index, event_index }) => {
         programState.program_id = program_id;
@@ -238,22 +238,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         programState.current_event_index = event_index;
         setCurrent(series_index, event_index);
         console.log('Event started:', programState);
+        showProgramStatus(); // Update status
       },
       [EventType.SeriesCompleted]: ({ program_id, series_index }) => {
         programState.program_id = program_id;
         programState.series_running = false; // Series has completed
         console.log('Series completed:', programState);
-
-        // Check if there is another series
-        const nextSeriesIndex = series_index + 1;
-        if (window.currentProgram && nextSeriesIndex < window.currentProgram.series.length) {
-          programState.current_series_index = nextSeriesIndex;
-          programState.current_event_index = 0;
-          setCurrent(nextSeriesIndex, 0);
-          console.log('Moving to next series:', programState);
-        } else {
-          console.log('No more series available:', programState);
-        }
+        showProgramStatus(); // Update status
       },
       [EventType.SeriesNext]: ({ program_id, series_index }) => {
         programState.program_id = program_id;
@@ -261,24 +252,29 @@ document.addEventListener("DOMContentLoaded", async () => {
         programState.current_event_index = 0;
         setCurrent(series_index, 0);
         console.log('Series next:', programState);
+        showProgramStatus(); // Update status
       },
       [EventType.ProgramCompleted]: ({ program_id }) => {
         programState.program_id = program_id;
         programState.series_running = false; // Program is no longer running
         clearCurrent();
         console.log('Program completed:', programState);
+        showProgramStatus(); // Update status
       },
       [EventType.TargetStatus]: ({ status }) => {
         programState.target_status_shown = status === 'shown'; // Convert string to boolean
         console.log('Target status updated:', programState);
+        showProgramStatus(); // Update status
       },
       [EventType.AudioUploaded]: ({ id }) => {
         refreshAudioList();
         console.log('Audio uploaded:', id);
+        showProgramStatus(); // Update status
       },
       [EventType.AudioDeleted]: ({ id }) => {
         refreshAudioList();
         console.log('Audio deleted:', id);
+        showProgramStatus(); // Update status
       }
     };
 
@@ -288,16 +284,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.warn('Unhandled event type:', type, payload);
     }
   });
+
   async function showProgramStatus() {
     try {
       const status = await getStatus();
       const statusEl = document.getElementById('status');
 
+      console.log("Current program state:", programState);
       // Updated text based on the current structure of the status object
       const text = status.program_id != null
         ? `Program ID: ${status.program_id}, Running: ${status.running_series ? 'Yes' : 'No'}, Current Series: ${status.current_series_index != null ? `S${status.current_series_index}` : 'N/A'}, Current Event: ${status.current_event_index != null ? `E${status.current_event_index}` : 'N/A'}, Target Status: ${status.target_status_shown ? 'Shown' : 'Hidden'}`
         : "No program loaded";
 
+      console.log("Status text:", text);
       statusEl.textContent = text;
     } catch (err) {
       console.error("Failed to get status:", err);
@@ -336,12 +335,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.error("Error fetching programs:", err);
     }
   }
-
-
-
-  showProgramStatus();
-  setInterval(showProgramStatus, 5100);
-
 
 });
 
