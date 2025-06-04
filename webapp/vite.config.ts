@@ -71,7 +71,7 @@ export default defineConfig({
 
           // Show target
           if (url.pathname === '/target/show' && req.method === 'POST') {
-            currentState.target_status = "show";
+            currentState.target_status = "shown";
             emit("target_status_changed", { target_status: "show" });
             res.writeHead(200);
             res.end(JSON.stringify({ message: "Target is now shown" }));
@@ -80,7 +80,7 @@ export default defineConfig({
 
           // Hide target
           if (url.pathname === '/target/hide' && req.method === 'POST') {
-            currentState.target_status = "hide";
+            currentState.target_status = "hidde";
             emit("target_status_changed", { target_status: "hide" });
             res.writeHead(200);
             res.end(JSON.stringify({ message: "Target is now hidden" }));
