@@ -32,7 +32,6 @@ const emit = (event: string, data: object) => {
   clients.forEach(res => res.write(payload));
 };
 
-// Simulate progression of events within a series
 const simulateSeriesEvents = () => {
   if (!currentState.running_series || currentState.program_id === null || currentState.current_series_index === null) {
     return;
@@ -46,6 +45,8 @@ const simulateSeriesEvents = () => {
   }
 
   const events = series.events;
+
+  // Start simulation from the current event index
   const simulateEvent = (eventIndex: number) => {
     if (eventIndex >= events.length) {
       // All events in the series are completed
@@ -74,8 +75,8 @@ const simulateSeriesEvents = () => {
     }, 2000);
   };
 
-  // Start with the first event
-  simulateEvent(0);
+  // Start with the current event index
+  simulateEvent(currentState.current_event_index || 0); // Default to 0 if current_event_index is null
 };
 
 export default defineConfig({
@@ -98,13 +99,20 @@ export default defineConfig({
         server.middlewares.use((req, res, next) => {
           const url = new URL(req.url || '', SERVER_API_URL);
 
-          if (url.pathname === '/status') {
+          // Strip the API prefix (e.g., /api/v1) from the pathname
+          const strippedPathname = url.pathname.replace(new URL(SERVER_API_URL).pathname, '');
+
+          // Log the URL and strippedPathname for debugging
+          console.log(`Request URL: ${url.href}`);
+          console.log(`Stripped Pathname: ${strippedPathname}`);
+
+          if (strippedPathname === '/status' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify(currentState));
             return;
           }
 
-          if (url.pathname === '/target/show' && req.method === 'POST') {
+          if (strippedPathname === '/targets/show' && req.method === 'POST') {
             currentState.target_status_shown = true;
             emit('target_status_changed', { target_status_shown: true });
             res.writeHead(200);
@@ -112,7 +120,7 @@ export default defineConfig({
             return;
           }
 
-          if (url.pathname === '/target/hide' && req.method === 'POST') {
+          if (strippedPathname === '/targets/hide' && req.method === 'POST') {
             currentState.target_status_shown = false;
             emit('target_status_changed', { target_status_shown: false });
             res.writeHead(200);
@@ -120,7 +128,7 @@ export default defineConfig({
             return;
           }
 
-          if (url.pathname === '/target/toggle' && req.method === 'POST') {
+          if (strippedPathname === '/targets/toggle' && req.method === 'POST') {
             currentState.target_status_shown = !currentState.target_status_shown;
             emit('target_status_changed', { target_status_shown: currentState.target_status_shown });
             res.writeHead(200);
@@ -128,7 +136,7 @@ export default defineConfig({
             return;
           }
 
-          if (url.pathname === '/programs' && req.method === 'GET') {
+          if (strippedPathname === '/programs' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify([
               { id: 1, title: program_1_data.title, description: program_1_data.description }
@@ -136,24 +144,24 @@ export default defineConfig({
             return;
           }
 
-          if (url.pathname === '/programs/1' && req.method === 'GET') {
+          if (strippedPathname === '/programs/1' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify(program_1_data));
             return;
           }
 
-          if (url.pathname === '/programs/1/load' && req.method === 'POST') {
+          if (strippedPathname === '/programs/1/load' && req.method === 'POST') {
             currentState.program_id = 1;
             currentState.running_series = false;
             currentState.current_series_index = 0;
             currentState.current_event_index = 0;
-            // emit('program_uploaded', { program_id: 1 });
+            emit('program_loaded', { program_id: 1 });
             res.writeHead(200);
             res.end();
             return;
           }
 
-          if (url.pathname === '/programs/start' && req.method === 'POST') {
+          if (strippedPathname === '/programs/start' && req.method === 'POST') {
             if (currentState.program_id == null) {
               res.writeHead(400);
               res.end('No program loaded');
@@ -162,14 +170,16 @@ export default defineConfig({
             currentState.running_series = true;
             emit('program_started', { program_id: currentState.program_id });
             emit('series_started', { program_id: currentState.program_id, series_index: currentState.current_series_index });
+
             // Simulate series events
             simulateSeriesEvents();
+
             res.writeHead(200);
             res.end();
             return;
           }
 
-          if (url.pathname === '/programs/stop' && req.method === 'POST') {
+          if (strippedPathname === '/programs/stop' && req.method === 'POST') {
             if (!currentState.running_series) {
               res.writeHead(400);
               res.end('No program running');
@@ -182,7 +192,7 @@ export default defineConfig({
             return;
           }
 
-          if (url.pathname === '/programs/series/skip_to' && req.method === 'POST') {
+          if (strippedPathname === '/programs/series/skip_to' && req.method === 'POST') {
             let body = '';
             req.on('data', chunk => { body += chunk; });
             req.on('end', () => {
@@ -206,15 +216,14 @@ export default defineConfig({
             return;
           }
 
-
           // Audio endpoints
-          if (url.pathname === '/audios' && req.method === 'GET') {
+          if (strippedPathname === '/audios' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ builtin: builtinAudios, uploaded: uploadedAudios }));
             return;
           }
 
-          if (url.pathname === '/audios/upload' && req.method === 'POST') {
+          if (strippedPathname === '/audios/upload' && req.method === 'POST') {
             let body = '';
             req.on('data', chunk => { body += chunk; });
             req.on('end', () => {
@@ -234,7 +243,7 @@ export default defineConfig({
             return;
           }
 
-          if (url.pathname === '/audios/delete' && req.method === 'POST') {
+          if (strippedPathname === '/audios/delete' && req.method === 'POST') {
             let body = '';
             req.on('data', chunk => { body += chunk; });
             req.on('end', () => {
@@ -257,8 +266,8 @@ export default defineConfig({
             });
             return;
           }
-
           next();
+
         });
       }
     },
@@ -269,6 +278,9 @@ export default defineConfig({
           const url = new URL(req.url || '', SERVER_SSE_URL);
           const SSE_PATHNAME = new URL(SERVER_SSE_URL).pathname;
 
+          // Log the URL and SSE_PATHNAME for debugging
+          console.log(`Request URL: ${url.href}`);
+          console.log(`SSE Pathname: ${SSE_PATHNAME}`);
 
           if (url.pathname === SSE_PATHNAME) {
             res.writeHead(200, {

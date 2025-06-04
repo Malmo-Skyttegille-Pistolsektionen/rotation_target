@@ -82,7 +82,7 @@ export async function showTarget() {
 }
 
 export async function hideTarget() {
-  const response = await fetch(`${SERVER_API_URL} / targets / hide`, { method: 'POST' });
+  const response = await fetch(`${SERVER_API_URL}/targets/hide`, { method: 'POST' });
   return handleResponse(response);
 }
 
@@ -92,6 +92,7 @@ export async function toggleTarget() {
 }
 
 async function handleResponse(response) {
+  console.log('Response status:', response.status, response.statusText);
   if (!response.ok) {
     throw new Error('Request failed: ${response.statusText}');
   }

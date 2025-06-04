@@ -1,7 +1,7 @@
 import { renderTimeline, setCurrent, clearCurrent } from './timeline.js';
 import {
   fetchPrograms, getProgram, uploadProgram, loadProgram, startProgram,
-  stopProgram, skipToSeries, getStatus, fetchAudios, uploadAudio, deleteAudio
+  stopProgram, skipToSeries, getStatus, fetchAudios, uploadAudio, deleteAudio, toggleTarget
 } from './rest-client.js';
 import { connectToEventStream, EventType } from './sse-client.js';
 
@@ -124,7 +124,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   turnBtn.addEventListener("click", async () => {
     const result = await toggleTarget();
-    console.log('target: ', result.message);
   });
 
   audioForm.addEventListener("submit", async (e) => {
@@ -289,21 +288,23 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.warn('Unhandled event type:', type, payload);
     }
   });
-
   async function showProgramStatus() {
     try {
       const status = await getStatus();
       const statusEl = document.getElementById('status');
+
+      // Updated text based on the current structure of the status object
       const text = status.program_id != null
-        ? `Program ID: ${status.program_id}, Running: ${status.running}, Next Event: ${status.next_event ? `S${status.next_event.series_index}E${status.next_event.event_index}` : 'N/A'}`
+        ? `Program ID: ${status.program_id}, Running: ${status.running_series ? 'Yes' : 'No'}, Current Series: ${status.current_series_index != null ? `S${status.current_series_index}` : 'N/A'}, Current Event: ${status.current_event_index != null ? `E${status.current_event_index}` : 'N/A'}, Target Status: ${status.target_status_shown ? 'Shown' : 'Hidden'}`
         : "No program loaded";
 
       statusEl.textContent = text;
     } catch (err) {
-      log("Failed to get status");
+      console.error("Failed to get status:", err);
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = "Failed to load status";
     }
   }
-
 
   async function loadPrograms(programState) {
     programSelect.innerHTML = ""; // Clear existing options
@@ -339,7 +340,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 
   showProgramStatus();
-  setInterval(showProgramStatus, 5000);
+  setInterval(showProgramStatus, 5100);
 
 
 });
