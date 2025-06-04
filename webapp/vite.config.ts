@@ -130,11 +130,11 @@ export default defineConfig({
           // Strip the API prefix (e.g., /api/v1) from the pathname
           const strippedPathname = url.pathname.replace(new URL(SERVER_API_URL).pathname, '');
 
-          // Log the URL and strippedPathname for debugging
-          console.log(`Request URL: ${url.href}`);
-          console.log(`Stripped Pathname: ${strippedPathname}`);
 
           if (strippedPathname === '/status' && req.method === 'GET') {
+            // Log the current state for debugging
+            console.log('Returning current state:', currentState);
+
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify(currentState));
             return;
@@ -306,9 +306,6 @@ export default defineConfig({
           const url = new URL(req.url || '', SERVER_SSE_URL);
           const SSE_PATHNAME = new URL(SERVER_SSE_URL).pathname;
 
-          // Log the URL and SSE_PATHNAME for debugging
-          console.log(`Request URL: ${url.href}`);
-          console.log(`SSE Pathname: ${SSE_PATHNAME}`);
 
           if (url.pathname === SSE_PATHNAME) {
             res.writeHead(200, {
