@@ -224,7 +224,7 @@ footer {
   display: block;
 }
 
-*/ .tab-content.hidden {
+.tab-content.hidden {
   display: none;
 }
 
