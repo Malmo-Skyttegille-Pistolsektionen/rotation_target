@@ -56,7 +56,8 @@ function preprocess(seriesList) {
     const events = series.events.map(ev => {
       const duration = ev.duration / 10;
       let symbol = "empty";
-      if ("audio_id" in ev) symbol = "A";
+      
+      if ("audio_ids" in ev) symbol = "A";
       if (ev.command === "show") symbol = "filled";
       const entry = { ...ev, duration, acc, symbol };
       acc += duration;

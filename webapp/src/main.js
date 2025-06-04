@@ -1,4 +1,4 @@
-import { renderTimeline, setCurrent, clearCurrent } from './visualization.svg.js';
+import { renderTimeline, setCurrent, clearCurrent } from './timeline.js';
 import {
   fetchPrograms, getProgram, uploadProgram, loadProgram, startProgram,
   stopProgram, skipToSeries, getStatus, fetchAudios, uploadAudio, deleteAudio
