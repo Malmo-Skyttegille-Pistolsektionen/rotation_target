@@ -101,11 +101,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   seriesSelect.addEventListener("change", async () => {
     const index = parseInt(seriesSelect.value, 10);
     if (!isNaN(index)) {
-      await fetch("/programs/skip_to", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ series_index: index })
-      });
+      skipToSeries(index)
     }
   });
 
@@ -145,12 +141,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     formData.append("codec", codec);
 
     try {
-      const res = await fetch("/audios/upload", {
-        method: "POST",
-        body: formData
-      });
-
-      if (!res.ok) throw new Error("Upload failed");
+      uploadAudio(file, codec, title)
       document.getElementById("audio-form").reset();
       refreshAudioList();
     } catch (err) {

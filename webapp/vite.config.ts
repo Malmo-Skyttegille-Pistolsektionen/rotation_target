@@ -5,6 +5,32 @@ import type { ServerResponse } from 'http';
 const program_1_data = JSON.parse(fs.readFileSync('./test/data/program_1.json', 'utf-8'));
 const { version } = JSON.parse(fs.readFileSync('./package.json', 'utf-8'));
 
+// Shared ProgramState
+type ProgramState = {
+  running_series: boolean;
+  program_id: number | null;
+  current_series_index: number | null;
+  current_event_index: number | null;
+  target_status_shown: boolean | null;
+};
+
+const currentState: ProgramState = {
+  running_series: false,
+  program_id: null,
+  current_series_index: null,
+  current_event_index: null,
+  target_status_shown: null
+};
+
+// SSE Clients
+const clients: ServerResponse[] = [];
+
+// Emit SSE events
+const emit = (event: string, data: object) => {
+  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  clients.forEach(res => res.write(payload));
+};
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version)
@@ -12,26 +38,8 @@ export default defineConfig({
 
   plugins: [
     {
-      name: 'mock-rest-sse',
+      name: 'mock-rest',
       configureServer(server) {
-
-        type ProgramState = {
-          running: boolean;
-          program_id: number | null;
-          current_series_index: number | null;
-          current_event_index: number | null;
-          target_status: 'shown' | 'hidden' | null;
-        };
-
-        let currentState: ProgramState = {
-          running: false,
-          program_id: null,
-          current_series_index: null,
-          current_event_index: null,
-          target_status: null
-        };
-
-        const clients: ServerResponse[] = [];
         let uploadedAudios = [
           { id: 101, title: 'start.mp3' }
         ];
@@ -40,28 +48,8 @@ export default defineConfig({
           { id: 2, title: 'voice_ready.mp3' }
         ];
 
-        const emit = (event: string, data: object) => {
-          const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-          clients.forEach(res => res.write(payload));
-        };
-
         server.middlewares.use((req, res, next) => {
           const url = new URL(req.url || '', 'http://localhost');
-
-          if (url.pathname === '/events') {
-            res.writeHead(200, {
-              'Content-Type': 'text/event-stream',
-              'Cache-Control': 'no-cache',
-              Connection: 'keep-alive'
-            });
-            res.write('\n');
-            clients.push(res);
-            req.on('close', () => {
-              const index = clients.indexOf(res);
-              if (index !== -1) clients.splice(index, 1);
-            });
-            return;
-          }
 
           if (url.pathname === '/status') {
             res.setHeader('Content-Type', 'application/json');
@@ -69,32 +57,30 @@ export default defineConfig({
             return;
           }
 
-          // Show target
           if (url.pathname === '/target/show' && req.method === 'POST') {
-            currentState.target_status = "shown";
-            emit("target_status_changed", { target_status: "show" });
+            currentState.target_status_shown = true;
+            emit('target_status_changed', { target_status_shown: true });
             res.writeHead(200);
             res.end(JSON.stringify({ message: "Target is now shown" }));
             return;
           }
 
-          // Hide target
           if (url.pathname === '/target/hide' && req.method === 'POST') {
-            currentState.target_status = "hidde";
-            emit("target_status_changed", { target_status: "hide" });
+            currentState.target_status_shown = false;
+            emit('target_status_changed', { target_status_shown: false });
             res.writeHead(200);
             res.end(JSON.stringify({ message: "Target is now hidden" }));
             return;
           }
 
-          // Toggle target
           if (url.pathname === '/target/toggle' && req.method === 'POST') {
-            currentState.target_status = currentState.target_status === "show" ? "hide" : "show";
-            emit("target_status_changed", { target_status: currentState.target_status });
+            currentState.target_status_shown = !currentState.target_status_shown;
+            emit('target_status_changed', { target_status_shown: currentState.target_status_shown });
             res.writeHead(200);
-            res.end(JSON.stringify({ message: `Target is now ${currentState.target_status}` }));
+            res.end(JSON.stringify({ message: `Target is now ${currentState.target_status_shown ? 'shown' : 'hidden'}` }));
             return;
           }
+
           if (url.pathname === '/programs' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify([
@@ -111,10 +97,10 @@ export default defineConfig({
 
           if (url.pathname === '/programs/1/load' && req.method === 'POST') {
             currentState.program_id = 1;
-            currentState.running = false;
+            currentState.running_series = false;
             currentState.current_series_index = 0;
             currentState.current_event_index = 0;
-            emit('program_uploaded', { program_id: 1 });
+            // emit('program_uploaded', { program_id: 1 });
             res.writeHead(200);
             res.end();
             return;
@@ -126,7 +112,7 @@ export default defineConfig({
               res.end('No program loaded');
               return;
             }
-            currentState.running = true;
+            currentState.running_series = true;
             emit('program_started', { program_id: currentState.program_id });
             emit('series_started', { program_id: currentState.program_id, series_index: currentState.current_series_index });
             emit('event_started', { program_id: currentState.program_id, series_index: currentState.current_series_index, event_index: currentState.current_event_index });
@@ -136,12 +122,12 @@ export default defineConfig({
           }
 
           if (url.pathname === '/programs/stop' && req.method === 'POST') {
-            if (!currentState.running) {
+            if (!currentState.running_series) {
               res.writeHead(400);
               res.end('No program running');
               return;
             }
-            currentState.running = false;
+            currentState.running_series = false;
             emit('program_completed', { program_id: currentState.program_id });
             res.writeHead(200);
             res.end();
@@ -172,43 +158,27 @@ export default defineConfig({
             return;
           }
 
-          if (url.pathname === '/audios' && req.method === 'GET') {
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ builtin: builtinAudios, uploaded: uploadedAudios }));
-            return;
-          }
+          next();
+        });
+      }
+    },
+    {
+      name: 'mock-sse',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          const url = new URL(req.url || '', 'http://localhost');
 
-          if (url.pathname === '/audios/upload' && req.method === 'POST') {
-            let newId = Math.max(...uploadedAudios.map(a => a.id), 100) + 1;
-            const fakeTitle = `Uploaded ${newId}`;
-            const newAudio = { id: newId, title: fakeTitle };
-            uploadedAudios.push(newAudio);
-            emit('audio_added', newAudio);
-            res.writeHead(201);
-            res.end();
-            return;
-          }
-
-          if (url.pathname === '/audios/delete' && req.method === 'POST') {
-            let body = '';
-            req.on('data', chunk => { body += chunk; });
-            req.on('end', () => {
-              try {
-                const { id } = JSON.parse(body);
-                const index = uploadedAudios.findIndex(a => a.id === id);
-                if (index === -1) {
-                  res.writeHead(404);
-                  res.end('Audio not found');
-                  return;
-                }
-                uploadedAudios.splice(index, 1);
-                emit('audio_deleted', { id });
-                res.writeHead(200);
-                res.end();
-              } catch {
-                res.writeHead(400);
-                res.end('Invalid request');
-              }
+          if (url.pathname === '/events') {
+            res.writeHead(200, {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              Connection: 'keep-alive'
+            });
+            res.write('\n');
+            clients.push(res);
+            req.on('close', () => {
+              const index = clients.indexOf(res);
+              if (index !== -1) clients.splice(index, 1);
             });
             return;
           }
