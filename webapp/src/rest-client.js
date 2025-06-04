@@ -1,15 +1,17 @@
+import { SERVER_URL } from "./config.js";
+
 export async function fetchPrograms() {
-  const response = await fetch("/programs");
+  const response = await fetch(`${SERVER_URL}/programs`);
   return handleResponse(response);
 }
 
 export async function getProgram(id) {
-  const response = await fetch(`/programs/${id}`);
+  const response = await fetch(`${SERVER_URL}/programs/${id}`);
   return handleResponse(response);
 }
 
 export async function uploadProgram(program) {
-  const response = await fetch("/programs", {
+  const response = await fetch(`${SERVER_URL}/programs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(program),
@@ -18,22 +20,22 @@ export async function uploadProgram(program) {
 }
 
 export async function loadProgram(id) {
-  const response = await fetch(`/programs/${id}/load`, { method: "POST" });
+  const response = await fetch(`${SERVER_URL}/programs/${id}/load`, { method: "POST" });
   return handleResponse(response);
 }
 
 export async function startProgram() {
-  const response = await fetch("/programs/start", { method: "POST" });
+  const response = await fetch(`${SERVER_URL}/programs/start`, { method: "POST" });
   return handleResponse(response);
 }
 
 export async function stopProgram() {
-  const response = await fetch("/programs/stop", { method: "POST" });
+  const response = await fetch(`${SERVER_URL}/programs/stop`, { method: "POST" });
   return handleResponse(response);
 }
 
 export async function skipToSeries(series_index) {
-  const response = await fetch("/programs/skip_to", {
+  const response = await fetch(`${SERVER_URL}/programs/skip_to`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ series_index }),
@@ -42,12 +44,12 @@ export async function skipToSeries(series_index) {
 }
 
 export async function getStatus() {
-  const response = await fetch("/status");
+  const response = await fetch(`${SERVER_URL}/status`);
   return handleResponse(response);
 }
 
 export async function fetchAudios() {
-  const response = await fetch("/audios");
+  const response = await fetch(`${SERVER_URL}/audios`);
   return handleResponse(response);
 }
 
@@ -57,7 +59,7 @@ export async function uploadAudio({ file, codec, title }) {
   formData.append("codec", codec);
   formData.append("title", title);
 
-  const response = await fetch("/audios/upload", {
+  const response = await fetch(`${SERVER_URL}/audios/upload`, {
     method: "POST",
     body: formData,
   });
@@ -65,7 +67,7 @@ export async function uploadAudio({ file, codec, title }) {
 }
 
 export async function deleteAudio(id) {
-  const response = await fetch("/audios/delete", {
+  const response = await fetch(`${SERVER_URL}/audios/delete`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id }),
@@ -74,7 +76,7 @@ export async function deleteAudio(id) {
 }
 
 export async function turnTargets() {
-  const response = await fetch(`/api/target/turn`, { method: "POST" });
+  const response = await fetch(`${SERVER_URL}/api/target/turn`, { method: "POST" });
   return handleResponse(response);
 }
 

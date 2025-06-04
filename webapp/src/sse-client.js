@@ -1,3 +1,6 @@
+import { SERVER_URL } from "./config.js";
+
+
 export const EventType = {
   ProgramLoaded: 'program_loaded',
   SeriesStarted: 'series_started',
@@ -11,7 +14,7 @@ export const EventType = {
 };
 
 export function connectToEventStream(onEvent) {
-  const source = new EventSource('/events', { withCredentials: false });
+  const source = new EventSource(`${SERVER_URL}/events`, { withCredentials: false });
 
   Object.values(EventType).forEach(type => {
     source.addEventListener(type, (event) => {
