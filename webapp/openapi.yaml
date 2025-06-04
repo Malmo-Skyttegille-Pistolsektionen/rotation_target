@@ -8,7 +8,7 @@ paths:
     get:
       summary: List all programs
       responses:
-        '200':
+        "200":
           description: List of available programs with ID, title, and description
           content:
             application/json:
@@ -30,11 +30,11 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ProgramUpload'
+              $ref: "#/components/schemas/ProgramUpload"
       responses:
-        '201':
+        "201":
           description: Program uploaded
-        '400':
+        "400":
           description: Invalid program structure
 
   /programs/{id}:
@@ -47,13 +47,13 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Program found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Program'
-        '404':
+                $ref: "#/components/schemas/Program"
+        "404":
           description: Program not found
 
   /programs/{id}/load:
@@ -66,27 +66,27 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Program loaded
-        '404':
+        "404":
           description: Program ID not found
 
   /programs/start:
     post:
       summary: Start next series
       responses:
-        '200':
+        "200":
           description: Series started
-        '400':
+        "400":
           description: No program loaded
 
   /programs/stop:
     post:
       summary: Stop current series
       responses:
-        '200':
+        "200":
           description: Series stopped
-        '400':
+        "400":
           description: No program running
 
   /programs/skip_to:
@@ -102,27 +102,27 @@ paths:
                 series_index:
                   type: integer
       responses:
-        '200':
+        "200":
           description: Skipped
-        '400':
+        "400":
           description: No program loaded or invalid series index
 
   /status:
     get:
       summary: Get current program status
       responses:
-        '200':
+        "200":
           description: Current program state
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProgramStatus'
+                $ref: "#/components/schemas/ProgramStatus"
 
   /audios:
     get:
       summary: List all audios
       responses:
-        '200':
+        "200":
           description: Built-in and uploaded audio files
           content:
             application/json:
@@ -132,11 +132,11 @@ paths:
                   builtin:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Audio'
+                      $ref: "#/components/schemas/Audio"
                   uploaded:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Audio'
+                      $ref: "#/components/schemas/Audio"
 
   /audios/upload:
     post:
@@ -161,9 +161,9 @@ paths:
                 title:
                   type: string
       responses:
-        '201':
+        "201":
           description: Audio uploaded
-        '415':
+        "415":
           description: Unsupported Media Type — invalid audio format
 
   /audios/delete:
@@ -179,11 +179,11 @@ paths:
                 id:
                   type: integer
       responses:
-        '200':
+        "200":
           description: Audio deleted
-        '400':
+        "400":
           description: Audio is in use or cannot be deleted
-        '404':
+        "404":
           description: Audio not found
 
 components:
@@ -206,7 +206,7 @@ components:
         series:
           type: array
           items:
-            $ref: '#/components/schemas/Series'
+            $ref: "#/components/schemas/Series"
 
     ProgramUpload:
       type: object
@@ -219,7 +219,7 @@ components:
         series:
           type: array
           items:
-            $ref: '#/components/schemas/Series'
+            $ref: "#/components/schemas/Series"
 
     Series:
       type: object
@@ -232,7 +232,7 @@ components:
         events:
           type: array
           items:
-            $ref: '#/components/schemas/Event'
+            $ref: "#/components/schemas/Event"
 
     Event:
       type: object
@@ -244,8 +244,12 @@ components:
             For example: 1 = 0.1s, 2 = 0.2s, ..., 10 = 1.0s
         command:
           type: string
-        audio_id:
-          type: integer  # refers to audio ID
+        audio_ids:
+          type: array
+          items:
+            type: integer
+          description: |
+            List of audio IDs associated with the event.
 
     ProgramStatus:
       type: object
