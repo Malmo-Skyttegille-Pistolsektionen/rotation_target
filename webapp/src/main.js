@@ -24,12 +24,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("audio-section").classList.add("hidden");
   });
 
-  document.getElementById("audio-tab-button").addEventListener("click", () => {
+  document.getElementById("audio-tab-button").addEventListener("click", async () => {
     document.getElementById("audio-tab-button").classList.add("active");
     document.getElementById("program-tab-button").classList.remove("active");
     document.getElementById("audio-section").classList.remove("hidden");
     document.getElementById("program-section").classList.add("hidden");
-    refreshAudioList();
+    await refreshAudioList();
   });
 
   const programSelect = document.getElementById("choose-program");
@@ -157,7 +157,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       if (!res.ok) throw new Error("Upload failed");
       document.getElementById("audio-form").reset();
-      await refreshAudioList();
+      refreshAudioList();
     } catch (err) {
       console.error("Upload failed:", err);
       alert("Upload failed");
@@ -166,8 +166,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function refreshAudioList() {
     try {
-      const res = await fetchAudios();
-      const { builtin = [], uploaded = [] } = await res.json();
+      const { builtin = [], uploaded = [] } = await fetchAudios();
 
       const container = document.getElementById("audio-container");
       container.innerHTML = "";
