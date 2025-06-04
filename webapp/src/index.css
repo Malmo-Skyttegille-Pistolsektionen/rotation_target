@@ -135,12 +135,14 @@ select:focus {
 }
 
 .series.optional {
-  background-color: #f9f9f9;
+  background-color: lightgrey;
 }
 
 .events {
   display: flex;
   justify-content: flex-start;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
   gap: 1.5rem;
   margin-top: 0.5rem;
 }
@@ -149,93 +151,52 @@ select:focus {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  margin: 5px;
-  text-align: center;
-  font-size: 0.8rem;
   position: relative;
 }
 
 .event.current {
-  border: 2px dashed green;
-  /* Highlight the entire event */
-  padding: 5px;
-  /* Add padding to include duration and acc */
-  border-radius: 8px;
-  /* Slight rounding for the box */
+  outline: 2px dashed green;
+  outline-offset: 4px;
 }
 
-.event.no-action {
+.event.no-action .symbol {
   background-color: transparent;
-  /* No fill */
-  border: 2px solid white;
-  /* White border to maintain spacing */
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  /* Circle shape for consistent spacing */
+  /* Black fill for show */
+  /* White text */
 }
 
-.event.show {
+
+.event.show .symbol {
   background-color: black;
   /* Black fill for show */
   color: white;
   /* White text */
   border: 2px solid black;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  /* Circle shape */
 }
 
-.event.hide {
+.event.hide .symbol {
   background-color: white;
   /* White fill for hide */
   color: black;
   /* Black text */
   border: 2px solid black;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  /* Circle shape */
 }
 
-.event.audio .symbol {
-  font-weight: bold;
-  font-size: 1.2rem;
-  /* Larger text for "A" */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 40px;
-  /* Match the width of the circle */
-  height: 40px;
-  /* Match the height of the circle */
-}
-
-.dur {
-  position: absolute;
-  top: -20px;
-  /* Position above the circle */
-  font-size: 0.7rem;
-  color: #333;
-}
-
+.dur,
 .acc {
-  position: absolute;
-  bottom: -20px;
-  /* Position below the circle */
-  font-size: 0.7rem;
-  color: #333;
+  font-size: 0.8rem;
 }
 
 .symbol {
   font-weight: bold;
-  font-size: 1.2rem;
+  font-size: 1.5rem;
   /* Larger text for "A" */
   display: flex;
   justify-content: center;
   align-items: center;
+  text-align: center;
+  width: 40px;
+  height: 40px;
 }
 
 #timeline {
