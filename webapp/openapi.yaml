@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: MSG Shooting Target System REST API
-  version: 0.1.0
+  version: 0.2.0
 
 paths:
-  /programs:
+  /api/v1/programs:
     get:
       summary: List all programs
       responses:
@@ -37,7 +37,7 @@ paths:
         "400":
           description: Invalid program structure
 
-  /programs/{id}:
+  /api/v1/programs/{id}:
     get:
       summary: Get a specific program
       parameters:
@@ -56,7 +56,7 @@ paths:
         "404":
           description: Program not found
 
-  /programs/{id}/load:
+  /api/v1/programs/{id}/load:
     post:
       summary: Load a specific program
       parameters:
@@ -71,7 +71,7 @@ paths:
         "404":
           description: Program ID not found
 
-  /programs/start:
+  /api/v1/programs/start:
     post:
       summary: Start next series
       responses:
@@ -80,7 +80,7 @@ paths:
         "400":
           description: No program loaded
 
-  /programs/stop:
+  /api/v1/programs/stop:
     post:
       summary: Stop current series
       responses:
@@ -89,7 +89,7 @@ paths:
         "400":
           description: No program running
 
-  /programs/series/{series_index}/skip_to:
+  /api/v1/programs/series/{series_index}/skip_to:
     post:
       summary: Skip to a specific series in the program
       parameters:
@@ -104,18 +104,18 @@ paths:
         "400":
           description: No program loaded or invalid series index
 
-  /status:
+  /api/v1/status:
     get:
-      summary: Get current program status
+      summary: Get current program and target status
       responses:
         "200":
-          description: Current program state
+          description: Current program and target state
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProgramStatus"
 
-  /audios:
+  /api/v1/audios:
     get:
       summary: List all audios
       responses:
@@ -135,7 +135,7 @@ paths:
                     items:
                       $ref: "#/components/schemas/Audio"
 
-  /audios/upload:
+  /api/v1/audios/upload:
     post:
       summary: Upload a new audio file
       requestBody:
@@ -163,7 +163,7 @@ paths:
         "415":
           description: Unsupported Media Type — invalid audio format
 
-  /audios/delete:
+  /api/v1/audios/delete:
     post:
       summary: Delete an uploaded audio
       requestBody:
@@ -182,6 +182,27 @@ paths:
           description: Audio is in use or cannot be deleted
         "404":
           description: Audio not found
+
+  /api/v1/targets/show:
+    post:
+      summary: Show the target
+      responses:
+        "200":
+          description: Target is now shown
+
+  /api/v1/targets/hide:
+    post:
+      summary: Hide the target
+      responses:
+        "200":
+          description: Target is now hidden
+
+  /api/v1/targets/toggle:
+    post:
+      summary: Toggle the target visibility
+      responses:
+        "200":
+          description: Target visibility toggled
 
 components:
   schemas:
@@ -267,3 +288,6 @@ components:
               type: integer
             event_index:
               type: integer
+        target_status_shown:
+          type: boolean
+          nullable: true
