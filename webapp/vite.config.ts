@@ -31,6 +31,52 @@ const emit = (event: string, data: object) => {
   clients.forEach(res => res.write(payload));
 };
 
+// Simulate progression of events within a series
+const simulateSeriesEvents = () => {
+  if (!currentState.running_series || currentState.program_id === null || currentState.current_series_index === null) {
+    return;
+  }
+
+  const series = program_1_data.series[currentState.current_series_index];
+  if (!series || !series.events) {
+    emit('series_completed', { program_id: currentState.program_id, series_index: currentState.current_series_index });
+    currentState.running_series = false;
+    return;
+  }
+
+  const events = series.events;
+  const simulateEvent = (eventIndex: number) => {
+    if (eventIndex >= events.length) {
+      // All events in the series are completed
+      emit('series_completed', { program_id: currentState.program_id, series_index: currentState.current_series_index });
+      currentState.running_series = false;
+      return;
+    }
+
+    // Emit event_started
+    emit('event_started', {
+      program_id: currentState.program_id,
+      series_index: currentState.current_series_index,
+      event_index: eventIndex
+    });
+
+    // Simulate event completion after 2 seconds
+    setTimeout(() => {
+      emit('event_completed', {
+        program_id: currentState.program_id,
+        series_index: currentState.current_series_index,
+        event_index: eventIndex
+      });
+
+      // Move to the next event
+      simulateEvent(eventIndex + 1);
+    }, 2000);
+  };
+
+  // Start with the first event
+  simulateEvent(0);
+};
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version)
@@ -115,7 +161,8 @@ export default defineConfig({
             currentState.running_series = true;
             emit('program_started', { program_id: currentState.program_id });
             emit('series_started', { program_id: currentState.program_id, series_index: currentState.current_series_index });
-            emit('event_started', { program_id: currentState.program_id, series_index: currentState.current_series_index, event_index: currentState.current_event_index });
+            // Simulate series events
+            simulateSeriesEvents();
             res.writeHead(200);
             res.end();
             return;
