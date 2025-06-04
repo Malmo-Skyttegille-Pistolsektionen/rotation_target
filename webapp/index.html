@@ -10,51 +10,43 @@
 </head>
 
 <body>
-  <header>
-    <img src="/msg_logo.png" alt="MSG Logo" id="logo" />
-    <!-- <h1>MSG Rotation Target</h1> -->
-  </header>
-
   <main>
-    <section class="status">
-      <h2>Status</h2>
-      <p id="status">Loading status...</p>
-    </section>
+    <div class="tabs">
+      <button id="program-tab-button" class="tab active">Programs</button>
+      <button id="audio-tab-button" class="tab">Audio</button>
+    </div>
 
-    <section class="program">
-      <h2>Program Control</h2>
-      <div class="program-controls-row">
-        <select id="programs"></select>
-        <select id="series" class="hidden"></select>
-        <button id="show-raw-json" class="primary hidden">Show Raw JSON</button>
-      </div>
+    <!-- Programs Tab -->
+    <section id="program-section" class="tab-content">
+      <section class="program">
+        <h2>Program Control</h2>
+        <div class="program-controls-row">
+          <select id="choose-program"></select>
+          <select id="choose-serie" class="hidden"></select>
+          <button id="show-json" class="primary hidden">Show JSON</button>
+        </div>
 
-      <div class="buttons">
-        <button id="start-btn" class="start" disabled>
-          <img src="/icons/play_24_regular.svg" class="icon" />
-          Start
-        </button>
-        <button id="stop-btn" class="stop" disabled>
-          <img src="/icons/stop_24_regular.svg" class="icon" />
-          Stop
-        </button>
-        <button id="turn-btn" class="primary">Turn Targets</button>
-      </div>
+        <div class="buttons floating">
+          <button id="start-btn" class="start" disabled>
+            <img src="/icons/play_24_regular.svg" class="icon" />
+            Start
+          </button>
+          <button id="stop-btn" class="stop" disabled>
+            <img src="/icons/stop_24_regular.svg" class="icon" />
+            Stop
+          </button>
+          <button id="turn-btn" class="primary">Turn Targets</button>
+        </div>
 
-      <section id="timeline" class="visualization primary hidden">
-        <h2>Program Timeline</h2>
-        <div id="timeline"></div>
+        <section id="timeline-wrapper" class="visualization primary hidden">
+          <h2>Program Timeline</h2>
+          <div id="timeline"></div>
+        </section>
       </section>
     </section>
 
-    <section class="audio-toggle">
-      <button id="toggle-audio" class="hamburger" aria-label="Menu">☰</button>
-      <ul id="menu" class="hidden">
-        <li><button id="manage-audio" class="menu-item">Manage Audios</button></li>
-      </ul>
-    </section>
-
-    <div id="audio-section" class="hidden">
+    <!-- Audio Tab -->
+    <section id="audio-section" class="tab-content hidden">
       <section class="audio-upload">
         <h2>Upload Audio</h2>
         <form id="audio-form">
@@ -72,16 +64,13 @@
         <h2>Audio Library</h2>
         <ul id="audio-container"></ul>
       </section>
-    </div>
+    </section>
+  </main>
 
-
-    <footer id="footer">Loading version...</footer>
-
-    <script>
-      document.getElementById("toggle-audio").addEventListener("click", () => {
-        document.getElementById("audio-section").classList.toggle("hidden");
-      });
-    </script>
+  <footer id="footer">
+    <img src="/msg_logo.png" alt="MSG Logo" id="footer-logo" />
+    <span>Malmö Skyttegille Rotation Target v0.1.0</span>
+  </footer>
 </body>
 
 </html>

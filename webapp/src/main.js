@@ -1,4 +1,3 @@
-
 import { renderTimeline, setCurrent, clearCurrent } from './visualization.svg.js';
 import { getProgram, fetchPrograms, loadProgram, startProgram, stopProgram, turnTargets } from './rest-client.js';
 import { connectToEventStream } from './sse-client.js';
@@ -8,27 +7,28 @@ document.addEventListener("DOMContentLoaded", async () => {
   const appName = "Malmö Skyttegille Rotation Target";
   const appTitle = `${appName} v${appVersion}`;
   document.title = appTitle;
-  document.getElementById("footer").textContent = appTitle;
 
-  document.getElementById("toggle-audio").addEventListener("click", () => {
-    const menu = document.getElementById("menu");
-    menu.classList.toggle("hidden");
+  const footer = document.getElementById("footer").textContent = appTitle;
+
+  // Tab switching
+  document.getElementById("program-tab-button").addEventListener("click", () => {
+    document.getElementById("program-tab-button").classList.add("active");
+    document.getElementById("audio-tab-button").classList.remove("active");
+    document.getElementById("program-section").classList.remove("hidden");
+    document.getElementById("audio-section").classList.add("hidden");
   });
 
-  document.getElementById("manage-audio").addEventListener("click", () => {
-    const audioSection = document.getElementById("audio-section");
-    audioSection.classList.toggle("hidden");
-    document.getElementById("menu").classList.add("hidden"); // Hide menu after selection
+  document.getElementById("audio-tab-button").addEventListener("click", () => {
+    document.getElementById("audio-tab-button").classList.add("active");
+    document.getElementById("program-tab-button").classList.remove("active");
+    document.getElementById("audio-section").classList.remove("hidden");
+    document.getElementById("program-section").classList.add("hidden");
+    refreshAudioList();
   });
 
-  document.getElementById("show-raw-json").addEventListener("click", () => {
-    if (window.currentProgram) {
-      const rawWin = window.open('', '_blank');
-      rawWin.document.write(`<pre>${JSON.stringify(window.currentProgram, null, 2)}</pre>`);
-      rawWin.document.title = "Program JSON";
-    }
-  });
-  const selector = document.getElementById("programs");
+  const selector = document.getElementById("choose-program");
+  const seriesSelect = document.getElementById("choose-serie");
+  const rawBtn = document.getElementById("show-json");
 
   const defaultOpt = document.createElement("option");
   defaultOpt.disabled = true;
@@ -38,7 +38,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   try {
     const programs = await fetchPrograms();
-    console.log("Fetched programs:", programs);
     programs.forEach(({ id, title }) => {
       const opt = document.createElement("option");
       opt.value = id;
@@ -60,23 +59,45 @@ document.addEventListener("DOMContentLoaded", async () => {
         setCurrent(0, 0);
 
         // Populate series dropdown
-        const seriesDropdown = document.getElementById("series");
-        seriesDropdown.innerHTML = "";
-        program.series.forEach((s, i) => {
+        seriesSelect.innerHTML = "";
+        const defaultSeriesOpt = document.createElement("option");
+        defaultSeriesOpt.disabled = true;
+        defaultSeriesOpt.selected = true;
+        defaultSeriesOpt.textContent = "Choose a series";
+        seriesSelect.appendChild(defaultSeriesOpt);
+
+        program.series.forEach((s, index) => {
           const opt = document.createElement("option");
-          opt.value = i;
-          opt.textContent = `${i}: ${s.name}`;
-          seriesDropdown.appendChild(opt);
+          opt.value = index;
+          opt.textContent = s.name;
+          seriesSelect.appendChild(opt);
         });
-        seriesDropdown.classList.remove("hidden");
 
-        document.getElementById("show-raw-json").classList.remove("hidden");
-
-        document.getElementById("timeline").classList.remove("hidden");
-
+        seriesSelect.classList.remove("hidden");
+        rawBtn.classList.remove("hidden");
       } catch (err) {
         console.error("Failed to fetch program by ID:", err);
       }
+    }
+  });
+
+  seriesSelect.addEventListener("change", async () => {
+    const index = parseInt(seriesSelect.value, 10);
+    if (!isNaN(index)) {
+      await fetch("/programs/skip_to", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ series_index: index })
+      });
+    }
+  });
+
+  rawBtn.addEventListener("click", () => {
+    if (window.currentProgram) {
+      const raw = JSON.stringify(window.currentProgram, null, 2);
+      const blob = new Blob([raw], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
     }
   });
 
@@ -92,39 +113,66 @@ document.addEventListener("DOMContentLoaded", async () => {
     await turnTargets();
   });
 
-  const handlers = {
-    program_loaded: () => setCurrent(0, 0),
-    series_started: () => setCurrent(0, 0),
-    event_started: ({ series_index, event_index }) => {
-      setCurrent(series_index, event_index);
-    },
-    series_completed: ({ next_series_index }) => {
-      setCurrent(next_series_index, 0);
-    },
-    series_skipped: ({ next_series_index }) => {
-      setCurrent(next_series_index, 0);
-    },
-    program_completed: () => {
-      clearCurrent();
+  document.getElementById("audio-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const file = document.getElementById("audio-file").files[0];
+    const title = document.getElementById("audio-title").value;
+    const codec = document.getElementById("audio-codec").value;
+
+    if (!file || !title || !codec) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("title", title);
+    formData.append("codec", codec);
+
+    try {
+      const res = await fetch("/audios/upload", {
+        method: "POST",
+        body: formData
+      });
+
+      if (!res.ok) throw new Error("Upload failed");
+      document.getElementById("audio-form").reset();
+      await refreshAudioList();
+    } catch (err) {
+      console.error("Upload failed:", err);
+      alert("Upload failed");
     }
-  };
+  });
+
+  async function refreshAudioList() {
+    try {
+      const res = await fetch("/audios");
+      const { builtin = [], uploaded = [] } = await res.json();
+
+      const container = document.getElementById("audio-container");
+      container.innerHTML = "";
+
+      [...builtin, ...uploaded].forEach(audio => {
+        const li = document.createElement("li");
+        li.textContent = `${audio.id}: ${audio.title}`;
+        container.appendChild(li);
+      });
+    } catch (err) {
+      console.error("Error loading audios:", err);
+    }
+  }
 
   connectToEventStream((type, payload) => {
+    const handlers = {
+      program_loaded: () => setCurrent(0, 0),
+      series_started: () => setCurrent(0, 0),
+      event_started: ({ series_index, event_index }) => setCurrent(series_index, event_index),
+      series_completed: ({ next_series_index }) => setCurrent(next_series_index, 0),
+      series_skipped: ({ next_series_index }) => setCurrent(next_series_index, 0),
+      program_completed: () => clearCurrent(),
+      audio_uploaded: refreshAudioList,
+      audio_deleted: refreshAudioList
+    };
     if (handlers[type]) {
       handlers[type](payload);
     }
   });
-
-  // Set initial status
-  try {
-    const statusRes = await fetch("/status");
-    const status = await statusRes.json();
-    document.getElementById("status").textContent = status.program_id != null
-      ? "Program ID: " + status.program_id + ", Running: " + status.running + ", Next Event: " +
-      (status.next_event ? "S" + status.next_event.series_index + "E" + status.next_event.event_index : "N/A")
-      : "No program loaded";
-
-  } catch {
-    document.getElementById("status").textContent = "Status unavailable";
-  }
 });

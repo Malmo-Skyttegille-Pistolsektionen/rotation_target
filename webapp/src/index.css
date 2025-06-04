@@ -128,7 +128,6 @@ select:focus {
   border-bottom: 1px solid #ddd;
 }
 
-
 .hidden {
   display: none;
 }
@@ -137,7 +136,6 @@ select:focus {
   margin: 2rem auto;
   text-align: center;
 }
-
 
 .series {
   display: flex;
@@ -233,4 +231,68 @@ button.hamburger {
 #timeline {
   padding-top: 4rem;
   /* or match the height of your .buttons + gap */
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 2px solid #ccc;
+  margin-bottom: 1rem;
+}
+
+.tab-button {
+  flex: 1;
+  padding: 10px;
+  background: #f0f0f0;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+}
+
+.tab-button.active {
+  background: #fff;
+  border-bottom: 2px solid #fff;
+  font-weight: bold;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+#footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+#footer-logo {
+  height: 24px;
+  width: auto;
+  margin: 10px
+}
+
+.tab-content.hidden {
+  display: none;
+}
+
+.tab.active {
+  background-color: #444;
+  color: white;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.tab {
+  background: #eee;
+  border: 1px solid #ccc;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
 }

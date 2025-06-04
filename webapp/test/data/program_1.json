@@ -8,7 +8,8 @@
             "events": [
                 {
                     "duration": 600,
-                    "audio_id": 1
+                    "audio_id": 1,
+                    "command": "show"
                 },
                 {
                     "duration": 70,
@@ -28,7 +29,8 @@
                 },
                 {
                     "duration": 10,
-                    "command": "show"
+                    "command": "show",
+                    "audio_id": 1
                 }
             ]
         },
