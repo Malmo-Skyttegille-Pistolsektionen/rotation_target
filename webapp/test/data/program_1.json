@@ -3,12 +3,40 @@
     "description": "Full 3-stage match with 4+2 series per stage",
     "series": [
         {
-            "name": "10s Series 1",
+            "name": "Example series that shows all combos",
             "optional": false,
             "events": [
                 {
                     "duration": 10
                 },
+                {
+                    "duration": 10,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
+                    "duration": 10,
+                    "audio_ids": [
+                        1
+                    ],
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "audio_ids": [
+                        1
+                    ],
+                    "command": "hide"
+                }
+            ]
+        },
+        {
+            "name": "10s Series 1",
+            "optional": false,
+            "events": [
                 {
                     "duration": 600,
                     "audio_ids": [
