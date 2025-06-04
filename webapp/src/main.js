@@ -31,6 +31,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   const showJsonBtn = document.getElementById("show-json");
   const timelineWrapperSection = document.getElementById("timeline-wrapper");
 
+  const startBtn = document.getElementById("start-btn");
+  const stopBtn = document.getElementById("stop-btn");
+  const turnBtn = document.getElementById("turn-btn");
+  const audioForm = document.getElementById("audio-form");
+
   const defaultOpt = document.createElement("option");
   defaultOpt.disabled = true;
   defaultOpt.selected = true;
@@ -74,10 +79,14 @@ document.addEventListener("DOMContentLoaded", async () => {
           seriesSelect.appendChild(opt);
         });
 
+        // Make elements visible
         seriesSelect.classList.remove("hidden");
         showJsonBtn.classList.remove("hidden");
         timelineWrapperSection.classList.remove("hidden");
 
+        // Enable start and stop buttons
+        startBtn.disabled = false;
+        stopBtn.disabled = false;
       } catch (err) {
         console.error("Failed to fetch program by ID:", err);
       }
@@ -104,19 +113,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  document.getElementById("start-btn").addEventListener("click", async () => {
+  startBtn.addEventListener("click", async () => {
     await startProgram();
   });
 
-  document.getElementById("stop-btn").addEventListener("click", async () => {
+  stopBtn.addEventListener("click", async () => {
     await stopProgram();
   });
 
-  document.getElementById("turn-btn").addEventListener("click", async () => {
+  turnBtn.addEventListener("click", async () => {
     await turnTargets();
   });
 
-  document.getElementById("audio-form").addEventListener("submit", async (e) => {
+  audioForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
     const file = document.getElementById("audio-file").files[0];
