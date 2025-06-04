@@ -89,21 +89,18 @@ paths:
         "400":
           description: No program running
 
-  /programs/skip_to:
+  /programs/series/{series_index}/skip_to:
     post:
-      summary: Skip to a specific series
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                series_index:
-                  type: integer
+      summary: Skip to a specific series in the program
+      parameters:
+        - in: path
+          name: series_index
+          required: true
+          schema:
+            type: integer
       responses:
         "200":
-          description: Skipped
+          description: Skipped to the specified series
         "400":
           description: No program loaded or invalid series index
 

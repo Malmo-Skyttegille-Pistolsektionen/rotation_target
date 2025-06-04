@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import fs from 'fs';
-import type { ServerResponse } from 'http'; // add this import at the top
+import type { ServerResponse } from 'http';
 
 const program_1_data = JSON.parse(fs.readFileSync('./test/data/program_1.json', 'utf-8'));
 const { version } = JSON.parse(fs.readFileSync('./package.json', 'utf-8'));
@@ -18,28 +18,29 @@ export default defineConfig({
         type ProgramState = {
           running: boolean;
           program_id: number | null;
-          next_event: { series_index: number; event_index: number } | null;
-          target_status: "show" | "hide" | null;
+          current_series_index: number | null;
+          current_event_index: number | null;
+          target_status: 'shown' | 'hidden' | null;
         };
 
         let currentState: ProgramState = {
           running: false,
           program_id: null,
-          next_event: null,
+          current_series_index: null,
+          current_event_index: null,
           target_status: null
-
         };
 
         const clients: ServerResponse[] = [];
         let uploadedAudios = [
-          { id: 101, title: "start.mp3" }
+          { id: 101, title: 'start.mp3' }
         ];
         let builtinAudios = [
-          { id: 1, title: "beep.mp3" },
-          { id: 2, title: "voice_ready.mp3" }
+          { id: 1, title: 'beep.mp3' },
+          { id: 2, title: 'voice_ready.mp3' }
         ];
 
-        const emit = (event, data) => {
+        const emit = (event: string, data: object) => {
           const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
           clients.forEach(res => res.write(payload));
         };
@@ -55,6 +56,10 @@ export default defineConfig({
             });
             res.write('\n');
             clients.push(res);
+            req.on('close', () => {
+              const index = clients.indexOf(res);
+              if (index !== -1) clients.splice(index, 1);
+            });
             return;
           }
 
@@ -90,11 +95,10 @@ export default defineConfig({
             res.end(JSON.stringify({ message: `Target is now ${currentState.target_status}` }));
             return;
           }
-
           if (url.pathname === '/programs' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify([
-              { "id": 1, "title": program_1_data.title, "description": program_1_data.description }
+              { id: 1, title: program_1_data.title, description: program_1_data.description }
             ]));
             return;
           }
@@ -108,8 +112,10 @@ export default defineConfig({
           if (url.pathname === '/programs/1/load' && req.method === 'POST') {
             currentState.program_id = 1;
             currentState.running = false;
-            currentState.next_event = { series_index: 0, event_index: 0 };
-            emit("program_loaded", { id: 1 });
+            currentState.current_series_index = 0;
+            currentState.current_event_index = 0;
+            emit('program_uploaded', { program_id: 1 });
+            res.writeHead(200);
             res.end();
             return;
           }
@@ -117,13 +123,14 @@ export default defineConfig({
           if (url.pathname === '/programs/start' && req.method === 'POST') {
             if (currentState.program_id == null) {
               res.writeHead(400);
-              res.end("No program loaded");
+              res.end('No program loaded');
               return;
             }
             currentState.running = true;
-            currentState.next_event = { series_index: 0, event_index: 1 };
-            emit("series_started", { series_index: 0, name: "Main" });
-            emit("event_started", { series_index: 0, event_index: 0 });
+            emit('program_started', { program_id: currentState.program_id });
+            emit('series_started', { program_id: currentState.program_id, series_index: currentState.current_series_index });
+            emit('event_started', { program_id: currentState.program_id, series_index: currentState.current_series_index, event_index: currentState.current_event_index });
+            res.writeHead(200);
             res.end();
             return;
           }
@@ -131,12 +138,37 @@ export default defineConfig({
           if (url.pathname === '/programs/stop' && req.method === 'POST') {
             if (!currentState.running) {
               res.writeHead(400);
-              res.end("No program running");
+              res.end('No program running');
               return;
             }
             currentState.running = false;
-            emit("series_completed", { series_index: 0, name: "Main" });
+            emit('program_completed', { program_id: currentState.program_id });
+            res.writeHead(200);
             res.end();
+            return;
+          }
+
+          if (url.pathname === '/programs/series/skip_to' && req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', () => {
+              try {
+                const { series_index } = JSON.parse(body);
+                if (series_index == null || series_index < 0) {
+                  res.writeHead(400);
+                  res.end('Invalid series index');
+                  return;
+                }
+                currentState.current_series_index = series_index;
+                currentState.current_event_index = 0;
+                emit('series_next', { program_id: currentState.program_id, series_index });
+                res.writeHead(200);
+                res.end();
+              } catch {
+                res.writeHead(400);
+                res.end('Invalid request');
+              }
+            });
             return;
           }
 
@@ -151,7 +183,7 @@ export default defineConfig({
             const fakeTitle = `Uploaded ${newId}`;
             const newAudio = { id: newId, title: fakeTitle };
             uploadedAudios.push(newAudio);
-            emit("audio_uploaded", newAudio);
+            emit('audio_added', newAudio);
             res.writeHead(201);
             res.end();
             return;
@@ -166,16 +198,16 @@ export default defineConfig({
                 const index = uploadedAudios.findIndex(a => a.id === id);
                 if (index === -1) {
                   res.writeHead(404);
-                  res.end("Audio not found");
+                  res.end('Audio not found');
                   return;
                 }
                 uploadedAudios.splice(index, 1);
-                emit("audio_deleted", { id });
+                emit('audio_deleted', { id });
                 res.writeHead(200);
                 res.end();
               } catch {
                 res.writeHead(400);
-                res.end("Invalid request");
+                res.end('Invalid request');
               }
             });
             return;

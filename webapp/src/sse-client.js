@@ -1,15 +1,15 @@
 import { SERVER_URL } from "./config.js";
 
-
 export const EventType = {
-  ProgramLoaded: 'program_loaded',
+  ProgramUploaded: 'program_uploaded',
+  ProgramStarted: 'program_started',
   SeriesStarted: 'series_started',
   EventStarted: 'event_started',
   SeriesCompleted: 'series_completed',
-  SeriesSkipped: 'series_skipped',
+  SeriesNext: 'series_next',
   ProgramCompleted: 'program_completed',
-  StsStatus: 'sts_status',
-  AudioUploaded: 'audio_uploaded',
+  TargetStatus: 'target_status',
+  AudioAdded: 'audio_added',
   AudioDeleted: 'audio_deleted'
 };
 
@@ -20,32 +20,55 @@ export function connectToEventStream(onEvent) {
     source.addEventListener(type, (event) => {
       try {
         const payload = JSON.parse(event.data);
+
+        // Log the received event type and payload
+        console.log('Received SSE event:', type, payload);
+
+        // Pass the event to the callback
         onEvent(type, payload);
-
-        // auto-wire for specific events
-        if (type === EventType.ProgramLoaded ||
-          type === EventType.SeriesStarted ||
-          type === EventType.SeriesCompleted ||
-          type === EventType.ProgramCompleted) {
-        }
-
-        // if (type === EventType.AudioUploaded || type === EventType.AudioDeleted) {
-        //   refreshAudioList("audio-container");
-        // }
-
       } catch (err) {
-        console.error(`❌ Failed to parse event: ${type}`, err);
+        console.error('Failed to parse event:', type, err);
       }
     });
   });
 
   source.onopen = () => {
-    console.log('🔌 SSE connection established');
+    console.log('SSE connection established');
   };
 
   source.onerror = (err) => {
-    console.error('⚠️ SSE connection error:', err);
+    console.error('SSE connection error:', err);
   };
 
   return source;
 }
+
+// event: program_uploaded
+// data: {"program_id":1}
+
+// event: program_started
+// data: {"program_id":0}
+
+// event: series_started
+// data: {"program_id":0, "series_index":0}
+
+// event: event_started
+// data: {"program_id":0, "series_index":0, "event_index":1}
+
+// event: series_completed
+// data: {"program_id":0, "series_index":0}
+
+// event: series_next
+// data: {"program_id":0, "series_index":0}
+
+// event: program_completed
+// data: {"program_id":0}
+
+// event: target_status
+// data: {"status":"shown"} # shown, hidden
+
+// event: audio_added
+// data: {"id":1}
+
+// event: audio_deleted
+// data: {"id":1}
