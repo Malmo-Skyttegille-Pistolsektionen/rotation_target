@@ -227,7 +227,8 @@ export default defineConfig({
               Connection: 'keep-alive'
             });
             res.write('\n');
-            clients.push(res);
+
+            clients.push(res); // Handle SSE connection - add client to the list
             req.on('close', () => {
               const index = clients.indexOf(res);
               if (index !== -1) clients.splice(index, 1);
