@@ -24,7 +24,6 @@ export function connectToEventStream(onEvent) {
           type === EventType.SeriesStarted ||
           type === EventType.SeriesCompleted ||
           type === EventType.ProgramCompleted) {
-          showProgramStatus();
         }
 
         // if (type === EventType.AudioUploaded || type === EventType.AudioDeleted) {

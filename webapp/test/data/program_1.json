@@ -7,6 +7,9 @@
             "optional": false,
             "events": [
                 {
+                    "duration": 10
+                },
+                {
                     "duration": 600,
                     "audio_ids": [
                         1

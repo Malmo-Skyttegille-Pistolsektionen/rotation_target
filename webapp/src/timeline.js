@@ -24,7 +24,7 @@ export function renderTimeline(program) {
 
     series.events.forEach((ev, eIdx) => {
       const evDiv = document.createElement("div");
-      evDiv.className = "event";
+      evDiv.className = `event ${ev.symbolClass}`;
       evDiv.dataset.eventIndex = eIdx;
 
       const dur = document.createElement("div");
@@ -33,8 +33,8 @@ export function renderTimeline(program) {
       evDiv.appendChild(dur);
 
       const sym = document.createElement("div");
-      sym.className = "symbol " + ev.symbol;
-      sym.textContent = ev.symbol === "A" ? "A" : "";
+      sym.className = "symbol";
+      sym.textContent = ev.symbolText;
       evDiv.appendChild(sym);
 
       const acc = document.createElement("div");
@@ -55,11 +55,27 @@ function preprocess(seriesList) {
     let acc = 0;
     const events = series.events.map(ev => {
       const duration = ev.duration / 10;
-      let symbol = "empty";
-      
-      if ("audio_ids" in ev) symbol = "A";
-      if (ev.command === "show") symbol = "filled";
-      const entry = { ...ev, duration, acc, symbol };
+
+      // Determine the symbol class and text based on event properties
+      let symbolClass = "no-action";
+      let symbolText = "";
+
+      if (ev.command === "show" && ev.audio_ids) {
+        symbolClass = "show audio";
+        symbolText = "A";
+      } else if (ev.command === "hide" && ev.audio_ids) {
+        symbolClass = "hide audio";
+        symbolText = "A";
+      } else if (ev.command === "show") {
+        symbolClass = "show";
+      } else if (ev.command === "hide") {
+        symbolClass = "hide";
+      } else if (ev.audio_ids) {
+        symbolClass = "audio";
+        symbolText = "A";
+      }
+
+      const entry = { ...ev, duration, acc, symbolClass, symbolText };
       acc += duration;
       return entry;
     });
