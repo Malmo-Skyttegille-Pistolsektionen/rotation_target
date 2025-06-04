@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.querySelector("#footer span").textContent = appTitle;
 
   showProgramStatus();
+  setInterval(showProgramStatus, 5000);
 
   // Tab switching
   document.getElementById("program-tab-button").addEventListener("click", () => {
@@ -92,6 +93,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Enable start and stop buttons
         startBtn.disabled = false;
         stopBtn.disabled = false;
+
+        // show debug info
+        showProgramStatus();
+
       } catch (err) {
         console.error("Failed to fetch program by ID:", err);
       }
@@ -158,20 +163,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       alert("Upload failed");
     }
   });
-
-  async function showProgramStatus() {
-    try {
-      const status = await getStatus();
-      const statusEl = document.getElementById('status');
-      const text = status.program_id != null
-        ? `Program ID: ${status.program_id}, Running: ${status.running}, Next Event: ${status.next_event ? `S${status.next_event.series_index}E${status.next_event.event_index}` : 'N/A'}`
-        : "No program loaded";
-
-      statusEl.textContent = text;
-    } catch (err) {
-      log("Failed to get status");
-    }
-  }
 
   async function refreshAudioList() {
     try {
@@ -249,4 +240,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       handlers[type](payload);
     }
   });
+
+  async function showProgramStatus() {
+    try {
+      const status = await getStatus();
+      const statusEl = document.getElementById('status');
+      const text = status.program_id != null
+        ? `Program ID: ${status.program_id}, Running: ${status.running}, Next Event: ${status.next_event ? `S${status.next_event.series_index}E${status.next_event.event_index}` : 'N/A'}`
+        : "No program loaded";
+
+      statusEl.textContent = text;
+    } catch (err) {
+      log("Failed to get status");
+    }
+  }
+
 });

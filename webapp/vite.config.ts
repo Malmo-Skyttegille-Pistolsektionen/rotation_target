@@ -19,12 +19,15 @@ export default defineConfig({
           running: boolean;
           program_id: number | null;
           next_event: { series_index: number; event_index: number } | null;
+          target_status: "show" | "hide" | null;
         };
 
         let currentState: ProgramState = {
           running: false,
           program_id: null,
-          next_event: null
+          next_event: null,
+          target_status: null
+
         };
 
         const clients: ServerResponse[] = [];
@@ -58,6 +61,33 @@ export default defineConfig({
           if (url.pathname === '/status') {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify(currentState));
+            return;
+          }
+
+          // Show target
+          if (url.pathname === '/target/show' && req.method === 'POST') {
+            currentState.target_status = "show";
+            emit("target_status_changed", { target_status: "show" });
+            res.writeHead(200);
+            res.end(JSON.stringify({ message: "Target is now shown" }));
+            return;
+          }
+
+          // Hide target
+          if (url.pathname === '/target/hide' && req.method === 'POST') {
+            currentState.target_status = "hide";
+            emit("target_status_changed", { target_status: "hide" });
+            res.writeHead(200);
+            res.end(JSON.stringify({ message: "Target is now hidden" }));
+            return;
+          }
+
+          // Toggle target
+          if (url.pathname === '/target/toggle' && req.method === 'POST') {
+            currentState.target_status = currentState.target_status === "show" ? "hide" : "show";
+            emit("target_status_changed", { target_status: currentState.target_status });
+            res.writeHead(200);
+            res.end(JSON.stringify({ message: `Target is now ${currentState.target_status}` }));
             return;
           }
 
