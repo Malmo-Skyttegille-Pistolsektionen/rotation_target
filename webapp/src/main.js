@@ -8,8 +8,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const appTitle = `${appName} v${appVersion}`;
   document.title = appTitle;
 
-  const footer = document.getElementById("footer").textContent = appTitle;
-
+  document.querySelector("#footer span").textContent = appTitle;
   // // Tab switching
   // document.getElementById("program-tab-button").addEventListener("click", () => {
   //   document.getElementById("program-tab-button").classList.add("active");
