@@ -1,5 +1,3 @@
-import { showProgramStatus, refreshAudioList } from './integration-ui.js';
-
 export const EventType = {
   ProgramLoaded: 'program_loaded',
   SeriesStarted: 'series_started',
@@ -23,15 +21,15 @@ export function connectToEventStream(onEvent) {
 
         // auto-wire for specific events
         if (type === EventType.ProgramLoaded ||
-            type === EventType.SeriesStarted ||
-            type === EventType.SeriesCompleted ||
-            type === EventType.ProgramCompleted) {
+          type === EventType.SeriesStarted ||
+          type === EventType.SeriesCompleted ||
+          type === EventType.ProgramCompleted) {
           showProgramStatus();
         }
 
-        if (type === EventType.AudioUploaded || type === EventType.AudioDeleted) {
-          refreshAudioList("audio-container");
-        }
+        // if (type === EventType.AudioUploaded || type === EventType.AudioDeleted) {
+        //   refreshAudioList("audio-container");
+        // }
 
       } catch (err) {
         console.error(`❌ Failed to parse event: ${type}`, err);

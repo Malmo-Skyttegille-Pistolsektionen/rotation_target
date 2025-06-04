@@ -1,5 +1,8 @@
 import { renderTimeline, setCurrent, clearCurrent } from './visualization.svg.js';
-import { getProgram, fetchPrograms, loadProgram, startProgram, stopProgram, turnTargets } from './rest-client.js';
+import {
+  fetchPrograms, getProgram, uploadProgram, loadProgram, startProgram,
+  stopProgram, skipToSeries, getStatus, fetchAudios, uploadAudio, deleteAudio
+} from './rest-client.js';
 import { connectToEventStream } from './sse-client.js';
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -9,6 +12,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.title = appTitle;
 
   document.querySelector("#footer span").textContent = appTitle;
+
+  showProgramStatus();
+
   // Tab switching
   document.getElementById("program-tab-button").addEventListener("click", () => {
     document.getElementById("program-tab-button").classList.add("active");
@@ -153,9 +159,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
+  async function showProgramStatus() {
+    try {
+      const status = await getStatus();
+      const statusEl = document.getElementById('status');
+      const text = status.program_id != null
+        ? `Program ID: ${status.program_id}, Running: ${status.running}, Next Event: ${status.next_event ? `S${status.next_event.series_index}E${status.next_event.event_index}` : 'N/A'}`
+        : "No program loaded";
+
+      statusEl.textContent = text;
+    } catch (err) {
+      log("Failed to get status");
+    }
+  }
+
   async function refreshAudioList() {
     try {
-      const res = await fetch("/audios");
+      const res = await fetchAudios();
       const { builtin = [], uploaded = [] } = await res.json();
 
       const container = document.getElementById("audio-container");
