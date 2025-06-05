@@ -153,15 +153,27 @@ export default defineConfig({
           { id: 1, title: 'beep.mp3' },
           { id: 2, title: 'voice_ready.mp3' }
         ];
-
         server.middlewares.use((req, res, next) => {
           const url = new URL(req.url || '', SERVER_API_URL);
           const strippedPathname = url.pathname.replace(new URL(SERVER_API_URL).pathname, '');
 
+
           // Status endpoint
           if (strippedPathname === '/status' && req.method === 'GET') {
+            const statusResponse = {
+              running: currentState.running_series,
+              next_event: currentState.running_series && currentState.current_series_index !== null && currentState.current_event_index !== null
+                ? {
+                  program_id: currentState.program_id,
+                  series_index: currentState.current_series_index,
+                  event_index: currentState.current_event_index + 1 // Next event index
+                }
+                : null,
+              target_status: currentState.target_status_shown ? 'shown' : 'hidden'
+            };
+
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(currentState));
+            res.end(JSON.stringify(statusResponse));
             return;
           }
 

@@ -271,20 +271,21 @@ components:
       properties:
         running:
           type: boolean
-        program_id:
-          type: integer
-          nullable: true
         next_event:
           type: object
           description: Optional. Present only if a next event is known.
           required:
+            - program_id
             - series_index
             - event_index
           properties:
+            program_id:
+              type: integer
             series_index:
               type: integer
             event_index:
               type: integer
+          nullable: true
         target_status:
           type: string
           enum: [shown, hidden]
