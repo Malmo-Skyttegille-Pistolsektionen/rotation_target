@@ -34,14 +34,17 @@ const emit = (event: string, data: object) => {
 
 const simulateSeriesEvents = () => {
   if (!currentState.running_series || currentState.program_id === null || currentState.current_series_index === null) {
+    console.warn('Simulation aborted: Invalid program state', currentState);
     return;
   }
 
   const series = program_1_data.series[currentState.current_series_index];
   if (!series || !series.events) {
     // Check if there are more series
-    if (currentState.current_series_index + 1 < program_1_data.series.length) {
-      currentState.current_series_index += 1; // Move to the next series
+    if (currentState.current_series_index !== null && currentState.current_series_index + 1 < program_1_data.series.length) {
+      if (currentState.current_series_index !== null) {
+        currentState.current_series_index += 1; // Move to the next series
+      }
       currentState.current_event_index = 0; // Reset event index
       currentState.running_series = false; // Stop running until explicitly started
       emit('series_next', { program_id: currentState.program_id, series_index: currentState.current_series_index });
@@ -66,7 +69,7 @@ const simulateSeriesEvents = () => {
       emit('series_completed', { program_id: currentState.program_id, series_index: currentState.current_series_index });
 
       // Check if there are more series
-      if (currentState.current_series_index + 1 < program_1_data.series.length) {
+      if (currentState.current_series_index !== null && currentState.current_series_index + 1 < program_1_data.series.length) {
         currentState.current_series_index += 1; // Move to the next series
         currentState.current_event_index = 0; // Reset event index
         currentState.running_series = false; // Stop running until explicitly started
@@ -82,6 +85,9 @@ const simulateSeriesEvents = () => {
       currentState.current_event_index = null;
       return;
     }
+
+    // Update current_event_index
+    currentState.current_event_index = eventIndex;
 
     // Emit event_started
     emit('event_started', {
@@ -132,9 +138,6 @@ export default defineConfig({
 
 
           if (strippedPathname === '/status' && req.method === 'GET') {
-            // Log the current state for debugging
-            console.log('Returning current state:', currentState);
-
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify(currentState));
             return;

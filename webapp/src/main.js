@@ -290,13 +290,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       const status = await getStatus();
       const statusEl = document.getElementById('status');
 
-      console.log("Current program state:", programState);
       // Updated text based on the current structure of the status object
       const text = status.program_id != null
         ? `Program ID: ${status.program_id}, Running: ${status.running_series ? 'Yes' : 'No'}, Current Series: ${status.current_series_index != null ? `S${status.current_series_index}` : 'N/A'}, Current Event: ${status.current_event_index != null ? `E${status.current_event_index}` : 'N/A'}, Target Status: ${status.target_status_shown ? 'Shown' : 'Hidden'}`
         : "No program loaded";
 
-      console.log("Status text:", text);
       statusEl.textContent = text;
     } catch (err) {
       console.error("Failed to get status:", err);

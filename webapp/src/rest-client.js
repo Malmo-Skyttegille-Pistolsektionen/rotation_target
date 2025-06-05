@@ -45,7 +45,6 @@ export async function skipToSeries(series_index) {
 
 export async function getStatus() {
   const response = await fetch(`${SERVER_API_URL}/status`);
-  console.log('Status response:', response.status, response.statusText);
   return handleResponse(response);
 }
 
