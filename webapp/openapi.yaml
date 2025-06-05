@@ -163,25 +163,22 @@ paths:
         "415":
           description: Unsupported Media Type — invalid audio format
 
-  /api/v1/audios/delete:
+  /api/v1/audios/{id}/delete:
     post:
-      summary: Delete an uploaded audio
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                id:
-                  type: integer
+      summary: Delete an audio file by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
       responses:
         "200":
-          description: Audio deleted
-        "400":
-          description: Audio is in use or cannot be deleted
+          description: Audio deleted successfully
         "404":
           description: Audio not found
+        "400":
+          description: Invalid ID
 
   /api/v1/targets/show:
     post:
