@@ -26,6 +26,9 @@ const currentState: ProgramState = {
 // SSE Clients
 const clients: ServerResponse[] = [];
 
+// Flag to control simulation
+let simulationActive = true;
+
 // Emit SSE events
 const emit = (event: string, data: object) => {
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -35,6 +38,7 @@ const emit = (event: string, data: object) => {
 const simulateSeriesEvents = () => {
   if (!currentState.running_series || currentState.program_id === null || currentState.current_series_index === null) {
     console.warn('Simulation aborted: Invalid program state', currentState);
+    simulationActive = false; // Ensure simulation is stopped
     return;
   }
 
@@ -55,6 +59,7 @@ const simulateSeriesEvents = () => {
     currentState.program_id = null;
     currentState.current_series_index = null;
     currentState.current_event_index = null;
+    simulationActive = false; // Stop simulation
     return;
   }
 
@@ -62,6 +67,11 @@ const simulateSeriesEvents = () => {
 
   // Start simulation from the current event index
   const simulateEvent = (eventIndex: number) => {
+    if (!simulationActive) {
+      console.warn('Simulation aborted: Series skipped or stopped');
+      return; // Abort simulation if simulationActive is set to false
+    }
+
     if (eventIndex >= events.length) {
       // All events in the series are completed
       emit('series_completed', { program_id: currentState.program_id, series_index: currentState.current_series_index });
@@ -81,6 +91,7 @@ const simulateSeriesEvents = () => {
       currentState.program_id = null;
       currentState.current_series_index = null;
       currentState.current_event_index = null;
+      simulationActive = false; // Stop simulation
       return;
     }
 
@@ -106,6 +117,11 @@ const simulateSeriesEvents = () => {
 
     // Simulate event completion after 2 seconds
     setTimeout(() => {
+      if (!simulationActive) {
+        console.warn('Simulation aborted: Series skipped or stopped');
+        return; // Abort simulation if simulationActive is set to false
+      }
+
       emit('event_completed', {
         program_id: currentState.program_id,
         series_index: currentState.current_series_index,
@@ -207,6 +223,7 @@ export default defineConfig({
               return;
             }
             currentState.running_series = true;
+            simulationActive = true; // Start simulation
             emit('program_started', { program_id: currentState.program_id });
             emit('series_started', { program_id: currentState.program_id, series_index: currentState.current_series_index });
 
@@ -225,6 +242,7 @@ export default defineConfig({
               return;
             }
             currentState.running_series = false;
+            simulationActive = false; // Stop simulation
             emit('program_completed', { program_id: currentState.program_id });
             res.writeHead(200);
             res.end();
