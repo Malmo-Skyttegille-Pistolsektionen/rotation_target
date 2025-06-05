@@ -1,7 +1,13 @@
 import { defineConfig } from 'vite';
 import fs from 'fs';
 import type { ServerResponse } from 'http';
-import { SERVER_API_URL, SERVER_SSE_URL } from './src/config.js';
+import { SERVER_API_URL, SERVER_SSE_URL, SERVER_BASE_URL } from './src/config.js';
+
+// Extract hostname and port
+const url = new URL(SERVER_BASE_URL);
+const SERVER_HOSTNAME = url.hostname; // "localhost"
+const SERVER_PORT = parseInt(url.port, 10);
+
 
 const program_1_data = JSON.parse(fs.readFileSync('./test/data/program_1.json', 'utf-8'));
 const { version } = JSON.parse(fs.readFileSync('./package.json', 'utf-8'));
@@ -142,7 +148,12 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(version)
   },
 
+  server: {
+    host: SERVER_HOSTNAME,
+    port: SERVER_PORT,
+  },
   plugins: [
+
     {
       name: 'mock-rest',
       configureServer(server) {
