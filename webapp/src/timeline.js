@@ -3,9 +3,11 @@ let currentSeriesIndex = null;
 let currentEventIndex = null;
 let timelineData = null;
 
-export function renderTimeline(program) {
-  const timeline = document.getElementById("timeline");
-  timeline.innerHTML = "";
+export function renderTimeline(placeHolder, program) {
+  console.log("Placeholder element:", placeHolder);
+  console.log("Program data loaded:", program);
+
+  placeHolder.innerHTML = "";
 
   timelineData = preprocess(program.series);
 
@@ -46,7 +48,7 @@ export function renderTimeline(program) {
     });
 
     wrapper.appendChild(row);
-    timeline.appendChild(wrapper);
+    placeHolder.appendChild(wrapper);
   });
 }
 

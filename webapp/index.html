@@ -14,7 +14,7 @@
     <div class="tabs">
       <button id="program-tab-button" class="tab active">Programs</button>
       <button id="audio-tab-button" class="tab">Audio</button>
-      <button id="upload-program-tab-button">Upload Program</button>
+      <button id="upload-program-tab-button" class="tab">Upload Program</button>
     </div>
 
     <!-- Programs Tab -->
@@ -38,9 +38,8 @@
           <button id="turn-btn" class="primary">Turn Targets</button>
         </div>
 
-        <section id="timeline-wrapper" class="visualization primary hidden">
-          <h2>Program Timeline</h2>
-          <div id="timeline"></div>
+        <section id="programs-timeline-wrapper" class="visualization primary hidden">
+          <div id="programs-timeline"></div>
         </section>
       </section>
     </section>
@@ -49,7 +48,7 @@
     <section id="audio-section" class="tab-content hidden">
       <section class="audio-upload">
         <h2>Upload Audio</h2>
-        <form id="audio-form">
+        <form id="audio-form" class="form-row">
           <input type="file" id="audio-file" accept=".mp3,audio/*" required />
           <input type="text" id="audio-title" placeholder="Title" required />
           <select id="audio-codec" required>
@@ -69,15 +68,14 @@
     <section id="upload-program-section" class="tab-content hidden">
       <section class="program-upload">
         <h2>Upload Program</h2>
-        <form id="program-upload-form">
+        <form id="program-upload-form" class="form-row">
           <input type="file" id="program-file" accept=".json" required />
           <button type="submit" class="primary">Upload</button>
         </form>
       </section>
 
-      <section id="uploaded-program-timeline" class="visualization hidden">
-        <h2>Uploaded Program Timeline</h2>
-        <div id="uploaded-timeline"></div>
+      <section id="upload-programs-timeline-wrapper" class="visualization primary hidden">
+        <div id="upload-programs-timeline"></div>
       </section>
     </section>
 

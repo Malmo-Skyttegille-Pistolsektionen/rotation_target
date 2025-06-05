@@ -275,7 +275,7 @@ footer {
 }
 
 
-.audio-upload form {
+.form-row {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;

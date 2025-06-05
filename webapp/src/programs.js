@@ -5,7 +5,8 @@ export async function initializeProgramsTab() {
     const programSelect = document.getElementById("choose-program");
     const seriesSelect = document.getElementById("choose-serie");
     const showJsonBtn = document.getElementById("show-json");
-    const timelineWrapperSection = document.getElementById("timeline-wrapper");
+    const timelineWrapperSection = document.getElementById("programs-timeline-wrapper");
+    const timeline = document.getElementById("programs-timeline");
 
     const startBtn = document.getElementById("start-btn");
     const stopBtn = document.getElementById("stop-btn");
@@ -31,6 +32,7 @@ export async function initializeProgramsTab() {
         });
 
         programSelect.addEventListener("change", async () => {
+
             const id = parseInt(programSelect.value, 10);
             if (!isNaN(id)) {
                 // Remove the default option once a program is selected
@@ -43,7 +45,7 @@ export async function initializeProgramsTab() {
                 try {
                     const program = await getProgram(id);
                     window.currentProgram = program;
-                    renderTimeline(program);
+                    renderTimeline(timeline, program);
                     setCurrent(0, 0);
 
                     // Populate series dropdown

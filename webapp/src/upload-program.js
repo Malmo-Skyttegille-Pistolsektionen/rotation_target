@@ -1,27 +1,25 @@
 import { renderTimeline } from './timeline.js';
 
 export function initializeUploadProgramTab() {
-  const programUploadForm = document.getElementById("program-upload-form");
-  const uploadedProgramTimelineSection = document.getElementById("uploaded-program-timeline");
-  const uploadedTimeline = document.getElementById("uploaded-timeline");
+    const programFileInput = document.getElementById("program-file");
+    const timelineWrapperSection = document.getElementById("upload-programs-timeline-wrapper");
+    const timeline = document.getElementById("upload-programs-timeline");
 
-  programUploadForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
+    // Event listener for file selection
+    programFileInput.addEventListener("change", (e) => {
+        const file = e.target.files[0]; // Access the selected file
+        if (!file) return;
 
-    const file = document.getElementById("program-file").files[0];
-    if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            console.log("File content:", event.target.result); // Debugging log
+            const program = JSON.parse(event.target.result);
+            renderTimeline(timeline, program); // Render timeline
+            console.log("READERED OK!"); // Debugging log
+            console.log("TimelinewrapperSection:", timelineWrapperSection); // Debugging log
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const programData = JSON.parse(event.target.result);
-        renderTimeline(programData, uploadedTimeline);
-        uploadedProgramTimelineSection.classList.remove("hidden");
-      } catch (err) {
-        console.error("Failed to parse program file:", err);
-        alert("Invalid program file.");
-      }
-    };
-    reader.readAsText(file);
-  });
+            timelineWrapperSection.classList.remove("hidden"); // Show timeline section
+        };
+        reader.readAsText(file);
+    });
 }
