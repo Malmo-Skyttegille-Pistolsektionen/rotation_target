@@ -12,12 +12,8 @@ export function initializeUploadProgramTab() {
 
         const reader = new FileReader();
         reader.onload = (event) => {
-            console.log("File content:", event.target.result); // Debugging log
             const program = JSON.parse(event.target.result);
             renderTimeline(timeline, program); // Render timeline
-            console.log("READERED OK!"); // Debugging log
-            console.log("TimelinewrapperSection:", timelineWrapperSection); // Debugging log
-
             timelineWrapperSection.classList.remove("hidden"); // Show timeline section
         };
         reader.readAsText(file);
