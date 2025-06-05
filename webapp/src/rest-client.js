@@ -1,6 +1,6 @@
 import { SERVER_API_URL } from "./config.js";
 
-export async function fetchPrograms() {
+export async function loadPrograms() {
   const response = await fetch(`${SERVER_API_URL}/programs`);
   return handleResponse(response);
 }

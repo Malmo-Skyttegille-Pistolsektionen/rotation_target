@@ -14,12 +14,12 @@
     <div class="tabs">
       <button id="program-tab-button" class="tab active">Programs</button>
       <button id="audio-tab-button" class="tab">Audio</button>
+      <button id="upload-program-tab-button">Upload Program</button>
     </div>
 
     <!-- Programs Tab -->
     <section id="program-section" class="tab-content">
       <section class="program">
-        <h2>Program Control</h2>
         <div class="program-controls-row">
           <select id="choose-program"></select>
           <select id="choose-serie" class="hidden"></select>
@@ -65,6 +65,22 @@
         <ul id="audio-container"></ul>
       </section>
     </section>
+
+    <section id="upload-program-section" class="tab-content hidden">
+      <section class="program-upload">
+        <h2>Upload Program</h2>
+        <form id="program-upload-form">
+          <input type="file" id="program-file" accept=".json" required />
+          <button type="submit" class="primary">Upload</button>
+        </form>
+      </section>
+
+      <section id="uploaded-program-timeline" class="visualization hidden">
+        <h2>Uploaded Program Timeline</h2>
+        <div id="uploaded-timeline"></div>
+      </section>
+    </section>
+
   </main>
 
   <footer id="footer">
