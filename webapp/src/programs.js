@@ -16,6 +16,13 @@ export async function initializeProgramsTab() {
 
         programSelect.innerHTML = ""; // Clear existing options
 
+        // Add default "Choose program" option
+        const defaultProgramOpt = document.createElement("option");
+        defaultProgramOpt.disabled = true;
+        defaultProgramOpt.selected = true;
+        defaultProgramOpt.textContent = "Choose program";
+        programSelect.appendChild(defaultProgramOpt);
+
         programs.forEach(program => {
             const opt = document.createElement("option");
             opt.value = program.id;
@@ -26,6 +33,12 @@ export async function initializeProgramsTab() {
         programSelect.addEventListener("change", async () => {
             const id = parseInt(programSelect.value, 10);
             if (!isNaN(id)) {
+                // Remove the default option once a program is selected
+                const defaultOption = programSelect.querySelector("option[disabled]");
+                if (defaultOption) {
+                    defaultOption.remove();
+                }
+
                 await loadProgram(id);
                 try {
                     const program = await getProgram(id);
@@ -86,5 +99,7 @@ export async function initializeProgramsTab() {
         stopBtn.addEventListener("click", async () => {
             await stopProgram();
         });
+    } catch (err) {
+        console.error("Failed to initialize Programs tab:", err);
     }
 }
