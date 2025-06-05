@@ -1,7 +1,8 @@
 import { initializeProgramsTab } from './programs.js';
-import { initializeAudiosTab } from './audios.js'; // Ensure this is imported only once
+import { initializeAudiosTab, refreshAudioList } from './audios.js'; // Ensure this is imported only once
 import { initializeUploadProgramTab } from './upload-program.js';
 import { EventType, connectToEventStream } from './sse-client.js';
+
 import {
 
   getStatus

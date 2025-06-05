@@ -67,7 +67,7 @@ export async function uploadAudio({ file, codec, title }) {
 
 export async function deleteAudio(id) {
   const response = await fetch(`${SERVER_API_URL}/audios/${id}/delete`, {
-    method: "POST",
+    method: "DELETE",
     headers: { "Content-Type": "application/json" },
   });
   return handleResponse(response);

@@ -322,7 +322,7 @@ export default defineConfig({
           }
 
           // Handle /api/v1/audios/{id}/delete POST
-          if (strippedPathname.startsWith('/audios/') && strippedPathname.endsWith('/delete') && req.method === 'POST') {
+          if (strippedPathname.startsWith('/audios/') && strippedPathname.endsWith('/delete') && req.method === 'DELETE') {
             const audioDeleteMatch = strippedPathname.match(/^\/audios\/(\d+)\/delete$/);
             if (audioDeleteMatch) {
               const audio_id = parseInt(audioDeleteMatch[1], 10);

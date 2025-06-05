@@ -168,7 +168,7 @@ paths:
           description: Unsupported Media Type — invalid audio format
 
   /audios/{id}/delete:
-    post:
+    delete:
       summary: Delete an audio file by ID
       parameters:
         - name: id
