@@ -42,9 +42,7 @@ const simulateSeriesEvents = () => {
   if (!series || !series.events) {
     // Check if there are more series
     if (currentState.current_series_index !== null && currentState.current_series_index + 1 < program_1_data.series.length) {
-      if (currentState.current_series_index !== null) {
-        currentState.current_series_index += 1; // Move to the next series
-      }
+      currentState.current_series_index += 1; // Move to the next series
       currentState.current_event_index = 0; // Reset event index
       currentState.running_series = false; // Stop running until explicitly started
       emit('series_next', { program_id: currentState.program_id, series_index: currentState.current_series_index });
@@ -142,17 +140,16 @@ export default defineConfig({
 
         server.middlewares.use((req, res, next) => {
           const url = new URL(req.url || '', SERVER_API_URL);
-
-          // Strip the API prefix (e.g., /api/v1) from the pathname
           const strippedPathname = url.pathname.replace(new URL(SERVER_API_URL).pathname, '');
 
-
+          // Status endpoint
           if (strippedPathname === '/status' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify(currentState));
             return;
           }
 
+          // Targets endpoints
           if (strippedPathname === '/targets/show' && req.method === 'POST') {
             currentState.target_status_shown = true;
             emit('target_status_changed', { target_status_shown: true });
@@ -177,6 +174,7 @@ export default defineConfig({
             return;
           }
 
+          // Programs endpoints
           if (strippedPathname === '/programs' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify([
@@ -233,69 +231,27 @@ export default defineConfig({
             return;
           }
 
-          if (strippedPathname.startsWith('/programs/') && req.method === 'GET') {
-            const programIdMatch = strippedPathname.match(/\/programs\/(\d+)$/);
-            const program_id = programIdMatch ? parseInt(programIdMatch[1], 10) : null;
 
-            if (program_id === null || program_id !== 1) { // Currently only program_1_data is supported
-              res.writeHead(404);
-              res.end(JSON.stringify({ error: 'Program not found' }));
+          // Handle /api/v1/programs/series/{series_index}/skip_to POST
+          const seriesSkipMatch = strippedPathname.match(/^\/api\/v1\/programs\/series\/(\d+)\/skip_to$/);
+          if (seriesSkipMatch && req.method === 'POST') {
+            const series_index = parseInt(seriesSkipMatch[1], 10);
+
+            if (isNaN(series_index) || series_index < 0 || series_index >= program_1_data.series.length) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ error: 'Invalid series index' }));
               return;
             }
 
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(program_1_data));
-            return;
-          }
-
-          if (strippedPathname.startsWith('/programs/') && strippedPathname.endsWith('/load') && req.method === 'POST') {
-            const programIdMatch = strippedPathname.match(/\/programs\/(\d+)\/load$/);
-            const program_id = programIdMatch ? parseInt(programIdMatch[1], 10) : null;
-
-            if (program_id === null || program_id !== 1) { // Currently only program_1_data is supported
-              res.writeHead(404);
-              res.end(JSON.stringify({ error: 'Program not found' }));
-              return;
-            }
-
-            currentState.program_id = program_id;
-            currentState.running_series = false;
-            currentState.current_series_index = 0;
+            currentState.current_series_index = series_index;
             currentState.current_event_index = 0;
-            emit('program_loaded', { program_id });
+            emit('series_next', { program_id: currentState.program_id, series_index });
             res.writeHead(200);
-            res.end();
+            res.end(JSON.stringify({ message: `Skipped to series ${series_index}` }));
             return;
           }
 
-          if (strippedPathname.startsWith('/programs/series/') && strippedPathname.endsWith('/skip_to') && req.method === 'POST') {
-            let body = '';
-            req.on('data', chunk => { body += chunk; });
-            req.on('end', () => {
-              try {
-                const seriesIndexMatch = strippedPathname.match(/\/programs\/series\/(\d+)\/skip_to/);
-                const series_index = seriesIndexMatch ? parseInt(seriesIndexMatch[1], 10) : null;
-
-                if (series_index == null || series_index < 0 || series_index >= program_1_data.series.length) {
-                  res.writeHead(400);
-                  res.end('Invalid series index');
-                  return;
-                }
-
-                currentState.current_series_index = series_index;
-                currentState.current_event_index = 0;
-                emit('series_next', { program_id: currentState.program_id, series_index });
-                res.writeHead(200);
-                res.end();
-              } catch {
-                res.writeHead(400);
-                res.end('Invalid request');
-              }
-            });
-            return;
-          }
-
-          // Audio endpoints
+          // Audios endpoints
           if (strippedPathname === '/audios' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ builtin: builtinAudios, uploaded: uploadedAudios }));
@@ -322,87 +278,29 @@ export default defineConfig({
             return;
           }
 
-          if (strippedPathname === '/audios/delete' && req.method === 'POST') {
-            let body = '';
-            req.on('data', chunk => { body += chunk; });
-            req.on('end', () => {
-              try {
-                const { id } = JSON.parse(body);
-                const index = uploadedAudios.findIndex(audio => audio.id === id);
-                if (index === -1) {
-                  res.writeHead(404);
-                  res.end(JSON.stringify({ error: 'Audio not found' }));
-                  return;
-                }
-                const deletedAudio = uploadedAudios.splice(index, 1)[0];
-                emit('audio_deleted', { id: deletedAudio.id });
-                res.writeHead(200);
-                res.end(JSON.stringify(deletedAudio));
-              } catch (err) {
-                res.writeHead(400);
-                res.end(JSON.stringify({ error: 'Invalid request' }));
-              }
-            });
-            return;
-          }
 
-          next();
+          // Handle /api/v1/audios/{id}/delete POST
+          const audioDeleteMatch = strippedPathname.match(/^\/api\/v1\/audios\/(\d+)\/delete$/);
+          if (audioDeleteMatch && req.method === 'POST') {
+            const audio_id = parseInt(audioDeleteMatch[1], 10);
 
-        });
-
-        server.middlewares.use((req, res, next) => {
-          const url = new URL(req.url || '', SERVER_API_URL);
-
-          // Extract path segments
-          const pathSegments = url.pathname.split('/').filter(segment => segment);
-
-          if (pathSegments[0] === 'programs' && req.method === 'GET') {
-            const program_id = parseInt(pathSegments[1], 10);
-
-            if (isNaN(program_id) || program_id !== 1) { // Currently only program_1_data is supported
-              res.writeHead(404);
-              res.end(JSON.stringify({ error: 'Program not found' }));
-              return;
-            }
-
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(program_1_data));
-            return;
-          }
-
-          if (pathSegments[0] === 'programs' && pathSegments[2] === 'load' && req.method === 'POST') {
-            const program_id = parseInt(pathSegments[1], 10);
-
-            if (isNaN(program_id) || program_id !== 1) { // Currently only program_1_data is supported
-              res.writeHead(404);
-              res.end(JSON.stringify({ error: 'Program not found' }));
-              return;
-            }
-
-            currentState.program_id = program_id;
-            currentState.running_series = false;
-            currentState.current_series_index = 0;
-            currentState.current_event_index = 0;
-            emit('program_loaded', { program_id });
-            res.writeHead(200);
-            res.end();
-            return;
-          }
-
-          if (pathSegments[0] === 'programs' && pathSegments[1] === 'series' && pathSegments[3] === 'skip_to' && req.method === 'POST') {
-            const series_index = parseInt(pathSegments[2], 10);
-
-            if (isNaN(series_index) || series_index < 0 || series_index >= program_1_data.series.length) {
+            if (isNaN(audio_id)) {
               res.writeHead(400);
-              res.end('Invalid series index');
+              res.end(JSON.stringify({ error: 'Invalid ID' }));
               return;
             }
 
-            currentState.current_series_index = series_index;
-            currentState.current_event_index = 0;
-            emit('series_next', { program_id: currentState.program_id, series_index });
+            const audioIndex = uploadedAudios.findIndex(audio => audio.id === audio_id);
+            if (audioIndex === -1) {
+              res.writeHead(404);
+              res.end(JSON.stringify({ error: 'Audio not found' }));
+              return;
+            }
+
+            const deletedAudio = uploadedAudios.splice(audioIndex, 1)[0];
+            emit('audio_deleted', { id: deletedAudio.id });
             res.writeHead(200);
-            res.end();
+            res.end(JSON.stringify({ message: 'Audio deleted successfully', id: deletedAudio.id }));
             return;
           }
 
@@ -416,7 +314,6 @@ export default defineConfig({
         server.middlewares.use((req, res, next) => {
           const url = new URL(req.url || '', SERVER_SSE_URL);
           const SSE_PATHNAME = new URL(SERVER_SSE_URL).pathname;
-
 
           if (url.pathname === SSE_PATHNAME) {
             res.writeHead(200, {
