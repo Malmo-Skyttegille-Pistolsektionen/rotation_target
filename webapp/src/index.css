@@ -155,7 +155,7 @@ select:focus {
 }
 
 .event.current {
-  outline: 2px dashed green;
+  outline: 4px dashed green;
   outline-offset: 4px;
 }
 

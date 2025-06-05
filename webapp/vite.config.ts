@@ -263,22 +263,24 @@ export default defineConfig({
 
 
           // Handle /api/v1/programs/series/{series_index}/skip_to POST
-          const seriesSkipMatch = strippedPathname.match(/^\/api\/v1\/programs\/series\/(\d+)\/skip_to$/);
-          if (seriesSkipMatch && req.method === 'POST') {
-            const series_index = parseInt(seriesSkipMatch[1], 10);
+          if (strippedPathname.startsWith('/programs/series/') && strippedPathname.endsWith('/skip_to') && req.method === 'POST') {
+            const seriesSkipMatch = strippedPathname.match(/^\/programs\/series\/(\d+)\/skip_to$/);
+            if (seriesSkipMatch) {
+              const series_index = parseInt(seriesSkipMatch[1], 10);
 
-            if (isNaN(series_index) || series_index < 0 || series_index >= program_1_data.series.length) {
-              res.writeHead(400);
-              res.end(JSON.stringify({ error: 'Invalid series index' }));
+              if (isNaN(series_index) || series_index < 0 || series_index >= program_1_data.series.length) {
+                res.writeHead(400);
+                res.end(JSON.stringify({ error: 'Invalid series index' }));
+                return;
+              }
+
+              currentState.current_series_index = series_index;
+              currentState.current_event_index = 0;
+              emit('series_next', { program_id: currentState.program_id, series_index });
+              res.writeHead(200);
+              res.end(JSON.stringify({ message: `Skipped to series ${series_index}` }));
               return;
             }
-
-            currentState.current_series_index = series_index;
-            currentState.current_event_index = 0;
-            emit('series_next', { program_id: currentState.program_id, series_index });
-            res.writeHead(200);
-            res.end(JSON.stringify({ message: `Skipped to series ${series_index}` }));
-            return;
           }
 
           // Audios endpoints
@@ -308,30 +310,31 @@ export default defineConfig({
             return;
           }
 
-
           // Handle /api/v1/audios/{id}/delete POST
-          const audioDeleteMatch = strippedPathname.match(/^\/api\/v1\/audios\/(\d+)\/delete$/);
-          if (audioDeleteMatch && req.method === 'POST') {
-            const audio_id = parseInt(audioDeleteMatch[1], 10);
+          if (strippedPathname.startsWith('/audios/') && strippedPathname.endsWith('/delete') && req.method === 'POST') {
+            const audioDeleteMatch = strippedPathname.match(/^\/audios\/(\d+)\/delete$/);
+            if (audioDeleteMatch) {
+              const audio_id = parseInt(audioDeleteMatch[1], 10);
 
-            if (isNaN(audio_id)) {
-              res.writeHead(400);
-              res.end(JSON.stringify({ error: 'Invalid ID' }));
+              if (isNaN(audio_id)) {
+                res.writeHead(400);
+                res.end(JSON.stringify({ error: 'Invalid ID' }));
+                return;
+              }
+
+              const audioIndex = uploadedAudios.findIndex(audio => audio.id === audio_id);
+              if (audioIndex === -1) {
+                res.writeHead(404);
+                res.end(JSON.stringify({ error: 'Audio not found' }));
+                return;
+              }
+
+              const deletedAudio = uploadedAudios.splice(audioIndex, 1)[0];
+              emit('audio_deleted', { id: deletedAudio.id });
+              res.writeHead(200);
+              res.end(JSON.stringify({ message: 'Audio deleted successfully', id: deletedAudio.id }));
               return;
             }
-
-            const audioIndex = uploadedAudios.findIndex(audio => audio.id === audio_id);
-            if (audioIndex === -1) {
-              res.writeHead(404);
-              res.end(JSON.stringify({ error: 'Audio not found' }));
-              return;
-            }
-
-            const deletedAudio = uploadedAudios.splice(audioIndex, 1)[0];
-            emit('audio_deleted', { id: deletedAudio.id });
-            res.writeHead(200);
-            res.end(JSON.stringify({ message: 'Audio deleted successfully', id: deletedAudio.id }));
-            return;
           }
 
           next();
