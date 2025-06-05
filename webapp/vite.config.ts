@@ -91,7 +91,6 @@ const simulateSeriesEvents = () => {
 
     // Check for command in the event and update target_status_shown
     const event = events[eventIndex];
-    console.log("Event:", event);
     if (event.command === 'show') {
       currentState.target_status_shown = true;
       emit('target_status', { status: "shown" });
@@ -234,17 +233,55 @@ export default defineConfig({
             return;
           }
 
-          if (strippedPathname === '/programs/series/skip_to' && req.method === 'POST') {
+          if (strippedPathname.startsWith('/programs/') && req.method === 'GET') {
+            const programIdMatch = strippedPathname.match(/\/programs\/(\d+)$/);
+            const program_id = programIdMatch ? parseInt(programIdMatch[1], 10) : null;
+
+            if (program_id === null || program_id !== 1) { // Currently only program_1_data is supported
+              res.writeHead(404);
+              res.end(JSON.stringify({ error: 'Program not found' }));
+              return;
+            }
+
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(program_1_data));
+            return;
+          }
+
+          if (strippedPathname.startsWith('/programs/') && strippedPathname.endsWith('/load') && req.method === 'POST') {
+            const programIdMatch = strippedPathname.match(/\/programs\/(\d+)\/load$/);
+            const program_id = programIdMatch ? parseInt(programIdMatch[1], 10) : null;
+
+            if (program_id === null || program_id !== 1) { // Currently only program_1_data is supported
+              res.writeHead(404);
+              res.end(JSON.stringify({ error: 'Program not found' }));
+              return;
+            }
+
+            currentState.program_id = program_id;
+            currentState.running_series = false;
+            currentState.current_series_index = 0;
+            currentState.current_event_index = 0;
+            emit('program_loaded', { program_id });
+            res.writeHead(200);
+            res.end();
+            return;
+          }
+
+          if (strippedPathname.startsWith('/programs/series/') && strippedPathname.endsWith('/skip_to') && req.method === 'POST') {
             let body = '';
             req.on('data', chunk => { body += chunk; });
             req.on('end', () => {
               try {
-                const { series_index } = JSON.parse(body);
-                if (series_index == null || series_index < 0) {
+                const seriesIndexMatch = strippedPathname.match(/\/programs\/series\/(\d+)\/skip_to/);
+                const series_index = seriesIndexMatch ? parseInt(seriesIndexMatch[1], 10) : null;
+
+                if (series_index == null || series_index < 0 || series_index >= program_1_data.series.length) {
                   res.writeHead(400);
                   res.end('Invalid series index');
                   return;
                 }
+
                 currentState.current_series_index = series_index;
                 currentState.current_event_index = 0;
                 emit('series_next', { program_id: currentState.program_id, series_index });
@@ -308,8 +345,68 @@ export default defineConfig({
             });
             return;
           }
+
           next();
 
+        });
+
+        server.middlewares.use((req, res, next) => {
+          const url = new URL(req.url || '', SERVER_API_URL);
+
+          // Extract path segments
+          const pathSegments = url.pathname.split('/').filter(segment => segment);
+
+          if (pathSegments[0] === 'programs' && req.method === 'GET') {
+            const program_id = parseInt(pathSegments[1], 10);
+
+            if (isNaN(program_id) || program_id !== 1) { // Currently only program_1_data is supported
+              res.writeHead(404);
+              res.end(JSON.stringify({ error: 'Program not found' }));
+              return;
+            }
+
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(program_1_data));
+            return;
+          }
+
+          if (pathSegments[0] === 'programs' && pathSegments[2] === 'load' && req.method === 'POST') {
+            const program_id = parseInt(pathSegments[1], 10);
+
+            if (isNaN(program_id) || program_id !== 1) { // Currently only program_1_data is supported
+              res.writeHead(404);
+              res.end(JSON.stringify({ error: 'Program not found' }));
+              return;
+            }
+
+            currentState.program_id = program_id;
+            currentState.running_series = false;
+            currentState.current_series_index = 0;
+            currentState.current_event_index = 0;
+            emit('program_loaded', { program_id });
+            res.writeHead(200);
+            res.end();
+            return;
+          }
+
+          if (pathSegments[0] === 'programs' && pathSegments[1] === 'series' && pathSegments[3] === 'skip_to' && req.method === 'POST') {
+            const series_index = parseInt(pathSegments[2], 10);
+
+            if (isNaN(series_index) || series_index < 0 || series_index >= program_1_data.series.length) {
+              res.writeHead(400);
+              res.end('Invalid series index');
+              return;
+            }
+
+            currentState.current_series_index = series_index;
+            currentState.current_event_index = 0;
+            emit('series_next', { program_id: currentState.program_id, series_index });
+            res.writeHead(200);
+            res.end();
+            return;
+          }
+
+          next();
         });
       }
     },

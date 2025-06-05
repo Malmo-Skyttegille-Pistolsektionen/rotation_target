@@ -35,10 +35,9 @@ export async function stopProgram() {
 }
 
 export async function skipToSeries(series_index) {
-  const response = await fetch(`${SERVER_API_URL}/programs/series/skip_to`, {
+  const response = await fetch(`${SERVER_API_URL}/programs/series/${series_index}/skip_to`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ series_index }),
   });
   return handleResponse(response);
 }
