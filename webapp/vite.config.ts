@@ -89,6 +89,17 @@ const simulateSeriesEvents = () => {
     // Update current_event_index
     currentState.current_event_index = eventIndex;
 
+    // Check for command in the event and update target_status_shown
+    const event = events[eventIndex];
+    console.log("Event:", event);
+    if (event.command === 'show') {
+      currentState.target_status_shown = true;
+      emit('target_status', { status: "shown" });
+    } else if (event.command === 'hide') {
+      currentState.target_status_shown = false;
+      emit('target_status', { status: "hidden" });
+    }
+
     // Emit event_started
     emit('event_started', {
       program_id: currentState.program_id,
