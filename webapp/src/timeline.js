@@ -16,7 +16,7 @@ export function renderTimeline(program) {
     wrapper.dataset.seriesIndex = sIdx;
 
     const title = document.createElement("div");
-    title.textContent = series.name;
+    title.textContent = series.name + (series.optional ? " (optional)" : "");
     wrapper.appendChild(title);
 
     const row = document.createElement("div");

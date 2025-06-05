@@ -601,6 +601,25 @@
             "optional": true,
             "events": [
                 {
+                    "duration": 600,
+                    "audio_ids": [
+                        1
+                    ],
+                    "command": "show"
+                },
+                {
+                    "duration": 70,
+                    "command": "hide"
+                },
+                {
+                    "duration": 60,
+                    "command": "show"
+                },
+                {
+                    "duration": 10,
+                    "command": "hide"
+                },
+                {
                     "duration": 30,
                     "audio_ids": [
                         1
@@ -620,7 +639,8 @@
                     "duration": 600,
                     "audio_ids": [
                         1
-                    ]
+                    ],
+                    "command": "show"
                 },
                 {
                     "duration": 70,
