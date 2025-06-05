@@ -285,6 +285,7 @@ components:
               type: integer
             event_index:
               type: integer
-        target_status_shown:
-          type: boolean
+        target_status:
+          type: string
+          enum: [shown, hidden]
           nullable: true
