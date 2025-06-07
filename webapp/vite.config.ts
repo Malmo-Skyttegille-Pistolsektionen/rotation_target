@@ -32,9 +32,6 @@ const currentState: ProgramState = {
 // SSE Clients
 const clients: ServerResponse[] = [];
 
-// Flag to control simulation
-let simulationActive = true;
-
 // Emit SSE events
 const emit = (event: string, data: object) => {
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -44,8 +41,7 @@ const emit = (event: string, data: object) => {
 const simulateSeriesEvents = () => {
   if (!currentState.running_series || currentState.program_id === null || currentState.current_series_index === null) {
     console.warn('Simulation aborted: Invalid program state', currentState);
-    simulationActive = false; // Ensure simulation is stopped
-    return;
+    return; // Abort simulation if the series is not running
   }
 
   const series = program_1_data.series[currentState.current_series_index];
@@ -65,7 +61,6 @@ const simulateSeriesEvents = () => {
     currentState.program_id = null;
     currentState.current_series_index = null;
     currentState.current_event_index = null;
-    simulationActive = false; // Stop simulation
     return;
   }
 
@@ -73,9 +68,9 @@ const simulateSeriesEvents = () => {
 
   // Start simulation from the current event index
   const simulateEvent = (eventIndex: number) => {
-    if (!simulationActive) {
+    if (!currentState.running_series) {
       console.warn('Simulation aborted: Series skipped or stopped');
-      return; // Abort simulation if simulationActive is set to false
+      return; // Abort simulation if the series is not running
     }
 
     if (eventIndex >= events.length) {
@@ -97,7 +92,6 @@ const simulateSeriesEvents = () => {
       currentState.program_id = null;
       currentState.current_series_index = null;
       currentState.current_event_index = null;
-      simulationActive = false; // Stop simulation
       return;
     }
 
@@ -123,9 +117,9 @@ const simulateSeriesEvents = () => {
 
     // Simulate event completion after 2 seconds
     setTimeout(() => {
-      if (!simulationActive) {
+      if (!currentState.running_series) {
         console.warn('Simulation aborted: Series skipped or stopped');
-        return; // Abort simulation if simulationActive is set to false
+        return; // Abort simulation if the series is not running
       }
 
       emit('event_completed', {
@@ -246,7 +240,6 @@ export default defineConfig({
               return;
             }
             currentState.running_series = true;
-            simulationActive = true; // Start simulation
             emit('program_started', { program_id: currentState.program_id });
             emit('series_started', { program_id: currentState.program_id, series_index: currentState.current_series_index });
 
@@ -264,9 +257,16 @@ export default defineConfig({
               res.end('No program running');
               return;
             }
+
+            // Stop the series and reset the event index to the first event of the current series
             currentState.running_series = false;
-            simulationActive = false; // Stop simulation
-            emit('program_completed', { program_id: currentState.program_id });
+            currentState.current_event_index = 0; // Reset to the first event of the current series
+            emit('series_stopped', {
+              program_id: currentState.program_id,
+              series_index: currentState.current_series_index,
+              event_index: currentState.current_event_index,
+            });
+
             res.writeHead(200);
             res.end();
             return;

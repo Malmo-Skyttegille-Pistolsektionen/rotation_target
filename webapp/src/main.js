@@ -90,6 +90,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.log('Program started:', programState);
 
       },
+      [EventType.ProgramCompleted]: ({ program_id }) => {
+        programState.program_id = program_id;
+        programState.series_running = false; // Program is no longer running
+        clearCurrent();
+        console.log('Program completed:', programState);
+
+      },
       [EventType.SeriesStarted]: ({ program_id, series_index }) => {
         programState.program_id = program_id;
         programState.series_running = true; // Series is actively running
@@ -99,33 +106,35 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.log('Series started:', programState);
 
       },
-      [EventType.EventStarted]: ({ program_id, series_index, event_index }) => {
-        programState.program_id = program_id;
-        programState.current_series_index = series_index;
-        programState.current_event_index = event_index;
-        setCurrent(series_index, event_index);
-        console.log('Event started:', programState);
-
-      },
       [EventType.SeriesCompleted]: ({ program_id, series_index }) => {
         programState.program_id = program_id;
         programState.series_running = false; // Series has completed
         console.log('Series completed:', programState);
 
       },
+      [EventType.SeriesStopped]: ({ program_id, series_index, event_index }) => {
+        programState.program_id = program_id;
+        programState.current_series_index = series_index;
+        programState.current_event_index = event_index;
+        setCurrent(programState.current_series_index, programState.current_event_index);
+        programState.series_running = false; // Series has completed
+        console.log('Series stopped:', programState);
+
+      },
       [EventType.SeriesNext]: ({ program_id, series_index }) => {
         programState.program_id = program_id;
         programState.current_series_index = series_index;
         programState.current_event_index = 0;
-        setCurrent(series_index, 0);
+        setCurrent(programState.current_series_index, programState.current_event_index);
         console.log('Series next:', programState);
 
       },
-      [EventType.ProgramCompleted]: ({ program_id }) => {
+      [EventType.EventStarted]: ({ program_id, series_index, event_index }) => {
         programState.program_id = program_id;
-        programState.series_running = false; // Program is no longer running
-        clearCurrent();
-        console.log('Program completed:', programState);
+        programState.current_series_index = series_index;
+        programState.current_event_index = event_index;
+        setCurrent(programState.current_series_index, programState.current_event_index);
+        console.log('Event started:', programState);
 
       },
       [EventType.TargetStatus]: ({ status }) => {
