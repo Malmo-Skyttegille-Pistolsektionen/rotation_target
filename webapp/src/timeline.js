@@ -4,9 +4,6 @@ let currentEventIndex = null;
 let timelineData = null;
 
 export function renderTimeline(placeHolder, program) {
-  console.log("Placeholder element:", placeHolder);
-  console.log("Program data loaded:", program);
-
   placeHolder.innerHTML = "";
 
   timelineData = preprocess(program.series);
