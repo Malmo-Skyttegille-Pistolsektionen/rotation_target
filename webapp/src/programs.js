@@ -10,6 +10,8 @@ export async function initializeProgramsTab() {
 
     const startBtn = document.getElementById("start-btn");
     const stopBtn = document.getElementById("stop-btn");
+    const chronoElement = document.getElementById('chrono');
+
 
     try {
         const programs = await loadPrograms(); // Fetch the list of programs

@@ -14,7 +14,7 @@ const { version } = JSON.parse(fs.readFileSync('./package.json', 'utf-8'));
 
 // Shared ProgramState
 type ProgramState = {
-  running_series: boolean;
+  running_series_start: Date | null; // Timestamp when the series started, or null if not running
   program_id: number | null;
   current_series_index: number | null;
   current_event_index: number | null;
@@ -22,11 +22,11 @@ type ProgramState = {
 };
 
 const currentState: ProgramState = {
-  running_series: false,
+  running_series_start: null, // Initially not running
   program_id: null,
   current_series_index: null,
   current_event_index: null,
-  target_status_shown: null
+  target_status_shown: null,
 };
 
 // SSE Clients
@@ -38,8 +38,24 @@ const emit = (event: string, data: object) => {
   clients.forEach(res => res.write(payload));
 };
 
+// Emit chrono SSE every second
+setInterval(() => {
+  if (currentState.running_series_start && currentState.program_id !== null && currentState.current_series_index !== null) {
+    const elapsedTime = Date.now() - currentState.running_series_start.getTime(); // Calculate elapsed time in milliseconds
+    const series = program_1_data.series[currentState.current_series_index];
+    const totalTime = series.events.reduce((sum, event) => sum + event.duration * 1000, 0); // Total duration in milliseconds
+    const remainingTime = Math.max(totalTime - elapsedTime, 0); // Remaining time in milliseconds
+
+    emit('chrono', {
+      elapsed: elapsedTime,
+      remaining: remainingTime,
+      total: totalTime,
+    });
+  }
+}, 1000);
+
 const simulateSeriesEvents = () => {
-  if (!currentState.running_series || currentState.program_id === null || currentState.current_series_index === null) {
+  if (!currentState.running_series_start || currentState.program_id === null || currentState.current_series_index === null) {
     console.warn('Simulation aborted: Invalid program state', currentState);
     return; // Abort simulation if the series is not running
   }
@@ -50,14 +66,14 @@ const simulateSeriesEvents = () => {
     if (currentState.current_series_index !== null && currentState.current_series_index + 1 < program_1_data.series.length) {
       currentState.current_series_index += 1; // Move to the next series
       currentState.current_event_index = 0; // Reset event index
-      currentState.running_series = false; // Stop running until explicitly started
+      currentState.running_series_start = null; // Stop running until explicitly started
       emit('series_next', { program_id: currentState.program_id, series_index: currentState.current_series_index });
       return;
     }
 
     // If no more series, complete the program
     emit('program_completed', { program_id: currentState.program_id });
-    currentState.running_series = false;
+    currentState.running_series_start = null;
     currentState.program_id = null;
     currentState.current_series_index = null;
     currentState.current_event_index = null;
@@ -68,7 +84,7 @@ const simulateSeriesEvents = () => {
 
   // Start simulation from the current event index
   const simulateEvent = (eventIndex: number) => {
-    if (!currentState.running_series) {
+    if (!currentState.running_series_start) {
       console.warn('Simulation aborted: Series skipped or stopped');
       return; // Abort simulation if the series is not running
     }
@@ -81,14 +97,14 @@ const simulateSeriesEvents = () => {
       if (currentState.current_series_index !== null && currentState.current_series_index + 1 < program_1_data.series.length) {
         currentState.current_series_index += 1; // Move to the next series
         currentState.current_event_index = 0; // Reset event index
-        currentState.running_series = false; // Stop running until explicitly started
+        currentState.running_series_start = null; // Stop running until explicitly started
         emit('series_next', { program_id: currentState.program_id, series_index: currentState.current_series_index });
         return;
       }
 
       // If no more series, complete the program
       emit('program_completed', { program_id: currentState.program_id });
-      currentState.running_series = false;
+      currentState.running_series_start = null;
       currentState.program_id = null;
       currentState.current_series_index = null;
       currentState.current_event_index = null;
@@ -117,7 +133,7 @@ const simulateSeriesEvents = () => {
 
     // Simulate event completion after 2 seconds
     setTimeout(() => {
-      if (!currentState.running_series) {
+      if (!currentState.running_series_start) {
         console.warn('Simulation aborted: Series skipped or stopped');
         return; // Abort simulation if the series is not running
       }
@@ -166,8 +182,8 @@ export default defineConfig({
           // Status endpoint
           if (strippedPathname === '/status' && req.method === 'GET') {
             const statusResponse = {
-              running: currentState.running_series,
-              next_event: currentState.running_series && currentState.current_series_index !== null && currentState.current_event_index !== null
+              running: currentState.running_series_start !== null,
+              next_event: currentState.running_series_start && currentState.current_series_index !== null && currentState.current_event_index !== null
                 ? {
                   program_id: currentState.program_id,
                   series_index: currentState.current_series_index,
@@ -224,7 +240,7 @@ export default defineConfig({
 
           if (strippedPathname === '/programs/1/load' && req.method === 'POST') {
             currentState.program_id = 1;
-            currentState.running_series = false;
+            currentState.running_series_start = null;
             currentState.current_series_index = 0;
             currentState.current_event_index = 0;
             emit('program_loaded', { program_id: 1 });
@@ -239,7 +255,7 @@ export default defineConfig({
               res.end('No program loaded');
               return;
             }
-            currentState.running_series = true;
+            currentState.running_series_start = new Date(); // Set the start time
             emit('program_started', { program_id: currentState.program_id });
             emit('series_started', { program_id: currentState.program_id, series_index: currentState.current_series_index });
 
@@ -252,14 +268,14 @@ export default defineConfig({
           }
 
           if (strippedPathname === '/programs/stop' && req.method === 'POST') {
-            if (!currentState.running_series) {
+            if (!currentState.running_series_start) {
               res.writeHead(400);
               res.end('No program running');
               return;
             }
 
             // Stop the series and reset the event index to the first event of the current series
-            currentState.running_series = false;
+            currentState.running_series_start = null; // Stop the series
             currentState.current_event_index = 0; // Reset to the first event of the current series
             emit('series_stopped', {
               program_id: currentState.program_id,
@@ -268,7 +284,7 @@ export default defineConfig({
             });
 
             res.writeHead(200);
-            res.end();
+            res.end(JSON.stringify({ message: 'Series stopped and reset to the first event' }));
             return;
           }
 

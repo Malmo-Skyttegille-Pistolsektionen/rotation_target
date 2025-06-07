@@ -103,6 +103,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         programState.current_series_index = series_index;
         programState.current_event_index = 0;
         setCurrent(series_index, 0);
+        const chronoElement = document.getElementById('chrono');
+        chronoElement.classList.remove('hidden');
+
+
         console.log('Series started:', programState);
 
       },
@@ -118,6 +122,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         programState.current_event_index = event_index;
         setCurrent(programState.current_series_index, programState.current_event_index);
         programState.series_running = false; // Series has completed
+        const chronoElement = document.getElementById('chrono');
+        chronoElement.classList.add('hidden');
         console.log('Series stopped:', programState);
 
       },
@@ -150,9 +156,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       [EventType.AudioDeleted]: ({ id }) => {
         refreshAudioList();
         console.log('Audio deleted:', id);
-
       }
-    };
+      ,
+      [EventType.Chrono]: ({ elapsed, remaining, total }) => {
+        console.log('Chrono: ', { elapsed, remaining, total });
+        // Update the text in the #chrono element
+        const chronoElement = document.getElementById('chrono');
+
+        if (chronoElement) {
+          chronoElement.textContent = `${Math.floor(elapsed / 1000)}s`;
+        }
+      },
+
+    }
 
     if (handlers[type]) {
       handlers[type](payload);

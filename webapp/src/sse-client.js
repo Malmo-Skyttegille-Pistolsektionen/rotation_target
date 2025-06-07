@@ -12,7 +12,7 @@ export const EventType = {
   TargetStatus: 'target_status',
   AudioAdded: 'audio_added',
   AudioDeleted: 'audio_deleted',
-  TimerValue: 'timer_value',
+  Chrono: 'chrono',
 };
 
 export function connectToEventStream(onEvent) {
@@ -77,3 +77,6 @@ export function connectToEventStream(onEvent) {
 
 // event: audio_deleted
 // data: {"id":1}
+
+// event: chrono
+// data: {elapsed: 123, remaining: 456, total: 579}
