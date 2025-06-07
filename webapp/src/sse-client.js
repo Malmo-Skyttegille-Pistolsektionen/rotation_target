@@ -11,7 +11,8 @@ export const EventType = {
   EventStarted: 'event_started',
   TargetStatus: 'target_status',
   AudioAdded: 'audio_added',
-  AudioDeleted: 'audio_deleted'
+  AudioDeleted: 'audio_deleted',
+  TimerValue: 'timer_value',
 };
 
 export function connectToEventStream(onEvent) {
