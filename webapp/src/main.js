@@ -76,7 +76,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Broadcast SSE events
   connectToEventStream((type, payload) => {
     console.log('SSE Event:', type, payload);
-    const event = new CustomEvent(type, { payload });
+    const event = new CustomEvent(type, { detail: payload });
     document.dispatchEvent(event);
   });
 

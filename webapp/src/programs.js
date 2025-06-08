@@ -154,13 +154,13 @@ export async function initializeProgramsTab() {
 }
 
 // Listen for SSE events
-document.addEventListener(EventType.ProgramCompleted, ({ payload: { program_id } }) => {
+document.addEventListener(EventType.ProgramCompleted, ({ detail: { program_id } }) => {
     updateProgramState({ program_id: null, running_series_start: null });
     clearCurrent();
     updateProgramButtons();
 });
 
-document.addEventListener(EventType.SeriesStarted, ({ payload: { program_id, series_index } }) => {
+document.addEventListener(EventType.SeriesStarted, ({ detail: { program_id, series_index } }) => {
     updateProgramState({
         program_id,
         running_series_start: new Date(),
@@ -173,14 +173,14 @@ document.addEventListener(EventType.SeriesStarted, ({ payload: { program_id, ser
     updateProgramButtons();
 });
 
-document.addEventListener(EventType.SeriesCompleted, ({ payload: { program_id } }) => {
+document.addEventListener(EventType.SeriesCompleted, ({ detail: { program_id } }) => {
     updateProgramState({ running_series_start: null });
     const chronoElement = document.getElementById('chrono');
     chronoElement.classList.add('hidden');
     updateProgramButtons();
 });
 
-document.addEventListener(EventType.SeriesStopped, ({ payload: { program_id, series_index, event_index } }) => {
+document.addEventListener(EventType.SeriesStopped, ({ detail: { program_id, series_index, event_index } }) => {
     updateProgramState({
         program_id,
         running_series_start: null,
@@ -193,7 +193,7 @@ document.addEventListener(EventType.SeriesStopped, ({ payload: { program_id, ser
     updateProgramButtons();
 });
 
-document.addEventListener(EventType.SeriesNext, ({ payload: { program_id, series_index } }) => {
+document.addEventListener(EventType.SeriesNext, ({ detail: { program_id, series_index } }) => {
     updateProgramState({
         program_id,
         current_series_index: series_index,
@@ -203,7 +203,7 @@ document.addEventListener(EventType.SeriesNext, ({ payload: { program_id, series
     updateProgramButtons();
 });
 
-document.addEventListener(EventType.EventStarted, ({ payload: { program_id, series_index, event_index } }) => {
+document.addEventListener(EventType.EventStarted, ({ detail: { program_id, series_index, event_index } }) => {
     updateProgramState({
         program_id,
         current_series_index: series_index,
@@ -212,11 +212,11 @@ document.addEventListener(EventType.EventStarted, ({ payload: { program_id, seri
     setCurrent(series_index, event_index);
 });
 
-document.addEventListener(EventType.TargetStatus, ({ payload: { status } }) => {
+document.addEventListener(EventType.TargetStatus, ({ detail: { status } }) => {
     updateProgramState({ target_status_shown: status === 'shown' });
 });
 
-document.addEventListener(EventType.Chrono, ({ payload: { elapsed } }) => {
+document.addEventListener(EventType.Chrono, ({ detail: { elapsed } }) => {
     const chronoElement = document.getElementById('chrono');
     if (chronoElement) {
         chronoElement.textContent = `${Math.floor(elapsed / 1000)}s`;
