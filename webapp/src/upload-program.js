@@ -1,4 +1,5 @@
 import { renderTimeline } from './timeline.js';
+import { EventType } from './sse-client.js';
 
 export function initializeUploadProgramTab() {
     const programFileInput = document.getElementById("program-file");

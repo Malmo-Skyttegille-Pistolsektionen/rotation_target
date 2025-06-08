@@ -1,4 +1,5 @@
 import { fetchAudios, uploadAudio, deleteAudio } from './rest-client.js';
+import { EventType} from './sse-client.js';
 
 export async function refreshAudioList() {
     try {
@@ -61,8 +62,6 @@ export async function refreshAudioList() {
     }
 }
 
-
-
 export async function initializeAudiosTab() {
     const audioForm = document.getElementById("audio-form");
     const audioContainer = document.getElementById("audio-container");
@@ -93,3 +92,13 @@ export async function initializeAudiosTab() {
 
     await refreshAudioList();
 }
+
+document.addEventListener(EventType.AudioUploaded, ({ payload }) => {
+    refreshAudioList();
+    console.log('Audio uploaded:', payload.id);
+});
+
+document.addEventListener(EventType.AudioDeleted, ({ payload }) => {
+    refreshAudioList();
+    console.log('Audio deleted:', payload.id);
+});

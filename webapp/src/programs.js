@@ -1,6 +1,48 @@
 import { renderTimeline, setCurrent, clearCurrent } from './timeline.js';
 import { loadPrograms, getProgram, loadProgram, startProgram, stopProgram, skipToSeries } from './rest-client.js';
+import { EventType } from './sse-client.js';
 
+// Program state to track the current program and series
+const programState = {
+    program_id: null,
+    running_series_start: null, // Tracks when the series started or null if not running
+    current_series_index: null,
+    current_event_index: null,
+    target_status_shown: false,
+};
+
+// Methods to interact with programState
+export function getProgramState() {
+    return programState;
+}
+
+export function updateProgramState(updates) {
+    Object.assign(programState, updates);
+}
+
+// Methods to handle UI updates based on program state
+export function updateProgramButtons() {
+    const startBtn = document.getElementById("start-btn");
+    const stopBtn = document.getElementById("stop-btn");
+
+    const { program_id, running_series_start } = programState;
+
+    if (program_id !== null && running_series_start === null) {
+        // Program is loaded but no series is running
+        startBtn.classList.remove('hidden');
+        stopBtn.classList.add('hidden');
+    } else if (running_series_start !== null) {
+        // Series is running
+        startBtn.classList.add('hidden');
+        stopBtn.classList.remove('hidden');
+    } else {
+        // No program loaded
+        startBtn.classList.add('hidden');
+        stopBtn.classList.add('hidden');
+    }
+}
+
+// Initialize the Programs tab
 export async function initializeProgramsTab() {
     const programSelect = document.getElementById("choose-program");
     const seriesSelect = document.getElementById("choose-serie");
@@ -49,6 +91,9 @@ export async function initializeProgramsTab() {
                     window.currentProgram = program;
                     renderTimeline(timeline, program);
                     setCurrent(0, 0);
+
+                    updateProgramState({ program_id: id, running_series_start: null });
+                    updateProgramButtons();
 
                     // Populate series dropdown
                     seriesSelect.innerHTML = "";
@@ -107,3 +152,73 @@ export async function initializeProgramsTab() {
         console.error("Failed to initialize Programs tab:", err);
     }
 }
+
+// Listen for SSE events
+document.addEventListener(EventType.ProgramCompleted, ({ payload: { program_id } }) => {
+    updateProgramState({ program_id: null, running_series_start: null });
+    clearCurrent();
+    updateProgramButtons();
+});
+
+document.addEventListener(EventType.SeriesStarted, ({ payload: { program_id, series_index } }) => {
+    updateProgramState({
+        program_id,
+        running_series_start: new Date(),
+        current_series_index: series_index,
+        current_event_index: 0,
+    });
+    setCurrent(series_index, 0);
+    const chronoElement = document.getElementById('chrono');
+    chronoElement.classList.remove('hidden');
+    updateProgramButtons();
+});
+
+document.addEventListener(EventType.SeriesCompleted, ({ payload: { program_id } }) => {
+    updateProgramState({ running_series_start: null });
+    const chronoElement = document.getElementById('chrono');
+    chronoElement.classList.add('hidden');
+    updateProgramButtons();
+});
+
+document.addEventListener(EventType.SeriesStopped, ({ payload: { program_id, series_index, event_index } }) => {
+    updateProgramState({
+        program_id,
+        running_series_start: null,
+        current_series_index: series_index,
+        current_event_index: event_index,
+    });
+    setCurrent(series_index, event_index);
+    const chronoElement = document.getElementById('chrono');
+    chronoElement.classList.add('hidden');
+    updateProgramButtons();
+});
+
+document.addEventListener(EventType.SeriesNext, ({ payload: { program_id, series_index } }) => {
+    updateProgramState({
+        program_id,
+        current_series_index: series_index,
+        current_event_index: 0,
+    });
+    setCurrent(series_index, 0);
+    updateProgramButtons();
+});
+
+document.addEventListener(EventType.EventStarted, ({ payload: { program_id, series_index, event_index } }) => {
+    updateProgramState({
+        program_id,
+        current_series_index: series_index,
+        current_event_index: event_index,
+    });
+    setCurrent(series_index, event_index);
+});
+
+document.addEventListener(EventType.TargetStatus, ({ payload: { status } }) => {
+    updateProgramState({ target_status_shown: status === 'shown' });
+});
+
+document.addEventListener(EventType.Chrono, ({ payload: { elapsed } }) => {
+    const chronoElement = document.getElementById('chrono');
+    if (chronoElement) {
+        chronoElement.textContent = `${Math.floor(elapsed / 1000)}s`;
+    }
+});
