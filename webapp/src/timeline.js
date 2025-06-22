@@ -28,7 +28,7 @@ export function renderTimeline(placeHolder, program) {
 
       const dur = document.createElement("div");
       dur.className = "dur";
-      dur.textContent = ev.duration.toFixed(1);
+      dur.textContent = ev.duration;
       evDiv.appendChild(dur);
 
       const sym = document.createElement("div");
@@ -38,7 +38,7 @@ export function renderTimeline(placeHolder, program) {
 
       const acc = document.createElement("div");
       acc.className = "acc";
-      acc.textContent = ev.acc.toFixed(1);
+      acc.textContent = ev.acc;
       evDiv.appendChild(acc);
 
       row.appendChild(evDiv);
@@ -53,7 +53,7 @@ function preprocess(seriesList) {
   return seriesList.map((series) => {
     let acc = 0;
     const events = series.events.map(ev => {
-      const duration = ev.duration / 10;
+      const duration = ev.duration;
 
       // Determine the symbol class and text based on event properties
       let symbolClass = "no-action";

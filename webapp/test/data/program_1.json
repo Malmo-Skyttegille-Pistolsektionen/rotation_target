@@ -1,69 +1,39 @@
 {
+    "id": 1,
     "title": "Militär Snabbmatch",
     "description": "Full 3-stage match with 4+2 series per stage",
     "series": [
-        {
-            "name": "Example series that shows all combos",
-            "optional": false,
-            "events": [
-                {
-                    "duration": 10
-                },
-                {
-                    "duration": 10,
-                    "command": "show"
-                },
-                {
-                    "duration": 10,
-                    "command": "hide"
-                },
-                {
-                    "duration": 10,
-                    "audio_ids": [
-                        1
-                    ],
-                    "command": "show"
-                },
-                {
-                    "duration": 10,
-                    "audio_ids": [
-                        1
-                    ],
-                    "command": "hide"
-                }
-            ]
-        },
         {
             "name": "10s Series 1",
             "optional": false,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
-                },
-                {
-                    "duration": 100,
-                    "command": "show"
                 },
                 {
                     "duration": 10,
+                    "command": "show"
+                },
+                {
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show",
                     "audio_ids": [
                         1
@@ -76,32 +46,32 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
-                },
-                {
-                    "duration": 100,
-                    "command": "show"
                 },
                 {
                     "duration": 10,
+                    "command": "show"
+                },
+                {
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
@@ -111,32 +81,32 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
-                },
-                {
-                    "duration": 100,
-                    "command": "show"
                 },
                 {
                     "duration": 10,
+                    "command": "show"
+                },
+                {
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
@@ -146,32 +116,32 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
-                },
-                {
-                    "duration": 100,
-                    "command": "show"
                 },
                 {
                     "duration": 10,
+                    "command": "show"
+                },
+                {
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
@@ -181,32 +151,32 @@
             "optional": true,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
-                },
-                {
-                    "duration": 100,
-                    "command": "show"
                 },
                 {
                     "duration": 10,
+                    "command": "show"
+                },
+                {
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
@@ -216,32 +186,32 @@
             "optional": true,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
-                },
-                {
-                    "duration": 100,
-                    "command": "show"
                 },
                 {
                     "duration": 10,
+                    "command": "show"
+                },
+                {
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
@@ -251,32 +221,32 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
                 },
                 {
-                    "duration": 80,
+                    "duration": 8,
                     "command": "show"
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
@@ -286,32 +256,32 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
                 },
                 {
-                    "duration": 80,
+                    "duration": 8,
                     "command": "show"
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
@@ -321,32 +291,32 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
                 },
                 {
-                    "duration": 80,
+                    "duration": 8,
                     "command": "show"
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
@@ -356,32 +326,32 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
                 },
                 {
-                    "duration": 80,
+                    "duration": 8,
                     "command": "show"
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
@@ -391,32 +361,32 @@
             "optional": true,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
                 },
                 {
-                    "duration": 80,
+                    "duration": 8,
                     "command": "show"
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
@@ -426,32 +396,32 @@
             "optional": true,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
                 },
                 {
-                    "duration": 80,
+                    "duration": 8,
                     "command": "show"
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
@@ -461,32 +431,32 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
                 },
                 {
-                    "duration": 60,
+                    "duration": 6,
                     "command": "show"
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
@@ -496,32 +466,32 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
                 },
                 {
-                    "duration": 60,
+                    "duration": 6,
                     "command": "show"
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
@@ -531,32 +501,32 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
                 },
                 {
-                    "duration": 60,
+                    "duration": 6,
                     "command": "show"
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
@@ -566,32 +536,32 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
                 },
                 {
-                    "duration": 60,
+                    "duration": 6,
                     "command": "show"
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
@@ -601,32 +571,32 @@
             "optional": true,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
                 },
                 {
-                    "duration": 60,
+                    "duration": 6,
                     "command": "show"
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
@@ -636,32 +606,32 @@
             "optional": true,
             "events": [
                 {
-                    "duration": 600,
+                    "duration": 60,
                     "audio_ids": [
                         1
                     ],
                     "command": "show"
                 },
                 {
-                    "duration": 70,
+                    "duration": 7,
                     "command": "hide"
                 },
                 {
-                    "duration": 60,
+                    "duration": 6,
                     "command": "show"
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "hide"
                 },
                 {
-                    "duration": 30,
+                    "duration": 3,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 10,
+                    "duration": 1,
                     "command": "show"
                 }
             ]
