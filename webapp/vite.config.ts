@@ -317,7 +317,7 @@ export default defineConfig({
             return;
           }
 
-          if (strippedPathname === '/audios/upload' && req.method === 'POST') {
+          if (strippedPathname === '/audios' && req.method === 'POST') {
             let body = '';
             req.on('data', chunk => { body += chunk; });
             req.on('end', () => {
@@ -362,6 +362,33 @@ export default defineConfig({
               res.end(JSON.stringify({ message: 'Audio deleted successfully', id: deletedAudio.id }));
               return;
             }
+          }
+
+          // Mock POST /programs (upload a new program)
+          if (strippedPathname === '/programs' && req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', () => {
+              try {
+                const data = JSON.parse(body);
+                if (
+                  typeof data.title === 'string' &&
+                  typeof data.description === 'string' &&
+                  Array.isArray(data.series)
+                ) {
+                  // Simulate success (could add to a mock list if desired)
+                  res.writeHead(201);
+                  res.end(JSON.stringify({ message: "Program uploaded" }));
+                } else {
+                  res.writeHead(400);
+                  res.end(JSON.stringify({ error: "Invalid program structure" }));
+                }
+              } catch (err) {
+                res.writeHead(400);
+                res.end(JSON.stringify({ error: "Invalid JSON" }));
+              }
+            });
+            return;
           }
 
           next();

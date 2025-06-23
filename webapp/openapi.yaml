@@ -1,10 +1,10 @@
-openapi: 3.1.0
+openapi: 3.0.0
 info:
   title: MSG Shooting Target System REST API
   version: 0.2.0
 
 servers:
-  - url: http://localhost:8080/api/v1
+  - url: http://192.168.1.71:8080/api/v1
     description: Base URL for version 1 of the API
 
 paths:
@@ -27,6 +27,7 @@ paths:
                       type: string
                     description:
                       type: string
+
     post:
       summary: Upload a new program
       requestBody:
@@ -38,6 +39,13 @@ paths:
       responses:
         "201":
           description: Program uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  program_id:
+                    type: integer
         "400":
           description: Invalid program structure
 
@@ -91,7 +99,7 @@ paths:
         "200":
           description: Series stopped
         "400":
-          description: No program running
+          description: No program loaded or no program running
 
   /programs/series/{series_index}/skip_to:
     post:
@@ -107,6 +115,23 @@ paths:
           description: Skipped to the specified series
         "400":
           description: No program loaded or invalid series index
+
+  /programs/{id}/delete:
+    delete:
+      summary: Delete a program by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Program deleted successfully
+        "404":
+          description: Program not found
+        "400":
+          description: Invalid ID
 
   /status:
     get:
@@ -139,7 +164,6 @@ paths:
                     items:
                       $ref: "#/components/schemas/Audio"
 
-  /audios/upload:
     post:
       summary: Upload a new audio file
       requestBody:
@@ -164,6 +188,13 @@ paths:
       responses:
         "201":
           description: Audio uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  audio_id:
+                    type: integer
         "415":
           description: Unsupported Media Type — invalid audio format
 

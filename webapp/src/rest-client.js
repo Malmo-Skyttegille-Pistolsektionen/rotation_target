@@ -58,7 +58,7 @@ export async function uploadAudio({ file, codec, title }) {
   formData.append("codec", codec);
   formData.append("title", title);
 
-  const response = await fetch(`${SERVER_API_URL}/audios/upload`, {
+  const response = await fetch(`${SERVER_API_URL}/audios`, {
     method: "POST",
     body: formData,
   });
