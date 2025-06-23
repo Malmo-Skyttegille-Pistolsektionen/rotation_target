@@ -44,7 +44,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  program_id:
+                  id:
                     type: integer
         "400":
           description: Invalid program structure
@@ -193,7 +193,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  audio_id:
+                  id:
                     type: integer
         "415":
           description: Unsupported Media Type — invalid audio format

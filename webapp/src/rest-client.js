@@ -52,7 +52,7 @@ export async function fetchAudios() {
   return handleResponse(response);
 }
 
-export async function uploadAudio({ file, codec, title }) {
+export async function uploadAudio(file, codec, title) {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("codec", codec);

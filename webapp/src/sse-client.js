@@ -1,7 +1,8 @@
 import { SERVER_SSE_URL } from "./config.js";
 
 export const EventType = {
-  ProgramUploaded: 'program_uploaded',
+  ProgramAdded: 'program_added',
+  ProgramDeleted: 'program_deleted',
   ProgramStarted: 'program_started',
   ProgramCompleted: 'program_completed',
   SeriesStarted: 'series_started',
@@ -45,38 +46,3 @@ export function connectToEventStream(onEvent) {
   return source;
 }
 
-// event: program_uploaded
-// data: {"program_id":1}
-
-// event: program_started
-// data: {"program_id":0}
-
-// event: program_completed
-// data: {"program_id":0}
-
-// event: series_started
-// data: {"program_id":0, "series_index":0}
-
-// event: series_stopped
-// data: {"program_id":0, "series_index":0, "event_index":1}
-
-// event: event_started
-// data: {"program_id":0, "series_index":0, "event_index":1}
-
-// event: series_completed
-// data: {"program_id":0, "series_index":0}
-
-// event: series_next
-// data: {"program_id":0, "series_index":0}
-
-// event: target_status
-// data: {"status":"shown"} # shown, hidden
-
-// event: audio_added
-// data: {"id":1}
-
-// event: audio_deleted
-// data: {"id":1}
-
-// event: chrono
-// data: {elapsed: 123, remaining: 456, total: 579}

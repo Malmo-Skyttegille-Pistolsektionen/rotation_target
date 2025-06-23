@@ -153,6 +153,13 @@ const simulateSeriesEvents = () => {
   simulateEvent(currentState.current_event_index || 0); // Default to 0 if current_event_index is null
 };
 
+function logRequests(server: PreviewServer | ViteDevServer) {
+  server.middlewares.use((req, _, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+  });
+}
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version)
@@ -163,6 +170,11 @@ export default defineConfig({
     port: SERVER_PORT,
   },
   plugins: [
+    // {
+    //   name: 'requestLogger',
+    //   configurePreviewServer: logRequests, // log in preview mode
+    //   configureServer: logRequests,        // log in development mode
+    // },
 
     {
       name: 'mock-rest',
@@ -177,7 +189,6 @@ export default defineConfig({
         server.middlewares.use((req, res, next) => {
           const url = new URL(req.url || '', SERVER_API_URL);
           const strippedPathname = url.pathname.replace(new URL(SERVER_API_URL).pathname, '');
-
 
           // Status endpoint
           if (strippedPathname === '/status' && req.method === 'GET') {
@@ -317,25 +328,44 @@ export default defineConfig({
             return;
           }
 
+          // Handle POST /audios (upload a new audio)
           if (strippedPathname === '/audios' && req.method === 'POST') {
+            // Only handle multipart/form-data (basic boundary check)
+            const contentType = req.headers['content-type'] || '';
+            if (!contentType.startsWith('multipart/form-data')) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ error: 'Content-Type must be multipart/form-data' }));
+              return;
+            }
+
             let body = '';
             req.on('data', chunk => { body += chunk; });
             req.on('end', () => {
-              try {
-                const { title, codec } = JSON.parse(body);
+              // Very basic multipart parsing for mock purposes only
+              // Extract title and codec fields
+              const titleMatch = body.match(/name="title"\r\n\r\n([^\r\n]*)/);
+              const codecMatch = body.match(/name="codec"\r\n\r\n([^\r\n]*)/);
+              const fileMatch = body.match(/name="file"; filename="([^"]+)"/);
+
+              const title = titleMatch ? titleMatch[1] : '';
+              const codecReceived = !!codecMatch;
+              const fileReceived = !!fileMatch;
+
+              if (fileReceived && title && codecReceived) {
                 const newId = Math.max(...uploadedAudios.map(a => a.id), 100) + 1;
-                const newAudio = { id: newId, title };
-                uploadedAudios.push(newAudio);
-                emit('audio_added', newAudio);
+                uploadedAudios.push({ id: newId, title });
+                emit('audio_uploaded', { id: newId, title });
+
                 res.writeHead(201);
-                res.end(JSON.stringify(newAudio));
-              } catch (err) {
+                res.end(JSON.stringify({ message: "Audio uploaded", id: newId }));
+              } else {
                 res.writeHead(400);
-                res.end(JSON.stringify({ error: 'Invalid request' }));
+                res.end(JSON.stringify({ error: 'Invalid multipart form data' }));
               }
             });
             return;
           }
+
 
           // Handle /api/v1/audios/{id}/delete POST
           if (strippedPathname.startsWith('/audios/') && strippedPathname.endsWith('/delete') && req.method === 'DELETE') {

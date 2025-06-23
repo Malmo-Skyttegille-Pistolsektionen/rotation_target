@@ -73,15 +73,16 @@ export async function initializeAudiosTab() {
         const title = document.getElementById("audio-title").value;
         const codec = document.getElementById("audio-codec").value;
 
-        if (!file || !title || !codec) return;
+        console.debug("Form submit:", { file, title, codec });
 
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("title", title);
-        formData.append("codec", codec);
+        if (!file || !title || !codec) {
+            console.debug("Missing required fields", { file, title, codec });
+            return;
+        }
 
         try {
             await uploadAudio(file, codec, title);
+            console.debug("Upload successful");
             audioForm.reset();
             await refreshAudioList();
         } catch (err) {
