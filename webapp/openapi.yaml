@@ -27,6 +27,8 @@ paths:
                       type: string
                     description:
                       type: string
+                    readonly:
+                      type: boolean
 
     post:
       summary: Upload a new program
@@ -155,11 +157,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  builtin:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Audio"
-                  uploaded:
+                  audios:
                     type: array
                     items:
                       $ref: "#/components/schemas/Audio"
@@ -245,27 +243,20 @@ components:
           type: integer
         title:
           type: string
+        readonly:
+          type: boolean
 
     Program:
       type: object
       properties:
+        id:
+          type: integer
         title:
           type: string
         description:
           type: string
-        series:
-          type: array
-          items:
-            $ref: "#/components/schemas/Series"
-
-    ProgramUpload:
-      type: object
-      required: [title, description, series]
-      properties:
-        title:
-          type: string
-        description:
-          type: string
+        readonly:
+          type: boolean
         series:
           type: array
           items:
@@ -325,3 +316,16 @@ components:
           type: string
           enum: [shown, hidden]
           nullable: true
+
+    ProgramUpload:
+      type: object
+      required: [title, description, series]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        series:
+          type: array
+          items:
+            $ref: "#/components/schemas/Series"

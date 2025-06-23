@@ -1,5 +1,5 @@
 import { renderTimeline, setCurrent, clearCurrent } from './timeline.js';
-import { loadPrograms, getProgram, loadProgram, startProgram, stopProgram, skipToSeries } from './rest-client.js';
+import { getProgram, loadProgram, startProgram, stopProgram, skipToSeries, getPrograms } from './rest-client.js';
 import { EventType } from './sse-client.js';
 
 // Program state to track the current program and series
@@ -56,7 +56,7 @@ export async function initializeProgramsTab() {
 
 
     try {
-        const programs = await loadPrograms(); // Fetch the list of programs
+        const programs = await getPrograms(); // Fetch the list of programs
         console.log("Fetched programs:", programs); // Debugging log
 
         programSelect.innerHTML = ""; // Clear existing options

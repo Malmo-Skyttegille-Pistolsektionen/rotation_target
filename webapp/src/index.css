@@ -316,6 +316,25 @@ footer {
   font-weight: bold;
 }
 
+.programs-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 1rem auto;
+  max-width: 400px;
+}
+
+.programs-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem;
+  border-bottom: 1px solid #ddd;
+}
+
+#programs-container h3 {
+  margin: 1rem 0 0.5rem;
+  text-align: left;
+  font-weight: bold;
+}
 
 .delete-btn {
   margin-left: 1rem;

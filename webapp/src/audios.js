@@ -4,58 +4,38 @@ import { EventType } from './sse-client.js';
 export async function refreshAudioList() {
     try {
         const audioContainer = document.getElementById("audio-container");
-
-        const { builtin = [], uploaded = [] } = await fetchAudios();
+        const { audios = [] } = await fetchAudios();
 
         audioContainer.innerHTML = "";
 
-        // Add Built-in audios
-        if (builtin.length > 0) {
-            const builtinHeader = document.createElement("h3");
-            builtinHeader.textContent = "Built-in:";
-            audioContainer.appendChild(builtinHeader);
-
-            const builtinList = document.createElement("ul");
-            builtin.forEach(audio => {
-                const li = document.createElement("li");
-                li.textContent = `${audio.id}: ${audio.title}`;
-                builtinList.appendChild(li);
-            });
-            audioContainer.appendChild(builtinList);
-        }
-
-        // Add Uploaded audios
-        if (uploaded.length > 0) {
-            const uploadedHeader = document.createElement("h3");
-            uploadedHeader.textContent = "Uploaded:";
-            audioContainer.appendChild(uploadedHeader);
-
-            const uploadedList = document.createElement("ul");
-            uploaded.forEach(audio => {
+        if (audios.length > 0) {
+            const audioList = document.createElement("ul");
+            audios.forEach(audio => {
                 const li = document.createElement("li");
                 li.textContent = `${audio.id}: ${audio.title}`;
 
-                // Add delete button
-                const deleteBtn = document.createElement("button");
-                deleteBtn.textContent = "Delete";
-                deleteBtn.classList.add("delete-btn");
-                deleteBtn.addEventListener("click", async () => {
-                    if (confirm(`Are you sure you want to delete "${audio.title}"?`)) {
-                        try {
-                            await deleteAudio(audio.id);
-                            alert(`Audio "${audio.title}" deleted successfully.`);
-                            await refreshAudioList();
-                        } catch (err) {
-                            console.error("Failed to delete audio:", err);
-                            alert("Failed to delete audio.");
+                if (!audio.readonly) {
+                    const deleteBtn = document.createElement("button");
+                    deleteBtn.textContent = "Delete";
+                    deleteBtn.classList.add("delete-btn");
+                    deleteBtn.addEventListener("click", async () => {
+                        if (confirm(`Are you sure you want to delete "${audio.title}"?`)) {
+                            try {
+                                await deleteAudio(audio.id);
+                                alert(`Audio "${audio.title}" deleted successfully.`);
+                                await refreshAudioList();
+                            } catch (err) {
+                                console.error("Failed to delete audio:", err);
+                                alert("Failed to delete audio.");
+                            }
                         }
-                    }
-                });
+                    });
+                    li.appendChild(deleteBtn);
+                }
 
-                li.appendChild(deleteBtn);
-                uploadedList.appendChild(li);
+                audioList.appendChild(li);
             });
-            audioContainer.appendChild(uploadedList);
+            audioContainer.appendChild(audioList);
         }
     } catch (err) {
         console.error("Error loading audios:", err);
@@ -94,12 +74,12 @@ export async function initializeAudiosTab() {
     await refreshAudioList();
 }
 
-document.addEventListener(EventType.AudioUploaded, ({ detail: { id } }) => {
+document.addEventListener(EventType.AudioAdded, async ({ detail: { id } }) => {
     refreshAudioList();
-    console.log('Audio uploaded:', id);
+    console.log('Audio added:', id);
 });
 
-document.addEventListener(EventType.AudioDeleted, ({ detail: { id } }) => {
+document.addEventListener(EventType.AudioDeleted, async ({ detail: { id } }) => {
     refreshAudioList();
     console.log('Audio deleted:', id);
 });

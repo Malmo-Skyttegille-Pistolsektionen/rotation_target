@@ -1,6 +1,6 @@
 import { SERVER_API_URL } from "./config.js";
 
-export async function loadPrograms() {
+export async function getPrograms() {
   const response = await fetch(`${SERVER_API_URL}/programs`);
   return handleResponse(response);
 }
@@ -15,6 +15,14 @@ export async function uploadProgram(program) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(program),
+  });
+  return handleResponse(response);
+}
+
+export async function deleteProgram(id) {
+  const response = await fetch(`${SERVER_API_URL}/programs/${id}/delete`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
   });
   return handleResponse(response);
 }

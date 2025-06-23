@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import fs from 'fs';
+import fs, { read } from 'fs';
 import type { ServerResponse } from 'http';
 import { SERVER_API_URL, SERVER_SSE_URL, SERVER_BASE_URL } from './src/config.js';
 
@@ -153,12 +153,12 @@ const simulateSeriesEvents = () => {
   simulateEvent(currentState.current_event_index || 0); // Default to 0 if current_event_index is null
 };
 
-function logRequests(server: PreviewServer | ViteDevServer) {
-  server.middlewares.use((req, _, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    next();
-  });
-}
+// function logRequests(server: PreviewServer | ViteDevServer) {
+//   server.middlewares.use((req, _, next) => {
+//     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+//     next();
+//   });
+// }
 
 export default defineConfig({
   define: {
@@ -179,12 +179,10 @@ export default defineConfig({
     {
       name: 'mock-rest',
       configureServer(server) {
-        let uploadedAudios = [
-          { id: 101, title: 'start.mp3' }
-        ];
-        let builtinAudios = [
-          { id: 1, title: 'beep.mp3' },
-          { id: 2, title: 'voice_ready.mp3' }
+        let audios = [
+          { id: 1, title: 'Beep', readonly: true },
+          { id: 2, title: 'Färdiga', readonly: true },
+          { id: 101, title: 'Custom', readonly: false },
         ];
         server.middlewares.use((req, res, next) => {
           const url = new URL(req.url || '', SERVER_API_URL);
@@ -238,7 +236,8 @@ export default defineConfig({
           if (strippedPathname === '/programs' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify([
-              { id: 1, title: program_1_data.title, description: program_1_data.description }
+              { id: 1, title: program_1_data.title, description: program_1_data.description, readonly: true },
+              { id: 2, title: 'Custom Program', description: 'A custom program for testing', readonly: false }
             ]));
             return;
           }
@@ -324,7 +323,7 @@ export default defineConfig({
           // Audios endpoints
           if (strippedPathname === '/audios' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ builtin: builtinAudios, uploaded: uploadedAudios }));
+            res.end(JSON.stringify({ audios: audios }));
             return;
           }
 
@@ -352,8 +351,8 @@ export default defineConfig({
               const fileReceived = !!fileMatch;
 
               if (fileReceived && title && codecReceived) {
-                const newId = Math.max(...uploadedAudios.map(a => a.id), 100) + 1;
-                uploadedAudios.push({ id: newId, title });
+                const newId = Math.max(...audios.map(a => a.id), 100) + 1;
+                audios.push({ id: newId, title, readonly: false });
                 emit('audio_uploaded', { id: newId, title });
 
                 res.writeHead(201);
@@ -366,31 +365,64 @@ export default defineConfig({
             return;
           }
 
-
           // Handle /api/v1/audios/{id}/delete POST
           if (strippedPathname.startsWith('/audios/') && strippedPathname.endsWith('/delete') && req.method === 'DELETE') {
             const audioDeleteMatch = strippedPathname.match(/^\/audios\/(\d+)\/delete$/);
             if (audioDeleteMatch) {
-              const audio_id = parseInt(audioDeleteMatch[1], 10);
+            const audio_id = parseInt(audioDeleteMatch[1], 10);
 
-              if (isNaN(audio_id)) {
-                res.writeHead(400);
-                res.end(JSON.stringify({ error: 'Invalid ID' }));
-                return;
-              }
-
-              const audioIndex = uploadedAudios.findIndex(audio => audio.id === audio_id);
-              if (audioIndex === -1) {
-                res.writeHead(404);
-                res.end(JSON.stringify({ error: 'Audio not found' }));
-                return;
-              }
-
-              const deletedAudio = uploadedAudios.splice(audioIndex, 1)[0];
-              emit('audio_deleted', { id: deletedAudio.id });
-              res.writeHead(200);
-              res.end(JSON.stringify({ message: 'Audio deleted successfully', id: deletedAudio.id }));
+            if (isNaN(audio_id)) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ error: 'Invalid ID' }));
               return;
+            }
+
+            const audioIndex = audios.findIndex(audio => audio.id === audio_id);
+            if (audioIndex === -1) {
+              res.writeHead(404);
+              res.end(JSON.stringify({ error: 'Audio not found' }));
+              return;
+            }
+
+            if (audios[audioIndex].readonly) {
+              res.writeHead(403);
+              res.end(JSON.stringify({ error: 'Cannot delete readonly audio' }));
+              return;
+            }
+
+            const deletedAudio = audios.splice(audioIndex, 1)[0];
+            emit('audio_deleted', { id: deletedAudio.id });
+            res.writeHead(200);
+            res.end(JSON.stringify({ message: 'Audio deleted successfully', id: deletedAudio.id }));
+            return;
+            }
+          }
+
+          // Handle /api/v1/programs/{id}/delete DELETE
+          if (strippedPathname.startsWith('/programs/') && strippedPathname.endsWith('/delete') && req.method === 'DELETE') {
+            const programDeleteMatch = strippedPathname.match(/^\/programs\/(\d+)\/delete$/);
+            if (programDeleteMatch) {
+            const program_id = parseInt(programDeleteMatch[1], 10);
+
+            if (isNaN(program_id)) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ error: 'Invalid ID' }));
+              return;
+            }
+
+            // Only allow deleting custom (id !== 1) program in this mock
+            if (program_id === 1) {
+              res.writeHead(403);
+              res.end(JSON.stringify({ error: 'Cannot delete readonly program' }));
+              return;
+            }
+
+            // In a real implementation, you would remove from a list.
+            // Here, just emit and return success for id !== 1.
+            emit('program_deleted', { id: program_id });
+            res.writeHead(200);
+            res.end(JSON.stringify({ message: 'Program deleted successfully', id: program_id }));
+            return;
             }
           }
 

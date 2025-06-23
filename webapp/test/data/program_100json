@@ -1,0 +1,38 @@
+{
+    "id": 100,
+    "title": "Custom Program 100",
+    "description": "Example program with all different commands and durations",
+    "series": [
+        {
+            "name": "Example series that shows all combos",
+            "optional": false,
+            "events": [
+                {
+                    "duration": 2
+                },
+                {
+                    "duration": 1,
+                    "command": "show"
+                },
+                {
+                    "duration": 2,
+                    "command": "hide"
+                },
+                {
+                    "duration": 1,
+                    "audio_ids": [
+                        1
+                    ],
+                    "command": "show"
+                },
+                {
+                    "duration": 2,
+                    "audio_ids": [
+                        1
+                    ],
+                    "command": "hide"
+                }
+            ]
+        }
+    ]
+}
