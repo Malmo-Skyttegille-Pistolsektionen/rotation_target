@@ -10,31 +10,34 @@ export async function refreshAudioList() {
 
         if (audios.length > 0) {
             const audioList = document.createElement("ul");
-            audios.forEach(audio => {
-                const li = document.createElement("li");
-                li.textContent = `${audio.id}: ${audio.title}`;
+            audios
+                .slice()
+                .sort((a, b) => a.id - b.id)
+                .forEach(audio => {
+                    const li = document.createElement("li");
+                    li.textContent = `${audio.id}: ${audio.title}`;
 
-                if (!audio.readonly) {
-                    const deleteBtn = document.createElement("button");
-                    deleteBtn.textContent = "Delete";
-                    deleteBtn.classList.add("delete-btn");
-                    deleteBtn.addEventListener("click", async () => {
-                        if (confirm(`Are you sure you want to delete "${audio.title}"?`)) {
-                            try {
-                                await deleteAudio(audio.id);
-                                alert(`Audio "${audio.title}" deleted successfully.`);
-                                await refreshAudioList();
-                            } catch (err) {
-                                console.error("Failed to delete audio:", err);
-                                alert("Failed to delete audio.");
+                    if (!audio.readonly) {
+                        const deleteBtn = document.createElement("button");
+                        deleteBtn.textContent = "Delete";
+                        deleteBtn.classList.add("delete-btn");
+                        deleteBtn.addEventListener("click", async () => {
+                            if (confirm(`Are you sure you want to delete "${audio.title}"?`)) {
+                                try {
+                                    await deleteAudio(audio.id);
+                                    alert(`Audio "${audio.title}" deleted successfully.`);
+                                    await refreshAudioList();
+                                } catch (err) {
+                                    console.error("Failed to delete audio:", err);
+                                    alert("Failed to delete audio.");
+                                }
                             }
-                        }
-                    });
-                    li.appendChild(deleteBtn);
-                }
+                        });
+                        li.appendChild(deleteBtn);
+                    }
 
-                audioList.appendChild(li);
-            });
+                    audioList.appendChild(li);
+                });
             audioContainer.appendChild(audioList);
         }
     } catch (err) {
@@ -43,6 +46,19 @@ export async function refreshAudioList() {
 }
 
 export async function initializeAudiosTab() {
+    const audioFileInput = document.getElementById("audio-file");
+    const audioTitleInput = document.getElementById("audio-title");
+
+    audioFileInput.addEventListener("change", () => {
+        const file = audioFileInput.files[0];
+        if (file) {
+            // Python's rfind is similar to JavaScript's lastIndexOf
+            const lastDotIndex = file.name.lastIndexOf(".");
+            const nameWithoutExt = lastDotIndex > 0 ? file.name.substring(0, lastDotIndex) : file.name;
+            audioTitleInput.value = nameWithoutExt;
+        }
+    });
+
     const audioForm = document.getElementById("audio-form");
     const audioContainer = document.getElementById("audio-container");
 

@@ -13,31 +13,34 @@ export async function refreshProgramsList() {
         if (programs.length > 0) {
 
             const programsList = document.createElement("ul");
-            programs.forEach(program => {
-                const li = document.createElement("li");
-                li.textContent = `${program.id}: ${program.title}`;
+            programs
+                .slice()
+                .sort((a, b) => a.id - b.id)
+                .forEach(program => {
+                    const li = document.createElement("li");
+                    li.textContent = `${program.id}: ${program.title}`;
 
-                if (!program.readonly) {
-                    const deleteBtn = document.createElement("button");
-                    deleteBtn.textContent = "Delete";
-                    deleteBtn.classList.add("delete-btn");
-                    deleteBtn.addEventListener("click", async () => {
-                        if (confirm(`Are you sure you want to delete "${program.title}"?`)) {
-                            try {
-                                await deleteProgram(program.id);
-                                alert(`Program "${program.title}" deleted successfully.`);
-                                await refreshProgramsList();
-                            } catch (err) {
-                                console.error("Failed to delete program:", err);
-                                alert("Failed to delete program.");
+                    if (!program.readonly) {
+                        const deleteBtn = document.createElement("button");
+                        deleteBtn.textContent = "Delete";
+                        deleteBtn.classList.add("delete-btn");
+                        deleteBtn.addEventListener("click", async () => {
+                            if (confirm(`Are you sure you want to delete "${program.title}"?`)) {
+                                try {
+                                    await deleteProgram(program.id);
+                                    alert(`Program "${program.title}" deleted successfully.`);
+                                    await refreshProgramsList();
+                                } catch (err) {
+                                    console.error("Failed to delete program:", err);
+                                    alert("Failed to delete program.");
+                                }
                             }
-                        }
-                    });
-                    li.appendChild(deleteBtn);
-                }
+                        });
+                        li.appendChild(deleteBtn);
+                    }
 
-                programsList.appendChild(li);
-            });
+                    programsList.appendChild(li);
+                });
             programContainer.appendChild(programsList);
         }
     } catch (err) {
