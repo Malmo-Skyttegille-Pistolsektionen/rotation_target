@@ -39,7 +39,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const uploadProgramSection = document.getElementById("upload-program-section");
 
   // Tab switching logic
-  programTabButton.addEventListener("click", () => {
+  programTabButton.addEventListener("click", async () => {
     programTabButton.classList.add("active");
     audioTabButton.classList.remove("active");
     uploadProgramTabButton.classList.remove("active");
@@ -47,6 +47,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     programSection.classList.remove("hidden");
     audioSection.classList.add("hidden");
     uploadProgramSection.classList.add("hidden");
+    await initializeProgramsTab();
   });
 
   audioTabButton.addEventListener("click", async () => {

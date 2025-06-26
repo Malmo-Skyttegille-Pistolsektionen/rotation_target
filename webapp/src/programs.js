@@ -222,3 +222,12 @@ document.addEventListener(EventType.Chrono, ({ detail: { elapsed } }) => {
         chronoElement.textContent = `${Math.floor(elapsed / 1000)}s`;
     }
 });
+
+
+document.addEventListener(EventType.ProgramAdded, ({ detail: { program_id } }) => {
+    initializeProgramsTab();
+});
+
+document.addEventListener(EventType.ProgramDeleted, ({ detail: { program_id } }) => {
+    initializeProgramsTab();
+});

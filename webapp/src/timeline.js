@@ -1,3 +1,4 @@
+import { getAudioTitleById } from './audios.js';
 
 let currentSeriesIndex = null;
 let currentEventIndex = null;
@@ -40,6 +41,13 @@ export function renderTimeline(placeHolder, program) {
       acc.className = "acc";
       acc.textContent = ev.acc;
       evDiv.appendChild(acc);
+
+      // If event has audio_ids, show title(s) as tooltip or label
+      if (ev.audio_ids && ev.audio_ids.length > 0) {
+        const audioTitles = ev.audio_ids.map(getAudioTitleById).join(", ");
+        evDiv.setAttribute("title", audioTitles); // For desktop hover
+        // For touch, we can also show a popup or inline label if desired
+      }
 
       row.appendChild(evDiv);
     });

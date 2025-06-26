@@ -1,15 +1,14 @@
 import { defineConfig } from 'vite';
 import fs, { read } from 'fs';
 import type { ServerResponse } from 'http';
-import { SERVER_API_URL, SERVER_SSE_URL, SERVER_BASE_URL } from './src/config.js';
 
-// Extract hostname and port
-const url = new URL(SERVER_BASE_URL);
-const SERVER_HOSTNAME = url.hostname; // "localhost"
-const SERVER_PORT = parseInt(url.port, 10);
+// Mock server URLs
+const SERVER_BASE_URL = "http://localhost:8080";
+const SERVER_API_URL = `${SERVER_BASE_URL}/api/v1`;
+const SERVER_SSE_URL = `${SERVER_BASE_URL}/sse/v1`;
 
-
-const program_1_data = JSON.parse(fs.readFileSync('./test/data/program_1.json', 'utf-8'));
+const program_1_data = JSON.parse(fs.readFileSync('./test/data/1.json', 'utf-8'));
+const program_2_data = JSON.parse(fs.readFileSync('./test/data/2.json', 'utf-8'));
 const { version } = JSON.parse(fs.readFileSync('./package.json', 'utf-8'));
 
 // Shared ProgramState
@@ -166,8 +165,8 @@ export default defineConfig({
   },
 
   server: {
-    host: SERVER_HOSTNAME,
-    port: SERVER_PORT,
+    host: 'localhost',
+    port: 8080,
   },
   plugins: [
     // {
@@ -237,7 +236,7 @@ export default defineConfig({
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify([
               { id: 1, title: program_1_data.title, description: program_1_data.description, readonly: true },
-              { id: 2, title: 'Custom Program', description: 'A custom program for testing', readonly: false }
+              { id: 2, title: program_2_data.title, description: program_2_data.description, readonly: false }
             ]));
             return;
           }
@@ -258,6 +257,24 @@ export default defineConfig({
             res.end();
             return;
           }
+
+          if (strippedPathname === '/programs/2' && req.method === 'GET') {
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(program_2_data));
+            return;
+          }
+
+          if (strippedPathname === '/programs/2/load' && req.method === 'POST') {
+            currentState.program_id = 2;
+            currentState.running_series_start = null;
+            currentState.current_series_index = 0;
+            currentState.current_event_index = 0;
+            emit('program_loaded', { program_id: 2 });
+            res.writeHead(200);
+            res.end();
+            return;
+          }
+
 
           if (strippedPathname === '/programs/start' && req.method === 'POST') {
             if (currentState.program_id == null) {
@@ -369,32 +386,32 @@ export default defineConfig({
           if (strippedPathname.startsWith('/audios/') && strippedPathname.endsWith('/delete') && req.method === 'DELETE') {
             const audioDeleteMatch = strippedPathname.match(/^\/audios\/(\d+)\/delete$/);
             if (audioDeleteMatch) {
-            const audio_id = parseInt(audioDeleteMatch[1], 10);
+              const audio_id = parseInt(audioDeleteMatch[1], 10);
 
-            if (isNaN(audio_id)) {
-              res.writeHead(400);
-              res.end(JSON.stringify({ error: 'Invalid ID' }));
+              if (isNaN(audio_id)) {
+                res.writeHead(400);
+                res.end(JSON.stringify({ error: 'Invalid ID' }));
+                return;
+              }
+
+              const audioIndex = audios.findIndex(audio => audio.id === audio_id);
+              if (audioIndex === -1) {
+                res.writeHead(404);
+                res.end(JSON.stringify({ error: 'Audio not found' }));
+                return;
+              }
+
+              if (audios[audioIndex].readonly) {
+                res.writeHead(403);
+                res.end(JSON.stringify({ error: 'Cannot delete readonly audio' }));
+                return;
+              }
+
+              const deletedAudio = audios.splice(audioIndex, 1)[0];
+              emit('audio_deleted', { id: deletedAudio.id });
+              res.writeHead(200);
+              res.end(JSON.stringify({ message: 'Audio deleted successfully', id: deletedAudio.id }));
               return;
-            }
-
-            const audioIndex = audios.findIndex(audio => audio.id === audio_id);
-            if (audioIndex === -1) {
-              res.writeHead(404);
-              res.end(JSON.stringify({ error: 'Audio not found' }));
-              return;
-            }
-
-            if (audios[audioIndex].readonly) {
-              res.writeHead(403);
-              res.end(JSON.stringify({ error: 'Cannot delete readonly audio' }));
-              return;
-            }
-
-            const deletedAudio = audios.splice(audioIndex, 1)[0];
-            emit('audio_deleted', { id: deletedAudio.id });
-            res.writeHead(200);
-            res.end(JSON.stringify({ message: 'Audio deleted successfully', id: deletedAudio.id }));
-            return;
             }
           }
 
@@ -402,27 +419,27 @@ export default defineConfig({
           if (strippedPathname.startsWith('/programs/') && strippedPathname.endsWith('/delete') && req.method === 'DELETE') {
             const programDeleteMatch = strippedPathname.match(/^\/programs\/(\d+)\/delete$/);
             if (programDeleteMatch) {
-            const program_id = parseInt(programDeleteMatch[1], 10);
+              const program_id = parseInt(programDeleteMatch[1], 10);
 
-            if (isNaN(program_id)) {
-              res.writeHead(400);
-              res.end(JSON.stringify({ error: 'Invalid ID' }));
+              if (isNaN(program_id)) {
+                res.writeHead(400);
+                res.end(JSON.stringify({ error: 'Invalid ID' }));
+                return;
+              }
+
+              // Only allow deleting custom (id !== 1) program in this mock
+              if (program_id === 1) {
+                res.writeHead(403);
+                res.end(JSON.stringify({ error: 'Cannot delete readonly program' }));
+                return;
+              }
+
+              // In a real implementation, you would remove from a list.
+              // Here, just emit and return success for id !== 1.
+              emit('program_deleted', { id: program_id });
+              res.writeHead(200);
+              res.end(JSON.stringify({ message: 'Program deleted successfully', id: program_id }));
               return;
-            }
-
-            // Only allow deleting custom (id !== 1) program in this mock
-            if (program_id === 1) {
-              res.writeHead(403);
-              res.end(JSON.stringify({ error: 'Cannot delete readonly program' }));
-              return;
-            }
-
-            // In a real implementation, you would remove from a list.
-            // Here, just emit and return success for id !== 1.
-            emit('program_deleted', { id: program_id });
-            res.writeHead(200);
-            res.end(JSON.stringify({ message: 'Program deleted successfully', id: program_id }));
-            return;
             }
           }
 
@@ -439,6 +456,8 @@ export default defineConfig({
                   Array.isArray(data.series)
                 ) {
                   // Simulate success (could add to a mock list if desired)
+                  // Emit SSE event for program upload
+                  emit('program_uploaded', { title: data.title, description: data.description });
                   res.writeHead(201);
                   res.end(JSON.stringify({ message: "Program uploaded" }));
                 } else {

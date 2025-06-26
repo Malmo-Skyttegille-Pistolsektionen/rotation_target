@@ -345,3 +345,18 @@ footer {
   border-radius: 4px;
   cursor: pointer;
 }
+
+.timeline-tooltip {
+  position: fixed;
+  z-index: 1000;
+  background: #222;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.95em;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  display: none;
+  max-width: 240px;
+  word-break: break-word;
+}

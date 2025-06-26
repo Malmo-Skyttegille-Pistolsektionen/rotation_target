@@ -1,6 +1,24 @@
 import { fetchAudios, uploadAudio, deleteAudio } from './rest-client.js';
 import { EventType } from './sse-client.js';
 
+let audios = [];
+
+export async function loadAudios() {
+    const response = await fetch('/api/v1/audios');
+    const data = await response.json();
+    audios = data.audios || [];
+    return audios;
+}
+
+export function getAudiosCache() {
+    return audios;
+}
+
+export function getAudioTitleById(id) {
+    const audio = audios.find(a => a.id === id);
+    return audio ? audio.title : `Audio ${id}`;
+}
+
 export async function refreshAudioList() {
     try {
         const audioContainer = document.getElementById("audio-container");
