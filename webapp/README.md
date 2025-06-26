@@ -33,21 +33,6 @@ This is a development setup for the MSG rotation target system frontend using:
 - `program_completed`
 - `sts_status`
 
-## REST Endpoints (Examples)
-
-```http
-GET /programs
-POST /programs
-POST /programs/{id}/load
-POST /programs/start
-POST /programs/stop
-POST /programs/skip_to
-GET /status
-GET /audios
-POST /audios/upload
-POST /audios/delete
-```
-
 ## Development
 
 Start your Vite dev server and the mock server will intercept requests automatically.
