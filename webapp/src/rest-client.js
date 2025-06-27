@@ -82,17 +82,17 @@ export async function deleteAudio(id) {
 }
 
 // Target endpoints
-export async function showTarget() {
+export async function showTargets() {
   const response = await fetch(`${SERVER_API_URL}/targets/show`, { method: 'POST' });
   return handleResponse(response);
 }
 
-export async function hideTarget() {
+export async function hideTargets() {
   const response = await fetch(`${SERVER_API_URL}/targets/hide`, { method: 'POST' });
   return handleResponse(response);
 }
 
-export async function toggleTarget() {
+export async function toggleTargets() {
   const response = await fetch(`${SERVER_API_URL}/targets/toggle`, { method: 'POST' });
   return handleResponse(response);
 }

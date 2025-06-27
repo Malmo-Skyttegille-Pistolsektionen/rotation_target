@@ -1,5 +1,5 @@
 import { renderTimeline, setCurrent, clearCurrent } from './timeline.js';
-import { getProgram, loadProgram, startProgram, stopProgram, skipToSeries, getPrograms } from './rest-client.js';
+import { getProgram, loadProgram, startProgram, stopProgram, skipToSeries, getPrograms, toggleTargets } from './rest-client.js';
 import { EventType } from './sse-client.js';
 
 // Program state to track the current program and series
@@ -52,6 +52,7 @@ export async function initializeProgramsTab() {
 
     const startBtn = document.getElementById("start-btn");
     const stopBtn = document.getElementById("stop-btn");
+    const toggleBtn = document.getElementById("toggle-btn");
     const chronoElement = document.getElementById('chrono');
 
 
@@ -148,6 +149,11 @@ export async function initializeProgramsTab() {
         stopBtn.addEventListener("click", async () => {
             await stopProgram();
         });
+
+        toggleBtn.addEventListener("click", async () => {
+            await toggleTargets();
+        });
+
     } catch (err) {
         console.error("Failed to initialize Programs tab:", err);
     }
