@@ -8,37 +8,37 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 10,
+                    "duration": 1000,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 57,
+                    "duration": 5700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 297,
+                    "duration": 29700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 1,
+                    "duration": 100,
                     "audio_ids": [
                         1,
                         2,
@@ -52,37 +52,37 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 10,
+                    "duration": 1000,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 57,
+                    "duration": 5700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 297,
+                    "duration": 29700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 1,
+                    "duration": 100,
                     "audio_ids": [
                         1,
                         2,
@@ -96,37 +96,37 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 10,
+                    "duration": 1000,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 57,
+                    "duration": 5700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 297,
+                    "duration": 29700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 1,
+                    "duration": 100,
                     "audio_ids": [
                         1,
                         2,
@@ -140,37 +140,37 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 10,
+                    "duration": 1000,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 57,
+                    "duration": 5700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 297,
+                    "duration": 29700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 1,
+                    "duration": 100,
                     "audio_ids": [
                         1,
                         2,
@@ -184,37 +184,37 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 10,
+                    "duration": 1000,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 57,
+                    "duration": 5700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 297,
+                    "duration": 29700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 1,
+                    "duration": 100,
                     "audio_ids": [
                         1,
                         2,
@@ -228,37 +228,37 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 10,
+                    "duration": 1000,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 57,
+                    "duration": 5700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 297,
+                    "duration": 29700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 1,
+                    "duration": 100,
                     "audio_ids": [
                         1,
                         2,
@@ -272,37 +272,37 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 10,
+                    "duration": 1000,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 57,
+                    "duration": 5700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 297,
+                    "duration": 29700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 1,
+                    "duration": 100,
                     "audio_ids": [
                         1,
                         2,
@@ -316,37 +316,37 @@
             "optional": false,
             "events": [
                 {
-                    "duration": 10,
+                    "duration": 1000,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 57,
+                    "duration": 5700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 297,
+                    "duration": 29700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 1,
+                    "duration": 100,
                     "audio_ids": [
                         1,
                         2,
@@ -360,37 +360,37 @@
             "optional": true,
             "events": [
                 {
-                    "duration": 10,
+                    "duration": 1000,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 57,
+                    "duration": 5700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 297,
+                    "duration": 29700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 1,
+                    "duration": 100,
                     "audio_ids": [
                         1,
                         2,
@@ -404,37 +404,37 @@
             "optional": true,
             "events": [
                 {
-                    "duration": 10,
+                    "duration": 1000,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 57,
+                    "duration": 5700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 297,
+                    "duration": 29700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 1,
+                    "duration": 100,
                     "audio_ids": [
                         1,
                         2,
@@ -448,37 +448,37 @@
             "optional": true,
             "events": [
                 {
-                    "duration": 10,
+                    "duration": 1000,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 57,
+                    "duration": 5700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 297,
+                    "duration": 29700,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 3,
+                    "duration": 300,
                     "audio_ids": [
                         1
                     ]
                 },
                 {
-                    "duration": 1,
+                    "duration": 100,
                     "audio_ids": [
                         1,
                         2,

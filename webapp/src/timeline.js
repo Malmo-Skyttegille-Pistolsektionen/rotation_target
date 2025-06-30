@@ -29,7 +29,8 @@ export function renderTimeline(placeHolder, program) {
 
       const dur = document.createElement("div");
       dur.className = "dur";
-      dur.textContent = ev.duration;
+      // Convert ms to seconds for display
+      dur.textContent = Math.trunc(ev.duration / 1000);
       evDiv.appendChild(dur);
 
       const sym = document.createElement("div");
@@ -39,7 +40,8 @@ export function renderTimeline(placeHolder, program) {
 
       const acc = document.createElement("div");
       acc.className = "acc";
-      acc.textContent = ev.acc;
+      // Convert accumulated time from ms to seconds for display
+      acc.textContent = Math.trunc(ev.acc / 1000);
       evDiv.appendChild(acc);
 
       // If event has audio_ids, show title(s) as tooltip or label
