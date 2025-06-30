@@ -13,15 +13,15 @@
 <body>
   <main>
     <div class="tabs">
-      <button id="program-tab-button" class="tab active">Programs</button>
+      <button id="run-tab-button" class="tab active">Run</button>
       <button id="audio-tab-button" class="tab">Audio</button>
       <button id="upload-program-tab-button" class="tab">Upload Program</button>
     </div>
 
-    <!-- Programs Tab -->
-    <section id="program-section" class="tab-content">
-      <section class="program">
-        <div class="program-controls-row">
+    <!-- Run Tab -->
+    <section id="run-section" class="tab-content">
+      <section class="run-program">
+        <div class="run-controls-row">
           <select id="choose-program"></select>
           <select id="choose-serie" class="hidden"></select>
           <button id="show-json" class="primary hidden">Show JSON</button>
@@ -42,8 +42,8 @@
           <button id="toggle-btn" class="primary">Toggle Targets</button>
         </div>
 
-        <section id="programs-timeline-wrapper" class="visualization primary hidden">
-          <div id="programs-timeline"></div>
+        <section id="run-timeline-wrapper" class="visualization primary hidden">
+          <div id="run-program-timeline"></div>
         </section>
       </section>
     </section>

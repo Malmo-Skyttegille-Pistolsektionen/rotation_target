@@ -42,13 +42,13 @@ export function updateProgramButtons() {
     }
 }
 
-// Initialize the Programs tab
-export async function initializeProgramsTab() {
+// Initialize the Run tab (was Programs tab)
+export async function initializeRunTab() {
     const programSelect = document.getElementById("choose-program");
     const seriesSelect = document.getElementById("choose-serie");
     const showJsonBtn = document.getElementById("show-json");
-    const timelineWrapperSection = document.getElementById("programs-timeline-wrapper");
-    const timeline = document.getElementById("programs-timeline");
+    const timelineWrapperSection = document.getElementById("run-timeline-wrapper");
+    const timeline = document.getElementById("run-program-timeline");
 
     const startBtn = document.getElementById("start-btn");
     const stopBtn = document.getElementById("stop-btn");
@@ -155,7 +155,7 @@ export async function initializeProgramsTab() {
         });
 
     } catch (err) {
-        console.error("Failed to initialize Programs tab:", err);
+        console.error("Failed to initialize Run tab:", err);
     }
 }
 
@@ -231,9 +231,9 @@ document.addEventListener(EventType.Chrono, ({ detail: { elapsed } }) => {
 
 
 document.addEventListener(EventType.ProgramAdded, ({ detail: { program_id } }) => {
-    initializeProgramsTab();
+    initializeRunTab();
 });
 
 document.addEventListener(EventType.ProgramDeleted, ({ detail: { program_id } }) => {
-    initializeProgramsTab();
+    initializeRunTab();
 });

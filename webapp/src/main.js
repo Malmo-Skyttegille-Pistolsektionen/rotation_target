@@ -1,12 +1,9 @@
-import { initializeProgramsTab } from './programs.js';
-import { initializeAudiosTab, refreshAudioList } from './audios.js'; // Ensure this is imported only once
+import { initializeRunTab } from './programs.js'; // programs.js now manages the Run tab
+import { initializeAudiosTab, refreshAudioList } from './audios.js';
 import { initializeUploadProgramTab } from './upload-program.js';
 import { EventType, connectToEventStream } from './sse-client.js';
 
-import {
-
-  getStatus
-} from './rest-client.js';
+import { getStatus } from './rest-client.js';
 import { setCurrent, clearCurrent } from './timeline.js';
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -27,48 +24,47 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.querySelector("#footer span").textContent = appTitle;
 
   // Initialize tabs
-  await initializeProgramsTab();
+  await initializeRunTab();
 
-
-  const programTabButton = document.getElementById("program-tab-button");
+  const runTabButton = document.getElementById("run-tab-button");
   const audioTabButton = document.getElementById("audio-tab-button");
   const uploadProgramTabButton = document.getElementById("upload-program-tab-button");
 
-  const programSection = document.getElementById("program-section");
+  const runSection = document.getElementById("run-section");
   const audioSection = document.getElementById("audio-section");
   const uploadProgramSection = document.getElementById("upload-program-section");
 
   // Tab switching logic
-  programTabButton.addEventListener("click", async () => {
-    programTabButton.classList.add("active");
+  runTabButton.addEventListener("click", async () => {
+    runTabButton.classList.add("active");
     audioTabButton.classList.remove("active");
     uploadProgramTabButton.classList.remove("active");
 
-    programSection.classList.remove("hidden");
+    runSection.classList.remove("hidden");
     audioSection.classList.add("hidden");
     uploadProgramSection.classList.add("hidden");
-    await initializeProgramsTab();
+    await initializeRunTab();
   });
 
   audioTabButton.addEventListener("click", async () => {
     audioTabButton.classList.add("active");
-    programTabButton.classList.remove("active");
+    runTabButton.classList.remove("active");
     uploadProgramTabButton.classList.remove("active");
 
     audioSection.classList.remove("hidden");
-    programSection.classList.add("hidden");
+    runSection.classList.add("hidden");
     uploadProgramSection.classList.add("hidden");
 
-    await initializeAudiosTab(); // Ensure this function is defined only once
+    await initializeAudiosTab();
   });
 
   uploadProgramTabButton.addEventListener("click", () => {
     uploadProgramTabButton.classList.add("active");
-    programTabButton.classList.remove("active");
+    runTabButton.classList.remove("active");
     audioTabButton.classList.remove("active");
 
     uploadProgramSection.classList.remove("hidden");
-    programSection.classList.add("hidden");
+    runSection.classList.add("hidden");
     audioSection.classList.add("hidden");
 
     initializeUploadProgramTab();
