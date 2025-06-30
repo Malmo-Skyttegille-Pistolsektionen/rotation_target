@@ -1,6 +1,6 @@
-import { initializeRunTab } from './programs.js'; // programs.js now manages the Run tab
+import { initializeRunTab } from './run.js';
 import { initializeAudiosTab, refreshAudioList } from './audios.js';
-import { initializeUploadProgramTab } from './upload-program.js';
+import { initializeProgramsTab } from './programs.js'; // <-- update import
 import { EventType, connectToEventStream } from './sse-client.js';
 
 import { getStatus } from './rest-client.js';
@@ -28,46 +28,45 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const runTabButton = document.getElementById("run-tab-button");
   const audioTabButton = document.getElementById("audio-tab-button");
-  const uploadProgramTabButton = document.getElementById("upload-program-tab-button");
-
+  const programsTabButton = document.getElementById("programs-tab-button"); // <-- updated
   const runSection = document.getElementById("run-section");
   const audioSection = document.getElementById("audio-section");
-  const uploadProgramSection = document.getElementById("upload-program-section");
+  const programsSection = document.getElementById("programs-section"); // <-- updated
 
   // Tab switching logic
   runTabButton.addEventListener("click", async () => {
     runTabButton.classList.add("active");
     audioTabButton.classList.remove("active");
-    uploadProgramTabButton.classList.remove("active");
+    programsTabButton.classList.remove("active");
 
     runSection.classList.remove("hidden");
     audioSection.classList.add("hidden");
-    uploadProgramSection.classList.add("hidden");
+    programsSection.classList.add("hidden");
     await initializeRunTab();
   });
 
   audioTabButton.addEventListener("click", async () => {
     audioTabButton.classList.add("active");
     runTabButton.classList.remove("active");
-    uploadProgramTabButton.classList.remove("active");
+    programsTabButton.classList.remove("active");
 
     audioSection.classList.remove("hidden");
     runSection.classList.add("hidden");
-    uploadProgramSection.classList.add("hidden");
+    programsSection.classList.add("hidden");
 
     await initializeAudiosTab();
   });
 
-  uploadProgramTabButton.addEventListener("click", () => {
-    uploadProgramTabButton.classList.add("active");
+  programsTabButton.addEventListener("click", () => {
+    programsTabButton.classList.add("active");
     runTabButton.classList.remove("active");
     audioTabButton.classList.remove("active");
 
-    uploadProgramSection.classList.remove("hidden");
+    programsSection.classList.remove("hidden");
     runSection.classList.add("hidden");
     audioSection.classList.add("hidden");
 
-    initializeUploadProgramTab();
+    initializeProgramsTab(); // <-- updated
   });
 
   // Broadcast SSE events
