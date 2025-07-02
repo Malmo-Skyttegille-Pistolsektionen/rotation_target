@@ -1,0 +1,339 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/asyncapi/spec-json-schemas/refs/heads/master/schemas/3.0.0.json
+
+asyncapi: 3.0.0
+info:
+  title: MSG Shooting Target System SSE Events
+  version: 1.0.0
+  description: "Server-Sent Events (SSE) stream for MSG Shooting Target System.
+
+    This channel emits events as documented below."
+  license:
+    name: MIT
+servers:
+  sse-server:
+    host: localhost
+    protocol: http
+    description: SSE endpoint base URL
+    pathname: /sse/v1
+defaultContentType: text/event-stream
+channels:
+  sse:
+    address: /sse
+    messages:
+      program_added:
+        name: program_added
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum:
+                - program_added
+            data:
+              type: object
+              properties:
+                program_id:
+                  type: integer
+      program_updated:
+        name: program_updated
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum:
+                - program_updated
+            data:
+              type: object
+              properties:
+                program_id:
+                  type: integer
+      program_deleted:
+        name: program_deleted
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum:
+                - program_deleted
+            data:
+              type: object
+              properties:
+                program_id:
+                  type: integer
+      program_started:
+        name: program_started
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum:
+                - program_started
+            data:
+              type: object
+              properties:
+                program_id:
+                  type: integer
+      program_completed:
+        name: program_completed
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum:
+                - program_completed
+            data:
+              type: object
+              properties:
+                program_id:
+                  type: integer
+      series_started:
+        name: series_started
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum:
+                - series_started
+            data:
+              type: object
+              properties:
+                program_id:
+                  type: integer
+                series_index:
+                  type: integer
+      series_stopped:
+        name: series_stopped
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum:
+                - series_stopped
+            data:
+              type: object
+              properties:
+                program_id:
+                  type: integer
+                series_index:
+                  type: integer
+                event_index:
+                  type: integer
+      event_started:
+        name: event_started
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum:
+                - event_started
+            data:
+              type: object
+              properties:
+                program_id:
+                  type: integer
+                series_index:
+                  type: integer
+                event_index:
+                  type: integer
+      series_completed:
+        name: series_completed
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum:
+                - series_completed
+            data:
+              type: object
+              properties:
+                program_id:
+                  type: integer
+                series_index:
+                  type: integer
+      series_next:
+        name: series_next
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum:
+                - series_next
+            data:
+              type: object
+              properties:
+                program_id:
+                  type: integer
+                series_index:
+                  type: integer
+      target_status:
+        name: target_status
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum:
+                - target_status
+            data:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum:
+                    - shown
+                    - hidden
+      audio_added:
+        name: audio_added
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum:
+                - audio_added
+            data:
+              type: object
+              properties:
+                audio_id:
+                  type: integer
+      audio_deleted:
+        name: audio_deleted
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum:
+                - audio_deleted
+            data:
+              type: object
+              properties:
+                audio_id:
+                  type: integer
+      audio_playback:
+        name: audio_playback
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum:
+                - audio_playback
+            data:
+              type: object
+              properties:
+                audio_id:
+                  type: integer
+                status:
+                  type: string
+                  enum:
+                    - started
+                    - finished
+      chrono_ms:
+        name: chrono_ms
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum:
+                - chrono_ms
+            data:
+              type: object
+              properties:
+                elapsed:
+                  type: integer
+                remaining:
+                  type: integer
+                total:
+                  type: integer
+                elapsed_from_start:
+                  type: integer
+                total_from_start:
+                  type: integer
+      admin_mode_status:
+        name: admin_mode_status
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum:
+                - admin_mode_status
+            data:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+      backend_issue:
+        name: backend_issue
+        payload:
+          type: object
+          required:
+            - event
+            - data
+          properties:
+            event:
+              type: string
+              enum:
+                - backend_issue
+            data:
+              type: object
+              required:
+                - message
+                - level
+              properties:
+                message:
+                  type: string
+                  description: Human-readable error or issue message from the backend.
+                level:
+                  type: string
+                  description: Severity level of the issue.
+                  enum:
+                    - info
+                    - warning
+                    - error
+                    - critical
+                code:
+                  type: string
+                  description: Optional error or issue code for client handling.
+                  enum:
+                    - AUDIO_NOT_FOUND
+                    - AUDIO_CORRUPT
+                    - PROGRAM_NOT_FOUND
+                    - SERIES_NOT_FOUND
+                    - UNKNOWN
+operations:
+  receiveSSE:
+    action: receive
+    channel:
+      $ref: "#/channels/sse"
+    summary: Subscribe to server-sent events
+    description: Receive server-sent events from the shooting target system.
+    messages:
+      - $ref: "#/channels/sse/messages/program_added"
+      - $ref: "#/channels/sse/messages/program_updated"
+      - $ref: "#/channels/sse/messages/program_deleted"
+      - $ref: "#/channels/sse/messages/program_started"
+      - $ref: "#/channels/sse/messages/program_completed"
+      - $ref: "#/channels/sse/messages/series_started"
+      - $ref: "#/channels/sse/messages/series_stopped"
+      - $ref: "#/channels/sse/messages/event_started"
+      - $ref: "#/channels/sse/messages/series_completed"
+      - $ref: "#/channels/sse/messages/series_next"
+      - $ref: "#/channels/sse/messages/target_status"
+      - $ref: "#/channels/sse/messages/audio_added"
+      - $ref: "#/channels/sse/messages/audio_deleted"
+      - $ref: "#/channels/sse/messages/audio_playback"
+      - $ref: "#/channels/sse/messages/chrono_ms"
+      - $ref: "#/channels/sse/messages/admin_mode_status"
+      - $ref: "#/channels/sse/messages/backend_issue"

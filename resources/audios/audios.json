@@ -1,0 +1,382 @@
+  {
+    "1": {
+      "title": "1",
+      "phrase": "1",
+      "filename": "1.wav"
+    },
+    "2": {
+      "title": "2",
+      "phrase": "2",
+      "filename": "2.wav"
+    },
+    "3": {
+      "title": "3",
+      "phrase": "3",
+      "filename": "3.wav"
+    },
+    "4": {
+      "title": "4",
+      "phrase": "4",
+      "filename": "4.wav"
+    },
+    "5": {
+      "title": "5",
+      "phrase": "5",
+      "filename": "5.wav"
+    },
+    "6": {
+      "title": "6",
+      "phrase": "6",
+      "filename": "6.wav"
+    },
+    "7": {
+      "title": "7",
+      "phrase": "7",
+      "filename": "7.wav"
+    },
+    "8": {
+      "title": "8",
+      "phrase": "8",
+      "filename": "8.wav"
+    },
+    "9": {
+      "title": "9",
+      "phrase": "9",
+      "filename": "9.wav"
+    },
+    "10": {
+      "title": "10",
+      "phrase": "10",
+      "filename": "10.wav"
+    },
+    "11": {
+      "title": "11",
+      "phrase": "11",
+      "filename": "11.wav"
+    },
+    "12": {
+      "title": "12",
+      "phrase": "12",
+      "filename": "12.wav"
+    },
+    "13": {
+      "title": "13",
+      "phrase": "13",
+      "filename": "13.wav"
+    },
+    "14": {
+      "title": "14",
+      "phrase": "14",
+      "filename": "14.wav"
+    },
+    "15": {
+      "title": "15",
+      "phrase": "15",
+      "filename": "15.wav"
+    },
+    "16": {
+      "title": "16",
+      "phrase": "16",
+      "filename": "16.wav"
+    },
+    "17": {
+      "title": "17",
+      "phrase": "17",
+      "filename": "17.wav"
+    },
+    "18": {
+      "title": "18",
+      "phrase": "18",
+      "filename": "18.wav"
+    },
+    "19": {
+      "title": "19",
+      "phrase": "19",
+      "filename": "19.wav"
+    },
+    "20": {
+      "title": "20",
+      "phrase": "20",
+      "filename": "20.wav"
+    },
+    "21": {
+      "title": "Banan är öppen",
+      "phrase": "Banan är öppen",
+      "filename": "21.wav"
+    },
+    "22": {
+      "title": "Förberedelsetid, 3 minuter, start",
+      "phrase": "Förberedelsetid, 3 minuter, start",
+      "filename": "22.wav"
+    },
+    "23": {
+      "title": "Förberedelsetid, start",
+      "phrase": "Förberedelsetid, start",
+      "filename": "23.wav"
+    },
+    "24": {
+      "title": "Förberedelsetid, stop",
+      "phrase": "Förberedelsetid, stop",
+      "filename": "24.wav"
+    },
+    "25": {
+      "title": "Alla klara?",
+      "phrase": "Alla klara?",
+      "filename": "25.wav"
+    },
+    "26": {
+      "title": "Ladda!",
+      "phrase": "Ladda!",
+      "filename": "26.wav"
+    },
+    "27": {
+      "title": "10 sekunder kvar!",
+      "phrase": "10 sekunder kvar!",
+      "filename": "27.wav"
+    },
+    "28": {
+      "title": "10 sekunder",
+      "phrase": "10 sekunder",
+      "filename": "28.wav"
+    },
+    "29": {
+      "title": "8 sekunder",
+      "phrase": "8 sekunder",
+      "filename": "29.wav"
+    },
+    "30": {
+      "title": "6 sekunder",
+      "phrase": "6 sekunder",
+      "filename": "30.wav"
+    },
+    "31": {
+      "title": "Färdiga!",
+      "phrase": "Färdiga!",
+      "filename": "31.wav"
+    },
+    "32": {
+      "title": "Avbryt! Ammunitionskontroll",
+      "phrase": "Avbryt! Ammunitionskontroll",
+      "filename": "32.wav"
+    },
+    "33": {
+      "title": "Eld!",
+      "phrase": "Eld!",
+      "filename": "33.wav"
+    },
+    "34": {
+      "title": "Eld upphör!",
+      "phrase": "Eld upphör!",
+      "filename": "34.wav"
+    },
+    "35": {
+      "title": "Eld upphör (utdraget)",
+      "phrase": "Eld upphör (utdraget)",
+      "filename": "35.wav"
+    },
+    "36": {
+      "title": "Några funktioneringsfel?",
+      "phrase": "Några funktioneringsfel?",
+      "filename": "36.wav"
+    },
+    "37": {
+      "title": "Patron ur, proppa och lägg ned vapnet!",
+      "phrase": "Patron ur, proppa och lägg ned vapnet!",
+      "filename": "37.wav"
+    },
+    "38": {
+      "title": "Patron ur, proppa vapen!",
+      "phrase": "Patron ur, proppa vapen!",
+      "filename": "38.wav"
+    },
+    "39": {
+      "title": "Visitation!",
+      "phrase": "Visitation!",
+      "filename": "39.wav"
+    },
+    "40": {
+      "title": "Markera!",
+      "phrase": "Markera!",
+      "filename": "40.wav"
+    },
+    "50": {
+      "title": "Provserie",
+      "phrase": "Provserie",
+      "filename": "50.wav"
+    },
+    "51": {
+      "title": "Serie 1",
+      "phrase": "Serie 1",
+      "filename": "51.wav"
+    },
+    "52": {
+      "title": "Serie 2",
+      "phrase": "Serie 2",
+      "filename": "52.wav"
+    },
+    "53": {
+      "title": "Serie 3",
+      "phrase": "Serie 3",
+      "filename": "53.wav"
+    },
+    "54": {
+      "title": "Serie 4",
+      "phrase": "Serie 4",
+      "filename": "54.wav"
+    },
+    "55": {
+      "title": "Serie 5",
+      "phrase": "Serie 5",
+      "filename": "55.wav"
+    },
+    "56": {
+      "title": "Serie 6",
+      "phrase": "Serie 6",
+      "filename": "56.wav"
+    },
+    "57": {
+      "title": "Serie 7",
+      "phrase": "Serie 7",
+      "filename": "57.wav"
+    },
+    "58": {
+      "title": "Serie 8",
+      "phrase": "Serie 8",
+      "filename": "58.wav"
+    },
+    "59": {
+      "title": "Serie 9",
+      "phrase": "Serie 9",
+      "filename": "59.wav"
+    },
+    "60": {
+      "title": "Serie 10",
+      "phrase": "Serie 10",
+      "filename": "60.wav"
+    },
+    "61": {
+      "title": "Serie 11",
+      "phrase": "Serie 11",
+      "filename": "61.wav"
+    },
+    "62": {
+      "title": "Serie 12",
+      "phrase": "Serie 12",
+      "filename": "62.wav"
+    },
+    "63": {
+      "title": "Serie",
+      "phrase": "Serie",
+      "filename": "63.wav"
+    },
+    "64": {
+      "title": "Serie 1, 10 sekunder",
+      "phrase": "Serie 1, 10 sekunder",
+      "filename": "64.wav"
+    },
+    "65": {
+      "title": "Serie 2, 10 sekunder",
+      "phrase": "Serie 2, 10 sekunder",
+      "filename": "65.wav"
+    },
+    "66": {
+      "title": "Serie 3, 10 sekunder",
+      "phrase": "Serie 3, 10 sekunder",
+      "filename": "66.wav"
+    },
+    "67": {
+      "title": "Serie 4, 10 sekunder",
+      "phrase": "Serie 4, 10 sekunder",
+      "filename": "67.wav"
+    },
+    "68": {
+      "title": "Serie 1, 8 sekunder",
+      "phrase": "Serie 1, 8 sekunder",
+      "filename": "68.wav"
+    },
+    "69": {
+      "title": "Serie 2, 8 sekunder",
+      "phrase": "Serie 2, 8 sekunder",
+      "filename": "69.wav"
+    },
+    "70": {
+      "title": "Serie 3, 8 sekunder",
+      "phrase": "Serie 3, 8 sekunder",
+      "filename": "70.wav"
+    },
+    "71": {
+      "title": "Serie 4, 8 sekunder",
+      "phrase": "Serie 4, 8 sekunder",
+      "filename": "71.wav"
+    },
+    "72": {
+      "title": "Serie 1, 6 sekunder",
+      "phrase": "Serie 1, 6 sekunder",
+      "filename": "72.wav"
+    },
+    "73": {
+      "title": "Serie 2, 6 sekunder",
+      "phrase": "Serie 2, 6 sekunder",
+      "filename": "73.wav"
+    },
+    "74": {
+      "title": "Serie 3, 6 sekunder",
+      "phrase": "Serie 3, 6 sekunder",
+      "filename": "74.wav"
+    },
+    "75": {
+      "title": "Serie 4, 6 sekunder",
+      "phrase": "Serie 4, 6 sekunder",
+      "filename": "75.wav"
+    },
+    "80": {
+      "title": "Omskjutning",
+      "phrase": "Omskjutning",
+      "filename": "80.wav"
+    },
+    "81": {
+      "title": "Färdigskjutning 1",
+      "phrase": "Färdigskjutning 1",
+      "filename": "81.wav"
+    },
+    "82": {
+      "title": "Färdigskjutning 2",
+      "phrase": "Färdigskjutning 2",
+      "filename": "82.wav"
+    },
+    "83": {
+      "title": "Färdigskjutning",
+      "phrase": "Färdigskjutning",
+      "filename": "83.wav"
+    },
+    "84": {
+      "title": "Färdigskjutning 1, 10 sekunder",
+      "phrase": "Färdigskjutning 1, 10 sekunder",
+      "filename": "84.wav"
+    },
+    "85": {
+      "title": "Färdigskjutning 2, 10 sekunder",
+      "phrase": "Färdigskjutning 2, 10 sekunder",
+      "filename": "85.wav"
+    },
+    "86": {
+      "title": "Färdigskjutning 1, 8 sekunder",
+      "phrase": "Färdigskjutning 1, 8 sekunder",
+      "filename": "86.wav"
+    },
+    "87": {
+      "title": "Färdigskjutning 2, 8 sekunder",
+      "phrase": "Färdigskjutning 2, 8 sekunder",
+      "filename": "87.wav"
+    },
+    "88": {
+      "title": "Färdigskjutning 1, 6 sekunder",
+      "phrase": "Färdigskjutning 1, 6 sekunder",
+      "filename": "88.wav"
+    },
+    "89": {
+      "title": "Färdigskjutning 2, 6 sekunder",
+      "phrase": "Färdigskjutning 2, 6 sekunder",
+      "filename": "89.wav"
+    }
+  }
