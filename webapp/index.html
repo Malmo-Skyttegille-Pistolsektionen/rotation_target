@@ -6,7 +6,6 @@
   <title>MSG Rotation Target</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="/src/index.css" />
-  <script src="/config.js"></script>
   <script type="module" src="/src/main.js"></script>
 </head>
 
@@ -16,6 +15,7 @@
       <button id="run-tab-button" class="tab active">Run</button>
       <button id="audio-tab-button" class="tab">Audio</button>
       <button id="programs-tab-button" class="tab">Programs</button>
+      <button id="settings-tab-button" class="tab">Settings</button>
     </div>
 
     <!-- Run Tab -->
@@ -89,9 +89,16 @@
       </section>
     </section>
 
-
-
-
+    <!-- Settings Tab -->
+    <section id="settings-section" class="tab-content hidden">
+      <h2>Settings</h2>
+      <form id="settings-form" class="form-row">
+        <label for="server-base-url">Server Base URL:</label>
+        <input type="text" id="server-base-url" name="server-base-url" required />
+        <button type="submit" class="primary">Save</button>
+      </form>
+      <div id="settings-status"></div>
+    </section>
 
   </main>
 

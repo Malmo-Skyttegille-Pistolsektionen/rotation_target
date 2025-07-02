@@ -1,6 +1,7 @@
 import { initializeRunTab } from './run.js';
-import { initializeAudiosTab, refreshAudioList } from './audios.js';
-import { initializeProgramsTab } from './programs.js'; // <-- update import
+import { initializeAudiosTab } from './audios.js';
+import { initializeProgramsTab } from './programs.js';
+import { initializeSettingsTab } from './config.js';
 import { EventType, connectToEventStream } from './sse-client.js';
 
 import { getStatus } from './rest-client.js';
@@ -29,19 +30,23 @@ document.addEventListener("DOMContentLoaded", async () => {
   const runTabButton = document.getElementById("run-tab-button");
   const audioTabButton = document.getElementById("audio-tab-button");
   const programsTabButton = document.getElementById("programs-tab-button"); // <-- updated
+  const settingsTabButton = document.getElementById("settings-tab-button");
   const runSection = document.getElementById("run-section");
   const audioSection = document.getElementById("audio-section");
   const programsSection = document.getElementById("programs-section"); // <-- updated
+  const settingsSection = document.getElementById("settings-section");
 
   // Tab switching logic
   runTabButton.addEventListener("click", async () => {
     runTabButton.classList.add("active");
     audioTabButton.classList.remove("active");
     programsTabButton.classList.remove("active");
+    settingsTabButton.classList.remove("active");
 
     runSection.classList.remove("hidden");
     audioSection.classList.add("hidden");
     programsSection.classList.add("hidden");
+    settingsSection.classList.add("hidden");
     await initializeRunTab();
   });
 
@@ -49,10 +54,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     audioTabButton.classList.add("active");
     runTabButton.classList.remove("active");
     programsTabButton.classList.remove("active");
+    settingsTabButton.classList.remove("active");
 
     audioSection.classList.remove("hidden");
     runSection.classList.add("hidden");
     programsSection.classList.add("hidden");
+    settingsSection.classList.add("hidden");
 
     await initializeAudiosTab();
   });
@@ -61,12 +68,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     programsTabButton.classList.add("active");
     runTabButton.classList.remove("active");
     audioTabButton.classList.remove("active");
+    settingsTabButton.classList.remove("active");
 
     programsSection.classList.remove("hidden");
     runSection.classList.add("hidden");
     audioSection.classList.add("hidden");
+    settingsSection.classList.add("hidden");
 
     initializeProgramsTab(); // <-- updated
+  });
+
+  settingsTabButton.addEventListener("click", () => {
+    settingsTabButton.classList.add("active");
+    runTabButton.classList.remove("active");
+    audioTabButton.classList.remove("active");
+    programsTabButton.classList.remove("active");
+
+    settingsSection.classList.remove("hidden");
+    runSection.classList.add("hidden");
+    audioSection.classList.add("hidden");
+    programsSection.classList.add("hidden");
+
+    initializeSettingsTab();
   });
 
   // Broadcast SSE events
