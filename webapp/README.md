@@ -1,4 +1,4 @@
-# MSG Shooting Target Web App (Mock Client)
+# MSG Shooting Target Frontend - Web App
 
 This is a development setup for the MSG rotation target system frontend using:
 
