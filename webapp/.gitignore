@@ -28,3 +28,4 @@ yarn-error.log*
 *.log
 
 *.zip
+wifi_credentials.py

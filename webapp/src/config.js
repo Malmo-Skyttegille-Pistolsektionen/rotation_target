@@ -1,3 +1,5 @@
+import { connectToEventStream, currentSSESource } from "./sse-client.js";
+
 // Read from localStorage if set, else default to localhost
 const getBaseUrl = () =>
     localStorage.getItem("SERVER_BASE_URL") || "http://localhost:8080";
@@ -12,6 +14,15 @@ export function setServerBaseUrl(newUrl) {
     SERVER_API_URL = `${SERVER_BASE_URL}/api/v1`;
     SERVER_SSE_URL = `${SERVER_BASE_URL}/sse/v1`;
     localStorage.setItem("SERVER_BASE_URL", newUrl);
+
+    // Reset SSE connection if it exists
+    if (typeof connectToEventStream === "function") {
+        if (currentSSESource) {
+            currentSSESource.close();
+        }
+        // Reconnect with the new SERVER_SSE_URL
+        connectToEventStream(/* your event handler here */);
+    }
 }
 
 // Initialize the Settings tab and handle the form

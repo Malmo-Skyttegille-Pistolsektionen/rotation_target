@@ -9,9 +9,7 @@ export async function refreshProgramsList() {
 
         programContainer.innerHTML = "";
 
-
         if (programs.length > 0) {
-
             const programsList = document.createElement("ul");
             programs
                 .slice()
@@ -39,6 +37,18 @@ export async function refreshProgramsList() {
                         li.appendChild(deleteBtn);
                     }
 
+                    // Add Show JSON button for every program
+                    const showJsonBtn = document.createElement("button");
+                    showJsonBtn.textContent = "JSON";
+                    showJsonBtn.classList.add("show-json-btn");
+                    showJsonBtn.addEventListener("click", () => {
+                        const raw = JSON.stringify(program, null, 2);
+                        const blob = new Blob([raw], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        window.open(url, '_blank');
+                    });
+                    li.appendChild(showJsonBtn);
+
                     programsList.appendChild(li);
                 });
             programContainer.appendChild(programsList);
@@ -48,8 +58,7 @@ export async function refreshProgramsList() {
     }
 }
 
-
-export async function initializeProgramsTab() { // <-- renamed
+export async function initializeProgramsTab() {
     const programFileInput = document.getElementById("program-file");
     const programUploadForm = document.getElementById("program-upload-form");
     const timelineWrapperSection = document.getElementById("upload-programs-timeline-wrapper");
@@ -57,14 +66,14 @@ export async function initializeProgramsTab() { // <-- renamed
 
     // Event listener for file selection
     programFileInput.addEventListener("change", (e) => {
-        const file = e.target.files[0]; // Access the selected file
+        const file = e.target.files[0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = (event) => {
             const program = JSON.parse(event.target.result);
-            renderTimeline(timeline, program); // Render timeline
-            timelineWrapperSection.classList.remove("hidden"); // Show timeline section
+            renderTimeline(timeline, program);
+            timelineWrapperSection.classList.remove("hidden");
         };
         reader.readAsText(file);
     });
@@ -83,7 +92,6 @@ export async function initializeProgramsTab() { // <-- renamed
                 const program = JSON.parse(event.target.result);
                 await uploadProgram(program);
                 alert("Program uploaded successfully!");
-                // Optionally, refresh program list or UI here
             } catch (err) {
                 alert("Failed to upload program: " + err.message);
             }
@@ -92,9 +100,7 @@ export async function initializeProgramsTab() { // <-- renamed
     });
 
     await refreshProgramsList();
-
 }
-
 
 document.addEventListener(EventType.ProgramAdded, async ({ detail: { id } }) => {
     await refreshProgramsList();

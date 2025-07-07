@@ -16,11 +16,16 @@ export const EventType = {
   Chrono: 'chrono',
 };
 
+export let currentSSESource = null;
+
 export function connectToEventStream(onEvent) {
-  const source = new EventSource(`${SERVER_SSE_URL}`, { withCredentials: false });
+  if (currentSSESource) {
+    currentSSESource.close();
+  }
+  currentSSESource = new EventSource(SERVER_SSE_URL, { withCredentials: false });
 
   Object.values(EventType).forEach(type => {
-    source.addEventListener(type, (event) => {
+    currentSSESource.addEventListener(type, (event) => {
       try {
         const payload = JSON.parse(event.data);
 
@@ -35,14 +40,14 @@ export function connectToEventStream(onEvent) {
     });
   });
 
-  source.onopen = () => {
+  currentSSESource.onopen = () => {
     console.log('SSE connection established');
   };
 
-  source.onerror = (err) => {
+  currentSSESource.onerror = (err) => {
     console.error('SSE connection error:', err);
   };
 
-  return source;
+  return currentSSESource;
 }
 
