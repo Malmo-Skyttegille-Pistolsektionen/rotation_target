@@ -14,6 +14,7 @@ export const EventType = {
   AudioAdded: 'audio_added',
   AudioDeleted: 'audio_deleted',
   Chrono: 'chrono',
+  AdminModeStatus: 'admin_mode_status',
 };
 
 export let currentSSESource = null;

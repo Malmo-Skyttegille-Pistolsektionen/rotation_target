@@ -231,6 +231,8 @@ export default defineConfig({
                   adminModeToken = Math.random().toString(36).slice(2) + Date.now();
                   res.setHeader('Content-Type', 'application/json');
                   res.end(JSON.stringify({ token: adminModeToken }));
+                  emit('admin_mode_status', { enabled: isAdminModeEnabled() }); // <-- simplified SSE emit
+                  return;
                 } else {
                   res.writeHead(401);
                   res.end(JSON.stringify({ error: "Unauthorized: Invalid password" }));
@@ -249,6 +251,7 @@ export default defineConfig({
             adminModeToken = null;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ message: "Admin mode disabled" }));
+            emit('admin_mode_status', { enabled: isAdminModeEnabled() }); // <-- simplified SSE emit
             return;
           }
 
