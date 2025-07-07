@@ -16,7 +16,10 @@ export async function refreshProgramsList() {
                 .sort((a, b) => a.id - b.id)
                 .forEach(program => {
                     const li = document.createElement("li");
-                    li.textContent = `${program.id}: ${program.title}`;
+
+                    const labelSpan = document.createElement("span");
+                    labelSpan.textContent = `${program.id}: ${program.title}`;
+                    li.appendChild(labelSpan);
 
                     if (!program.readonly) {
                         const deleteBtn = document.createElement("button");

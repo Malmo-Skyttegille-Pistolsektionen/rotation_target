@@ -46,7 +46,6 @@ export function updateProgramButtons() {
 export async function initializeRunTab() {
     const programSelect = document.getElementById("choose-program");
     const seriesSelect = document.getElementById("choose-serie");
-    const showJsonBtn = document.getElementById("show-json");
     const timelineWrapperSection = document.getElementById("run-timeline-wrapper");
     const timeline = document.getElementById("run-program-timeline");
 
@@ -113,7 +112,6 @@ export async function initializeRunTab() {
 
                     // Make elements visible
                     seriesSelect.classList.remove("hidden");
-                    showJsonBtn.classList.remove("hidden");
                     timelineWrapperSection.classList.remove("hidden");
 
                     // Enable start and stop buttons
@@ -130,15 +128,6 @@ export async function initializeRunTab() {
             const index = parseInt(seriesSelect.value, 10);
             if (!isNaN(index)) {
                 skipToSeries(index);
-            }
-        });
-
-        showJsonBtn.addEventListener("click", () => {
-            if (window.currentProgram) {
-                const raw = JSON.stringify(window.currentProgram, null, 2);
-                const blob = new Blob([raw], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                window.open(url, '_blank');
             }
         });
 

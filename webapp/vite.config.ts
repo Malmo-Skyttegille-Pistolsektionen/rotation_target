@@ -159,6 +159,29 @@ const simulateSeriesEvents = () => {
 //   });
 // }
 
+// --- Admin mode state ---
+let adminModeToken: string | null = null;
+const ADMIN_PASSWORD = "admin"; // Change as needed
+
+function isAdminModeEnabled(): boolean {
+  return typeof adminModeToken === "string";
+}
+
+function requireAdminAuth(req: any, res: any): boolean {
+  if (!isAdminModeEnabled()) {
+    res.writeHead(401);
+    res.end(JSON.stringify({ error: "Admin mode not enabled" }));
+    return false;
+  }
+  const auth = req.headers['authorization'];
+  if (!auth || !auth.startsWith('Bearer ') || auth.slice(7) !== adminModeToken) {
+    res.writeHead(401);
+    res.end(JSON.stringify({ error: "Invalid or missing bearer token" }));
+    return false;
+  }
+  return true;
+}
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version)
@@ -186,6 +209,62 @@ export default defineConfig({
         server.middlewares.use((req, res, next) => {
           const url = new URL(req.url || '', SERVER_API_URL);
           const strippedPathname = url.pathname.replace(new URL(SERVER_API_URL).pathname, '');
+
+          // --- Admin mode endpoints ---
+
+          // GET /admin-mode/status
+          if (strippedPathname === '/admin-mode/status' && req.method === 'GET') {
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ enabled: isAdminModeEnabled() }));
+            return;
+          }
+
+          // POST /admin-mode/enable
+          if (strippedPathname === '/admin-mode/enable' && req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', () => {
+              try {
+                const data = JSON.parse(body);
+                if (typeof data.password === 'string' && data.password === ADMIN_PASSWORD) {
+                  // Generate a simple random token for the session
+                  adminModeToken = Math.random().toString(36).slice(2) + Date.now();
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ token: adminModeToken }));
+                } else {
+                  res.writeHead(401);
+                  res.end(JSON.stringify({ error: "Unauthorized: Invalid password" }));
+                }
+              } catch (err) {
+                res.writeHead(400);
+                res.end(JSON.stringify({ error: "Invalid JSON" }));
+              }
+            });
+            return;
+          }
+
+          // POST /admin-mode/disable
+          if (strippedPathname === '/admin-mode/disable' && req.method === 'POST') {
+            if (!requireAdminAuth(req, res)) return;
+            adminModeToken = null;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ message: "Admin mode disabled" }));
+            return;
+          }
+
+          // --- Require Bearer token for POST/DELETE if admin mode is enabled ---
+          const protectedMethods = ['POST', 'DELETE'];
+          const unprotectedPaths = [
+            '/admin-mode/enable',
+            '/admin-mode/status'
+          ];
+          if (
+            isAdminModeEnabled() &&
+            protectedMethods.includes(req.method ?? '') &&
+            !unprotectedPaths.includes(strippedPathname)
+          ) {
+            if (!requireAdminAuth(req, res)) return;
+          }
 
           // Status endpoint
           if (strippedPathname === '/status' && req.method === 'GET') {

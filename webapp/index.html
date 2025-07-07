@@ -97,6 +97,21 @@
         <button type="submit" class="primary">Save</button>
       </form>
       <div id="settings-status"></div>
+
+      <hr />
+
+      <section id="admin-mode-section">
+        <h3>Admin Mode</h3>
+        <form id="admin-enable-form" class="form-row hidden">
+          <label for="admin-password">Password:</label>
+          <input type="password" id="admin-password" name="admin-password" required />
+          <button type="submit" class="primary">Enable Admin Mode</button>
+        </form>
+        <form id="admin-disable-form" class="form-row hidden">
+          <button type="submit" class="primary">Disable Admin Mode</button>
+        </form>
+        <div id="admin-mode-status"></div>
+      </section>
     </section>
 
   </main>

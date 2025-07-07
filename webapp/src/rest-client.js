@@ -11,7 +11,7 @@ export async function getProgram(id) {
 }
 
 export async function uploadProgram(program) {
-  const response = await fetch(`${SERVER_API_URL}/programs`, {
+  const response = await fetchWithAuth(`${SERVER_API_URL}/programs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(program),
@@ -20,7 +20,7 @@ export async function uploadProgram(program) {
 }
 
 export async function deleteProgram(id) {
-  const response = await fetch(`${SERVER_API_URL}/programs/${id}/delete`, {
+  const response = await fetchWithAuth(`${SERVER_API_URL}/programs/${id}/delete`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
   });
@@ -28,22 +28,22 @@ export async function deleteProgram(id) {
 }
 
 export async function loadProgram(id) {
-  const response = await fetch(`${SERVER_API_URL}/programs/${id}/load`, { method: "POST" });
+  const response = await fetchWithAuth(`${SERVER_API_URL}/programs/${id}/load`, { method: "POST" });
   return handleResponse(response);
 }
 
 export async function startProgram() {
-  const response = await fetch(`${SERVER_API_URL}/programs/start`, { method: "POST" });
+  const response = await fetchWithAuth(`${SERVER_API_URL}/programs/start`, { method: "POST" });
   return handleResponse(response);
 }
 
 export async function stopProgram() {
-  const response = await fetch(`${SERVER_API_URL}/programs/stop`, { method: "POST" });
+  const response = await fetchWithAuth(`${SERVER_API_URL}/programs/stop`, { method: "POST" });
   return handleResponse(response);
 }
 
 export async function skipToSeries(series_index) {
-  const response = await fetch(`${SERVER_API_URL}/programs/series/${series_index}/skip_to`, {
+  const response = await fetchWithAuth(`${SERVER_API_URL}/programs/series/${series_index}/skip_to`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
@@ -66,7 +66,7 @@ export async function uploadAudio(file, codec, title) {
   formData.append("codec", codec);
   formData.append("title", title);
 
-  const response = await fetch(`${SERVER_API_URL}/audios`, {
+  const response = await fetchWithAuth(`${SERVER_API_URL}/audios`, {
     method: "POST",
     body: formData,
   });
@@ -74,7 +74,7 @@ export async function uploadAudio(file, codec, title) {
 }
 
 export async function deleteAudio(id) {
-  const response = await fetch(`${SERVER_API_URL}/audios/${id}/delete`, {
+  const response = await fetchWithAuth(`${SERVER_API_URL}/audios/${id}/delete`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
   });
@@ -83,24 +83,46 @@ export async function deleteAudio(id) {
 
 // Target endpoints
 export async function showTargets() {
-  const response = await fetch(`${SERVER_API_URL}/targets/show`, { method: 'POST' });
+  const response = await fetchWithAuth(`${SERVER_API_URL}/targets/show`, { method: 'POST' });
   return handleResponse(response);
 }
 
 export async function hideTargets() {
-  const response = await fetch(`${SERVER_API_URL}/targets/hide`, { method: 'POST' });
+  const response = await fetchWithAuth(`${SERVER_API_URL}/targets/hide`, { method: 'POST' });
   return handleResponse(response);
 }
 
 export async function toggleTargets() {
-  const response = await fetch(`${SERVER_API_URL}/targets/toggle`, { method: 'POST' });
+  const response = await fetchWithAuth(`${SERVER_API_URL}/targets/toggle`, { method: 'POST' });
+  return handleResponse(response);
+}
+
+export async function fetchAdminModeStatus() {
+  const response = await fetch(`${SERVER_API_URL}/admin-mode/status`);
+  return handleResponse(response);
+}
+
+export async function enableAdminMode(password) {
+  // Do NOT use fetchWithAuth here, since we don't have a token yet!
+  const response = await fetch(`${SERVER_API_URL}/admin-mode/enable`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+  return handleResponse(response);
+}
+
+export async function disableAdminMode() {
+  const response = await fetchWithAuth(`${SERVER_API_URL}/admin-mode/disable`, {
+    method: "POST",
+  });
   return handleResponse(response);
 }
 
 async function handleResponse(response) {
   console.log('Response status:', response.status, response.statusText);
   if (!response.ok) {
-    throw new Error('Request failed: ${response.statusText}');
+    throw new Error(`Request failed: ${response.statusText}`);
   }
 
   const contentType = response.headers.get("Content-Type");
@@ -109,4 +131,13 @@ async function handleResponse(response) {
   }
 
   return null; // Return null for empty or non-JSON responses
+}
+
+async function fetchWithAuth(input, init = {}) {
+  const token = localStorage.getItem("ADMIN_BEARER_TOKEN");
+  init.headers = init.headers || {};
+  if (token) {
+    init.headers["Authorization"] = `Bearer ${token}`;
+  }
+  return fetch(input, init);
 }
