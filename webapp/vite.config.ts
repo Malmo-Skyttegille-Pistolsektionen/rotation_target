@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import fs, { read } from 'fs';
 import type { ServerResponse } from 'http';
+import { EventType } from './src/sse-client.js';
 
 // Mock server URLs
 const SERVER_BASE_URL = "http://localhost:8080";
@@ -59,10 +60,10 @@ setInterval(() => {
     if (!series || !series.events) return;
 
     const elapsedTime = Date.now() - currentState.running_series_start.getTime(); // ms
-    const totalTime = series.events.reduce((sum, event) => sum + event.duration * 1000, 0); // ms
+    const totalTime = series.events.reduce((sum, event) => sum + event.duration, 0); // ms
     const remainingTime = Math.max(totalTime - elapsedTime, 0); // ms
 
-    emit('chrono', {
+    emit(EventType.Chrono, {
       elapsed: elapsedTime,
       remaining: remainingTime,
       total: totalTime,
@@ -71,24 +72,37 @@ setInterval(() => {
 }, 1000);
 
 const simulateSeriesEvents = () => {
-  if (!currentState.running_series_start || currentState.program_id === null || currentState.current_series_index === null) {
+  if (
+    !currentState.running_series_start ||
+    currentState.program_id === null ||
+    currentState.current_series_index === null
+  ) {
     console.warn('Simulation aborted: Invalid program state', currentState);
-    return; // Abort simulation if the series is not running
+    return;
   }
 
-  const series = program_1_data.series[currentState.current_series_index];
+  const programData = programs[currentState.program_id];
+  if (!programData) {
+    console.warn('Simulation aborted: Program not found', currentState.program_id);
+    return;
+  }
+
+  const series = programData.series[currentState.current_series_index];
   if (!series || !series.events) {
     // Check if there are more series
-    if (currentState.current_series_index !== null && currentState.current_series_index + 1 < program_1_data.series.length) {
-      currentState.current_series_index += 1; // Move to the next series
-      currentState.current_event_index = 0; // Reset event index
-      currentState.running_series_start = null; // Stop running until explicitly started
-      emit('series_next', { program_id: currentState.program_id, series_index: currentState.current_series_index });
+    if (
+      currentState.current_series_index !== null &&
+      currentState.current_series_index + 1 < programData.series.length
+    ) {
+      currentState.current_series_index += 1;
+      currentState.current_event_index = 0;
+      currentState.running_series_start = null;
+      emit(EventType.SeriesNext, { program_id: currentState.program_id, series_index: currentState.current_series_index });
       return;
     }
 
     // If no more series, complete the program
-    emit('program_completed', { program_id: currentState.program_id });
+    emit(EventType.ProgramCompleted, { program_id: currentState.program_id });
     currentState.running_series_start = null;
     currentState.program_id = null;
     currentState.current_series_index = null;
@@ -102,24 +116,25 @@ const simulateSeriesEvents = () => {
   const simulateEvent = (eventIndex: number) => {
     if (!currentState.running_series_start) {
       console.warn('Simulation aborted: Series skipped or stopped');
-      return; // Abort simulation if the series is not running
+      return;
     }
 
     if (eventIndex >= events.length) {
-      // All events in the series are completed
-      emit('series_completed', { program_id: currentState.program_id, series_index: currentState.current_series_index });
+      emit(EventType.SeriesCompleted, { program_id: currentState.program_id, series_index: currentState.current_series_index });
 
       // Check if there are more series
-      if (currentState.current_series_index !== null && currentState.current_series_index + 1 < program_1_data.series.length) {
-        currentState.current_series_index += 1; // Move to the next series
-        currentState.current_event_index = 0; // Reset event index
-        currentState.running_series_start = null; // Stop running until explicitly started
-        emit('series_next', { program_id: currentState.program_id, series_index: currentState.current_series_index });
+      if (
+        currentState.current_series_index !== null &&
+        currentState.current_series_index + 1 < programData.series.length
+      ) {
+        currentState.current_series_index += 1;
+        currentState.current_event_index = 0;
+        currentState.running_series_start = null;
+        emit(EventType.SeriesNext, { program_id: currentState.program_id, series_index: currentState.current_series_index });
         return;
       }
 
-      // If no more series, complete the program
-      emit('program_completed', { program_id: currentState.program_id });
+      emit(EventType.ProgramCompleted, { program_id: currentState.program_id });
       currentState.running_series_start = null;
       currentState.program_id = null;
       currentState.current_series_index = null;
@@ -127,46 +142,40 @@ const simulateSeriesEvents = () => {
       return;
     }
 
-    // Update current_event_index
     currentState.current_event_index = eventIndex;
 
-    // Check for command in the event and update target_status_shown
     const event = events[eventIndex];
     if (event.command === 'show') {
       currentState.target_status_shown = true;
-      emit('target_status', { status: "shown" });
+      emit(EventType.TargetStatus, { status: "shown" });
     } else if (event.command === 'hide') {
       currentState.target_status_shown = false;
-      emit('target_status', { status: "hidden" });
+      emit(EventType.TargetStatus, { status: "hidden" });
     }
 
-    // Emit event_started
-    emit('event_started', {
+    emit(EventType.EventStarted, {
       program_id: currentState.program_id,
       series_index: currentState.current_series_index,
       event_index: eventIndex
     });
 
-    // Simulate event completion after 2 seconds
     setTimeout(() => {
       if (!currentState.running_series_start) {
         console.warn('Simulation aborted: Series skipped or stopped');
-        return; // Abort simulation if the series is not running
+        return;
       }
 
-      emit('event_completed', {
+      emit(EventType.EventCompleted, {
         program_id: currentState.program_id,
         series_index: currentState.current_series_index,
         event_index: eventIndex
       });
 
-      // Move to the next event
       simulateEvent(eventIndex + 1);
-    }, 2000);
+    }, event.duration); // <-- Use event.duration here!
   };
 
-  // Start with the current event index
-  simulateEvent(currentState.current_event_index || 0); // Default to 0 if current_event_index is null
+  simulateEvent(currentState.current_event_index || 0);
 };
 
 // function logRequests(server: PreviewServer | ViteDevServer) {
@@ -248,7 +257,7 @@ export default defineConfig({
                   adminModeToken = Math.random().toString(36).slice(2) + Date.now();
                   res.setHeader('Content-Type', 'application/json');
                   res.end(JSON.stringify({ token: adminModeToken }));
-                  emit('admin_mode_status', { enabled: isAdminModeEnabled() }); // <-- simplified SSE emit
+                  emit(EventType.AdminModeStatus, { enabled: isAdminModeEnabled() }); // <-- simplified SSE emit
                   return;
                 } else {
                   res.writeHead(401);
@@ -268,7 +277,7 @@ export default defineConfig({
             adminModeToken = null;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ message: "Admin mode disabled" }));
-            emit('admin_mode_status', { enabled: isAdminModeEnabled() }); // <-- simplified SSE emit
+            emit(EventType.AdminModeStatus, { enabled: isAdminModeEnabled() }); // <-- simplified SSE emit
             return;
           }
 
@@ -309,7 +318,7 @@ export default defineConfig({
           // Targets endpoints
           if (strippedPathname === '/targets/show' && req.method === 'POST') {
             currentState.target_status_shown = true;
-            emit('target_status_changed', { target_status_shown: true });
+            emit(EventType.TargetStatusChanged, { target_status_shown: true });
             res.writeHead(200);
             res.end(JSON.stringify({ message: "Target is now shown" }));
             return;
@@ -317,7 +326,7 @@ export default defineConfig({
 
           if (strippedPathname === '/targets/hide' && req.method === 'POST') {
             currentState.target_status_shown = false;
-            emit('target_status_changed', { target_status_shown: false });
+            emit(EventType.TargetStatusChanged, { target_status_shown: false });
             res.writeHead(200);
             res.end(JSON.stringify({ message: "Target is now hidden" }));
             return;
@@ -325,7 +334,7 @@ export default defineConfig({
 
           if (strippedPathname === '/targets/toggle' && req.method === 'POST') {
             currentState.target_status_shown = !currentState.target_status_shown;
-            emit('target_status_changed', { target_status_shown: currentState.target_status_shown });
+            emit(EventType.TargetStatusChanged, { target_status_shown: currentState.target_status_shown });
             res.writeHead(200);
             res.end(JSON.stringify({ message: `Target is now ${currentState.target_status_shown ? 'shown' : 'hidden'}` }));
             return;
@@ -370,7 +379,7 @@ export default defineConfig({
             currentState.running_series_start = null;
             currentState.current_series_index = 0;
             currentState.current_event_index = 0;
-            emit('program_loaded', { program_id });
+            emit(EventType.ProgramLoaded, { program_id });
             res.writeHead(200);
             res.end();
             return;
@@ -383,8 +392,8 @@ export default defineConfig({
               return;
             }
             currentState.running_series_start = new Date(); // Set the start time
-            emit('program_started', { program_id: currentState.program_id });
-            emit('series_started', { program_id: currentState.program_id, series_index: currentState.current_series_index });
+            emit(EventType.ProgramStarted, { program_id: currentState.program_id });
+            emit(EventType.SeriesStarted, { program_id: currentState.program_id, series_index: currentState.current_series_index });
 
             // Simulate series events
             simulateSeriesEvents();
@@ -404,7 +413,7 @@ export default defineConfig({
             // Stop the series and reset the event index to the first event of the current series
             currentState.running_series_start = null; // Stop the series
             currentState.current_event_index = 0; // Reset to the first event of the current series
-            emit('series_stopped', {
+            emit(EventType.SeriesStopped, {
               program_id: currentState.program_id,
               series_index: currentState.current_series_index,
               event_index: currentState.current_event_index,
@@ -422,7 +431,14 @@ export default defineConfig({
             if (seriesSkipMatch) {
               const series_index = parseInt(seriesSkipMatch[1], 10);
 
-              if (isNaN(series_index) || series_index < 0 || series_index >= program_1_data.series.length) {
+              const programData = currentState.program_id !== null ? programs[currentState.program_id] : null;
+              if (
+                isNaN(series_index) ||
+                series_index < 0 ||
+                !programData ||
+                !Array.isArray(programData.series) ||
+                series_index >= programData.series.length
+              ) {
                 res.writeHead(400);
                 res.end(JSON.stringify({ error: 'Invalid series index' }));
                 return;
@@ -430,7 +446,7 @@ export default defineConfig({
 
               currentState.current_series_index = series_index;
               currentState.current_event_index = 0;
-              emit('series_next', { program_id: currentState.program_id, series_index });
+              emit(EventType.SeriesNext, { program_id: currentState.program_id, series_index });
               res.writeHead(200);
               res.end(JSON.stringify({ message: `Skipped to series ${series_index}` }));
               return;
@@ -470,7 +486,7 @@ export default defineConfig({
               if (fileReceived && title && codecReceived) {
                 const newId = Math.max(...audios.map(a => a.id), 100) + 1;
                 audios.push({ id: newId, title, readonly: false });
-                emit('audio_uploaded', { id: newId, title });
+                emit(EventType.AudioUploaded, { id: newId, title });
 
                 res.writeHead(201);
                 res.end(JSON.stringify({ message: "Audio uploaded", id: newId }));
@@ -508,7 +524,7 @@ export default defineConfig({
               }
 
               const deletedAudio = audios.splice(audioIndex, 1)[0];
-              emit('audio_deleted', { id: deletedAudio.id });
+              emit(EventType.AudioDeleted, { id: deletedAudio.id });
               res.writeHead(200);
               res.end(JSON.stringify({ message: 'Audio deleted successfully', id: deletedAudio.id }));
               return;
@@ -536,7 +552,7 @@ export default defineConfig({
 
               // In a real implementation, you would remove from a list.
               // Here, just emit and return success for id !== 1.
-              emit('program_deleted', { id: program_id });
+              emit(EventType.ProgramDeleted, { id: program_id });
               res.writeHead(200);
               res.end(JSON.stringify({ message: 'Program deleted successfully', id: program_id }));
               return;
@@ -557,7 +573,7 @@ export default defineConfig({
                 ) {
                   // Simulate success (could add to a mock list if desired)
                   // Emit SSE event for program upload
-                  emit('program_uploaded', { title: data.title, description: data.description });
+                  emit(EventType.ProgramUploaded, { title: data.title, description: data.description });
                   res.writeHead(201);
                   res.end(JSON.stringify({ message: "Program uploaded" }));
                 } else {
@@ -587,7 +603,7 @@ export default defineConfig({
                   if (program_id === 1) {
                     res.writeHead(403);
                     res.end(JSON.stringify({ error: 'Program is readonly and cannot be updated' }));
-                    emit('program_updated', { program_id, status: 'readonly' });
+                    emit(EventType.ProgramUpdated, { program_id, status: 'readonly' });
                     return;
                   }
                   // Validate structure (must be a complete program JSON)
@@ -597,18 +613,18 @@ export default defineConfig({
                     Array.isArray(data.series)
                   ) {
                     // Simulate update success
-                    emit('program_updated', { program_id, status: 'success' });
+                    emit(EventType.ProgramUpdated, { program_id, status: 'success' });
                     res.writeHead(200);
                     res.end(JSON.stringify({ message: 'Program updated successfully', program_id }));
                   } else {
                     res.writeHead(400);
                     res.end(JSON.stringify({ error: 'Invalid program structure' }));
-                    emit('program_updated', { program_id, status: 'error' });
+                    emit(EventType.ProgramUpdated, { program_id, status: 'error' });
                   }
                 } catch (err) {
                   res.writeHead(400);
                   res.end(JSON.stringify({ error: 'Invalid JSON' }));
-                  emit('program_updated', { program_id, status: 'error' });
+                  emit(EventType.ProgramUpdated, { program_id, status: 'error' });
                 }
               });
               return;
@@ -624,7 +640,7 @@ export default defineConfig({
               if (isNaN(audio_id)) {
                 res.writeHead(400);
                 res.end(JSON.stringify({ error: 'Invalid ID' }));
-                emit('audio_playback', { audio_id, status: 'error' });
+                emit(EventType.AudioPlayback, { audio_id, status: 'error' });
                 return;
               }
 
@@ -632,18 +648,18 @@ export default defineConfig({
               if (!audio) {
                 res.writeHead(404);
                 res.end(JSON.stringify({ error: 'Audio not found' }));
-                emit('audio_playback', { audio_id, status: 'error' });
+                emit(EventType.AudioPlayback, { audio_id, status: 'error' });
                 return;
               }
 
               // Simulate playback started
-              emit('audio_playback', { audio_id, status: 'started' });
+              emit(EventType.AudioPlayback, { audio_id, status: 'started' });
               res.writeHead(200);
               res.end(JSON.stringify({ message: 'Playback started successfully', audio_id }));
 
               // Simulate playback finished after 2 seconds
               setTimeout(() => {
-                emit('audio_playback', { audio_id, status: 'finished' });
+                emit(EventType.AudioPlayback, { audio_id, status: 'finished' });
               }, 2000);
               return;
             }

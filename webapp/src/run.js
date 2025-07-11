@@ -1,4 +1,4 @@
-import { renderTimeline, setCurrent, clearCurrent } from './timeline.js';
+import { renderTimeline, setCurrent, clearCurrent, setCurrentChrono, handleSeriesCompleted } from './timeline.js';
 import { getProgram, loadProgram, startProgram, stopProgram, skipToSeries, getPrograms, toggleTargets } from './rest-client.js';
 import { EventType } from './sse-client.js';
 
@@ -168,11 +168,12 @@ document.addEventListener(EventType.SeriesStarted, ({ detail: { program_id, seri
     updateProgramButtons();
 });
 
-document.addEventListener(EventType.SeriesCompleted, ({ detail: { program_id } }) => {
+document.addEventListener(EventType.SeriesCompleted, ({ detail: { program_id, series_index } }) => {
     updateProgramState({ running_series_start: null });
     const chronoElement = document.getElementById('chrono');
     chronoElement.classList.add('hidden');
     updateProgramButtons();
+    handleSeriesCompleted(series_index);
 });
 
 document.addEventListener(EventType.SeriesStopped, ({ detail: { program_id, series_index, event_index } }) => {
@@ -215,6 +216,11 @@ document.addEventListener(EventType.Chrono, ({ detail: { elapsed } }) => {
     const chronoElement = document.getElementById('chrono');
     if (chronoElement) {
         chronoElement.textContent = `${Math.floor(elapsed / 1000)}s`;
+    }
+
+    const { current_series_index } = programState;
+    if (typeof current_series_index === "number" && current_series_index !== null) {
+        setCurrentChrono(current_series_index, elapsed);
     }
 });
 

@@ -1,6 +1,6 @@
 import { renderTimeline } from './timeline.js';
 import { EventType } from './sse-client.js';
-import { deleteProgram, getPrograms, uploadProgram } from './rest-client.js';
+import { deleteProgram, getPrograms, getProgram, uploadProgram } from './rest-client.js';
 
 // Make programFileInput accessible everywhere
 const programFileInput = document.getElementById("program-file");
@@ -101,11 +101,17 @@ export async function refreshProgramsList() {
                 const showJsonBtn = document.createElement("button");
                 showJsonBtn.textContent = "JSON";
                 showJsonBtn.classList.add("primary");
-                showJsonBtn.addEventListener("click", () => {
-                    const raw = JSON.stringify(program, null, 2);
-                    const blob = new Blob([raw], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    window.open(url, '_blank');
+                showJsonBtn.addEventListener("click", async () => {
+                    // Fetch the full raw JSON for this program
+                    try {
+                        const fullProgram = await getProgram(program.id);
+                        const raw = JSON.stringify(fullProgram, null, 2);
+                        const blob = new Blob([raw], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        window.open(url, '_blank');
+                    } catch (err) {
+                        alert("Failed to fetch full program JSON.");
+                    }
                 });
                 tdJson.appendChild(showJsonBtn);
                 tr.appendChild(tdJson);

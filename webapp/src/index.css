@@ -567,3 +567,162 @@ footer {
 .visualization.primary {
   background: #fff !important;
 }
+
+/* Add to index.css */
+.logic-timeline-container {
+  margin: 24px 0;
+  position: relative;
+  width: fit-content;
+}
+
+.logic-timeline-centerline {
+  display: flex;
+  align-items: flex-end;
+  position: relative;
+  height: 60px;
+  border-bottom: 2px solid #333;
+}
+
+/* Field/logic timeline event segment styling */
+.logic-segment {
+  position: relative;
+  margin-right: 2px;
+  border: 2px solid #333;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  /* Vertically center content */
+  justify-content: center;
+  /* Horizontally center content */
+  box-sizing: border-box;
+  overflow: visible;
+  min-height: 30px;
+  height: 30px;
+  font-size: 1rem;
+}
+
+/* Show events: black background, white text */
+.logic-segment.show {
+  background: #111;
+  color: #fff;
+  top: -30px;
+}
+
+/* Hide events: white background, black text */
+.logic-segment.hide {
+  background: #fff;
+  color: #111;
+  top: 0;
+}
+
+/* Info line for duration and audio symbol - now inside the box */
+.logic-info-line {
+  position: static;
+  left: auto;
+  top: auto;
+  bottom: auto;
+  transform: none;
+  font-size: 1rem;
+  color: inherit;
+  font-weight: bold;
+  background: transparent;
+  pointer-events: none;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  justify-content: center;
+}
+
+/* Remove above/below segment positioning */
+.logic-info-line.above-segment,
+.logic-info-line.below-segment {
+  top: auto;
+  bottom: auto;
+}
+
+/* Audio symbol inside the box */
+.logic-info-line .logic-audio-symbol {
+  font-weight: bold;
+  font-size: 1.2rem;
+  color: #0078d4;
+  margin-left: 0.5em;
+  background: transparent;
+  position: static;
+}
+
+/* Tooltip for logic timeline events */
+.logic-timeline-tooltip {
+  position: absolute;
+  z-index: 1000;
+  background: #222;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.95em;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  display: none;
+  max-width: 240px;
+  word-break: break-word;
+}
+
+.series-title {
+  font-weight: bold;
+  margin-bottom: 4px;
+  color: #111;
+  /* Always black */
+}
+
+/* Optional series background for both timelines */
+.series.optional,
+.logic-timeline-container.optional {
+  background-color: #e0e0e0;
+}
+
+/* Tooltip for timeline events (shared for both timelines) */
+.timeline-tooltip,
+.logic-timeline-tooltip {
+  position: absolute;
+  z-index: 1000;
+  background: #222;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.95em;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  display: none;
+  max-width: 240px;
+  word-break: break-word;
+}
+
+.logic-timeline-axis {
+  position: relative;
+  height: 20px;
+  margin-top: 8px;
+}
+
+.logic-timeline-tick {
+  position: absolute;
+  top: 0;
+  font-size: 0.9rem;
+  color: #333;
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.logic-timeline-cursor {
+  position: absolute;
+  top: -32px;
+  width: 40px;
+  height: 32px;
+  border: 3px dashed green;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.7);
+  z-index: 10;
+  pointer-events: none;
+  transition: left 0.2s;
+  display: block;
+}

@@ -1,5 +1,5 @@
 import { initializeRunTab } from './run.js';
-import { initializeAudiosTab } from './audios.js';
+import { initializeAudiosTab, loadAudios } from './audios.js';
 import { initializeProgramsTab } from './programs.js';
 import { initializeSettingsTab } from './config.js';
 import { EventType, connectToEventStream } from './sse-client.js';
@@ -23,6 +23,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const appTitle = `${appName} v${appVersion}`;
   document.title = appTitle;
   document.querySelector("#footer span").textContent = appTitle;
+
+  await loadAudios();
 
   // Initialize tabs
   await initializeRunTab();

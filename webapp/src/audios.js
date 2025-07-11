@@ -4,25 +4,23 @@ import { EventType } from './sse-client.js';
 let audios = [];
 
 export async function loadAudios() {
-    const response = await fetch('/api/v1/audios');
-    const data = await response.json();
-    audios = data.audios || [];
-    return audios;
-}
+    const data = await fetchAudios();
+    console.log('fetchAudios data:', data);
 
-export function getAudiosCache() {
+    audios = data.audios || [];
+    console.log('audios:', audios);
+
     return audios;
 }
 
 export function getAudioTitleById(id) {
     const audio = audios.find(a => a.id === id);
-    return audio ? audio.title : `Audio ${id}`;
+    return audio.title;
 }
 
 export async function refreshAudioList() {
     try {
         const audioContainer = document.getElementById("audio-container");
-        const { audios = [] } = await fetchAudios();
 
         audioContainer.innerHTML = "";
 
@@ -55,7 +53,6 @@ export async function refreshAudioList() {
                             try {
                                 await deleteAudio(audio.id);
                                 alert(`Audio "${audio.title}" deleted successfully.`);
-                                await refreshAudioList();
                             } catch (err) {
                                 console.error("Failed to delete audio:", err);
                                 alert("Failed to delete audio.");
@@ -116,7 +113,6 @@ export async function initializeAudiosTab() {
         try {
             await uploadAudio(file, codec, title);
             audioForm.reset();
-            await refreshAudioList();
         } catch (err) {
             console.error("Upload failed:", err);
             alert("Upload failed");
@@ -127,11 +123,14 @@ export async function initializeAudiosTab() {
 }
 
 document.addEventListener(EventType.AudioAdded, async ({ detail: { id } }) => {
+    await loadAudios();
     await refreshAudioList();
     console.log('Audio added:', id);
 });
 
 document.addEventListener(EventType.AudioDeleted, async ({ detail: { id } }) => {
+    await loadAudios();
     await refreshAudioList();
     console.log('Audio deleted:', id);
 });
+

@@ -1,13 +1,33 @@
 import { getAudioTitleById } from './audios.js';
 
+export const TimelineType = Object.freeze({
+  Default: "default",
+  Field: "field"
+});
+
 let currentSeriesIndex = null;
 let currentEventIndex = null;
 let timelineData = null;
 
-export function renderTimeline(placeHolder, program) {
+// Main timeline renderer with enum type selection
+export function renderTimeline(placeHolder, program, type = TimelineType.Default) {
+  if (type === TimelineType.Field) {
+    renderFieldTimeline(placeHolder, program);
+  } else {
+    renderDefaultTimeline(placeHolder, program);
+  }
+}
+
+// Default timeline renderer (existing logic)
+export function renderDefaultTimeline(placeHolder, program) {
   placeHolder.innerHTML = "";
 
   timelineData = preprocess(program.series);
+
+  // Tooltip element for default timeline
+  let tooltip = document.createElement("div");
+  tooltip.className = "timeline-tooltip";
+  placeHolder.appendChild(tooltip);
 
   timelineData.forEach((series, sIdx) => {
     const wrapper = document.createElement("div");
@@ -16,6 +36,7 @@ export function renderTimeline(placeHolder, program) {
     wrapper.dataset.seriesIndex = sIdx;
 
     const title = document.createElement("div");
+    title.className = "series-title";
     title.textContent = series.name + (series.optional ? " (optional)" : "");
     wrapper.appendChild(title);
 
@@ -27,9 +48,32 @@ export function renderTimeline(placeHolder, program) {
       evDiv.className = `event ${ev.symbolClass}`;
       evDiv.dataset.eventIndex = eIdx;
 
+      // Tooltip logic for default timeline
+      evDiv.addEventListener("mouseenter", () => {
+        let audioList = "";
+        if (ev.audio_ids && ev.audio_ids.length > 0) {
+          audioList = "<br>Audios:<br>" +
+            ev.audio_ids
+              .map(id => {
+                const title = getAudioTitleById(id);
+                return `${id}. ${title}`;
+              })
+              .join("<br>");
+        }
+        tooltip.innerHTML =
+          `<strong>Duration:</strong> ${Math.trunc(ev.duration / 1000)}s<br>` +
+          `<strong>Command:</strong> ${ev.command || "none"}${audioList}`;
+        tooltip.style.display = "block";
+        const rect = evDiv.getBoundingClientRect();
+        tooltip.style.left = `${rect.left + window.scrollX}px`;
+        tooltip.style.top = `${rect.top + window.scrollY - 40}px`;
+      });
+      evDiv.addEventListener("mouseleave", () => {
+        tooltip.style.display = "none";
+      });
+
       const dur = document.createElement("div");
       dur.className = "dur";
-      // Convert ms to seconds for display
       dur.textContent = Math.trunc(ev.duration / 1000);
       evDiv.appendChild(dur);
 
@@ -40,15 +84,12 @@ export function renderTimeline(placeHolder, program) {
 
       const acc = document.createElement("div");
       acc.className = "acc";
-      // Convert accumulated time from ms to seconds for display
       acc.textContent = Math.trunc(ev.acc / 1000);
       evDiv.appendChild(acc);
 
-      // If event has audio_ids, show title(s) as tooltip or label
       if (ev.audio_ids && ev.audio_ids.length > 0) {
         const audioTitles = ev.audio_ids.map(getAudioTitleById).join(", ");
-        evDiv.setAttribute("title", audioTitles); // For desktop hover
-        // For touch, we can also show a popup or inline label if desired
+        evDiv.setAttribute("title", audioTitles);
       }
 
       row.appendChild(evDiv);
@@ -59,13 +100,120 @@ export function renderTimeline(placeHolder, program) {
   });
 }
 
+// Improved field/logic timeline renderer
+export function renderFieldTimeline(placeHolder, program) {
+  placeHolder.innerHTML = "";
+
+  // Tooltip element (one per timeline)
+  let tooltip = document.createElement("div");
+  tooltip.className = "logic-timeline-tooltip";
+  placeHolder.appendChild(tooltip);
+
+  const timelineData = preprocess(program.series);
+
+  timelineData.forEach((series, sIdx) => {
+    // Timeline container for each series
+    const timelineContainer = document.createElement("div");
+    timelineContainer.className = "logic-timeline-container";
+    if (series.optional) timelineContainer.classList.add("optional");
+    timelineContainer.dataset.seriesIndex = sIdx;
+
+    // Series info/title
+    const title = document.createElement("div");
+    title.className = "series-title";
+    title.textContent = series.name + (series.optional ? " (optional)" : "");
+    timelineContainer.appendChild(title);
+
+    // Center line
+    const centerLine = document.createElement("div");
+    centerLine.className = "logic-timeline-centerline";
+
+    // Segments
+    let totalDuration = 0;
+    series.events.forEach((ev) => {
+      const durationSec = Math.max(1, Math.trunc(ev.duration / 1000));
+      const segment = document.createElement("div");
+      segment.className = `logic-segment ${ev.command || ""}`;
+      segment.style.width = `${durationSec * 40}px`;
+      segment.dataset.duration = ev.duration; // Store original duration
+
+      // Info line (duration and audio symbol)
+      const infoLine = document.createElement("div");
+      infoLine.className = "logic-info-line";
+      infoLine.textContent = `${durationSec}s`;
+      if (ev.audio_ids) {
+        infoLine.textContent += " A";
+      }
+      segment.appendChild(infoLine);
+
+      // Tooltip logic for field timeline
+      segment.addEventListener("mouseenter", (e) => {
+        let audioList = "";
+        if (ev.audio_ids && ev.audio_ids.length > 0) {
+          audioList = "<br>Audios:<br>" +
+            ev.audio_ids
+              .map(id => {
+                const title = getAudioTitleById(id);
+                return `${id}. ${title}`;
+              })
+              .join("<br>");
+        }
+        tooltip.innerHTML =
+          `<strong>Duration:</strong> ${durationSec}s<br>` +
+          `<strong>Command:</strong> ${ev.command || "none"}${audioList}`;
+        tooltip.style.display = "block";
+        const rect = segment.getBoundingClientRect();
+        tooltip.style.left = `${rect.left + window.scrollX}px`;
+        tooltip.style.top = `${rect.top + window.scrollY - 40}px`;
+      });
+      segment.addEventListener("mouseleave", () => {
+        tooltip.style.display = "none";
+      });
+
+      // Position segment above or on the center line using CSS classes only
+      if (ev.command === "show") {
+        segment.classList.add("above");
+      } else if (ev.command === "hide") {
+        segment.classList.add("on-line");
+      }
+
+      segment.title = `${ev.command || ""} (${durationSec}s)`;
+      centerLine.appendChild(segment);
+
+      totalDuration += durationSec;
+    });
+
+    // Axis (seconds)
+    const axis = document.createElement("div");
+    axis.className = "logic-timeline-axis";
+    axis.style.position = "relative";
+    axis.style.width = `${totalDuration * 40}px`; // 40px per second
+
+    for (let i = 0; i <= totalDuration; i++) {
+      const tick = document.createElement("span");
+      tick.className = "logic-timeline-tick";
+      tick.textContent = i;
+      tick.id = `logic-tick-${sIdx}-${i}`;
+      tick.dataset.seriesIndex = sIdx;
+      tick.dataset.second = i;
+      tick.style.position = "absolute";
+      tick.style.left = `${i * 40}px`; // Align tick with segment end
+      tick.style.transform = "translateX(-50%)";
+      axis.appendChild(tick);
+    }
+
+    timelineContainer.appendChild(centerLine);
+    timelineContainer.appendChild(axis);
+    placeHolder.appendChild(timelineContainer);
+  });
+}
+
+// preprocess, setCurrent, clearCurrent unchanged
 function preprocess(seriesList) {
   return seriesList.map((series) => {
     let acc = 0;
     const events = series.events.map(ev => {
       const duration = ev.duration;
-
-      // Determine the symbol class and text based on event properties
       let symbolClass = "no-action";
       let symbolText = "";
 
@@ -96,14 +244,26 @@ export function setCurrent(si, ei) {
   currentSeriesIndex = si;
   currentEventIndex = ei;
 
+  // Remove previous highlights for both timelines
   document.querySelectorAll(".series").forEach(s => s.classList.remove("current"));
   document.querySelectorAll(".event").forEach(e => e.classList.remove("current"));
+  document.querySelectorAll(".logic-segment").forEach(seg => seg.classList.remove("current"));
+  document.querySelectorAll(".logic-timeline-container").forEach(c => c.classList.remove("current"));
 
+  // Highlight current series/event in default timeline
   const currentSeries = document.querySelector(`[data-series-index='${si}']`);
   if (currentSeries) {
     currentSeries.classList.add("current");
     const currentEvent = currentSeries.querySelector(`[data-event-index='${ei}']`);
     if (currentEvent) currentEvent.classList.add("current");
+  }
+
+  // Highlight current series/event in field timeline
+  const fieldSeries = document.querySelectorAll(".logic-timeline-container")[si];
+  if (fieldSeries) {
+    fieldSeries.classList.add("current");
+    const segments = fieldSeries.querySelectorAll(".logic-segment");
+    if (segments[ei]) segments[ei].classList.add("current");
   }
 }
 
@@ -114,3 +274,42 @@ export function clearCurrent() {
   document.querySelectorAll(".event").forEach(e => e.classList.remove("current"));
 }
 
+export function setCurrentChrono(seriesIdx, elapsedMs) {
+  // const timelineContainers = document.querySelectorAll('.logic-timeline-container');
+  // const timelineContainer = timelineContainers[seriesIdx];
+  // if (!timelineContainer) return;
+
+  // const axis = timelineContainer.querySelector('.logic-timeline-axis');
+  // if (!axis) return;
+
+  // let cursor = axis.querySelector('.logic-timeline-cursor');
+  // if (!cursor) {
+  //   cursor = document.createElement('div');
+  //   cursor.className = 'logic-timeline-cursor';
+  //   axis.appendChild(cursor);
+  // }
+
+  // // Find the tick for the current second
+  // const second = Math.floor(elapsedMs / 1000);
+  // const tick = axis.querySelector(`#logic-tick-${seriesIdx}-${second}`);
+  // if (tick) {
+  //   // Center the box over the tick number
+  //   const tickLeft = tick.offsetLeft;
+  //   const tickWidth = tick.offsetWidth || 40; // fallback to 40px if not set
+  //   cursor.style.left = `${tickLeft - tickWidth / 2 + 20}px`; // 20px is half the cursor width
+  //   cursor.style.display = "block";
+  // } else {
+  //   cursor.style.display = "none";
+  // }
+}
+
+// Remove chrono box on series_completed
+export function handleSeriesCompleted(seriesIdx) {
+  const timelineContainers = document.querySelectorAll('.logic-timeline-container');
+  const timelineContainer = timelineContainers[seriesIdx];
+  if (!timelineContainer) return;
+  const axis = timelineContainer.querySelector('.logic-timeline-axis');
+  if (!axis) return;
+  const cursor = axis.querySelector('.logic-timeline-cursor');
+  if (cursor) cursor.remove();
+}

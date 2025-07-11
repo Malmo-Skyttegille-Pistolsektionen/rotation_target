@@ -2,6 +2,7 @@
     "id": 1,
     "title": "Militär Snabbmatch",
     "description": "Provserie 10s, 10s x 4 (+2), 8s x 4 (+2), 6s x 4 (+2)",
+    "readonly": false,
     "series": [
         {
             "name": "Provserie 10s",
