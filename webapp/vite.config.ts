@@ -7,8 +7,11 @@ const SERVER_BASE_URL = "http://localhost:8080";
 const SERVER_API_URL = `${SERVER_BASE_URL}/api/v1`;
 const SERVER_SSE_URL = `${SERVER_BASE_URL}/sse/v1`;
 
-const program_1_data = JSON.parse(fs.readFileSync('./test/data/1.json', 'utf-8'));
-const program_2_data = JSON.parse(fs.readFileSync('./test/data/2.json', 'utf-8'));
+const programs: Record<number, any> = {
+  1: JSON.parse(fs.readFileSync('./test/data/1.json', 'utf-8')),
+  2: JSON.parse(fs.readFileSync('./test/data/2.json', 'utf-8')),
+  40: JSON.parse(fs.readFileSync('./test/data/40.json', 'utf-8')),
+};
 const { version } = JSON.parse(fs.readFileSync('./package.json', 'utf-8'));
 
 // Shared ProgramState
@@ -37,13 +40,27 @@ const emit = (event: string, data: object) => {
   clients.forEach(res => res.write(payload));
 };
 
+function getCurrentProgramData() {
+  if (currentState.program_id == null) return null;
+  return programs[currentState.program_id] || null;
+}
+
 // Emit chrono SSE every second
 setInterval(() => {
-  if (currentState.running_series_start && currentState.program_id !== null && currentState.current_series_index !== null) {
-    const elapsedTime = Date.now() - currentState.running_series_start.getTime(); // Calculate elapsed time in milliseconds
-    const series = program_1_data.series[currentState.current_series_index];
-    const totalTime = series.events.reduce((sum, event) => sum + event.duration * 1000, 0); // Total duration in milliseconds
-    const remainingTime = Math.max(totalTime - elapsedTime, 0); // Remaining time in milliseconds
+  if (
+    currentState.running_series_start &&
+    currentState.program_id !== null &&
+    currentState.current_series_index !== null
+  ) {
+    const programData = getCurrentProgramData();
+    if (!programData) return;
+
+    const series = programData.series[currentState.current_series_index];
+    if (!series || !series.events) return;
+
+    const elapsedTime = Date.now() - currentState.running_series_start.getTime(); // ms
+    const totalTime = series.events.reduce((sum, event) => sum + event.duration * 1000, 0); // ms
+    const remainingTime = Math.max(totalTime - elapsedTime, 0); // ms
 
     emit('chrono', {
       elapsed: elapsedTime,
@@ -317,47 +334,47 @@ export default defineConfig({
           // Programs endpoints
           if (strippedPathname === '/programs' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify([
-              { id: 1, title: program_1_data.title, description: program_1_data.description, readonly: true },
-              { id: 2, title: program_2_data.title, description: program_2_data.description, readonly: false }
-            ]));
+            res.end(JSON.stringify(
+              Object.entries(programs).map(([id, data]) => ({
+                id: Number(id),
+                title: data.title,
+                description: data.description,
+                readonly: Number(id) === 1
+              }))
+            ));
             return;
           }
 
-          if (strippedPathname === '/programs/1' && req.method === 'GET') {
+          const programIdMatch = strippedPathname.match(/^\/programs\/(\d+)$/);
+          if (programIdMatch && req.method === 'GET') {
+            const program_id = parseInt(programIdMatch[1], 10);
+            if (!programs[program_id]) {
+              res.writeHead(404);
+              res.end(JSON.stringify({ error: 'Program not found' }));
+              return;
+            }
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(program_1_data));
+            res.end(JSON.stringify(programs[program_id]));
             return;
           }
 
-          if (strippedPathname === '/programs/1/load' && req.method === 'POST') {
-            currentState.program_id = 1;
+          const programLoadMatch = strippedPathname.match(/^\/programs\/(\d+)\/load$/);
+          if (programLoadMatch && req.method === 'POST') {
+            const program_id = parseInt(programLoadMatch[1], 10);
+            if (!programs[program_id]) {
+              res.writeHead(404);
+              res.end(JSON.stringify({ error: 'Program not found' }));
+              return;
+            }
+            currentState.program_id = program_id;
             currentState.running_series_start = null;
             currentState.current_series_index = 0;
             currentState.current_event_index = 0;
-            emit('program_loaded', { program_id: 1 });
+            emit('program_loaded', { program_id });
             res.writeHead(200);
             res.end();
             return;
           }
-
-          if (strippedPathname === '/programs/2' && req.method === 'GET') {
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(program_2_data));
-            return;
-          }
-
-          if (strippedPathname === '/programs/2/load' && req.method === 'POST') {
-            currentState.program_id = 2;
-            currentState.running_series_start = null;
-            currentState.current_series_index = 0;
-            currentState.current_event_index = 0;
-            emit('program_loaded', { program_id: 2 });
-            res.writeHead(200);
-            res.end();
-            return;
-          }
-
 
           if (strippedPathname === '/programs/start' && req.method === 'POST') {
             if (currentState.program_id == null) {
