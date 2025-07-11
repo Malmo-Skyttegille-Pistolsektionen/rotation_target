@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import fs, { read } from 'fs';
 import type { ServerResponse } from 'http';
-import { EventType } from './src/sse-client.js';
+import { SSETypes } from "./src/common/sse-types.js";
 
 // Mock server URLs
 const SERVER_BASE_URL = "http://localhost:8080";
@@ -63,7 +63,7 @@ setInterval(() => {
     const totalTime = series.events.reduce((sum, event) => sum + event.duration, 0); // ms
     const remainingTime = Math.max(totalTime - elapsedTime, 0); // ms
 
-    emit(EventType.Chrono, {
+    emit(SSETypes.Chrono, {
       elapsed: elapsedTime,
       remaining: remainingTime,
       total: totalTime,
@@ -97,12 +97,12 @@ const simulateSeriesEvents = () => {
       currentState.current_series_index += 1;
       currentState.current_event_index = 0;
       currentState.running_series_start = null;
-      emit(EventType.SeriesNext, { program_id: currentState.program_id, series_index: currentState.current_series_index });
+      emit(SSETypes.SeriesNext, { program_id: currentState.program_id, series_index: currentState.current_series_index });
       return;
     }
 
     // If no more series, complete the program
-    emit(EventType.ProgramCompleted, { program_id: currentState.program_id });
+    emit(SSETypes.ProgramCompleted, { program_id: currentState.program_id });
     currentState.running_series_start = null;
     currentState.program_id = null;
     currentState.current_series_index = null;
@@ -120,7 +120,7 @@ const simulateSeriesEvents = () => {
     }
 
     if (eventIndex >= events.length) {
-      emit(EventType.SeriesCompleted, { program_id: currentState.program_id, series_index: currentState.current_series_index });
+      emit(SSETypes.SeriesCompleted, { program_id: currentState.program_id, series_index: currentState.current_series_index });
 
       // Check if there are more series
       if (
@@ -130,11 +130,11 @@ const simulateSeriesEvents = () => {
         currentState.current_series_index += 1;
         currentState.current_event_index = 0;
         currentState.running_series_start = null;
-        emit(EventType.SeriesNext, { program_id: currentState.program_id, series_index: currentState.current_series_index });
+        emit(SSETypes.SeriesNext, { program_id: currentState.program_id, series_index: currentState.current_series_index });
         return;
       }
 
-      emit(EventType.ProgramCompleted, { program_id: currentState.program_id });
+      emit(SSETypes.ProgramCompleted, { program_id: currentState.program_id });
       currentState.running_series_start = null;
       currentState.program_id = null;
       currentState.current_series_index = null;
@@ -147,13 +147,13 @@ const simulateSeriesEvents = () => {
     const event = events[eventIndex];
     if (event.command === 'show') {
       currentState.target_status_shown = true;
-      emit(EventType.TargetStatus, { status: "shown" });
+      emit(SSETypes.TargetStatus, { status: "shown" });
     } else if (event.command === 'hide') {
       currentState.target_status_shown = false;
-      emit(EventType.TargetStatus, { status: "hidden" });
+      emit(SSETypes.TargetStatus, { status: "hidden" });
     }
 
-    emit(EventType.EventStarted, {
+    emit(SSETypes.EventStarted, {
       program_id: currentState.program_id,
       series_index: currentState.current_series_index,
       event_index: eventIndex
@@ -165,7 +165,7 @@ const simulateSeriesEvents = () => {
         return;
       }
 
-      emit(EventType.EventCompleted, {
+      emit(SSETypes.EventCompleted, {
         program_id: currentState.program_id,
         series_index: currentState.current_series_index,
         event_index: eventIndex
@@ -257,7 +257,7 @@ export default defineConfig({
                   adminModeToken = Math.random().toString(36).slice(2) + Date.now();
                   res.setHeader('Content-Type', 'application/json');
                   res.end(JSON.stringify({ token: adminModeToken }));
-                  emit(EventType.AdminModeStatus, { enabled: isAdminModeEnabled() }); // <-- simplified SSE emit
+                  emit(SSETypes.AdminModeStatus, { enabled: isAdminModeEnabled() }); // <-- simplified SSE emit
                   return;
                 } else {
                   res.writeHead(401);
@@ -277,7 +277,7 @@ export default defineConfig({
             adminModeToken = null;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ message: "Admin mode disabled" }));
-            emit(EventType.AdminModeStatus, { enabled: isAdminModeEnabled() }); // <-- simplified SSE emit
+            emit(SSETypes.AdminModeStatus, { enabled: isAdminModeEnabled() }); // <-- simplified SSE emit
             return;
           }
 
@@ -318,7 +318,7 @@ export default defineConfig({
           // Targets endpoints
           if (strippedPathname === '/targets/show' && req.method === 'POST') {
             currentState.target_status_shown = true;
-            emit(EventType.TargetStatusChanged, { target_status_shown: true });
+            emit(SSETypes.TargetStatusChanged, { target_status_shown: true });
             res.writeHead(200);
             res.end(JSON.stringify({ message: "Target is now shown" }));
             return;
@@ -326,7 +326,7 @@ export default defineConfig({
 
           if (strippedPathname === '/targets/hide' && req.method === 'POST') {
             currentState.target_status_shown = false;
-            emit(EventType.TargetStatusChanged, { target_status_shown: false });
+            emit(SSETypes.TargetStatusChanged, { target_status_shown: false });
             res.writeHead(200);
             res.end(JSON.stringify({ message: "Target is now hidden" }));
             return;
@@ -334,7 +334,7 @@ export default defineConfig({
 
           if (strippedPathname === '/targets/toggle' && req.method === 'POST') {
             currentState.target_status_shown = !currentState.target_status_shown;
-            emit(EventType.TargetStatusChanged, { target_status_shown: currentState.target_status_shown });
+            emit(SSETypes.TargetStatusChanged, { target_status_shown: currentState.target_status_shown });
             res.writeHead(200);
             res.end(JSON.stringify({ message: `Target is now ${currentState.target_status_shown ? 'shown' : 'hidden'}` }));
             return;
@@ -379,7 +379,7 @@ export default defineConfig({
             currentState.running_series_start = null;
             currentState.current_series_index = 0;
             currentState.current_event_index = 0;
-            emit(EventType.ProgramLoaded, { program_id });
+            emit(SSETypes.ProgramLoaded, { program_id });
             res.writeHead(200);
             res.end();
             return;
@@ -392,8 +392,8 @@ export default defineConfig({
               return;
             }
             currentState.running_series_start = new Date(); // Set the start time
-            emit(EventType.ProgramStarted, { program_id: currentState.program_id });
-            emit(EventType.SeriesStarted, { program_id: currentState.program_id, series_index: currentState.current_series_index });
+            emit(SSETypes.ProgramStarted, { program_id: currentState.program_id });
+            emit(SSETypes.SeriesStarted, { program_id: currentState.program_id, series_index: currentState.current_series_index });
 
             // Simulate series events
             simulateSeriesEvents();
@@ -413,7 +413,7 @@ export default defineConfig({
             // Stop the series and reset the event index to the first event of the current series
             currentState.running_series_start = null; // Stop the series
             currentState.current_event_index = 0; // Reset to the first event of the current series
-            emit(EventType.SeriesStopped, {
+            emit(SSETypes.SeriesStopped, {
               program_id: currentState.program_id,
               series_index: currentState.current_series_index,
               event_index: currentState.current_event_index,
@@ -446,7 +446,7 @@ export default defineConfig({
 
               currentState.current_series_index = series_index;
               currentState.current_event_index = 0;
-              emit(EventType.SeriesNext, { program_id: currentState.program_id, series_index });
+              emit(SSETypes.SeriesNext, { program_id: currentState.program_id, series_index });
               res.writeHead(200);
               res.end(JSON.stringify({ message: `Skipped to series ${series_index}` }));
               return;
@@ -486,7 +486,7 @@ export default defineConfig({
               if (fileReceived && title && codecReceived) {
                 const newId = Math.max(...audios.map(a => a.id), 100) + 1;
                 audios.push({ id: newId, title, readonly: false });
-                emit(EventType.AudioUploaded, { id: newId, title });
+                emit(SSETypes.AudioUploaded, { id: newId, title });
 
                 res.writeHead(201);
                 res.end(JSON.stringify({ message: "Audio uploaded", id: newId }));
@@ -524,7 +524,7 @@ export default defineConfig({
               }
 
               const deletedAudio = audios.splice(audioIndex, 1)[0];
-              emit(EventType.AudioDeleted, { id: deletedAudio.id });
+              emit(SSETypes.AudioDeleted, { id: deletedAudio.id });
               res.writeHead(200);
               res.end(JSON.stringify({ message: 'Audio deleted successfully', id: deletedAudio.id }));
               return;
@@ -552,7 +552,7 @@ export default defineConfig({
 
               // In a real implementation, you would remove from a list.
               // Here, just emit and return success for id !== 1.
-              emit(EventType.ProgramDeleted, { id: program_id });
+              emit(SSETypes.ProgramDeleted, { id: program_id });
               res.writeHead(200);
               res.end(JSON.stringify({ message: 'Program deleted successfully', id: program_id }));
               return;
@@ -573,7 +573,7 @@ export default defineConfig({
                 ) {
                   // Simulate success (could add to a mock list if desired)
                   // Emit SSE event for program upload
-                  emit(EventType.ProgramUploaded, { title: data.title, description: data.description });
+                  emit(SSETypes.ProgramUploaded, { title: data.title, description: data.description });
                   res.writeHead(201);
                   res.end(JSON.stringify({ message: "Program uploaded" }));
                 } else {
@@ -603,7 +603,7 @@ export default defineConfig({
                   if (program_id === 1) {
                     res.writeHead(403);
                     res.end(JSON.stringify({ error: 'Program is readonly and cannot be updated' }));
-                    emit(EventType.ProgramUpdated, { program_id, status: 'readonly' });
+                    emit(SSETypes.ProgramUpdated, { program_id, status: 'readonly' });
                     return;
                   }
                   // Validate structure (must be a complete program JSON)
@@ -613,18 +613,18 @@ export default defineConfig({
                     Array.isArray(data.series)
                   ) {
                     // Simulate update success
-                    emit(EventType.ProgramUpdated, { program_id, status: 'success' });
+                    emit(SSETypes.ProgramUpdated, { program_id, status: 'success' });
                     res.writeHead(200);
                     res.end(JSON.stringify({ message: 'Program updated successfully', program_id }));
                   } else {
                     res.writeHead(400);
                     res.end(JSON.stringify({ error: 'Invalid program structure' }));
-                    emit(EventType.ProgramUpdated, { program_id, status: 'error' });
+                    emit(SSETypes.ProgramUpdated, { program_id, status: 'error' });
                   }
                 } catch (err) {
                   res.writeHead(400);
                   res.end(JSON.stringify({ error: 'Invalid JSON' }));
-                  emit(EventType.ProgramUpdated, { program_id, status: 'error' });
+                  emit(SSETypes.ProgramUpdated, { program_id, status: 'error' });
                 }
               });
               return;
@@ -640,7 +640,7 @@ export default defineConfig({
               if (isNaN(audio_id)) {
                 res.writeHead(400);
                 res.end(JSON.stringify({ error: 'Invalid ID' }));
-                emit(EventType.AudioPlayback, { audio_id, status: 'error' });
+                emit(SSETypes.AudioPlayback, { audio_id, status: 'error' });
                 return;
               }
 
@@ -648,18 +648,18 @@ export default defineConfig({
               if (!audio) {
                 res.writeHead(404);
                 res.end(JSON.stringify({ error: 'Audio not found' }));
-                emit(EventType.AudioPlayback, { audio_id, status: 'error' });
+                emit(SSETypes.AudioPlayback, { audio_id, status: 'error' });
                 return;
               }
 
               // Simulate playback started
-              emit(EventType.AudioPlayback, { audio_id, status: 'started' });
+              emit(SSETypes.AudioPlayback, { audio_id, status: 'started' });
               res.writeHead(200);
               res.end(JSON.stringify({ message: 'Playback started successfully', audio_id }));
 
               // Simulate playback finished after 2 seconds
               setTimeout(() => {
-                emit(EventType.AudioPlayback, { audio_id, status: 'finished' });
+                emit(SSETypes.AudioPlayback, { audio_id, status: 'finished' });
               }, 2000);
               return;
             }

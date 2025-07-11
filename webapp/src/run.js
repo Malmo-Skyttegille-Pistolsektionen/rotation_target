@@ -1,6 +1,6 @@
 import { renderTimeline, setCurrent, clearCurrent, setCurrentChrono, handleSeriesCompleted } from './timeline.js';
 import { getProgram, loadProgram, startProgram, stopProgram, skipToSeries, getPrograms, toggleTargets } from './rest-client.js';
-import { EventType } from './sse-client.js';
+import { SSETypes } from "./common/sse-types.js";
 
 // Program state to track the current program and series
 const programState = {
@@ -149,13 +149,13 @@ export async function initializeRunTab() {
 }
 
 // Listen for SSE events
-document.addEventListener(EventType.ProgramCompleted, ({ detail: { program_id } }) => {
+document.addEventListener(SSETypes.ProgramCompleted, ({ detail: { program_id } }) => {
     updateProgramState({ program_id: null, running_series_start: null });
     clearCurrent();
     updateProgramButtons();
 });
 
-document.addEventListener(EventType.SeriesStarted, ({ detail: { program_id, series_index } }) => {
+document.addEventListener(SSETypes.SeriesStarted, ({ detail: { program_id, series_index } }) => {
     updateProgramState({
         program_id,
         running_series_start: new Date(),
@@ -168,7 +168,7 @@ document.addEventListener(EventType.SeriesStarted, ({ detail: { program_id, seri
     updateProgramButtons();
 });
 
-document.addEventListener(EventType.SeriesCompleted, ({ detail: { program_id, series_index } }) => {
+document.addEventListener(SSETypes.SeriesCompleted, ({ detail: { program_id, series_index } }) => {
     updateProgramState({ running_series_start: null });
     const chronoElement = document.getElementById('chrono');
     chronoElement.classList.add('hidden');
@@ -176,7 +176,7 @@ document.addEventListener(EventType.SeriesCompleted, ({ detail: { program_id, se
     handleSeriesCompleted(series_index);
 });
 
-document.addEventListener(EventType.SeriesStopped, ({ detail: { program_id, series_index, event_index } }) => {
+document.addEventListener(SSETypes.SeriesStopped, ({ detail: { program_id, series_index, event_index } }) => {
     updateProgramState({
         program_id,
         running_series_start: null,
@@ -189,7 +189,7 @@ document.addEventListener(EventType.SeriesStopped, ({ detail: { program_id, seri
     updateProgramButtons();
 });
 
-document.addEventListener(EventType.SeriesNext, ({ detail: { program_id, series_index } }) => {
+document.addEventListener(SSETypes.SeriesNext, ({ detail: { program_id, series_index } }) => {
     updateProgramState({
         program_id,
         current_series_index: series_index,
@@ -199,7 +199,7 @@ document.addEventListener(EventType.SeriesNext, ({ detail: { program_id, series_
     updateProgramButtons();
 });
 
-document.addEventListener(EventType.EventStarted, ({ detail: { program_id, series_index, event_index } }) => {
+document.addEventListener(SSETypes.EventStarted, ({ detail: { program_id, series_index, event_index } }) => {
     updateProgramState({
         program_id,
         current_series_index: series_index,
@@ -208,11 +208,11 @@ document.addEventListener(EventType.EventStarted, ({ detail: { program_id, serie
     setCurrent(series_index, event_index);
 });
 
-document.addEventListener(EventType.TargetStatus, ({ detail: { status } }) => {
+document.addEventListener(SSETypes.TargetStatus, ({ detail: { status } }) => {
     updateProgramState({ target_status_shown: status === 'shown' });
 });
 
-document.addEventListener(EventType.Chrono, ({ detail: { elapsed } }) => {
+document.addEventListener(SSETypes.Chrono, ({ detail: { elapsed } }) => {
     const chronoElement = document.getElementById('chrono');
     if (chronoElement) {
         chronoElement.textContent = `${Math.floor(elapsed / 1000)}s`;
@@ -225,11 +225,11 @@ document.addEventListener(EventType.Chrono, ({ detail: { elapsed } }) => {
 });
 
 
-document.addEventListener(EventType.ProgramAdded, ({ detail: { program_id } }) => {
+document.addEventListener(SSETypes.ProgramAdded, ({ detail: { program_id } }) => {
     initializeRunTab();
 });
 
-document.addEventListener(EventType.ProgramDeleted, ({ detail: { program_id } }) => {
+document.addEventListener(SSETypes.ProgramDeleted, ({ detail: { program_id } }) => {
     initializeRunTab();
 });
 

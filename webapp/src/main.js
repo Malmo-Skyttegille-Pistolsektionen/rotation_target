@@ -2,7 +2,8 @@ import { initializeRunTab } from './run.js';
 import { initializeAudiosTab, loadAudios } from './audios.js';
 import { initializeProgramsTab } from './programs.js';
 import { initializeSettingsTab } from './config.js';
-import { EventType, connectToEventStream } from './sse-client.js';
+import { connectToEventStream } from './sse-client.js';
+import { SSETypes } from "./common/sse-types.js";
 
 import { getStatus } from './rest-client.js';
 import { setCurrent, clearCurrent } from './timeline.js';

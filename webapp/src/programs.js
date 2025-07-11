@@ -1,5 +1,5 @@
 import { renderTimeline } from './timeline.js';
-import { EventType } from './sse-client.js';
+import { SSETypes } from "./common/sse-types.js";
 import { deleteProgram, getPrograms, getProgram, uploadProgram } from './rest-client.js';
 
 // Make programFileInput accessible everywhere
@@ -148,12 +148,12 @@ addProgramBtn.addEventListener("click", () => {
     handleProgramFileInput();
 });
 
-document.addEventListener(EventType.ProgramAdded, async ({ detail: { id } }) => {
+document.addEventListener(SSETypes.ProgramAdded, async ({ detail: { id } }) => {
     await refreshProgramsList();
     console.log('Program added:', id);
 });
 
-document.addEventListener(EventType.ProgramDeleted, async ({ detail: { id } }) => {
+document.addEventListener(SSETypes.ProgramDeleted, async ({ detail: { id } }) => {
     await refreshProgramsList();
     console.log('Program deleted:', id);
 });

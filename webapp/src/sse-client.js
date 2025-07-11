@@ -1,21 +1,5 @@
 import { SERVER_SSE_URL } from "./config.js";
-
-export const EventType = {
-  ProgramAdded: 'program_added',
-  ProgramDeleted: 'program_deleted',
-  ProgramStarted: 'program_started',
-  ProgramCompleted: 'program_completed',
-  SeriesStarted: 'series_started',
-  SeriesCompleted: 'series_completed',
-  SeriesStopped: 'series_stopped',
-  SeriesNext: 'series_next',
-  EventStarted: 'event_started',
-  TargetStatus: 'target_status',
-  AudioAdded: 'audio_added',
-  AudioDeleted: 'audio_deleted',
-  Chrono: 'chrono',
-  AdminModeStatus: 'admin_mode_status',
-};
+import { SSETypes } from "./common/sse-types.js";
 
 export let currentSSESource = null;
 
@@ -25,7 +9,7 @@ export function connectToEventStream(onEvent) {
   }
   currentSSESource = new EventSource(SERVER_SSE_URL, { withCredentials: false });
 
-  Object.values(EventType).forEach(type => {
+  Object.values(SSETypes).forEach(type => {
     currentSSESource.addEventListener(type, (event) => {
       try {
         const payload = JSON.parse(event.data);
