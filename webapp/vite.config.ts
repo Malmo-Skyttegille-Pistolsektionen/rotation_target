@@ -255,8 +255,9 @@ export default defineConfig({
             return;
           }
 
-          // --- Require Bearer token for POST/DELETE if admin mode is enabled ---
-          const protectedMethods = ['POST', 'DELETE'];
+          // --- Require Bearer token for POST/PUT/DELETE if admin mode is enabled ---
+          const protectedMethods = ['POST', 'PUT', 'DELETE'];
+
           const unprotectedPaths = [
             '/admin-mode/enable',
             '/admin-mode/status'
@@ -552,6 +553,83 @@ export default defineConfig({
               }
             });
             return;
+          }
+
+          // --- Programs update endpoint ---
+          if (strippedPathname.startsWith('/programs/') && strippedPathname.endsWith('/update') && req.method === 'PUT') {
+            const programUpdateMatch = strippedPathname.match(/^\/programs\/(\d+)\/update$/);
+            if (programUpdateMatch) {
+              const program_id = parseInt(programUpdateMatch[1], 10);
+
+              let body = '';
+              req.on('data', chunk => { body += chunk; });
+              req.on('end', () => {
+                try {
+                  const data = JSON.parse(body);
+                  // Simulate readonly check (id === 1 is readonly in this mock)
+                  if (program_id === 1) {
+                    res.writeHead(403);
+                    res.end(JSON.stringify({ error: 'Program is readonly and cannot be updated' }));
+                    emit('program_updated', { program_id, status: 'readonly' });
+                    return;
+                  }
+                  // Validate structure (must be a complete program JSON)
+                  if (
+                    typeof data.title === 'string' &&
+                    typeof data.description === 'string' &&
+                    Array.isArray(data.series)
+                  ) {
+                    // Simulate update success
+                    emit('program_updated', { program_id, status: 'success' });
+                    res.writeHead(200);
+                    res.end(JSON.stringify({ message: 'Program updated successfully', program_id }));
+                  } else {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ error: 'Invalid program structure' }));
+                    emit('program_updated', { program_id, status: 'error' });
+                  }
+                } catch (err) {
+                  res.writeHead(400);
+                  res.end(JSON.stringify({ error: 'Invalid JSON' }));
+                  emit('program_updated', { program_id, status: 'error' });
+                }
+              });
+              return;
+            }
+          }
+
+          // --- Audio playback endpoint ---
+          if (strippedPathname.startsWith('/audios/') && strippedPathname.endsWith('/play') && req.method === 'POST') {
+            const audioPlayMatch = strippedPathname.match(/^\/audios\/(\d+)\/play$/);
+            if (audioPlayMatch) {
+              const audio_id = parseInt(audioPlayMatch[1], 10);
+
+              if (isNaN(audio_id)) {
+                res.writeHead(400);
+                res.end(JSON.stringify({ error: 'Invalid ID' }));
+                emit('audio_playback', { audio_id, status: 'error' });
+                return;
+              }
+
+              const audio = audios.find(a => a.id === audio_id);
+              if (!audio) {
+                res.writeHead(404);
+                res.end(JSON.stringify({ error: 'Audio not found' }));
+                emit('audio_playback', { audio_id, status: 'error' });
+                return;
+              }
+
+              // Simulate playback started
+              emit('audio_playback', { audio_id, status: 'started' });
+              res.writeHead(200);
+              res.end(JSON.stringify({ message: 'Playback started successfully', audio_id }));
+
+              // Simulate playback finished after 2 seconds
+              setTimeout(() => {
+                emit('audio_playback', { audio_id, status: 'finished' });
+              }, 2000);
+              return;
+            }
           }
 
           next();

@@ -26,38 +26,62 @@ export async function refreshAudioList() {
 
         audioContainer.innerHTML = "";
 
-        if (audios.length > 0) {
-            const audioList = document.createElement("ul");
-            audios
-                .slice()
-                .sort((a, b) => a.id - b.id)
-                .forEach(audio => {
-                    const li = document.createElement("li");
-                    li.textContent = `${audio.id}: ${audio.title}`;
+        audios
+            .slice()
+            .sort((a, b) => a.id - b.id)
+            .forEach(audio => {
+                const tr = document.createElement("tr");
 
-                    if (!audio.readonly) {
-                        const deleteBtn = document.createElement("button");
-                        deleteBtn.textContent = "Delete";
-                        deleteBtn.classList.add("delete-btn");
-                        deleteBtn.addEventListener("click", async () => {
-                            if (confirm(`Are you sure you want to delete "${audio.title}"?`)) {
-                                try {
-                                    await deleteAudio(audio.id);
-                                    alert(`Audio "${audio.title}" deleted successfully.`);
-                                    await refreshAudioList();
-                                } catch (err) {
-                                    console.error("Failed to delete audio:", err);
-                                    alert("Failed to delete audio.");
-                                }
+                // ID cell
+                const tdId = document.createElement("td");
+                tdId.textContent = audio.id;
+                tdId.className = "id-cell";
+                tr.appendChild(tdId);
+
+                // Title cell
+                const tdTitle = document.createElement("td");
+                tdTitle.textContent = audio.title;
+                tdTitle.className = "title-cell";
+                tr.appendChild(tdTitle);
+
+                // Delete button cell
+                const tdDelete = document.createElement("td");
+                if (!audio.readonly) {
+                    const deleteBtn = document.createElement("button");
+                    deleteBtn.textContent = "Delete";
+                    deleteBtn.classList.add("delete-btn");
+                    deleteBtn.addEventListener("click", async () => {
+                        if (confirm(`Are you sure you want to delete "${audio.title}"?`)) {
+                            try {
+                                await deleteAudio(audio.id);
+                                alert(`Audio "${audio.title}" deleted successfully.`);
+                                await refreshAudioList();
+                            } catch (err) {
+                                console.error("Failed to delete audio:", err);
+                                alert("Failed to delete audio.");
                             }
-                        });
-                        li.appendChild(deleteBtn);
-                    }
+                        }
+                    });
+                    tdDelete.appendChild(deleteBtn);
+                }
+                tr.appendChild(tdDelete);
 
-                    audioList.appendChild(li);
+                // JSON button cell
+                const tdJson = document.createElement("td");
+                const showJsonBtn = document.createElement("button");
+                showJsonBtn.textContent = "JSON";
+                showJsonBtn.classList.add("primary");
+                showJsonBtn.addEventListener("click", () => {
+                    const raw = JSON.stringify(audio, null, 2);
+                    const blob = new Blob([raw], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    window.open(url, '_blank');
                 });
-            audioContainer.appendChild(audioList);
-        }
+                tdJson.appendChild(showJsonBtn);
+                tr.appendChild(tdJson);
+
+                audioContainer.appendChild(tr); // append to tbody
+            });
     } catch (err) {
         console.error("Error loading audios:", err);
     }
@@ -70,7 +94,6 @@ export async function initializeAudiosTab() {
     audioFileInput.addEventListener("change", () => {
         const file = audioFileInput.files[0];
         if (file) {
-            // Python's rfind is similar to JavaScript's lastIndexOf
             const lastDotIndex = file.name.lastIndexOf(".");
             const nameWithoutExt = lastDotIndex > 0 ? file.name.substring(0, lastDotIndex) : file.name;
             audioTitleInput.value = nameWithoutExt;
@@ -78,7 +101,6 @@ export async function initializeAudiosTab() {
     });
 
     const audioForm = document.getElementById("audio-form");
-    const audioContainer = document.getElementById("audio-container");
 
     audioForm.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -87,16 +109,12 @@ export async function initializeAudiosTab() {
         const title = document.getElementById("audio-title").value;
         const codec = document.getElementById("audio-codec").value;
 
-        console.debug("Form submit:", { file, title, codec });
-
         if (!file || !title || !codec) {
-            console.debug("Missing required fields", { file, title, codec });
             return;
         }
 
         try {
             await uploadAudio(file, codec, title);
-            console.debug("Upload successful");
             audioForm.reset();
             await refreshAudioList();
         } catch (err) {
@@ -109,11 +127,11 @@ export async function initializeAudiosTab() {
 }
 
 document.addEventListener(EventType.AudioAdded, async ({ detail: { id } }) => {
-    refreshAudioList();
+    await refreshAudioList();
     console.log('Audio added:', id);
 });
 
 document.addEventListener(EventType.AudioDeleted, async ({ detail: { id } }) => {
-    refreshAudioList();
+    await refreshAudioList();
     console.log('Audio deleted:', id);
 });

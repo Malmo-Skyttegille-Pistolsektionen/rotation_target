@@ -10,11 +10,13 @@ export async function getProgram(id) {
   return handleResponse(response);
 }
 
-export async function uploadProgram(program) {
-  const response = await fetchWithAuth(`${SERVER_API_URL}/programs`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(program),
+export async function uploadProgram(program, id) {
+  const url = id ? `${SERVER_API_URL}/programs/${id}/update` : `${SERVER_API_URL}/programs`;
+  const method = id ? 'PUT' : 'POST';
+  const response = await fetchWithAuth(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(program)
   });
   return handleResponse(response);
 }

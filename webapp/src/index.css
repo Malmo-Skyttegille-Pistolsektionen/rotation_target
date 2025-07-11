@@ -196,6 +196,7 @@ select:focus {
 .dur,
 .acc {
   font-size: 0.8rem;
+  color: #111;
 }
 
 .symbol {
@@ -316,7 +317,7 @@ footer {
   font-weight: bold;
 }
 
-.programs-list ul {
+.programs-list {
   list-style: none;
   padding: 0;
   margin: 1rem auto;
@@ -325,19 +326,34 @@ footer {
 
 .programs-list li {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 0.5em;
-  padding: 0.4em 0;
-  /* Add vertical spacing between lines */
+  padding: 0.5rem;
+  border-bottom: 1px solid #eee;
   min-height: 2.5em;
-  /* Ensure enough height for vertical centering */
 }
 
-.programs-list li span {
+.programs-list span {
   flex: 1;
   text-align: left;
-  /* Left align id and title */
   display: block;
+}
+
+/* Button styles */
+.primary {
+  background-color: #0078d4;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background 0.2s;
+}
+
+.primary:hover {
+  background-color: #0056b3;
 }
 
 .delete-btn,
@@ -385,4 +401,169 @@ footer {
   display: none;
   max-width: 240px;
   word-break: break-word;
+}
+
+/* Style for Add Program and Update buttons */
+.add-btn,
+.update-btn {
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background 0.2s;
+}
+
+.add-btn:hover,
+.update-btn:hover {
+  background-color: #0056b3;
+}
+
+/* Programs tab layout improvements */
+#programs-section {
+  max-width: 600px;
+  margin: 0 auto;
+  padding-top: 32px;
+}
+
+.programs-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.programs-actions.centered {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+/* Make Add Program button look like Update */
+.update-btn {
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background 0.2s;
+}
+
+.update-btn:hover {
+  background-color: #0056b3;
+}
+
+/* Programs list styling */
+#programs-container {
+  list-style: none;
+  padding: 0;
+}
+
+#programs-container li {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+#programs-container span {
+  flex: 1;
+}
+
+/* Button spacing in list */
+.delete-btn,
+.update-btn,
+.show-json-btn {
+  margin-left: 8px;
+}
+
+/* Programs Table */
+.programs-table {
+  width: 100%;
+  max-width: 500px;
+  margin: 1rem auto;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.programs-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #eee;
+  vertical-align: middle;
+}
+
+.programs-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* ID cell */
+.programs-table td.id-cell {
+  text-align: left;
+  width: 40px;
+}
+
+/* Title cell */
+.programs-table td.title-cell {
+  text-align: left;
+  min-width: 180px;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Button cells */
+.programs-table td {
+  text-align: right;
+}
+
+/* Button styles */
+.primary {
+  background-color: #0078d4;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background 0.2s;
+}
+
+.primary:hover {
+  background-color: #0056b3;
+}
+
+.delete-btn {
+  background-color: #ff2d2d;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-left: 0;
+  margin-right: 8px;
+  transition: background 0.2s;
+}
+
+.delete-btn:hover {
+  background-color: #c00;
+}
+
+/* Add Program button position */
+.programs-actions {
+  display: flex;
+  justify-content: flex-end;
+  /* Use flex-start for left, flex-end for right */
+  margin-bottom: 16px;
+}
+
+/* Timeline background fix */
+.visualization.primary {
+  background: #fff !important;
 }

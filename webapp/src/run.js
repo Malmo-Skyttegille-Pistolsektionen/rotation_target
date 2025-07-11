@@ -226,3 +226,9 @@ document.addEventListener(EventType.ProgramAdded, ({ detail: { program_id } }) =
 document.addEventListener(EventType.ProgramDeleted, ({ detail: { program_id } }) => {
     initializeRunTab();
 });
+
+
+document.addEventListener('audio_playback', () => {
+    // No action needed
+});
+

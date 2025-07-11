@@ -52,11 +52,10 @@
       <section class="audio-upload">
         <h2>Upload Audio</h2>
         <form id="audio-form" class="form-row">
-          <input type="file" id="audio-file" accept=".mp3,audio/*" required />
+          <input type="file" id="audio-file" accept=".wav" required />
           <input type="text" id="audio-title" placeholder="Title" required />
           <select id="audio-codec" required>
-            <option value="pcm">PCM</option>
-            <option value="mp3">MP3</option>
+            <option value="pcm">PCM (16bit, mono, 24kHz)</option>
           </select>
           <button type="submit" class="primary">Upload</button>
         </form>
@@ -64,28 +63,24 @@
 
       <section class="audio-list">
         <h2>Audio Library</h2>
-        <ul id="audio-container"></ul>
+        <table class="programs-table">
+          <tbody id="audio-container"></tbody>
+        </table>
       </section>
     </section>
 
-    <!-- Programs -->
+    <!-- Programs Tab (improved layout) -->
     <section id="programs-section" class="tab-content hidden">
-      <section class="upload-program">
-        <h2>Upload Program</h2>
-        <form id="program-upload-form" class="form-row">
-          <input type="file" id="program-file" accept=".json" required />
-          <button type="submit" class="primary">Upload</button>
-        </form>
-      </section>
-
+      <div class="programs-actions centered">
+        <button id="add-program-btn" class="primary">Add Program</button>
+      </div>
+      <table class="programs-table">
+        <tbody id="programs-container"></tbody>
+      </table>
       <section id="upload-programs-timeline-wrapper" class="visualization primary hidden">
         <div id="upload-programs-timeline"></div>
       </section>
-
-      <section class="programs-list">
-        <h2>Programs Library</h2>
-        <ul id="programs-container"></ul>
-      </section>
+      <input type="file" id="program-file" accept=".json" style="display:none;">
     </section>
 
     <!-- Settings Tab -->
