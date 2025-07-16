@@ -1,5 +1,13 @@
 import { SERVER_API_URL } from "./config.js";
 
+export const HTTP_METHOD = Object.freeze({
+  GET: "GET",
+  POST: "POST",
+  PUT: "PUT",
+  DELETE: "DELETE",
+  PATCH: "PATCH"
+});
+
 export async function getPrograms() {
   const response = await fetch(`${SERVER_API_URL}/programs`);
   return handleResponse(response);
@@ -12,7 +20,7 @@ export async function getProgram(id) {
 
 export async function uploadProgram(program, id) {
   const url = id ? `${SERVER_API_URL}/programs/${id}/update` : `${SERVER_API_URL}/programs`;
-  const method = id ? 'PUT' : 'POST';
+  const method = id ? HTTP_METHOD.PUT : HTTP_METHOD.POST;
   const response = await fetchWithAuth(url, {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -23,7 +31,7 @@ export async function uploadProgram(program, id) {
 
 export async function deleteProgram(id) {
   const response = await fetchWithAuth(`${SERVER_API_URL}/programs/${id}/delete`, {
-    method: "DELETE",
+    method: HTTP_METHOD.DELETE,
     headers: { "Content-Type": "application/json" },
   });
   return handleResponse(response);
@@ -46,7 +54,7 @@ export async function stopProgram() {
 
 export async function skipToSeries(series_index) {
   const response = await fetchWithAuth(`${SERVER_API_URL}/programs/series/${series_index}/skip_to`, {
-    method: "POST",
+    method: HTTP_METHOD.POST,
     headers: { "Content-Type": "application/json" },
   });
   return handleResponse(response);
@@ -69,7 +77,7 @@ export async function uploadAudio(file, codec, title) {
   formData.append("title", title);
 
   const response = await fetchWithAuth(`${SERVER_API_URL}/audios`, {
-    method: "POST",
+    method: HTTP_METHOD.POST,
     body: formData,
   });
   return handleResponse(response);
@@ -77,7 +85,7 @@ export async function uploadAudio(file, codec, title) {
 
 export async function deleteAudio(id) {
   const response = await fetchWithAuth(`${SERVER_API_URL}/audios/${id}/delete`, {
-    method: "DELETE",
+    method: HTTP_METHOD.DELETE,
     headers: { "Content-Type": "application/json" },
   });
   return handleResponse(response);
@@ -107,7 +115,7 @@ export async function fetchAdminModeStatus() {
 export async function enableAdminMode(password) {
   // Do NOT use fetchWithAuth here, since we don't have a token yet!
   const response = await fetch(`${SERVER_API_URL}/admin-mode/enable`, {
-    method: "POST",
+    method: HTTP_METHOD.POST,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ password }),
   });
@@ -116,7 +124,7 @@ export async function enableAdminMode(password) {
 
 export async function disableAdminMode() {
   const response = await fetchWithAuth(`${SERVER_API_URL}/admin-mode/disable`, {
-    method: "POST",
+    method: HTTP_METHOD.POST,
   });
   return handleResponse(response);
 }
@@ -141,5 +149,5 @@ async function fetchWithAuth(input, init = {}) {
   if (token) {
     init.headers["Authorization"] = `Bearer ${token}`;
   }
-  return fetch(input, init);
+  return await fetch(input, init);
 }
