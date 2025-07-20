@@ -1,20 +1,6 @@
-import { fetchAudios, uploadAudio, deleteAudio } from './rest-client.js';
-import { SSETypes } from "./common/sse-types.js";
-
-let audios = [];
-
-export async function loadAudios() {
-    const data = await fetchAudios();
-
-    audios = data.audios || [];
-
-    return audios;
-}
-
-export function getAudioTitleById(id) {
-    const audio = audios.find(a => a.id === id);
-    return audio.title;
-}
+import { uploadAudio, deleteAudio } from '../../apis/rest-client.js';
+import { SSETypes } from "../../common/sse-types.js";
+import { audios, loadAudios } from '../../models/audios.js';
 
 export async function refreshAudioList() {
     try {

@@ -1,6 +1,6 @@
 import { renderTimeline } from './timeline.js';
-import { SSETypes } from "./common/sse-types.js";
-import { deleteProgram, getPrograms, getProgram, uploadProgram } from './rest-client.js';
+import { SSETypes } from "../../common/sse-types.js";
+import { deleteProgram, getPrograms, getProgram, uploadProgram } from '../../apis/rest-client.js';
 
 // Make programFileInput accessible everywhere
 const programFileInput = document.getElementById("program-file");

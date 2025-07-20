@@ -1,4 +1,4 @@
-import { getAudioTitleById } from './audios.js';
+import { getAudioTitleById } from '../../models/audios.js';
 
 export const TimelineType = Object.freeze({
   Default: "default",

@@ -1,12 +1,14 @@
-import { initializeRunTab } from './run.js';
-import { initializeAudiosTab, loadAudios } from './audios.js';
-import { initializeProgramsTab } from './programs.js';
-import { initializeSettingsTab } from './config.js';
-import { connectToEventStream } from './sse-client.js';
+import { initializeRunTab } from './ui/views/run_tab.js';
+import { initializeAudiosTab } from './ui/views/audios_tab.js';
+import { initializeProgramsTab } from './ui/views/programs_tab.js';
+import { initializeSettingsTab } from './ui/views/settings_tab.js';
+import { connectToEventStream } from './apis/sse-client.js';
+import { loadAudios } from './models/audios.js';
+
 import { SSETypes } from "./common/sse-types.js";
 
-import { getStatus } from './rest-client.js';
-import { setCurrent, clearCurrent } from './timeline.js';
+import { getStatus } from './apis/rest-client.js';
+import { setCurrent, clearCurrent } from './ui/views/timeline.js';
 
 document.addEventListener("DOMContentLoaded", async () => {
 
@@ -25,7 +27,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.title = appTitle;
   document.querySelector("#footer span").textContent = appTitle;
 
-  await loadAudios();
+  try {
+    await loadAudios();
+  } catch (error) {
+    console.error("Failed to load audios:", error);
+  }
 
   // Initialize tabs
   await initializeRunTab();
@@ -97,7 +103,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Broadcast SSE events
   connectToEventStream((type, payload) => {
-    console.log('SSE Event:', type, payload);
+    // console.log('SSE Event:', type, payload);
     const event = new CustomEvent(type, { detail: payload });
     document.dispatchEvent(event);
   });

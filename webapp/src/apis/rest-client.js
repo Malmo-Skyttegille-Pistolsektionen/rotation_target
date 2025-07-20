@@ -1,4 +1,4 @@
-import { SERVER_API_URL } from "./config.js";
+import { SERVER_API_URL } from "../ui/views/settings_tab.js";
 
 export const HTTP_METHOD = Object.freeze({
   GET: "GET",

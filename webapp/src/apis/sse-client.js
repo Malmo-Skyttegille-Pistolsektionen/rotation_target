@@ -1,5 +1,5 @@
-import { SERVER_SSE_URL } from "./config.js";
-import { SSETypes } from "./common/sse-types.js";
+import { SERVER_SSE_URL } from "../ui/views/settings_tab.js";
+import { SSETypes } from "../common/sse-types.js";
 
 export let currentSSESource = null;
 

@@ -1,5 +1,5 @@
-import { connectToEventStream, currentSSESource } from "./sse-client.js";
-import { fetchAdminModeStatus, enableAdminMode, disableAdminMode } from "./rest-client.js";
+import { connectToEventStream, currentSSESource } from "../../apis/sse-client.js";
+import { fetchAdminModeStatus, enableAdminMode, disableAdminMode } from "../../apis/rest-client.js";
 
 // Read from localStorage if set, else default to localhost
 const getBaseUrl = () =>

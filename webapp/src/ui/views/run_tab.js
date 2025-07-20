@@ -1,6 +1,6 @@
 import { renderTimeline, setCurrent, clearCurrent, setCurrentChrono, handleSeriesCompleted } from './timeline.js';
-import { getProgram, loadProgram, startProgram, stopProgram, skipToSeries, getPrograms, toggleTargets } from './rest-client.js';
-import { SSETypes } from "./common/sse-types.js";
+import { getProgram, loadProgram, startProgram, stopProgram, skipToSeries, getPrograms, toggleTargets } from '../../apis/rest-client.js';
+import { SSETypes } from "../../common/sse-types.js";
 
 // Program state to track the current program and series
 const programState = {
