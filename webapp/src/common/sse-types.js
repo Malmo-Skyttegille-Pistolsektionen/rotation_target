@@ -14,5 +14,4 @@ export const SSETypes = {
     AudioDeleted: 'audio_deleted',
     Chrono: 'chrono',
     AdminModeStatus: 'admin_mode_status',
-    BackendError: 'backend_error', // TODO: handle this in the frontend
-};
+    BackendIssue: 'backend_issue'
