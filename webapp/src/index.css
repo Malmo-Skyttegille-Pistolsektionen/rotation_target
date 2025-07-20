@@ -193,6 +193,14 @@ select:focus {
   border: 2px solid black;
 }
 
+.event.audio .symbol {
+  background-color: white;
+  /* White fill for hide */
+  color: black;
+  /* Black text */
+  border: 2px solid black;
+}
+
 .dur,
 .acc {
   font-size: 0.8rem;

@@ -44,6 +44,7 @@ export function renderDefaultTimeline(placeHolder, program) {
     row.className = "events";
 
     series.events.forEach((ev, eIdx) => {
+      console.log(`Rendering event ${eIdx} for series ${sIdx}:`, ev);
       const evDiv = document.createElement("div");
       evDiv.className = `event ${ev.symbolClass}`;
       evDiv.dataset.eventIndex = eIdx;
@@ -56,7 +57,7 @@ export function renderDefaultTimeline(placeHolder, program) {
             ev.audio_ids
               .map(id => {
                 const title = getAudioTitleById(id);
-                return `${id}. ${title}`;
+                return `"${title}" (${id})`;
               })
               .join("<br>");
         }
@@ -154,7 +155,7 @@ export function renderFieldTimeline(placeHolder, program) {
             ev.audio_ids
               .map(id => {
                 const title = getAudioTitleById(id);
-                return `${id}. ${title}`;
+                return `"${title}" (${id})`;
               })
               .join("<br>");
         }
@@ -217,19 +218,21 @@ function preprocess(seriesList) {
       let symbolClass = "no-action";
       let symbolText = "";
 
-      if (ev.command === "show" && ev.audio_ids) {
-        symbolClass = "show audio";
+      if (ev.audio_ids && ev.audio_ids.length > 0) {
         symbolText = "A";
-      } else if (ev.command === "hide" && ev.audio_ids) {
-        symbolClass = "hide audio";
-        symbolText = "A";
+        if (ev.command === "show") {
+          symbolClass = "show audio";
+        } else if (ev.command === "hide") {
+          symbolClass = "hide audio";
+        } else {
+          symbolClass = "audio";
+        }
       } else if (ev.command === "show") {
         symbolClass = "show";
       } else if (ev.command === "hide") {
         symbolClass = "hide";
-      } else if (ev.audio_ids) {
-        symbolClass = "audio";
-        symbolText = "A";
+      } else {
+        symbolClass = "no-action";
       }
 
       const entry = { ...ev, duration, acc, symbolClass, symbolText };
