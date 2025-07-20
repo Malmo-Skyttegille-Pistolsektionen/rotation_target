@@ -44,7 +44,6 @@ export function renderDefaultTimeline(placeHolder, program) {
     row.className = "events";
 
     series.events.forEach((ev, eIdx) => {
-      console.log(`Rendering event ${eIdx} for series ${sIdx}:`, ev);
       const evDiv = document.createElement("div");
       evDiv.className = `event ${ev.symbolClass}`;
       evDiv.dataset.eventIndex = eIdx;
@@ -235,8 +234,8 @@ function preprocess(seriesList) {
         symbolClass = "no-action";
       }
 
-      const entry = { ...ev, duration, acc, symbolClass, symbolText };
       acc += duration;
+      const entry = { ...ev, duration, acc, symbolClass, symbolText };
       return entry;
     });
     return { ...series, events };

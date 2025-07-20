@@ -57,7 +57,6 @@ export async function initializeRunTab() {
 
     try {
         const programs = await getPrograms(); // Fetch the list of programs
-        console.log("Fetched programs:", programs); // Debugging log
 
         programSelect.innerHTML = ""; // Clear existing options
 

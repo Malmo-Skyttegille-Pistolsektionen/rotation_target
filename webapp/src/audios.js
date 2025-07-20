@@ -5,10 +5,8 @@ let audios = [];
 
 export async function loadAudios() {
     const data = await fetchAudios();
-    console.log('fetchAudios data:', data);
 
     audios = data.audios || [];
-    console.log('audios:', audios);
 
     return audios;
 }

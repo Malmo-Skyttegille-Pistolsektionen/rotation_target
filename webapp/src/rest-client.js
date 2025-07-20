@@ -130,7 +130,6 @@ export async function disableAdminMode() {
 }
 
 async function handleResponse(response) {
-  console.log('Response status:', response.status, response.statusText);
   if (!response.ok) {
     throw new Error(`Request failed: ${response.statusText}`);
   }
