@@ -15,3 +15,4 @@ export const SSETypes = {
     Chrono: 'chrono',
     AdminModeStatus: 'admin_mode_status',
     BackendIssue: 'backend_issue'
+}
