@@ -2,17 +2,48 @@ import { defineConfig } from 'vite';
 import fs, { read } from 'fs';
 import type { ServerResponse } from 'http';
 import { SSETypes } from "./src/common/sse-types.js";
+import path from 'path';
 
 // Mock server URLs
 const SERVER_BASE_URL = "http://localhost:8080";
 const SERVER_API_URL = `${SERVER_BASE_URL}/api/v1`;
 const SERVER_SSE_URL = `${SERVER_BASE_URL}/sse/v1`;
 
-const programs: Record<number, any> = {
-  1: JSON.parse(fs.readFileSync('./test/data/1.json', 'utf-8')),
-  2: JSON.parse(fs.readFileSync('./test/data/2.json', 'utf-8')),
-  40: JSON.parse(fs.readFileSync('./test/data/40.json', 'utf-8')),
-};
+const programsDir = path.resolve('./test/data/programs');
+const programFiles = fs.readdirSync(programsDir).filter(f => /^\d+\.json$/.test(f));
+
+const programs: Record<number, any> = {};
+for (const file of programFiles) {
+  const id = parseInt(file.replace('.json', ''), 10);
+  programs[id] = JSON.parse(fs.readFileSync(path.join(programsDir, file), 'utf-8'));
+}
+
+// Add 3 entries with readonly: false, using last 3 entries and id + 1000
+const lastThreeProgramFiles = programFiles.slice(-3);
+lastThreeProgramFiles.forEach((file) => {
+  const id = parseInt(file.replace('.json', ''), 10);
+  const newId = id + 1000;
+  const data = JSON.parse(fs.readFileSync(path.join(programsDir, file), 'utf-8'));
+  programs[newId] = { ...data, id: newId, readonly: false };
+});
+
+const audiosData = JSON.parse(fs.readFileSync('./test/data/audios/audios.json', 'utf-8'));
+const audios = Object.entries(audiosData).map(([id, audio]) => ({
+  id: Number(id),
+  title: audio.title,
+  readonly: true
+}));
+
+// Add 3 entries with readonly: false, using last 3 entries and id + 1000
+const lastThree = Object.entries(audiosData).slice(-3);
+lastThree.forEach(([id, audio], idx) => {
+  audios.push({
+    id: Number(id) + 1000,
+    title: audio.title,
+    readonly: false
+  });
+});
+
 const { version } = JSON.parse(fs.readFileSync('./package.json', 'utf-8'));
 
 // Shared ProgramState
@@ -227,11 +258,7 @@ export default defineConfig({
     {
       name: 'mock-rest',
       configureServer(server) {
-        let audios = [
-          { id: 1, title: 'Beep', readonly: true },
-          { id: 2, title: 'Färdiga', readonly: true },
-          { id: 101, title: 'Custom', readonly: false },
-        ];
+
         server.middlewares.use((req, res, next) => {
           const url = new URL(req.url || '', SERVER_API_URL);
           const strippedPathname = url.pathname.replace(new URL(SERVER_API_URL).pathname, '');
@@ -343,14 +370,22 @@ export default defineConfig({
           // Programs endpoints
           if (strippedPathname === '/programs' && req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(
-              Object.entries(programs).map(([id, data]) => ({
-                id: Number(id),
-                title: data.title,
-                description: data.description,
-                readonly: Number(id) === 1
-              }))
-            ));
+            // Use a typed array for the response
+            type ProgramSummary = {
+              id: number;
+              title: string;
+              description: string;
+              readonly: boolean;
+            };
+
+            const programList: ProgramSummary[] = Object.entries(programs).map(([id, data]) => ({
+              id: Number(id),
+              title: data.title,
+              description: data.description,
+              readonly: data.readonly,
+            }));
+
+            res.end(JSON.stringify(programList));
             return;
           }
 

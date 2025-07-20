@@ -68,12 +68,15 @@ export async function initializeRunTab() {
         defaultProgramOpt.textContent = "Choose program";
         programSelect.appendChild(defaultProgramOpt);
 
-        programs.forEach(program => {
-            const opt = document.createElement("option");
-            opt.value = program.id;
-            opt.textContent = program.title;
-            programSelect.appendChild(opt);
-        });
+
+        programs.slice()
+            .sort((a, b) => a.id - b.id)
+            .forEach(program => {
+                const opt = document.createElement("option");
+                opt.value = program.id;
+                opt.textContent = program.title;
+                programSelect.appendChild(opt);
+            });
 
         programSelect.addEventListener("change", async () => {
 
