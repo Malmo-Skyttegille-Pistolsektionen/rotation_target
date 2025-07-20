@@ -5,7 +5,7 @@ import { SSETypes } from "./src/common/sse-types.js";
 import path from 'path';
 
 // Mock server URLs
-const SERVER_BASE_URL = "http://localhost:8080";
+const SERVER_BASE_URL = "http://localhost";
 const SERVER_API_URL = `${SERVER_BASE_URL}/api/v1`;
 const SERVER_SSE_URL = `${SERVER_BASE_URL}/sse/v1`;
 

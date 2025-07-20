@@ -3,7 +3,7 @@ import { fetchAdminModeStatus, enableAdminMode, disableAdminMode } from "../../a
 
 // Read from localStorage if set, else default to localhost
 const getBaseUrl = () =>
-    localStorage.getItem("SERVER_BASE_URL") || "http://localhost:8080";
+    localStorage.getItem("SERVER_BASE_URL") || "http://localhost";
 
 export let SERVER_BASE_URL = getBaseUrl();
 export let SERVER_API_URL = `${SERVER_BASE_URL}/api/v1`;
