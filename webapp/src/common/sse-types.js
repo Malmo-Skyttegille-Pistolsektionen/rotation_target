@@ -3,7 +3,7 @@ export const SSETypes = {
     ProgramAdded: 'program_added',
     ProgramDeleted: 'program_deleted',
     ProgramUpdated: 'program_updated',
-    ProgramDeleted: 'program_deleted',
+    ProgramStarted: 'program_started',
     ProgramCompleted: 'program_completed',
     SeriesStarted: 'series_started',
     SeriesCompleted: 'series_completed',
