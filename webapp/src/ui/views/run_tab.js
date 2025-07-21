@@ -42,18 +42,21 @@ export function updateProgramButtons() {
     }
 }
 
+// Cache static DOM elements at the top
+const programSelect = document.getElementById("choose-program");
+const seriesSelect = document.getElementById("choose-serie");
+const startBtn = document.getElementById("start-btn");
+const stopBtn = document.getElementById("stop-btn");
+const toggleBtn = document.getElementById("toggle-btn");
+const timelineWrapperSection = document.getElementById("run-timeline-wrapper");
+const timeline = document.getElementById("run-program-timeline");
+const chronoElement = document.getElementById('chrono');
+
 // --- Ensure button event listeners are only added once ---
 let runTabListenersAdded = false;
 
 // Named listener functions
 async function onProgramChange() {
-    const programSelect = document.getElementById("choose-program");
-    const seriesSelect = document.getElementById("choose-serie");
-    const timelineWrapperSection = document.getElementById("run-timeline-wrapper");
-    const timeline = document.getElementById("run-program-timeline");
-    const startBtn = document.getElementById("start-btn");
-    const stopBtn = document.getElementById("stop-btn");
-
     const id = parseInt(programSelect.value, 10);
     if (!isNaN(id)) {
         // Remove the default option once a program is selected
@@ -102,7 +105,6 @@ async function onProgramChange() {
 }
 
 async function onSeriesChange() {
-    const seriesSelect = document.getElementById("choose-serie");
     const index = parseInt(seriesSelect.value, 10);
     if (!isNaN(index)) {
         skipToSeries(index);
@@ -122,14 +124,6 @@ async function onToggleClick() {
 }
 
 export async function initializeRunTab() {
-    const programSelect = document.getElementById("choose-program");
-    const seriesSelect = document.getElementById("choose-serie");
-    const startBtn = document.getElementById("start-btn");
-    const stopBtn = document.getElementById("stop-btn");
-    const toggleBtn = document.getElementById("toggle-btn");
-    const timelineWrapperSection = document.getElementById("run-timeline-wrapper");
-    const timeline = document.getElementById("run-program-timeline");
-
     try {
         const programs = await getPrograms(); // Fetch the list of programs
 
@@ -167,6 +161,7 @@ export async function initializeRunTab() {
     }
 }
 
+// In event handlers, use the cached elements instead of querying again
 // --- Ensure global event listeners are only added once ---
 function onProgramCompleted({ detail: { program_id } }) {
     updateProgramState({ program_id: null, running_series_start: null });
@@ -182,14 +177,12 @@ function onSeriesStarted({ detail: { program_id, series_index } }) {
         current_event_index: 0,
     });
     setCurrent(series_index, 0);
-    const chronoElement = document.getElementById('chrono');
     chronoElement.classList.remove('hidden');
     updateProgramButtons();
 }
 
 function onSeriesCompleted({ detail: { program_id, series_index } }) {
     updateProgramState({ running_series_start: null });
-    const chronoElement = document.getElementById('chrono');
     chronoElement.classList.add('hidden');
     updateProgramButtons();
     handleSeriesCompleted(series_index);
@@ -203,7 +196,6 @@ function onSeriesStopped({ detail: { program_id, series_index, event_index } }) 
         current_event_index: event_index,
     });
     setCurrent(series_index, event_index);
-    const chronoElement = document.getElementById('chrono');
     chronoElement.classList.add('hidden');
     updateProgramButtons();
 }

@@ -2,13 +2,49 @@ import { uploadAudio, deleteAudio } from '../../apis/rest-client.js';
 import { SSETypes } from "../../common/sse-types.js";
 import { audios, loadAudios } from '../../models/audios.js';
 
+// Cache DOM elements at the top
+const audioFileInput = document.getElementById("audio-file");
+const audioTitleInput = document.getElementById("audio-title");
+const audioForm = document.getElementById("audio-form");
+const audioContainer = document.getElementById("audio-container");
+
 // --- Ensure UI event listeners are only added once ---
 let audiosTabListenersAdded = false;
 
+// Event delegation for dynamic audio rows (Delete, JSON)
+function onAudioContainerClick(e) {
+    const target = e.target;
+    const tr = target.closest("tr");
+    if (!tr) return;
+    const id = tr.querySelector(".id-cell")?.textContent;
+    const audioTitle = tr.querySelector(".title-cell")?.textContent;
+
+    if (target.classList.contains("delete-btn")) {
+        if (confirm(`Are you sure you want to delete "${audioTitle}"?`)) {
+            deleteAudio(id)
+                .then(() => {
+                    alert(`Audio "${audioTitle}" deleted successfully.`);
+                    // Do NOT call loadAudios() or refreshAudioList() here
+                })
+                .catch(err => {
+                    console.error("Failed to delete audio:", err);
+                    alert("Failed to delete audio.");
+                });
+        }
+    }
+    if (target.classList.contains("primary") && target.textContent === "JSON") {
+        const audio = audios.find(a => a.id == id);
+        if (audio) {
+            const raw = JSON.stringify(audio, null, 2);
+            const blob = new Blob([raw], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+        }
+    }
+}
+
 export async function refreshAudioList() {
     try {
-        const audioContainer = document.getElementById("audio-container");
-
         audioContainer.innerHTML = "";
 
         audios
@@ -35,17 +71,6 @@ export async function refreshAudioList() {
                     const deleteBtn = document.createElement("button");
                     deleteBtn.textContent = "Delete";
                     deleteBtn.classList.add("delete-btn");
-                    deleteBtn.addEventListener("click", async () => {
-                        if (confirm(`Are you sure you want to delete "${audio.title}"?`)) {
-                            try {
-                                await deleteAudio(audio.id);
-                                alert(`Audio "${audio.title}" deleted successfully.`);
-                            } catch (err) {
-                                console.error("Failed to delete audio:", err);
-                                alert("Failed to delete audio.");
-                            }
-                        }
-                    });
                     tdDelete.appendChild(deleteBtn);
                 }
                 tr.appendChild(tdDelete);
@@ -55,12 +80,6 @@ export async function refreshAudioList() {
                 const showJsonBtn = document.createElement("button");
                 showJsonBtn.textContent = "JSON";
                 showJsonBtn.classList.add("primary");
-                showJsonBtn.addEventListener("click", () => {
-                    const raw = JSON.stringify(audio, null, 2);
-                    const blob = new Blob([raw], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    window.open(url, '_blank');
-                });
                 tdJson.appendChild(showJsonBtn);
                 tr.appendChild(tdJson);
 
@@ -72,13 +91,13 @@ export async function refreshAudioList() {
 }
 
 export async function initializeAudiosTab() {
-    const audioFileInput = document.getElementById("audio-file");
-    const audioTitleInput = document.getElementById("audio-title");
-    const audioForm = document.getElementById("audio-form");
-
     if (!audiosTabListenersAdded) {
         audioFileInput.addEventListener("change", onAudioFileInputChange);
         audioForm.addEventListener("submit", onAudioFormSubmit);
+
+        // Use event delegation for all row actions
+        audioContainer.addEventListener("click", onAudioContainerClick);
+
         audiosTabListenersAdded = true;
     }
 
@@ -87,8 +106,6 @@ export async function initializeAudiosTab() {
 
 // Named handler functions for UI events
 function onAudioFileInputChange() {
-    const audioFileInput = document.getElementById("audio-file");
-    const audioTitleInput = document.getElementById("audio-title");
     const file = audioFileInput.files[0];
     if (file) {
         const lastDotIndex = file.name.lastIndexOf(".");
@@ -100,8 +117,8 @@ function onAudioFileInputChange() {
 async function onAudioFormSubmit(e) {
     e.preventDefault();
 
-    const file = document.getElementById("audio-file").files[0];
-    const title = document.getElementById("audio-title").value;
+    const file = audioFileInput.files[0];
+    const title = audioTitleInput.value;
     const codec = document.getElementById("audio-codec").value;
 
     if (!file || !title || !codec) {
@@ -111,6 +128,8 @@ async function onAudioFormSubmit(e) {
     try {
         await uploadAudio(file, codec, title);
         e.target.reset();
+        await loadAudios();
+        await refreshAudioList();
     } catch (err) {
         console.error("Upload failed:", err);
         alert("Upload failed");

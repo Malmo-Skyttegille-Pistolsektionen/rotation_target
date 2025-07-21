@@ -2,9 +2,12 @@ import { renderTimeline } from './timeline.js';
 import { SSETypes } from "../../common/sse-types.js";
 import { deleteProgram, getPrograms, getProgram, uploadProgram } from '../../apis/rest-client.js';
 
-// Make programFileInput accessible everywhere
+// Cache DOM elements
 const programFileInput = document.getElementById("program-file");
 const addProgramBtn = document.getElementById("add-program-btn");
+const programContainer = document.getElementById("programs-container");
+const timelineWrapperSection = document.getElementById("upload-programs-timeline-wrapper");
+const timeline = document.getElementById("upload-programs-timeline");
 
 // Unified file handler for add/update
 function handleProgramFileInput(programId = null, programTitle = null) {
@@ -38,10 +41,8 @@ function handleProgramFileInput(programId = null, programTitle = null) {
 
 export async function refreshProgramsList() {
     try {
-        const programContainer = document.getElementById("programs-container");
-        const programs = await getPrograms();
-
         programContainer.innerHTML = "";
+        const programs = await getPrograms();
 
         programs
             .slice()
@@ -67,18 +68,6 @@ export async function refreshProgramsList() {
                     const deleteBtn = document.createElement("button");
                     deleteBtn.textContent = "Delete";
                     deleteBtn.classList.add("delete-btn");
-                    deleteBtn.addEventListener("click", async () => {
-                        if (confirm(`Are you sure you want to delete "${program.title}"?`)) {
-                            try {
-                                await deleteProgram(program.id);
-                                alert(`Program "${program.title}" deleted successfully.`);
-                                await refreshProgramsList();
-                            } catch (err) {
-                                console.error("Failed to delete program:", err);
-                                alert("Failed to delete program.");
-                            }
-                        }
-                    });
                     tdDelete.appendChild(deleteBtn);
                 }
                 tr.appendChild(tdDelete);
@@ -89,9 +78,6 @@ export async function refreshProgramsList() {
                     const updateBtn = document.createElement("button");
                     updateBtn.textContent = "Update";
                     updateBtn.classList.add("primary");
-                    updateBtn.addEventListener("click", async () => {
-                        handleProgramFileInput(program.id, program.title);
-                    });
                     tdUpdate.appendChild(updateBtn);
                 }
                 tr.appendChild(tdUpdate);
@@ -101,18 +87,6 @@ export async function refreshProgramsList() {
                 const showJsonBtn = document.createElement("button");
                 showJsonBtn.textContent = "JSON";
                 showJsonBtn.classList.add("primary");
-                showJsonBtn.addEventListener("click", async () => {
-                    // Fetch the full raw JSON for this program
-                    try {
-                        const fullProgram = await getProgram(program.id);
-                        const raw = JSON.stringify(fullProgram, null, 2);
-                        const blob = new Blob([raw], { type: 'application/json' });
-                        const url = URL.createObjectURL(blob);
-                        window.open(url, '_blank');
-                    } catch (err) {
-                        alert("Failed to fetch full program JSON.");
-                    }
-                });
                 tdJson.appendChild(showJsonBtn);
                 tr.appendChild(tdJson);
 
@@ -131,16 +105,53 @@ function onAddProgramClick() {
     handleProgramFileInput();
 }
 
-export async function initializeProgramsTab() {
-    const addBtn = document.getElementById("add-program-btn");
+// Event delegation for dynamic program rows
+function onProgramContainerClick(e) {
+    const target = e.target;
+    const tr = target.closest("tr");
+    if (!tr) return;
+    const id = tr.querySelector(".id-cell")?.textContent;
+    const programTitle = tr.querySelector(".title-cell")?.textContent;
 
+    if (target.classList.contains("delete-btn")) {
+        if (confirm(`Are you sure you want to delete "${programTitle}"?`)) {
+            deleteProgram(id)
+                .then(() => {
+                    alert(`Program "${programTitle}" deleted successfully.`);
+                    // Do NOT call refreshProgramsList() here; SSE will handle it
+                })
+                .catch(err => {
+                    console.error("Failed to delete program:", err);
+                    alert("Failed to delete program.");
+                });
+        }
+    }
+    if (target.classList.contains("primary") && target.textContent === "Update") {
+        handleProgramFileInput(id, programTitle);
+    }
+    if (target.classList.contains("primary") && target.textContent === "JSON") {
+        getProgram(id)
+            .then(fullProgram => {
+                const raw = JSON.stringify(fullProgram, null, 2);
+                const blob = new Blob([raw], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                window.open(url, '_blank');
+            })
+            .catch(err => {
+                alert("Failed to fetch full program JSON.");
+            });
+    }
+}
+
+export async function initializeProgramsTab() {
     if (!programsTabListenersAdded) {
-        if (addBtn) addBtn.addEventListener("click", onAddProgramClick);
+        if (addProgramBtn) addProgramBtn.addEventListener("click", onAddProgramClick);
+
+        // Use event delegation for all row actions
+        programContainer.addEventListener("click", onProgramContainerClick);
+
         programsTabListenersAdded = true;
     }
-
-    const timelineWrapperSection = document.getElementById("upload-programs-timeline-wrapper");
-    const timeline = document.getElementById("upload-programs-timeline");
 
     // Event listener for file selection (for timeline preview)
     programFileInput.addEventListener("change", (e) => {
@@ -166,7 +177,6 @@ if (!window._programsTabGlobalListenersAdded) {
         console.log('Program added:', id);
     }
     function onProgramDeleted({ detail: { id } }) {
-        refreshProgramsList();
         console.log('Program deleted:', id);
     }
     function onProgramUpdated({ detail }) {
@@ -175,6 +185,6 @@ if (!window._programsTabGlobalListenersAdded) {
     }
     document.addEventListener(SSETypes.ProgramAdded, onProgramAdded);
     document.addEventListener(SSETypes.ProgramDeleted, onProgramDeleted);
-    document.addEventListener('program_updated', onProgramUpdated);
+    document.addEventListener(SSETypes.ProgramUpdated, onProgramUpdated);
     window._programsTabGlobalListenersAdded = true;
 }

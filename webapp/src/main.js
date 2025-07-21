@@ -41,14 +41,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Initialize tabs
   await initializeRunTab();
 
+  // Cache DOM elements at the top
   const runTabButton = document.getElementById("run-tab-button");
   const audioTabButton = document.getElementById("audio-tab-button");
-  const programsTabButton = document.getElementById("programs-tab-button"); // <-- updated
+  const programsTabButton = document.getElementById("programs-tab-button");
   const settingsTabButton = document.getElementById("settings-tab-button");
   const runSection = document.getElementById("run-section");
   const audioSection = document.getElementById("audio-section");
-  const programsSection = document.getElementById("programs-section"); // <-- updated
+  const programsSection = document.getElementById("programs-section");
   const settingsSection = document.getElementById("settings-section");
+  const footerSpan = document.querySelector("#footer span");
 
   // Tab switching logic
   runTabButton.addEventListener("click", async () => {
@@ -89,7 +91,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     audioSection.classList.add("hidden");
     settingsSection.classList.add("hidden");
 
-    initializeProgramsTab(); // <-- updated
+    initializeProgramsTab();
   });
 
   settingsTabButton.addEventListener("click", () => {
