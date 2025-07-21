@@ -42,18 +42,93 @@ export function updateProgramButtons() {
     }
 }
 
-// Initialize the Run tab (was Programs tab)
-export async function initializeRunTab() {
+// --- Ensure button event listeners are only added once ---
+let runTabListenersAdded = false;
+
+// Named listener functions
+async function onProgramChange() {
     const programSelect = document.getElementById("choose-program");
     const seriesSelect = document.getElementById("choose-serie");
     const timelineWrapperSection = document.getElementById("run-timeline-wrapper");
     const timeline = document.getElementById("run-program-timeline");
+    const startBtn = document.getElementById("start-btn");
+    const stopBtn = document.getElementById("stop-btn");
 
+    const id = parseInt(programSelect.value, 10);
+    if (!isNaN(id)) {
+        // Remove the default option once a program is selected
+        const defaultOption = programSelect.querySelector("option[disabled]");
+        if (defaultOption) {
+            defaultOption.remove();
+        }
+
+        await loadProgram(id);
+        try {
+            const program = await getProgram(id);
+            window.currentProgram = program;
+            renderTimeline(timeline, program);
+            setCurrent(0, 0);
+
+            updateProgramState({ program_id: id, running_series_start: null });
+            updateProgramButtons();
+
+            // Populate series dropdown
+            seriesSelect.innerHTML = "";
+            const defaultSeriesOpt = document.createElement("option");
+            defaultSeriesOpt.disabled = true;
+            defaultSeriesOpt.selected = true;
+            defaultSeriesOpt.textContent = "Choose a series";
+            seriesSelect.appendChild(defaultSeriesOpt);
+
+            program.series.forEach((s, index) => {
+                const opt = document.createElement("option");
+                opt.value = index;
+                opt.textContent = s.name + (s.optional ? ' (optional)' : '');
+                seriesSelect.appendChild(opt);
+            });
+
+            // Make elements visible
+            seriesSelect.classList.remove("hidden");
+            timelineWrapperSection.classList.remove("hidden");
+
+            // Enable start and stop buttons
+            startBtn.disabled = false;
+            stopBtn.disabled = false;
+
+        } catch (err) {
+            console.error("Failed to fetch program by ID:", err);
+        }
+    }
+}
+
+async function onSeriesChange() {
+    const seriesSelect = document.getElementById("choose-serie");
+    const index = parseInt(seriesSelect.value, 10);
+    if (!isNaN(index)) {
+        skipToSeries(index);
+    }
+}
+
+async function onStartClick() {
+    await startProgram();
+}
+
+async function onStopClick() {
+    await stopProgram();
+}
+
+async function onToggleClick() {
+    await toggleTargets();
+}
+
+export async function initializeRunTab() {
+    const programSelect = document.getElementById("choose-program");
+    const seriesSelect = document.getElementById("choose-serie");
     const startBtn = document.getElementById("start-btn");
     const stopBtn = document.getElementById("stop-btn");
     const toggleBtn = document.getElementById("toggle-btn");
-    const chronoElement = document.getElementById('chrono');
-
+    const timelineWrapperSection = document.getElementById("run-timeline-wrapper");
+    const timeline = document.getElementById("run-program-timeline");
 
     try {
         const programs = await getPrograms(); // Fetch the list of programs
@@ -67,7 +142,6 @@ export async function initializeRunTab() {
         defaultProgramOpt.textContent = "Choose program";
         programSelect.appendChild(defaultProgramOpt);
 
-
         programs.slice()
             .sort((a, b) => a.id - b.id)
             .forEach(program => {
@@ -77,87 +151,30 @@ export async function initializeRunTab() {
                 programSelect.appendChild(opt);
             });
 
-        programSelect.addEventListener("change", async () => {
+        // --- Add event listeners only once ---
+        if (!runTabListenersAdded) {
+            programSelect.addEventListener("change", onProgramChange);
+            seriesSelect.addEventListener("change", onSeriesChange);
+            startBtn.addEventListener("click", onStartClick);
+            stopBtn.addEventListener("click", onStopClick);
+            toggleBtn.addEventListener("click", onToggleClick);
 
-            const id = parseInt(programSelect.value, 10);
-            if (!isNaN(id)) {
-                // Remove the default option once a program is selected
-                const defaultOption = programSelect.querySelector("option[disabled]");
-                if (defaultOption) {
-                    defaultOption.remove();
-                }
-
-                await loadProgram(id);
-                try {
-                    const program = await getProgram(id);
-                    window.currentProgram = program;
-                    renderTimeline(timeline, program);
-                    setCurrent(0, 0);
-
-                    updateProgramState({ program_id: id, running_series_start: null });
-                    updateProgramButtons();
-
-                    // Populate series dropdown
-                    seriesSelect.innerHTML = "";
-                    const defaultSeriesOpt = document.createElement("option");
-                    defaultSeriesOpt.disabled = true;
-                    defaultSeriesOpt.selected = true;
-                    defaultSeriesOpt.textContent = "Choose a series";
-                    seriesSelect.appendChild(defaultSeriesOpt);
-
-                    program.series.forEach((s, index) => {
-                        const opt = document.createElement("option");
-                        opt.value = index;
-                        opt.textContent = s.name + (s.optional ? ' (optional)' : '');
-                        seriesSelect.appendChild(opt);
-                    });
-
-                    // Make elements visible
-                    seriesSelect.classList.remove("hidden");
-                    timelineWrapperSection.classList.remove("hidden");
-
-                    // Enable start and stop buttons
-                    startBtn.disabled = false;
-                    stopBtn.disabled = false;
-
-                } catch (err) {
-                    console.error("Failed to fetch program by ID:", err);
-                }
-            }
-        });
-
-        seriesSelect.addEventListener("change", async () => {
-            const index = parseInt(seriesSelect.value, 10);
-            if (!isNaN(index)) {
-                skipToSeries(index);
-            }
-        });
-
-        startBtn.addEventListener("click", async () => {
-            await startProgram();
-        });
-
-        stopBtn.addEventListener("click", async () => {
-            await stopProgram();
-        });
-
-        toggleBtn.addEventListener("click", async () => {
-            await toggleTargets();
-        });
+            runTabListenersAdded = true;
+        }
 
     } catch (err) {
         console.error("Failed to initialize Run tab:", err);
     }
 }
 
-// Listen for SSE events
-document.addEventListener(SSETypes.ProgramCompleted, ({ detail: { program_id } }) => {
+// --- Ensure global event listeners are only added once ---
+function onProgramCompleted({ detail: { program_id } }) {
     updateProgramState({ program_id: null, running_series_start: null });
     clearCurrent();
     updateProgramButtons();
-});
+}
 
-document.addEventListener(SSETypes.SeriesStarted, ({ detail: { program_id, series_index } }) => {
+function onSeriesStarted({ detail: { program_id, series_index } }) {
     updateProgramState({
         program_id,
         running_series_start: new Date(),
@@ -168,17 +185,17 @@ document.addEventListener(SSETypes.SeriesStarted, ({ detail: { program_id, serie
     const chronoElement = document.getElementById('chrono');
     chronoElement.classList.remove('hidden');
     updateProgramButtons();
-});
+}
 
-document.addEventListener(SSETypes.SeriesCompleted, ({ detail: { program_id, series_index } }) => {
+function onSeriesCompleted({ detail: { program_id, series_index } }) {
     updateProgramState({ running_series_start: null });
     const chronoElement = document.getElementById('chrono');
     chronoElement.classList.add('hidden');
     updateProgramButtons();
     handleSeriesCompleted(series_index);
-});
+}
 
-document.addEventListener(SSETypes.SeriesStopped, ({ detail: { program_id, series_index, event_index } }) => {
+function onSeriesStopped({ detail: { program_id, series_index, event_index } }) {
     updateProgramState({
         program_id,
         running_series_start: null,
@@ -189,9 +206,9 @@ document.addEventListener(SSETypes.SeriesStopped, ({ detail: { program_id, serie
     const chronoElement = document.getElementById('chrono');
     chronoElement.classList.add('hidden');
     updateProgramButtons();
-});
+}
 
-document.addEventListener(SSETypes.SeriesNext, ({ detail: { program_id, series_index } }) => {
+function onSeriesNext({ detail: { program_id, series_index } }) {
     updateProgramState({
         program_id,
         current_series_index: series_index,
@@ -199,22 +216,22 @@ document.addEventListener(SSETypes.SeriesNext, ({ detail: { program_id, series_i
     });
     setCurrent(series_index, 0);
     updateProgramButtons();
-});
+}
 
-document.addEventListener(SSETypes.EventStarted, ({ detail: { program_id, series_index, event_index } }) => {
+function onEventStarted({ detail: { program_id, series_index, event_index } }) {
     updateProgramState({
         program_id,
         current_series_index: series_index,
         current_event_index: event_index,
     });
     setCurrent(series_index, event_index);
-});
+}
 
-document.addEventListener(SSETypes.TargetStatus, ({ detail: { status } }) => {
+function onTargetStatus({ detail: { status } }) {
     updateProgramState({ target_status_shown: status === 'shown' });
-});
+}
 
-document.addEventListener(SSETypes.Chrono, ({ detail: { elapsed } }) => {
+function onChrono({ detail: { elapsed } }) {
     const chronoElement = document.getElementById('chrono');
     if (chronoElement) {
         chronoElement.textContent = `${Math.floor(elapsed / 1000)}s`;
@@ -224,19 +241,31 @@ document.addEventListener(SSETypes.Chrono, ({ detail: { elapsed } }) => {
     if (typeof current_series_index === "number" && current_series_index !== null) {
         setCurrentChrono(current_series_index, elapsed);
     }
-});
+}
 
-
-document.addEventListener(SSETypes.ProgramAdded, ({ detail: { program_id } }) => {
+function onProgramAdded({ detail: { program_id } }) {
     initializeRunTab();
-});
+}
 
-document.addEventListener(SSETypes.ProgramDeleted, ({ detail: { program_id } }) => {
+function onProgramDeleted({ detail: { program_id } }) {
     initializeRunTab();
-});
+}
 
+if (!window._runTabGlobalListenersAdded) {
+    document.addEventListener(SSETypes.ProgramCompleted, onProgramCompleted);
+    document.addEventListener(SSETypes.SeriesStarted, onSeriesStarted);
+    document.addEventListener(SSETypes.SeriesCompleted, onSeriesCompleted);
+    document.addEventListener(SSETypes.SeriesStopped, onSeriesStopped);
+    document.addEventListener(SSETypes.SeriesNext, onSeriesNext);
+    document.addEventListener(SSETypes.EventStarted, onEventStarted);
+    document.addEventListener(SSETypes.TargetStatus, onTargetStatus);
+    document.addEventListener(SSETypes.Chrono, onChrono);
+    document.addEventListener(SSETypes.ProgramAdded, onProgramAdded);
+    document.addEventListener(SSETypes.ProgramDeleted, onProgramDeleted);
+    document.addEventListener('audio_playback', () => {
+        // No action needed
+    });
 
-document.addEventListener('audio_playback', () => {
-    // No action needed
-});
+    window._runTabGlobalListenersAdded = true;
+}
 

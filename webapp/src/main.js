@@ -10,6 +10,11 @@ import { SSETypes } from "./common/sse-types.js";
 import { getStatus } from './apis/rest-client.js';
 import { setCurrent, clearCurrent } from './ui/views/timeline.js';
 
+function handleSSEEvent(type, payload) {
+  const event = new CustomEvent(type, { detail: payload });
+  document.dispatchEvent(event);
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
 
   // Program state to track the current program and series
@@ -102,10 +107,40 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // Broadcast SSE events
-  connectToEventStream((type, payload) => {
-    // console.log('SSE Event:', type, payload);
-    const event = new CustomEvent(type, { detail: payload });
-    document.dispatchEvent(event);
-  });
+  connectToEventStream(handleSSEEvent);
 
 });
+
+// Add this flag at the top
+if (!window._audiosTabGlobalListenersAdded) {
+  function onAudioAdded({ detail: { id } }) {
+    loadAudios().then(refreshAudioList);
+    console.log('Audio added:', id);
+  }
+  function onAudioDeleted({ detail: { id } }) {
+    loadAudios().then(refreshAudioList);
+    console.log('Audio deleted:', id);
+  }
+  document.addEventListener(SSETypes.AudioAdded, onAudioAdded);
+  document.addEventListener(SSETypes.AudioDeleted, onAudioDeleted);
+  window._audiosTabGlobalListenersAdded = true;
+}
+
+if (!window._programsTabGlobalListenersAdded) {
+  function onProgramAdded({ detail: { id } }) {
+    refreshProgramsList();
+    console.log('Program added:', id);
+  }
+  function onProgramDeleted({ detail: { id } }) {
+    refreshProgramsList();
+    console.log('Program deleted:', id);
+  }
+  function onProgramUpdated({ detail }) {
+    refreshProgramsList();
+    console.log('Program updated:', detail?.program_id);
+  }
+  document.addEventListener(SSETypes.ProgramAdded, onProgramAdded);
+  document.addEventListener(SSETypes.ProgramDeleted, onProgramDeleted);
+  document.addEventListener('program_updated', onProgramUpdated);
+  window._programsTabGlobalListenersAdded = true;
+}

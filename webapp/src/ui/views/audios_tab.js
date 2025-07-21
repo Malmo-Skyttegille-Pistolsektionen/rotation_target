@@ -2,6 +2,9 @@ import { uploadAudio, deleteAudio } from '../../apis/rest-client.js';
 import { SSETypes } from "../../common/sse-types.js";
 import { audios, loadAudios } from '../../models/audios.js';
 
+// --- Ensure UI event listeners are only added once ---
+let audiosTabListenersAdded = false;
+
 export async function refreshAudioList() {
     try {
         const audioContainer = document.getElementById("audio-container");
@@ -71,50 +74,63 @@ export async function refreshAudioList() {
 export async function initializeAudiosTab() {
     const audioFileInput = document.getElementById("audio-file");
     const audioTitleInput = document.getElementById("audio-title");
-
-    audioFileInput.addEventListener("change", () => {
-        const file = audioFileInput.files[0];
-        if (file) {
-            const lastDotIndex = file.name.lastIndexOf(".");
-            const nameWithoutExt = lastDotIndex > 0 ? file.name.substring(0, lastDotIndex) : file.name;
-            audioTitleInput.value = nameWithoutExt;
-        }
-    });
-
     const audioForm = document.getElementById("audio-form");
 
-    audioForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-
-        const file = document.getElementById("audio-file").files[0];
-        const title = document.getElementById("audio-title").value;
-        const codec = document.getElementById("audio-codec").value;
-
-        if (!file || !title || !codec) {
-            return;
-        }
-
-        try {
-            await uploadAudio(file, codec, title);
-            audioForm.reset();
-        } catch (err) {
-            console.error("Upload failed:", err);
-            alert("Upload failed");
-        }
-    });
+    if (!audiosTabListenersAdded) {
+        audioFileInput.addEventListener("change", onAudioFileInputChange);
+        audioForm.addEventListener("submit", onAudioFormSubmit);
+        audiosTabListenersAdded = true;
+    }
 
     await refreshAudioList();
 }
 
-document.addEventListener(SSETypes.AudioAdded, async ({ detail: { id } }) => {
-    await loadAudios();
-    await refreshAudioList();
-    console.log('Audio added:', id);
-});
+// Named handler functions for UI events
+function onAudioFileInputChange() {
+    const audioFileInput = document.getElementById("audio-file");
+    const audioTitleInput = document.getElementById("audio-title");
+    const file = audioFileInput.files[0];
+    if (file) {
+        const lastDotIndex = file.name.lastIndexOf(".");
+        const nameWithoutExt = lastDotIndex > 0 ? file.name.substring(0, lastDotIndex) : file.name;
+        audioTitleInput.value = nameWithoutExt;
+    }
+}
 
-document.addEventListener(SSETypes.AudioDeleted, async ({ detail: { id } }) => {
-    await loadAudios();
-    await refreshAudioList();
-    console.log('Audio deleted:', id);
-});
+async function onAudioFormSubmit(e) {
+    e.preventDefault();
+
+    const file = document.getElementById("audio-file").files[0];
+    const title = document.getElementById("audio-title").value;
+    const codec = document.getElementById("audio-codec").value;
+
+    if (!file || !title || !codec) {
+        return;
+    }
+
+    try {
+        await uploadAudio(file, codec, title);
+        e.target.reset();
+    } catch (err) {
+        console.error("Upload failed:", err);
+        alert("Upload failed");
+    }
+}
+
+// --- Ensure global listeners are only added once ---
+if (!window._audiosTabGlobalListenersAdded) {
+    async function onAudioAdded({ detail: { id } }) {
+        await loadAudios();
+        await refreshAudioList();
+        console.log('Audio added:', id);
+    }
+    async function onAudioDeleted({ detail: { id } }) {
+        await loadAudios();
+        await refreshAudioList();
+        console.log('Audio deleted:', id);
+    }
+    document.addEventListener(SSETypes.AudioAdded, onAudioAdded);
+    document.addEventListener(SSETypes.AudioDeleted, onAudioDeleted);
+    window._audiosTabGlobalListenersAdded = true;
+}
 

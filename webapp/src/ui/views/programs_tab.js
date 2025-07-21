@@ -123,7 +123,22 @@ export async function refreshProgramsList() {
     }
 }
 
+// --- Ensure UI event listeners are only added once ---
+let programsTabListenersAdded = false;
+
+// Named handler functions for UI events
+function onAddProgramClick() {
+    handleProgramFileInput();
+}
+
 export async function initializeProgramsTab() {
+    const addBtn = document.getElementById("add-program-btn");
+
+    if (!programsTabListenersAdded) {
+        if (addBtn) addBtn.addEventListener("click", onAddProgramClick);
+        programsTabListenersAdded = true;
+    }
+
     const timelineWrapperSection = document.getElementById("upload-programs-timeline-wrapper");
     const timeline = document.getElementById("upload-programs-timeline");
 
@@ -144,21 +159,22 @@ export async function initializeProgramsTab() {
     await refreshProgramsList();
 }
 
-addProgramBtn.addEventListener("click", () => {
-    handleProgramFileInput();
-});
-
-document.addEventListener(SSETypes.ProgramAdded, async ({ detail: { id } }) => {
-    await refreshProgramsList();
-    console.log('Program added:', id);
-});
-
-document.addEventListener(SSETypes.ProgramDeleted, async ({ detail: { id } }) => {
-    await refreshProgramsList();
-    console.log('Program deleted:', id);
-});
-
-document.addEventListener('program_updated', async ({ detail }) => {
-    await refreshProgramsList();
-    console.log('Program updated:', detail?.program_id);
-});
+// --- Ensure global listeners are only added once ---
+if (!window._programsTabGlobalListenersAdded) {
+    function onProgramAdded({ detail: { id } }) {
+        refreshProgramsList();
+        console.log('Program added:', id);
+    }
+    function onProgramDeleted({ detail: { id } }) {
+        refreshProgramsList();
+        console.log('Program deleted:', id);
+    }
+    function onProgramUpdated({ detail }) {
+        refreshProgramsList();
+        console.log('Program updated:', detail?.program_id);
+    }
+    document.addEventListener(SSETypes.ProgramAdded, onProgramAdded);
+    document.addEventListener(SSETypes.ProgramDeleted, onProgramDeleted);
+    document.addEventListener('program_updated', onProgramUpdated);
+    window._programsTabGlobalListenersAdded = true;
+}
