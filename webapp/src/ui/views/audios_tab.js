@@ -1,4 +1,4 @@
-import { uploadAudio, deleteAudio } from '../../apis/rest-client.js';
+import { uploadAudio, deleteAudio, playAudio } from '../../apis/rest-client.js';
 import { SSETypes } from "../../common/sse-types.js";
 import { audios, loadAudios } from '../../models/audios.js';
 

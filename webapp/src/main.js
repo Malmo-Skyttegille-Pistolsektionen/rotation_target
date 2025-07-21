@@ -7,9 +7,6 @@ import { loadAudios } from './models/audios.js';
 
 import { SSETypes } from "./common/sse-types.js";
 
-import { getStatus } from './apis/rest-client.js';
-import { setCurrent, clearCurrent } from './ui/views/timeline.js';
-
 function handleSSEEvent(type, payload) {
   const event = new CustomEvent(type, { detail: payload });
   document.dispatchEvent(event);
