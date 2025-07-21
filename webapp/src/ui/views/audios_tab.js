@@ -11,7 +11,7 @@ const audioContainer = document.getElementById("audio-container");
 // --- Ensure UI event listeners are only added once ---
 let audiosTabListenersAdded = false;
 
-// Event delegation for dynamic audio rows (Delete, JSON)
+// Event delegation for dynamic audio rows (Delete, JSON, Play)
 function onAudioContainerClick(e) {
     const target = e.target;
     const tr = target.closest("tr");
@@ -24,13 +24,21 @@ function onAudioContainerClick(e) {
             deleteAudio(id)
                 .then(() => {
                     alert(`Audio "${audioTitle}" deleted successfully.`);
-                    // Do NOT call loadAudios() or refreshAudioList() here
+                    loadAudios().then(refreshAudioList);
                 })
                 .catch(err => {
                     console.error("Failed to delete audio:", err);
                     alert("Failed to delete audio.");
                 });
         }
+    }
+    if (target.classList.contains("play-btn")) {
+        playAudio(id)
+            .then(() => {
+            })
+            .catch(err => {
+                alert("Failed to play audio.");
+            });
     }
     if (target.classList.contains("primary") && target.textContent === "JSON") {
         const audio = audios.find(a => a.id == id);
@@ -64,6 +72,14 @@ export async function refreshAudioList() {
                 tdTitle.textContent = audio.title;
                 tdTitle.className = "title-cell";
                 tr.appendChild(tdTitle);
+
+                // Play button cell
+                const tdPlay = document.createElement("td");
+                const playBtn = document.createElement("button");
+                playBtn.textContent = "Play";
+                playBtn.classList.add("play-btn");
+                tdPlay.appendChild(playBtn);
+                tr.appendChild(tdPlay);
 
                 // Delete button cell
                 const tdDelete = document.createElement("td");

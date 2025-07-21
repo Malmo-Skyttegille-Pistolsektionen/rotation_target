@@ -129,6 +129,14 @@ export async function disableAdminMode() {
   return handleResponse(response);
 }
 
+export async function playAudio(id) {
+  const response = await fetchWithAuth(`${SERVER_API_URL}/audios/${id}/play`, {
+    method: HTTP_METHOD.POST,
+    headers: { "Content-Type": "application/json" },
+  });
+  return handleResponse(response);
+}
+
 async function handleResponse(response) {
   if (!response.ok) {
     throw new Error(`Request failed: ${response.statusText}`);
