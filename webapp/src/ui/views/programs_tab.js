@@ -171,20 +171,21 @@ export async function initializeProgramsTab() {
 }
 
 // --- Ensure global listeners are only added once ---
+const onProgramAddedProgramsTabEL = function ({ detail: { id } }) {
+    refreshProgramsList();
+    console.log('Program added:', id);
+};
+const onProgramDeletedProgramsTabEL = function ({ detail: { id } }) {
+    console.log('Program deleted:', id);
+};
+const onProgramUpdatedProgramsTabEL = function ({ detail }) {
+    refreshProgramsList();
+    console.log('Program updated:', detail?.program_id);
+};
+
 if (!window._programsTabGlobalListenersAdded) {
-    function onProgramAdded({ detail: { id } }) {
-        refreshProgramsList();
-        console.log('Program added:', id);
-    }
-    function onProgramDeleted({ detail: { id } }) {
-        console.log('Program deleted:', id);
-    }
-    function onProgramUpdated({ detail }) {
-        refreshProgramsList();
-        console.log('Program updated:', detail?.program_id);
-    }
-    document.addEventListener(SSETypes.ProgramAdded, onProgramAdded);
-    document.addEventListener(SSETypes.ProgramDeleted, onProgramDeleted);
-    document.addEventListener(SSETypes.ProgramUpdated, onProgramUpdated);
+    document.addEventListener(SSETypes.ProgramAdded, onProgramAddedProgramsTabEL);
+    document.addEventListener(SSETypes.ProgramDeleted, onProgramDeletedProgramsTabEL);
+    document.addEventListener(SSETypes.ProgramUpdated, onProgramUpdatedProgramsTabEL);
     window._programsTabGlobalListenersAdded = true;
 }

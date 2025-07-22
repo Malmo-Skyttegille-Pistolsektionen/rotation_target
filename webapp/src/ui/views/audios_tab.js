@@ -153,19 +153,20 @@ async function onAudioFormSubmit(e) {
 }
 
 // --- Ensure global listeners are only added once ---
+const onAudioAddedAudiosTabEL = async function ({ detail: { id } }) {
+    await loadAudios();
+    await refreshAudioList();
+    console.log('Audio added:', id);
+};
+const onAudioDeletedAudiosTabEL = async function ({ detail: { id } }) {
+    await loadAudios();
+    await refreshAudioList();
+    console.log('Audio deleted:', id);
+};
+
 if (!window._audiosTabGlobalListenersAdded) {
-    async function onAudioAdded({ detail: { id } }) {
-        await loadAudios();
-        await refreshAudioList();
-        console.log('Audio added:', id);
-    }
-    async function onAudioDeleted({ detail: { id } }) {
-        await loadAudios();
-        await refreshAudioList();
-        console.log('Audio deleted:', id);
-    }
-    document.addEventListener(SSETypes.AudioAdded, onAudioAdded);
-    document.addEventListener(SSETypes.AudioDeleted, onAudioDeleted);
+    document.addEventListener(SSETypes.AudioAdded, onAudioAddedAudiosTabEL);
+    document.addEventListener(SSETypes.AudioDeleted, onAudioDeletedAudiosTabEL);
     window._audiosTabGlobalListenersAdded = true;
 }
 

@@ -163,13 +163,13 @@ export async function initializeRunTab() {
 
 // In event handlers, use the cached elements instead of querying again
 // --- Ensure global event listeners are only added once ---
-function onProgramCompleted({ detail: { program_id } }) {
+const onProgramCompletedRunTabEL = function ({ detail: { program_id } }) {
     updateProgramState({ program_id: null, running_series_start: null });
     clearCurrent();
     updateProgramButtons();
-}
+};
 
-function onSeriesStarted({ detail: { program_id, series_index } }) {
+const onSeriesStartedRunTabEL = function ({ detail: { program_id, series_index } }) {
     updateProgramState({
         program_id,
         running_series_start: new Date(),
@@ -179,16 +179,16 @@ function onSeriesStarted({ detail: { program_id, series_index } }) {
     setCurrent(series_index, 0);
     chronoElement.classList.remove('hidden');
     updateProgramButtons();
-}
+};
 
-function onSeriesCompleted({ detail: { program_id, series_index } }) {
+const onSeriesCompletedRunTabEL = function ({ detail: { program_id, series_index } }) {
     updateProgramState({ running_series_start: null });
     chronoElement.classList.add('hidden');
     updateProgramButtons();
     handleSeriesCompleted(series_index);
-}
+};
 
-function onSeriesStopped({ detail: { program_id, series_index, event_index } }) {
+const onSeriesStoppedRunTabEL = function ({ detail: { program_id, series_index, event_index } }) {
     updateProgramState({
         program_id,
         running_series_start: null,
@@ -198,9 +198,9 @@ function onSeriesStopped({ detail: { program_id, series_index, event_index } }) 
     setCurrent(series_index, event_index);
     chronoElement.classList.add('hidden');
     updateProgramButtons();
-}
+};
 
-function onSeriesNext({ detail: { program_id, series_index } }) {
+const onSeriesNextRunTabEL = function ({ detail: { program_id, series_index } }) {
     updateProgramState({
         program_id,
         current_series_index: series_index,
@@ -208,22 +208,22 @@ function onSeriesNext({ detail: { program_id, series_index } }) {
     });
     setCurrent(series_index, 0);
     updateProgramButtons();
-}
+};
 
-function onEventStarted({ detail: { program_id, series_index, event_index } }) {
+const onEventStartedRunTabEL = function ({ detail: { program_id, series_index, event_index } }) {
     updateProgramState({
         program_id,
         current_series_index: series_index,
         current_event_index: event_index,
     });
     setCurrent(series_index, event_index);
-}
+};
 
-function onTargetStatus({ detail: { status } }) {
+const onTargetStatusRunTabEL = function ({ detail: { status } }) {
     updateProgramState({ target_status_shown: status === 'shown' });
-}
+};
 
-function onChrono({ detail: { elapsed } }) {
+const onChronoRunTabEL = function ({ detail: { elapsed } }) {
     const chronoElement = document.getElementById('chrono');
     if (chronoElement) {
         chronoElement.textContent = `${Math.floor(elapsed / 1000)}s`;
@@ -233,27 +233,27 @@ function onChrono({ detail: { elapsed } }) {
     if (typeof current_series_index === "number" && current_series_index !== null) {
         setCurrentChrono(current_series_index, elapsed);
     }
-}
+};
 
-function onProgramAdded({ detail: { program_id } }) {
+const onProgramAddedRunTabEL = function ({ detail: { program_id } }) {
     initializeRunTab();
-}
+};
 
-function onProgramDeleted({ detail: { program_id } }) {
+const onProgramDeletedRunTabEL = function ({ detail: { program_id } }) {
     initializeRunTab();
-}
+};
 
 if (!window._runTabGlobalListenersAdded) {
-    document.addEventListener(SSETypes.ProgramCompleted, onProgramCompleted);
-    document.addEventListener(SSETypes.SeriesStarted, onSeriesStarted);
-    document.addEventListener(SSETypes.SeriesCompleted, onSeriesCompleted);
-    document.addEventListener(SSETypes.SeriesStopped, onSeriesStopped);
-    document.addEventListener(SSETypes.SeriesNext, onSeriesNext);
-    document.addEventListener(SSETypes.EventStarted, onEventStarted);
-    document.addEventListener(SSETypes.TargetStatus, onTargetStatus);
-    document.addEventListener(SSETypes.Chrono, onChrono);
-    document.addEventListener(SSETypes.ProgramAdded, onProgramAdded);
-    document.addEventListener(SSETypes.ProgramDeleted, onProgramDeleted);
+    document.addEventListener(SSETypes.ProgramCompleted, onProgramCompletedRunTabEL);
+    document.addEventListener(SSETypes.SeriesStarted, onSeriesStartedRunTabEL);
+    document.addEventListener(SSETypes.SeriesCompleted, onSeriesCompletedRunTabEL);
+    document.addEventListener(SSETypes.SeriesStopped, onSeriesStoppedRunTabEL);
+    document.addEventListener(SSETypes.SeriesNext, onSeriesNextRunTabEL);
+    document.addEventListener(SSETypes.EventStarted, onEventStartedRunTabEL);
+    document.addEventListener(SSETypes.TargetStatus, onTargetStatusRunTabEL);
+    document.addEventListener(SSETypes.Chrono, onChronoRunTabEL);
+    document.addEventListener(SSETypes.ProgramAdded, onProgramAddedRunTabEL);
+    document.addEventListener(SSETypes.ProgramDeleted, onProgramDeletedRunTabEL);
     document.addEventListener('audio_playback', () => {
         // No action needed
     });

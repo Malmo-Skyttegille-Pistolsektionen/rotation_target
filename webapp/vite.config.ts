@@ -243,7 +243,9 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version)
   },
-
+  // build: {
+  //   minify: false
+  // },
   server: {
     host: 'localhost',
     port: 8080,
