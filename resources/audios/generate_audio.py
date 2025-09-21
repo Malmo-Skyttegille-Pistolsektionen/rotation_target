@@ -28,7 +28,7 @@ def generate(messages):
 
     STYLE = (
         "Använd en autentisk skånsk kvinnlig röst som ger instruktioner/kommandon till skyttar under en skyttetävling. "
-        "Den behöver vara tydligt och lite bestämd. Det du ska säga är:"
+        "Den behöver vara tydligt och bestämt! Det du ska säga är:"
     )
 
     index = {}
@@ -95,8 +95,8 @@ def generate(messages):
 
 
 if __name__ == "__main__":
-    FROM_ID = 1
-    TO_ID = 1000
+    FROM_ID = 33
+    TO_ID = 33
     # Load messages from audios.json
     with open("audios.json", "r", encoding="utf-8") as f:
         messages = json.load(f)
