@@ -214,7 +214,7 @@ function preprocess(seriesList) {
     let acc = 0;
     const events = series.events.map(ev => {
       const duration = ev.duration;
-      let symbolClass = "no-action";
+      let symbolClass;
       let symbolText = "";
 
       if (ev.audio_ids && ev.audio_ids.length > 0) {
