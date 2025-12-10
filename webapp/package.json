@@ -1,0 +1,16 @@
+{
+  "name": "msg rotation target",
+  "version": "0.8.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "zip": "ts-node scripts/zip-dist.ts"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7"
+  }
+}

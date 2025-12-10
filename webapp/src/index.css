@@ -1,0 +1,749 @@
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  box-sizing: border-box;
+}
+
+#logo {
+  width: 100px;
+  margin: 1rem auto;
+}
+
+h1 {
+  font-size: 1.75rem;
+  margin: 0;
+}
+
+h2 {
+  margin-top: 2rem;
+  font-size: 1.2rem;
+}
+
+main {
+  padding: 1rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.centered {
+  margin: 1rem auto;
+}
+
+.program-controls-row {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+  margin: 1rem auto;
+}
+
+.floating {
+  position: sticky;
+  top: 0;
+  background: white;
+  padding: 1rem;
+  z-index: 100;
+  border-bottom: 1px solid #ccc;
+}
+
+.floating {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.chrono {
+  font-size: 1rem;
+  padding: 0.5rem 1.2rem;
+  border: solid 1px black;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  cursor: pointer;
+}
+
+button {
+  font-size: 1rem;
+  padding: 0.5rem 1.2rem;
+  border-radius: 6px;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.start {
+  background-color: green;
+  color: white;
+}
+
+button.stop {
+  background-color: red;
+  color: white;
+}
+
+button.primary {
+  background-color: #0078d4;
+  color: white;
+}
+
+button.icon {
+  width: 1em;
+  height: 1em;
+  filter: invert(1);
+}
+
+
+select {
+  font-size: 1rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  color: #333;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg width='14' height='10' viewBox='0 0 14 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l6 6 6-6' stroke='%23333' stroke-width='2' fill='none' fill-rule='evenodd'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 0.65rem;
+  width: 220px;
+}
+
+select:focus {
+  outline: none;
+  border-color: #0078d4;
+  box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.3);
+}
+
+.hidden {
+  display: none !important;
+}
+
+
+.series {
+  display: flex;
+  flex-direction: column;
+  margin: 1rem 0;
+  padding: 0.5rem;
+  border-radius: 8px;
+}
+
+.series.current .events {
+  border: 2px solid black;
+}
+
+.series.optional {
+  background-color: lightgrey;
+}
+
+.events {
+  display: flex;
+  justify-content: flex-start;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.event {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.event.current {
+  outline: 4px dashed green;
+  outline-offset: 4px;
+}
+
+.event.no-action .symbol {
+  background-color: transparent;
+  /* Black fill for show */
+  /* White text */
+}
+
+
+.event.show .symbol {
+  background-color: black;
+  /* Black fill for show */
+  color: white;
+  /* White text */
+  border: 2px solid black;
+}
+
+.event.hide .symbol {
+  background-color: white;
+  /* White fill for hide */
+  color: black;
+  /* Black text */
+  border: 2px solid black;
+}
+
+.event.audio .symbol {
+  background-color: white;
+  /* White fill for hide */
+  color: black;
+  /* Black text */
+  border: 2px solid black;
+}
+
+.dur,
+.acc {
+  font-size: 0.8rem;
+  color: #111;
+}
+
+.symbol {
+  font-weight: bold;
+  font-size: 1.5rem;
+  /* Larger text for "A" */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  width: 40px;
+  height: 40px;
+}
+
+#timeline {
+  padding-top: 4rem;
+  /* or match the height of your .buttons + gap */
+}
+
+footer {
+  margin-top: auto;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+#footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+#footer-logo {
+  height: 24px;
+  width: auto;
+  margin: 10px
+}
+
+
+.tabs {
+  display: flex;
+  border-bottom: 2px solid #ccc;
+  margin-bottom: 1rem;
+}
+
+
+.tab-content.active {
+  display: block;
+}
+
+.tab-content.hidden {
+  display: none;
+}
+
+.tab-button {
+  flex: 1;
+  padding: 10px;
+  background: #f0f0f0;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+}
+
+.tab-button.active {
+  background: #fff;
+  border-bottom: 2px solid #fff;
+  font-weight: bold;
+}
+
+
+
+.tab.active {
+  background-color: #444;
+  color: white;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.tab {
+  background: #eee;
+  border: 1px solid #ccc;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+
+
+.form-row {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem auto;
+  align-items: center;
+}
+
+.audio-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 1rem auto;
+  max-width: 400px;
+}
+
+.audio-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem;
+  border-bottom: 1px solid #ddd;
+}
+
+#audio-container h3 {
+  margin: 1rem 0 0.5rem;
+  text-align: left;
+  /* Align headers to the left */
+  font-weight: bold;
+}
+
+.programs-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem auto;
+  max-width: 400px;
+}
+
+.programs-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  border-bottom: 1px solid #eee;
+  min-height: 2.5em;
+}
+
+.programs-list span {
+  flex: 1;
+  text-align: left;
+  display: block;
+}
+
+/* Button styles */
+.primary {
+  background-color: #0078d4;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background 0.2s;
+}
+
+.primary:hover {
+  background-color: #0056b3;
+}
+
+.delete-btn,
+.show-json-btn {
+  align-self: center;
+  /* Vertically center buttons */
+  margin-left: 0.5em;
+}
+
+.show-json-btn {
+  background: #eee;
+  color: #222;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5em 1.2em;
+  cursor: pointer;
+}
+
+#programs-container h3 {
+  margin: 1rem 0 0.5rem;
+  text-align: left;
+  font-weight: bold;
+}
+
+.delete-btn {
+  margin-left: 1rem;
+  padding: 0.25rem 0.5rem;
+  background-color: red;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.timeline-tooltip {
+  position: fixed;
+  z-index: 1000;
+  background: #222;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.95em;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  display: none;
+  max-width: 240px;
+  word-break: break-word;
+}
+
+/* Style for Add Program and Update buttons */
+.add-btn,
+.update-btn {
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background 0.2s;
+}
+
+.add-btn:hover,
+.update-btn:hover {
+  background-color: #0056b3;
+}
+
+/* Programs tab layout improvements */
+#programs-section {
+  max-width: 600px;
+  margin: 0 auto;
+  padding-top: 32px;
+}
+
+.programs-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.programs-actions.centered {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+/* Make Add Program button look like Update */
+.update-btn {
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background 0.2s;
+}
+
+.update-btn:hover {
+  background-color: #0056b3;
+}
+
+/* Programs list styling */
+#programs-container {
+  list-style: none;
+  padding: 0;
+}
+
+#programs-container li {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+#programs-container span {
+  flex: 1;
+}
+
+/* Button spacing in list */
+.delete-btn,
+.update-btn,
+.show-json-btn {
+  margin-left: 8px;
+}
+
+/* Programs Table */
+.programs-table {
+  width: 100%;
+  max-width: 500px;
+  margin: 1rem auto;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.programs-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #eee;
+  vertical-align: middle;
+}
+
+.programs-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* ID cell */
+.programs-table td.id-cell {
+  text-align: left;
+  width: 40px;
+}
+
+/* Title cell */
+.programs-table td.title-cell {
+  text-align: left;
+  min-width: 180px;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Button cells */
+.programs-table td {
+  text-align: right;
+}
+
+/* Button styles */
+.primary {
+  background-color: #0078d4;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background 0.2s;
+}
+
+.primary:hover {
+  background-color: #0056b3;
+}
+
+.delete-btn {
+  background-color: #ff2d2d;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-left: 0;
+  margin-right: 8px;
+  transition: background 0.2s;
+}
+
+.delete-btn:hover {
+  background-color: #c00;
+}
+
+/* Add Program button position */
+.programs-actions {
+  display: flex;
+  justify-content: flex-end;
+  /* Use flex-start for left, flex-end for right */
+  margin-bottom: 16px;
+}
+
+/* Timeline background fix */
+.visualization.primary {
+  background: #fff !important;
+}
+
+/* Add to index.css */
+.logic-timeline-container {
+  margin: 24px 0;
+  position: relative;
+  width: fit-content;
+}
+
+.logic-timeline-centerline {
+  display: flex;
+  align-items: flex-end;
+  position: relative;
+  height: 60px;
+  border-bottom: 2px solid #333;
+}
+
+/* Field/logic timeline event segment styling */
+.logic-segment {
+  position: relative;
+  margin-right: 2px;
+  border: 2px solid #333;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  /* Vertically center content */
+  justify-content: center;
+  /* Horizontally center content */
+  box-sizing: border-box;
+  overflow: visible;
+  min-height: 30px;
+  height: 30px;
+  font-size: 1rem;
+}
+
+/* Show events: black background, white text */
+.logic-segment.show {
+  background: #111;
+  color: #fff;
+  top: -30px;
+}
+
+/* Hide events: white background, black text */
+.logic-segment.hide {
+  background: #fff;
+  color: #111;
+  top: 0;
+}
+
+/* Info line for duration and audio symbol - now inside the box */
+.logic-info-line {
+  position: static;
+  left: auto;
+  top: auto;
+  bottom: auto;
+  transform: none;
+  font-size: 1rem;
+  color: inherit;
+  font-weight: bold;
+  background: transparent;
+  pointer-events: none;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  justify-content: center;
+}
+
+/* Remove above/below segment positioning */
+.logic-info-line.above-segment,
+.logic-info-line.below-segment {
+  top: auto;
+  bottom: auto;
+}
+
+/* Audio symbol inside the box */
+.logic-info-line .logic-audio-symbol {
+  font-weight: bold;
+  font-size: 1.2rem;
+  color: #0078d4;
+  margin-left: 0.5em;
+  background: transparent;
+  position: static;
+}
+
+/* Tooltip for logic timeline events */
+.logic-timeline-tooltip {
+  position: absolute;
+  z-index: 1000;
+  background: #222;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.95em;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  display: none;
+  max-width: 240px;
+  word-break: break-word;
+}
+
+.series-title {
+  font-weight: bold;
+  margin-bottom: 4px;
+  color: #111;
+  /* Always black */
+}
+
+/* Optional series background for both timelines */
+.series.optional,
+.logic-timeline-container.optional {
+  background-color: #e0e0e0;
+}
+
+/* Tooltip for timeline events (shared for both timelines) */
+.timeline-tooltip,
+.logic-timeline-tooltip {
+  position: absolute;
+  z-index: 1000;
+  background: #222;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.95em;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  display: none;
+  max-width: 240px;
+  word-break: break-word;
+}
+
+.logic-timeline-axis {
+  position: relative;
+  height: 20px;
+  margin-top: 8px;
+}
+
+.logic-timeline-tick {
+  position: absolute;
+  top: 0;
+  font-size: 0.9rem;
+  color: #333;
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.logic-timeline-cursor {
+  position: absolute;
+  top: -32px;
+  width: 40px;
+  height: 32px;
+  border: 3px dashed green;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.7);
+  z-index: 10;
+  pointer-events: none;
+  transition: left 0.2s;
+  display: block;
+}
+
+.sse-status-connected {
+  color: green;
+}
+
+.sse-status-error {
+  color: red;
+}
+
+.sse-status-disconnected,
+.sse-status-connecting {
+  color: orange;
+}
