@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import fs, { read } from 'fs';
+import fs from 'fs';
 import type { ServerResponse } from 'http';
 import { SSETypes } from "./src/common/sse-types.js";
 import path from 'path';
