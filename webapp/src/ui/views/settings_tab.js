@@ -83,7 +83,7 @@ export function initializeSettingsTab() {
         e.preventDefault();
         adminModeStatus.textContent = "";
         try {
-            await disableAdminMode(adminToken);
+            await disableAdminMode();
             adminToken = null;
             localStorage.removeItem("ADMIN_BEARER_TOKEN");
             adminModeStatus.textContent = "Admin mode disabled!";
