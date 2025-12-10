@@ -63,14 +63,21 @@ const currentState: ProgramState = {
   target_status_shown: null,
 };
 
-// SSE Clients
-const clients: ServerResponse[] = [];
+// Heartbeat interval for SSE clients
+const HEARTBEAT_INTERVAL = 10000; // 30 seconds
+
+// SSE Clients with heartbeat timers
+const clients: { res: ServerResponse, heartbeat: NodeJS.Timeout }[] = [];
 
 // Emit SSE events
 const emit = (event: string, data: object) => {
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  clients.forEach(res => res.write(payload));
+  clients.forEach(({ res }) => res.write(payload));
 };
+
+function logSSEClient(msg: string) {
+  console.log(`[SSE] ${msg} (${clients.length} clients)`);
+}
 
 function getCurrentProgramData() {
   if (currentState.program_id == null) return null;
@@ -712,6 +719,8 @@ export default defineConfig({
         server.middlewares.use((req, res, next) => {
           const url = new URL(req.url || '', SERVER_SSE_URL);
           const SSE_PATHNAME = new URL(SERVER_SSE_URL).pathname;
+          const clientIp = req.socket.remoteAddress || req.connection?.remoteAddress || 'unknown';
+          const clientPort = req.socket.remotePort || req.connection?.remotePort || 'unknown';
 
           if (url.pathname === SSE_PATHNAME) {
             res.writeHead(200, {
@@ -721,10 +730,27 @@ export default defineConfig({
             });
             res.write('\n');
 
-            clients.push(res); // Handle SSE connection - add client to the list
+            // Heartbeat timer for this client
+            let heartbeatId = 1;
+            const heartbeat = setInterval(() => {
+              res.write(`event: ${SSETypes.HeartBeat}\ndata: ${JSON.stringify({ id: heartbeatId })}\n\n`);
+              console.log(`[SSE] Heartbeat #id=${heartbeatId} sent to client ${clientIp}:${clientPort} (${clients.length} total)`);
+              heartbeatId++;
+            }, HEARTBEAT_INTERVAL);
+
+            clients.push({ res, heartbeat });
+
+            // Log client connection (IP not available in Vite, so just log index)
+            logSSEClient(`Client connected from: ${clientIp}:${clientPort}`);
+
             req.on('close', () => {
-              const index = clients.indexOf(res);
-              if (index !== -1) clients.splice(index, 1);
+              // Remove client and clear heartbeat
+              const idx = clients.findIndex(c => c.res === res);
+              if (idx !== -1) {
+                clearInterval(clients[idx].heartbeat);
+                clients.splice(idx, 1);
+                logSSEClient(`Client disconnected from: ${clientIp}:${clientPort}`);
+              }
             });
             return;
           }

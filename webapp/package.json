@@ -1,6 +1,6 @@
 {
   "name": "msg rotation target",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "type": "module",
   "private": true,
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "devDependencies": {
     "ts-node": "^10.9.2",
-    "typescript": "5.8.3",
-    "vite": " "
+    "typescript": "^5.8.3",
+    "vite": "^7.0.6"
   }
 }

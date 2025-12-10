@@ -734,3 +734,16 @@ footer {
   transition: left 0.2s;
   display: block;
 }
+
+.sse-status-connected {
+  color: green;
+}
+
+.sse-status-error {
+  color: red;
+}
+
+.sse-status-disconnected,
+.sse-status-connecting {
+  color: orange;
+}

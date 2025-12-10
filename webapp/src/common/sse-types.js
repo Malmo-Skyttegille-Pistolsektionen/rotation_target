@@ -15,5 +15,6 @@ export const SSETypes = {
     AudioDeleted: 'audio_deleted',
     Chrono: 'chrono',
     AdminModeStatus: 'admin_mode_status',
-    BackendIssue: 'backend_issue'
+    BackendIssue: 'backend_issue',
+    HeartBeat: 'heartbeat'
 }

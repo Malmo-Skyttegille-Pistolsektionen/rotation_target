@@ -109,4 +109,35 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Broadcast SSE events
   connectToEventStream(handleSSEEvent);
 
+  let heartbeatCounter = 0;
+
+  document.addEventListener("sse_status", (e) => {
+    const status = e.detail.status;
+    const statusEl = document.getElementById("sse-status");
+    console.log(`SSE status event: ${status} (heartbeat: ${heartbeatCounter})`);
+    if (statusEl) {
+      statusEl.textContent = `SSE (${heartbeatCounter}): ${status}`;
+      statusEl.className = `sse-status-${status}`;
+    }
+  });
+  // Heartbeat event handler
+  let heartbeatResetCounter = 0; // Counter for number of resets
+
+  document.addEventListener(SSETypes.HeartBeat, (e) => {
+    const heartbeatId = e?.detail?.id;
+    if (heartbeatId === "reset") {
+      heartbeatCounter = 0;
+      heartbeatResetCounter++;
+      console.log(`SSE heartbeat counter reset (total resets: ${heartbeatResetCounter})`);
+    } else {
+      heartbeatCounter++;
+      console.log(`SSE heartbeat: ${heartbeatCounter}`);
+    }
+    const statusEl = document.getElementById("sse-status");
+    if (statusEl) {
+      const status = window.sseConnectionStatus || "unknown";
+      statusEl.textContent = `SSE (${heartbeatCounter} : ${heartbeatId}, resets: ${heartbeatResetCounter}): ${status}`;
+    }
+  });
 });
+
