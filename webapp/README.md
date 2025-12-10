@@ -42,5 +42,3 @@ npm run dev
 ```
 
 Then access the web application on http://localhost:5173/
-=======
-# rotation_target_frontend
