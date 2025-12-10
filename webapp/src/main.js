@@ -40,8 +40,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const audioSection = document.getElementById("audio-section");
   const programsSection = document.getElementById("programs-section");
   const settingsSection = document.getElementById("settings-section");
-  const footerSpan = document.querySelector("#footer span");
-
   // Tab switching logic
   runTabButton.addEventListener("click", async () => {
     runTabButton.classList.add("active");
