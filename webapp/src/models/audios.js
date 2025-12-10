@@ -12,5 +12,5 @@ export async function loadAudios() {
 
 export function getAudioTitleById(id) {
     const audio = audios.find(a => a.id === id);
-    return audio.title;
+    return audio ? audio.title : undefined;
 }
