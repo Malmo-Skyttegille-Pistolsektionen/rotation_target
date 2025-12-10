@@ -64,7 +64,7 @@ const currentState: ProgramState = {
 };
 
 // Heartbeat interval for SSE clients
-const HEARTBEAT_INTERVAL = 10000; // 30 seconds
+const HEARTBEAT_INTERVAL = 10000; // 10 seconds
 
 // SSE Clients with heartbeat timers
 const clients: { res: ServerResponse, heartbeat: NodeJS.Timeout }[] = [];
