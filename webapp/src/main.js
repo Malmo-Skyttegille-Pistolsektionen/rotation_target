@@ -15,14 +15,6 @@ function handleSSEEvent(type, payload) {
 
 document.addEventListener("DOMContentLoaded", async () => {
 
-  // Program state to track the current program and series
-  const programState = {
-    program_id: null,
-    series_running: false, // Updated: Only true when a series is actively running
-    current_series_index: null,
-    current_event_index: null,
-    target_status_shown: false // Changed from string to boolean
-  };
 
   const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
   const appName = "Malmö Skyttegille Rotation Target";
