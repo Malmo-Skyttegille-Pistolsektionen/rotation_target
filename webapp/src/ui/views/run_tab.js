@@ -230,7 +230,7 @@ const onChronoRunTabEL = function ({ detail: { elapsed } }) {
     }
 
     const { current_series_index } = programState;
-    if (typeof current_series_index === "number" && current_series_index !== null) {
+    if (typeof current_series_index === "number") {
         setCurrentChrono(current_series_index, elapsed);
     }
 };
