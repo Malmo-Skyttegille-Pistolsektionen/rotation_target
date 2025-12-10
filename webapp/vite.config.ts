@@ -36,7 +36,7 @@ const audios = Object.entries(audiosData).map(([id, audio]) => ({
 
 // Add 3 entries with readonly: false, using last 3 entries and id + 1000
 const lastThree = Object.entries(audiosData).slice(-3);
-lastThree.forEach(([id, audio], idx) => {
+lastThree.forEach(([id, audio]) => {
   audios.push({
     id: Number(id) + 1000,
     title: audio.title,
