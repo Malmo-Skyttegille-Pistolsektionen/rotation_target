@@ -4,13 +4,15 @@
  */
 
 import { fetchAudios } from '../../apis/rest-client.js';
+import { renderTimeline, TimelineType } from './timeline.js';
 
 // State for the editor
 let editorState = {
     program: null,
     isEditing: false,
     originalProgramId: null,
-    audios: [] // Cache of available audios
+    audios: [], // Cache of available audios
+    timelineMode: null, // null = auto, TimelineType.Default, or TimelineType.Field
 };
 
 /**
@@ -89,7 +91,9 @@ export function closeProgramEditor() {
     editorState = {
         program: null,
         isEditing: false,
-        originalProgramId: null
+        originalProgramId: null,
+        audios: [],
+        timelineMode: null
     };
 }
 
@@ -101,44 +105,115 @@ function renderEditor() {
     const program = editorState.program;
     
     container.innerHTML = `
-        <div class="editor-section">
-            <h3>Program Details</h3>
-            <div class="form-group">
-                <label>Title:</label>
-                <input type="text" id="program-title" value="${program.title}" placeholder="Program Title" />
+        <div class="editor-tabs">
+            <button class="editor-tab active" data-tab="editor">Editor</button>
+            <button class="editor-tab" data-tab="preview">Preview</button>
+        </div>
+        <div class="editor-tab-content active" id="editor-tab-editor">
+            <div class="editor-section">
+                <h3>Program Details</h3>
+                <div class="form-group">
+                    <label>Title:</label>
+                    <input type="text" id="program-title" value="${program.title}" placeholder="Program Title" />
+                </div>
+                <div class="form-group">
+                    <label>Description:</label>
+                    <input type="text" id="program-description" value="${program.description}" placeholder="Program Description" />
+                </div>
+                ${editorState.isEditing ? `
+                <div class="form-group">
+                    <label>ID:</label>
+                    <input type="number" id="program-id" value="${program.id || ''}" placeholder="Program ID" />
+                </div>
+                ` : `
+                <div class="form-group">
+                    <label>ID:</label>
+                    <input type="number" id="program-id" value="${program.id || ''}" placeholder="Auto-generated if empty" />
+                </div>
+                `}
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="program-readonly" ${program.readonly ? 'checked' : ''} />
+                        Read-only (prevents deletion/editing)
+                    </label>
+                </div>
             </div>
-            <div class="form-group">
-                <label>Description:</label>
-                <input type="text" id="program-description" value="${program.description}" placeholder="Program Description" />
-            </div>
-            ${editorState.isEditing ? `
-            <div class="form-group">
-                <label>ID:</label>
-                <input type="number" id="program-id" value="${program.id || ''}" placeholder="Program ID" />
-            </div>
-            ` : `
-            <div class="form-group">
-                <label>ID:</label>
-                <input type="number" id="program-id" value="${program.id || ''}" placeholder="Auto-generated if empty" />
-            </div>
-            `}
-            <div class="form-group checkbox-group">
-                <label>
-                    <input type="checkbox" id="program-readonly" ${program.readonly ? 'checked' : ''} />
-                    Read-only (prevents deletion/editing)
-                </label>
+            
+            <div class="editor-section">
+                <h3>Series</h3>
+                <div id="series-container"></div>
+                <button id="add-series-btn" class="primary">+ Add Series</button>
             </div>
         </div>
-        
-        <div class="editor-section">
-            <h3>Series</h3>
-            <div id="series-container"></div>
-            <button id="add-series-btn" class="primary">+ Add Series</button>
+        <div class="editor-tab-content" id="editor-tab-preview">
+            <div class="preview-controls">
+                <label for="editor-timeline-mode-select">Timeline Mode:</label>
+                <select id="editor-timeline-mode-select">
+                    <option value="auto">Auto</option>
+                    <option value="default">Event-based</option>
+                    <option value="field">Time-scaled</option>
+                </select>
+            </div>
+            <div id="editor-timeline-preview" class="timeline-preview-container"></div>
         </div>
     `;
     
     renderAllSeries();
+    renderTimelinePreview();
     attachEditorListeners();
+    attachTabListeners();
+}
+
+/**
+ * Render the timeline preview based on current program state
+ */
+function renderTimelinePreview() {
+    const previewContainer = document.getElementById('editor-timeline-preview');
+    const program = editorState.program;
+    
+    // Don't render if no series or events
+    if (!program.series || program.series.length === 0) {
+        previewContainer.innerHTML = '<p class="empty-message">Add series and events to see timeline preview</p>';
+        return;
+    }
+    
+    // Check if any series has events
+    const hasEvents = program.series.some(series => series.events && series.events.length > 0);
+    if (!hasEvents) {
+        previewContainer.innerHTML = '<p class="empty-message">Add events to series to see timeline preview</p>';
+        return;
+    }
+    
+    // Determine timeline type based on mode selector
+    let timelineType = editorState.timelineMode;
+    
+    // Render the timeline
+    renderTimeline(previewContainer, program, timelineType);
+}
+
+/**
+ * Attach tab switching listeners
+ */
+function attachTabListeners() {
+    const tabs = document.querySelectorAll('.editor-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', (e) => {
+            const targetTab = e.target.dataset.tab;
+            
+            // Remove active class from all tabs and contents
+            document.querySelectorAll('.editor-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.editor-tab-content').forEach(c => c.classList.remove('active'));
+            
+            // Add active class to clicked tab and corresponding content
+            e.target.classList.add('active');
+            document.getElementById(`editor-tab-${targetTab}`).classList.add('active');
+            
+            // If switching to preview tab, refresh the timeline
+            if (targetTab === 'preview') {
+                renderTimelinePreview();
+            }
+        });
+    });
 }
 
 /**
@@ -158,7 +233,7 @@ function renderAllSeries() {
             <div class="series-header">
                 <h4>Series ${seriesIndex + 1}</h4>
                 <button class="delete-btn small icon-only" data-action="delete-series" data-index="${seriesIndex}" title="Delete Series">
-                    <img src="public/icons/delete_24_regular.svg" alt="Delete" width="20" height="20" />
+                    <img src="/icons/delete_24_regular.svg" alt="Delete" width="20" height="20" />
                 </button>
             </div>
             <div class="form-group">
@@ -196,7 +271,7 @@ function renderEvents(events, seriesIndex) {
                 <span class="drag-handle">≡</span>
                 <span>Event ${eventIndex + 1}</span>
                 <button class="delete-btn small icon-only" data-action="delete-event" data-series-index="${seriesIndex}" data-event-index="${eventIndex}" title="Delete Event">
-                    <img src="public/icons/delete_24_regular.svg" alt="Delete" width="20" height="20" />
+                    <img src="/icons/delete_24_regular.svg" alt="Delete" width="20" height="20" />
                 </button>
             </div>
             <div class="event-fields">
@@ -254,7 +329,7 @@ function renderSelectedAudios(audioIds, seriesIndex, eventIndex) {
                 <span class="drag-handle">≡</span>
                 <span class="audio-label">${audioId} - ${title}</span>
                 <button class="remove-audio-btn icon-only" data-series-index="${seriesIndex}" data-event-index="${eventIndex}" data-audio-index="${audioIndex}" title="Delete Audio">
-                    <img src="public/icons/delete_24_regular.svg" alt="Delete" width="18" height="18" />
+                    <img src="/icons/delete_24_regular.svg" alt="Delete" width="18" height="18" />
                 </button>
             </div>
         `;
@@ -288,10 +363,24 @@ function attachEditorListeners() {
         editorState.program.readonly = e.target.checked;
     });
     
+    // Timeline mode selector
+    document.getElementById('editor-timeline-mode-select').addEventListener('change', (e) => {
+        const mode = e.target.value;
+        if (mode === 'auto') {
+            editorState.timelineMode = null;
+        } else if (mode === 'default') {
+            editorState.timelineMode = TimelineType.Default;
+        } else if (mode === 'field') {
+            editorState.timelineMode = TimelineType.Field;
+        }
+        renderTimelinePreview();
+    });
+    
     // Add series button
     document.getElementById('add-series-btn').addEventListener('click', () => {
         editorState.program.series.push(createEmptySeries());
         renderAllSeries();
+        renderTimelinePreview();
     });
     
     // Event delegation for series and events
@@ -306,17 +395,20 @@ function attachEditorListeners() {
             if (confirm('Delete this series?')) {
                 editorState.program.series.splice(index, 1);
                 renderAllSeries();
+                renderTimelinePreview();
             }
         } else if (action === 'add-event') {
             const seriesIndex = parseInt(target.dataset.seriesIndex);
             editorState.program.series[seriesIndex].events.push(createEmptyEvent());
             renderAllSeries();
+            renderTimelinePreview();
         } else if (action === 'delete-event') {
             const seriesIndex = parseInt(target.dataset.seriesIndex);
             const eventIndex = parseInt(target.dataset.eventIndex);
             if (confirm('Delete this event?')) {
                 editorState.program.series[seriesIndex].events.splice(eventIndex, 1);
                 renderAllSeries();
+                renderTimelinePreview();
             }
         }
     });
@@ -327,21 +419,25 @@ function attachEditorListeners() {
         if (target.classList.contains('series-name')) {
             const index = parseInt(target.dataset.index);
             editorState.program.series[index].name = target.value;
+            renderTimelinePreview();
         } else if (target.classList.contains('series-optional')) {
             const index = parseInt(target.dataset.index);
             editorState.program.series[index].optional = target.checked;
+            renderTimelinePreview();
         } else if (target.classList.contains('event-duration')) {
             const seriesIndex = parseInt(target.dataset.seriesIndex);
             const eventIndex = parseInt(target.dataset.eventIndex);
             const duration = parseInt(target.value);
             if (!isNaN(duration) && duration >= 0) {
                 editorState.program.series[seriesIndex].events[eventIndex].duration = duration;
+                renderTimelinePreview();
             }
         } else if (target.classList.contains('event-command')) {
             const seriesIndex = parseInt(target.dataset.seriesIndex);
             const eventIndex = parseInt(target.dataset.eventIndex);
             const value = target.value;
             editorState.program.series[seriesIndex].events[eventIndex].command = value || null;
+            renderTimelinePreview();
         } else if (target.classList.contains('audio-search-input')) {
             handleAudioSearch(target);
         }
@@ -457,6 +553,7 @@ function attachEditorListeners() {
             });
             
             editorState.program.series[seriesIndex].events[eventIndex].audio_ids = newOrder;
+            renderTimelinePreview();
         }
         
         // Handle event drop
@@ -476,6 +573,7 @@ function attachEditorListeners() {
             
             // Re-render to update indices
             renderAllSeries();
+            renderTimelinePreview();
         }
     });
 }
@@ -534,6 +632,7 @@ function addAudioToEvent(seriesIndex, eventIndex, audioId) {
     if (!event.audio_ids.includes(audioId)) {
         event.audio_ids.push(audioId);
         renderAllSeries();
+        renderTimelinePreview();
     }
 }
 
@@ -544,6 +643,7 @@ function removeAudioFromEvent(seriesIndex, eventIndex, audioIndex) {
     const event = editorState.program.series[seriesIndex].events[eventIndex];
     event.audio_ids.splice(audioIndex, 1);
     renderAllSeries();
+    renderTimelinePreview();
 }
 
 /**
