@@ -98,6 +98,10 @@ button.primary {
   color: white;
 }
 
+button.primary img {
+  filter: brightness(0) invert(1);
+}
+
 button.icon {
   width: 1em;
   height: 1em;

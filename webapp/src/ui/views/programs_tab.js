@@ -67,8 +67,14 @@ export async function refreshProgramsList() {
                 const tdDelete = document.createElement("td");
                 if (!program.readonly) {
                     const deleteBtn = document.createElement("button");
-                    deleteBtn.textContent = "Delete";
-                    deleteBtn.classList.add("delete-btn");
+                    deleteBtn.classList.add("delete-btn", "icon-only");
+                    deleteBtn.title = "Delete program";
+                    const deleteIcon = document.createElement("img");
+                    deleteIcon.src = "public/icons/delete_24_regular.svg";
+                    deleteIcon.alt = "Delete";
+                    deleteIcon.width = 20;
+                    deleteIcon.height = 20;
+                    deleteBtn.appendChild(deleteIcon);
                     tdDelete.appendChild(deleteBtn);
                 }
                 tr.appendChild(tdDelete);
@@ -77,9 +83,14 @@ export async function refreshProgramsList() {
                 const tdEdit = document.createElement("td");
                 if (!program.readonly) {
                     const editBtn = document.createElement("button");
-                    editBtn.textContent = "Edit";
-                    editBtn.classList.add("primary");
-                    editBtn.classList.add("edit-btn");
+                    editBtn.classList.add("primary", "edit-btn", "icon-only");
+                    editBtn.title = "Edit program";
+                    const editIcon = document.createElement("img");
+                    editIcon.src = "public/icons/edit_24_regular.svg";
+                    editIcon.alt = "Edit";
+                    editIcon.width = 20;
+                    editIcon.height = 20;
+                    editBtn.appendChild(editIcon);
                     tdEdit.appendChild(editBtn);
                 }
                 tr.appendChild(tdEdit);
@@ -88,8 +99,14 @@ export async function refreshProgramsList() {
                 const tdUpdate = document.createElement("td");
                 if (!program.readonly) {
                     const updateBtn = document.createElement("button");
-                    updateBtn.textContent = "Update";
-                    updateBtn.classList.add("primary");
+                    updateBtn.classList.add("primary", "update-btn", "icon-only");
+                    updateBtn.title = "Upload/Update program from file";
+                    const uploadIcon = document.createElement("img");
+                    uploadIcon.src = "public/icons/arrow_upload_24_regular.svg";
+                    uploadIcon.alt = "Upload";
+                    uploadIcon.width = 20;
+                    uploadIcon.height = 20;
+                    updateBtn.appendChild(uploadIcon);
                     tdUpdate.appendChild(updateBtn);
                 }
                 tr.appendChild(tdUpdate);
@@ -98,7 +115,7 @@ export async function refreshProgramsList() {
                 const tdJson = document.createElement("td");
                 const showJsonBtn = document.createElement("button");
                 showJsonBtn.textContent = "JSON";
-                showJsonBtn.classList.add("primary");
+                showJsonBtn.classList.add("primary", "json-btn");
                 tdJson.appendChild(showJsonBtn);
                 tr.appendChild(tdJson);
 
@@ -120,13 +137,18 @@ function onAddProgramClick() {
 
 // Event delegation for dynamic program rows
 function onProgramContainerClick(e) {
-    const target = e.target;
+    let target = e.target;
+    // If clicked on an img inside a button, get the button instead
+    if (target.tagName === 'IMG') {
+        target = target.closest('button');
+    }
+    
     const tr = target.closest("tr");
     if (!tr) return;
     const id = tr.querySelector(".id-cell")?.textContent;
     const programTitle = tr.querySelector(".title-cell")?.textContent;
 
-    if (target.classList.contains("delete-btn")) {
+    if (target && target.classList.contains("delete-btn")) {
         if (confirm(`Are you sure you want to delete "${programTitle}"?`)) {
             deleteProgram(id)
                 .then(() => {
@@ -139,7 +161,7 @@ function onProgramContainerClick(e) {
                 });
         }
     }
-    if (target.classList.contains("edit-btn")) {
+    if (target && target.classList.contains("edit-btn")) {
         getProgram(id)
             .then(fullProgram => {
                 openProgramEditor(fullProgram);
@@ -149,10 +171,10 @@ function onProgramContainerClick(e) {
                 console.error("Failed to load program:", err);
             });
     }
-    if (target.classList.contains("primary") && target.textContent === "Update") {
+    if (target && target.classList.contains("update-btn")) {
         handleProgramFileInput(id, programTitle);
     }
-    if (target.classList.contains("primary") && target.textContent === "JSON") {
+    if (target && target.classList.contains("json-btn")) {
         getProgram(id)
             .then(fullProgram => {
                 const raw = JSON.stringify(fullProgram, null, 2);
