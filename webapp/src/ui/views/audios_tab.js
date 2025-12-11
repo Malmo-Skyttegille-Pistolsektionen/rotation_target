@@ -13,13 +13,18 @@ let audiosTabListenersAdded = false;
 
 // Event delegation for dynamic audio rows (Delete, JSON, Play)
 function onAudioContainerClick(e) {
-    const target = e.target;
+    let target = e.target;
+    // If clicked on an img inside a button, get the button instead
+    if (target.tagName === 'IMG') {
+        target = target.closest('button');
+    }
+    
     const tr = target.closest("tr");
     if (!tr) return;
     const id = tr.querySelector(".id-cell")?.textContent;
     const audioTitle = tr.querySelector(".title-cell")?.textContent;
 
-    if (target.classList.contains("delete-btn")) {
+    if (target && target.classList.contains("delete-btn")) {
         if (confirm(`Are you sure you want to delete "${audioTitle}"?`)) {
             deleteAudio(id)
                 .then(() => {
@@ -32,7 +37,7 @@ function onAudioContainerClick(e) {
                 });
         }
     }
-    if (target.classList.contains("play-btn")) {
+    if (target && target.classList.contains("play-btn")) {
         playAudio(id)
             .then(() => {
             })
@@ -40,7 +45,7 @@ function onAudioContainerClick(e) {
                 alert("Failed to play audio.");
             });
     }
-    if (target.classList.contains("primary") && target.textContent === "JSON") {
+    if (target && target.classList.contains("primary") && target.textContent === "JSON") {
         const audio = audios.find(a => a.id == id);
         if (audio) {
             const raw = JSON.stringify(audio, null, 2);
@@ -76,8 +81,14 @@ export async function refreshAudioList() {
                 // Play button cell
                 const tdPlay = document.createElement("td");
                 const playBtn = document.createElement("button");
-                playBtn.textContent = "Play";
-                playBtn.classList.add("play-btn");
+                playBtn.classList.add("primary", "play-btn", "icon-only");
+                playBtn.title = "Play audio";
+                const playIcon = document.createElement("img");
+                playIcon.src = "public/icons/play_24_regular.svg";
+                playIcon.alt = "Play";
+                playIcon.width = 20;
+                playIcon.height = 20;
+                playBtn.appendChild(playIcon);
                 tdPlay.appendChild(playBtn);
                 tr.appendChild(tdPlay);
 
@@ -85,8 +96,14 @@ export async function refreshAudioList() {
                 const tdDelete = document.createElement("td");
                 if (!audio.readonly) {
                     const deleteBtn = document.createElement("button");
-                    deleteBtn.textContent = "Delete";
-                    deleteBtn.classList.add("delete-btn");
+                    deleteBtn.classList.add("delete-btn", "icon-only");
+                    deleteBtn.title = "Delete audio";
+                    const deleteIcon = document.createElement("img");
+                    deleteIcon.src = "public/icons/delete_24_regular.svg";
+                    deleteIcon.alt = "Delete";
+                    deleteIcon.width = 20;
+                    deleteIcon.height = 20;
+                    deleteBtn.appendChild(deleteIcon);
                     tdDelete.appendChild(deleteBtn);
                 }
                 tr.appendChild(tdDelete);
