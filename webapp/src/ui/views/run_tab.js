@@ -1,4 +1,4 @@
-import { renderTimeline, setCurrent, clearCurrent, setCurrentChrono, handleSeriesCompleted } from './timeline.js';
+import { renderTimeline, setCurrent, clearCurrent, setCurrentChrono, handleSeriesCompleted, TimelineType } from './timeline.js';
 import { getProgram, loadProgram, startProgram, stopProgram, skipToSeries, getPrograms, toggleTargets } from '../../apis/rest-client.js';
 import { SSETypes } from "../../common/sse-types.js";
 
@@ -45,6 +45,7 @@ export function updateProgramButtons() {
 // Cache static DOM elements at the top
 const programSelect = document.getElementById("choose-program");
 const seriesSelect = document.getElementById("choose-serie");
+const timelineModeSelect = document.getElementById("timeline-mode-select");
 const startBtn = document.getElementById("start-btn");
 const stopBtn = document.getElementById("stop-btn");
 const toggleBtn = document.getElementById("toggle-btn");
@@ -54,6 +55,21 @@ const chronoElement = document.getElementById('chrono');
 
 // --- Ensure button event listeners are only added once ---
 let runTabListenersAdded = false;
+
+// Helper function to render timeline based on user-selected mode
+function renderTimelineWithMode(program) {
+    const mode = timelineModeSelect.value;
+    let timelineType = null;
+    
+    if (mode === "default") {
+        timelineType = TimelineType.Default;
+    } else if (mode === "field") {
+        timelineType = TimelineType.Field;
+    }
+    // mode === "auto" means timelineType remains null for auto-detection
+    
+    renderTimeline(timeline, program, timelineType);
+}
 
 // Named listener functions
 async function onProgramChange() {
@@ -69,7 +85,7 @@ async function onProgramChange() {
         try {
             const program = await getProgram(id);
             window.currentProgram = program;
-            renderTimeline(timeline, program);
+            renderTimelineWithMode(program);
             setCurrent(0, 0);
 
             updateProgramState({ program_id: id, running_series_start: null });
@@ -92,6 +108,7 @@ async function onProgramChange() {
 
             // Make elements visible
             seriesSelect.classList.remove("hidden");
+            timelineModeSelect.classList.remove("hidden");
             timelineWrapperSection.classList.remove("hidden");
 
             // Enable start and stop buttons
@@ -123,6 +140,17 @@ async function onToggleClick() {
     await toggleTargets();
 }
 
+function onTimelineModeChange() {
+    if (window.currentProgram) {
+        renderTimelineWithMode(window.currentProgram);
+        // Re-apply current highlighting if exists
+        const { current_series_index, current_event_index } = programState;
+        if (current_series_index !== null && current_event_index !== null) {
+            setCurrent(current_series_index, current_event_index);
+        }
+    }
+}
+
 export async function initializeRunTab() {
     try {
         const programs = await getPrograms(); // Fetch the list of programs
@@ -149,6 +177,7 @@ export async function initializeRunTab() {
         if (!runTabListenersAdded) {
             programSelect.addEventListener("change", onProgramChange);
             seriesSelect.addEventListener("change", onSeriesChange);
+            timelineModeSelect.addEventListener("change", onTimelineModeChange);
             startBtn.addEventListener("click", onStartClick);
             stopBtn.addEventListener("click", onStopClick);
             toggleBtn.addEventListener("click", onToggleClick);

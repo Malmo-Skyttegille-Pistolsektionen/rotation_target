@@ -5,12 +5,44 @@ export const TimelineType = Object.freeze({
   Field: "field"
 });
 
+// Threshold for automatic timeline type detection (in milliseconds)
+// Events with durations at or below this threshold will use Field timeline (time-scaled)
+const FIELD_TIMELINE_THRESHOLD_MS = 30000; // 30 seconds
+
 let currentSeriesIndex = null;
 let currentEventIndex = null;
 let timelineData = null;
 
+// Detect appropriate timeline type based on program characteristics
+export function detectTimelineType(program) {
+  if (!program || !program.series || program.series.length === 0) {
+    return TimelineType.Default;
+  }
+
+  // Calculate the maximum event duration across all series
+  let maxDuration = 0;
+  for (const series of program.series) {
+    if (series.events) {
+      for (const event of series.events) {
+        if (event.duration > maxDuration) {
+          maxDuration = event.duration;
+        }
+      }
+    }
+  }
+
+  // If max duration is at or below threshold, use Field timeline (time-scaled)
+  // Otherwise use Default timeline (event-based)
+  return maxDuration <= FIELD_TIMELINE_THRESHOLD_MS ? TimelineType.Field : TimelineType.Default;
+}
+
 // Main timeline renderer with enum type selection
-export function renderTimeline(placeHolder, program, type = TimelineType.Default) {
+export function renderTimeline(placeHolder, program, type = null) {
+  // Auto-detect type if not specified
+  if (type === null) {
+    type = detectTimelineType(program);
+  }
+
   if (type === TimelineType.Field) {
     renderFieldTimeline(placeHolder, program);
   } else {
@@ -277,32 +309,37 @@ export function clearCurrent() {
 }
 
 export function setCurrentChrono(seriesIdx, elapsedMs) {
-  // const timelineContainers = document.querySelectorAll('.logic-timeline-container');
-  // const timelineContainer = timelineContainers[seriesIdx];
-  // if (!timelineContainer) return;
+  const timelineContainers = document.querySelectorAll('.logic-timeline-container');
+  
+  // Remove all existing cursors from other series
+  timelineContainers.forEach((container, idx) => {
+    if (idx !== seriesIdx) {
+      const axis = container.querySelector('.logic-timeline-axis');
+      if (axis) {
+        const cursor = axis.querySelector('.logic-timeline-cursor');
+        if (cursor) cursor.remove();
+      }
+    }
+  });
+  
+  const timelineContainer = timelineContainers[seriesIdx];
+  if (!timelineContainer) return;
 
-  // const axis = timelineContainer.querySelector('.logic-timeline-axis');
-  // if (!axis) return;
+  const axis = timelineContainer.querySelector('.logic-timeline-axis');
+  if (!axis) return;
 
-  // let cursor = axis.querySelector('.logic-timeline-cursor');
-  // if (!cursor) {
-  //   cursor = document.createElement('div');
-  //   cursor.className = 'logic-timeline-cursor';
-  //   axis.appendChild(cursor);
-  // }
+  let cursor = axis.querySelector('.logic-timeline-cursor');
+  if (!cursor) {
+    cursor = document.createElement('div');
+    cursor.className = 'logic-timeline-cursor';
+    axis.appendChild(cursor);
+  }
 
-  // // Find the tick for the current second
-  // const second = Math.floor(elapsedMs / 1000);
-  // const tick = axis.querySelector(`#logic-tick-${seriesIdx}-${second}`);
-  // if (tick) {
-  //   // Center the box over the tick number
-  //   const tickLeft = tick.offsetLeft;
-  //   const tickWidth = tick.offsetWidth || 40; // fallback to 40px if not set
-  //   cursor.style.left = `${tickLeft - tickWidth / 2 + 20}px`; // 20px is half the cursor width
-  //   cursor.style.display = "block";
-  // } else {
-  //   cursor.style.display = "none";
-  // }
+  // Calculate position based on elapsed time (40px per second)
+  const seconds = elapsedMs / 1000;
+  const leftPosition = seconds * 40;
+  cursor.style.left = `${leftPosition}px`;
+  cursor.style.display = "block";
 }
 
 // Remove chrono box on series_completed
