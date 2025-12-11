@@ -1,6 +1,7 @@
 import { renderTimeline } from './timeline.js';
 import { SSETypes } from "../../common/sse-types.js";
 import { deleteProgram, getPrograms, getProgram, uploadProgram } from '../../apis/rest-client.js';
+import { openProgramEditor, saveProgramFromEditor, initializeProgramEditorModal } from './program_editor.js';
 
 // Cache DOM elements
 const programFileInput = document.getElementById("program-file");
@@ -72,6 +73,17 @@ export async function refreshProgramsList() {
                 }
                 tr.appendChild(tdDelete);
 
+                // Edit button cell
+                const tdEdit = document.createElement("td");
+                if (!program.readonly) {
+                    const editBtn = document.createElement("button");
+                    editBtn.textContent = "Edit";
+                    editBtn.classList.add("primary");
+                    editBtn.classList.add("edit-btn");
+                    tdEdit.appendChild(editBtn);
+                }
+                tr.appendChild(tdEdit);
+
                 // Update button cell
                 const tdUpdate = document.createElement("td");
                 if (!program.readonly) {
@@ -102,7 +114,8 @@ let programsTabListenersAdded = false;
 
 // Named handler functions for UI events
 function onAddProgramClick() {
-    handleProgramFileInput();
+    // Open the WYSIWYG editor for creating a new program
+    openProgramEditor();
 }
 
 // Event delegation for dynamic program rows
@@ -126,6 +139,16 @@ function onProgramContainerClick(e) {
                 });
         }
     }
+    if (target.classList.contains("edit-btn")) {
+        getProgram(id)
+            .then(fullProgram => {
+                openProgramEditor(fullProgram);
+            })
+            .catch(err => {
+                alert("Failed to load program for editing.");
+                console.error("Failed to load program:", err);
+            });
+    }
     if (target.classList.contains("primary") && target.textContent === "Update") {
         handleProgramFileInput(id, programTitle);
     }
@@ -144,6 +167,22 @@ function onProgramContainerClick(e) {
 }
 
 export async function initializeProgramsTab() {
+    // Initialize the program editor modal with save callback
+    initializeProgramEditorModal(async () => {
+        const result = saveProgramFromEditor();
+        if (result) {
+            try {
+                await uploadProgram(result.program, result.originalId);
+                alert(result.originalId ? 'Program updated successfully!' : 'Program created successfully!');
+                await refreshProgramsList();
+                document.getElementById('program-editor-modal').classList.add('hidden');
+            } catch (err) {
+                alert(`Failed to save program: ${err.message}`);
+                console.error('Save error:', err);
+            }
+        }
+    });
+    
     if (!programsTabListenersAdded) {
         if (addProgramBtn) addProgramBtn.addEventListener("click", onAddProgramClick);
 
