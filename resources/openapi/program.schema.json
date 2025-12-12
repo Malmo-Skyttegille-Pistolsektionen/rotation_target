@@ -3,6 +3,7 @@
   "$id": "program.schema.json",
   "title": "Program",
   "type": "object",
+  "additionalProperties": false,
   "required": [
     "id",
     "title",
@@ -33,9 +34,10 @@
   "$defs": {
     "Series": {
       "type": "object",
+      "additionalProperties": false,
       "required": [
         "name",
-        "optional", 
+        "optional",
         "events"
       ],
       "properties": {
@@ -56,6 +58,7 @@
     },
     "Event": {
       "type": "object",
+      "additionalProperties": false,
       "required": [
         "duration"
       ],
