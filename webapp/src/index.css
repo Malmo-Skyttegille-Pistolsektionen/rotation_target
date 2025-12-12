@@ -1490,6 +1490,281 @@ button.secondary:hover {
   padding: 2rem;
 }
 
+/* Timeline Editor Styles */
+.timeline-editor-container {
+  background: white;
+  padding: 1rem;
+  min-height: 400px;
+}
+
+.timeline-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.timeline-editor-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.timeline-series-select {
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  min-width: 200px;
+}
+
+.timeline-info {
+  color: #666;
+  font-size: 0.9rem;
+  margin-left: auto;
+}
+
+.timeline-editor-content {
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 1rem 0;
+}
+
+.timeline-series-container {
+  margin-bottom: 3rem;
+  position: relative;
+}
+
+.timeline-series-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.timeline-series-header h4 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.timeline-series-header .series-meta {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.timeline-track-container {
+  position: relative;
+  padding-top: 1rem;
+}
+
+.timeline-track {
+  position: relative;
+  height: 120px;
+  background: linear-gradient(to bottom, #f9f9f9 0%, #f9f9f9 50%, #f0f0f0 50%, #f0f0f0 100%);
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+.timeline-event {
+  position: absolute;
+  top: 10px;
+  height: 100px;
+  background: #e3f2fd;
+  border: 2px solid #1976d2;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.timeline-event:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+
+.timeline-event:focus {
+  outline: 3px solid #0078d4;
+  outline-offset: 2px;
+  z-index: 11;
+}
+
+.timeline-event.selected {
+  border-color: #0078d4;
+  background: #bbdefb;
+  box-shadow: 0 2px 8px rgba(0, 120, 212, 0.3);
+}
+
+.timeline-event.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg);
+}
+
+/* Command-based coloring */
+.timeline-event.show-command {
+  background: #c8e6c9;
+  border-color: #4caf50;
+}
+
+.timeline-event.hide-command {
+  background: #ffcdd2;
+  border-color: #f44336;
+}
+
+.timeline-event.no-command {
+  background: #e0e0e0;
+  border-color: #9e9e9e;
+}
+
+.timeline-event.show-command.selected {
+  background: #a5d6a7;
+  border-color: #388e3c;
+}
+
+.timeline-event.hide-command.selected {
+  background: #ef9a9a;
+  border-color: #c62828;
+}
+
+.timeline-event.no-command.selected {
+  background: #bdbdbd;
+  border-color: #616161;
+}
+
+.timeline-event-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.timeline-event-checkbox {
+  margin: 0;
+  cursor: pointer;
+}
+
+.timeline-event-number {
+  font-weight: bold;
+  color: #333;
+  font-size: 0.9rem;
+}
+
+.timeline-event-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.timeline-event-duration {
+  font-weight: bold;
+  color: #333;
+}
+
+.timeline-event-command {
+  color: #666;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.timeline-event-audio {
+  color: #1976d2;
+  font-size: 0.8rem;
+}
+
+.timeline-event-actions {
+  display: none;
+  gap: 0.25rem;
+  margin-top: auto;
+}
+
+.timeline-event:hover .timeline-event-actions {
+  display: flex;
+}
+
+.timeline-event-action-btn {
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 0.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.timeline-event-action-btn:hover {
+  background: #f5f5f5;
+  border-color: #999;
+}
+
+.timeline-event-action-btn.delete:hover {
+  background: #ffebee;
+  border-color: #f44336;
+}
+
+.timeline-axis {
+  position: relative;
+  height: 40px;
+  border-top: 2px solid #333;
+  margin-top: 0.5rem;
+}
+
+.timeline-tick {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+}
+
+.timeline-tick-mark {
+  width: 2px;
+  height: 10px;
+  background: #333;
+  margin: 0 auto;
+}
+
+.timeline-tick-label {
+  font-size: 0.75rem;
+  color: #666;
+  margin-top: 0.25rem;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* Responsive adjustments for timeline editor */
+@media (max-width: 768px) {
+  .timeline-editor-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .timeline-series-select {
+    width: 100%;
+  }
+  
+  .timeline-event {
+    min-width: 60px;
+  }
+  
+  .timeline-event-body {
+    font-size: 0.75rem;
+  }
+}
+
 /* JSON Editor Styles */
 .json-editor-controls {
   display: flex;
