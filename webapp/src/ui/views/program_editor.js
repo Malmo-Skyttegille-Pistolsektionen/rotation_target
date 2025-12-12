@@ -5,6 +5,9 @@
 
 import { fetchAudios } from '../../apis/rest-client.js';
 import { renderTimeline, TimelineType } from './timeline.js';
+import Prism from 'prismjs';
+import 'prismjs/components/prism-json.js';
+import 'prismjs/themes/prism.css';
 
 // State for the editor
 let editorState = {
@@ -392,6 +395,7 @@ function renderEditor() {
             <div class="json-editor-wrapper">
                 <div class="json-line-numbers" id="json-line-numbers"></div>
                 <textarea id="json-editor-textarea" class="json-editor-textarea" spellcheck="false"></textarea>
+                <pre id="json-highlight-preview" class="json-highlight-preview" aria-hidden="true"><code id="json-highlight-code"></code></pre>
             </div>
             <div id="json-error-message" class="json-error-message"></div>
         </div>
@@ -896,6 +900,7 @@ function updateJsonEditor() {
     if (textarea) {
         textarea.value = JSON.stringify(editorState.program, null, 2);
         updateLineNumbers();
+        highlightJson();
         validateJson();
     }
 }
@@ -912,6 +917,22 @@ function updateLineNumbers() {
     const lines = textarea.value.split('\n');
     const lineNumbersHtml = lines.map((_, index) => `<div>${index + 1}</div>`).join('');
     lineNumbersDiv.innerHTML = lineNumbersHtml;
+}
+
+/**
+ * Highlight JSON syntax in the preview overlay using Prism.js
+ */
+function highlightJson() {
+    const textarea = document.getElementById('json-editor-textarea');
+    const codeElement = document.getElementById('json-highlight-code');
+    
+    if (!textarea || !codeElement) return;
+    
+    const json = textarea.value;
+    
+    // Use Prism.js to highlight JSON
+    const highlighted = Prism.highlight(json, Prism.languages.json, 'json');
+    codeElement.innerHTML = highlighted;
 }
 
 /**
@@ -953,9 +974,11 @@ function formatJson() {
         const parsed = JSON.parse(textarea.value);
         textarea.value = JSON.stringify(parsed, null, 2);
         updateLineNumbers();
+        highlightJson();
         validateJson();
     } catch (error) {
         // If JSON is invalid, validation will show the error
+        highlightJson();
         validateJson();
     }
 }
@@ -1329,17 +1352,23 @@ function attachEditorListeners() {
     // JSON editor event listeners
     const jsonTextarea = document.getElementById('json-editor-textarea');
     if (jsonTextarea) {
-        // Update line numbers and validate on input
+        // Update line numbers, syntax highlighting, and validate on input
         jsonTextarea.addEventListener('input', () => {
             updateLineNumbers();
+            highlightJson();
             validateJson();
         });
         
-        // Sync scroll between textarea and line numbers
+        // Sync scroll between textarea, line numbers, and highlight preview
         jsonTextarea.addEventListener('scroll', () => {
             const lineNumbers = document.getElementById('json-line-numbers');
+            const highlightPreview = document.getElementById('json-highlight-preview');
             if (lineNumbers) {
                 lineNumbers.scrollTop = jsonTextarea.scrollTop;
+            }
+            if (highlightPreview) {
+                highlightPreview.scrollTop = jsonTextarea.scrollTop;
+                highlightPreview.scrollLeft = jsonTextarea.scrollLeft;
             }
         });
         

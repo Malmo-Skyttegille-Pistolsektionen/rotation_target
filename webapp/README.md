@@ -11,6 +11,8 @@ This is a development setup for the MSG rotation target system frontend using:
 - Load and run shooting programs
 - Upload and delete audio files
 - View and track real-time program status
+- Program Editor with multiple views (Form, Events, Timeline, Preview, JSON)
+- JSON editor with syntax highlighting (powered by Prism.js)
 - Built-in mock server for development
 
 ## File Overview
