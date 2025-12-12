@@ -15,6 +15,8 @@ let editorState = {
     timelineMode: null, // null = auto, TimelineType.Default, or TimelineType.Field
     collapsedSeries: new Set(), // Track which series are collapsed
     jsonError: null, // JSON validation error
+    collapsedSeries: new Set(), // Track which series are collapsed in events view
+    selectedEvents: new Set(), // Track selected events for batch operations (format: "seriesIndex-eventIndex")
 };
 
 /**
@@ -96,8 +98,151 @@ export function closeProgramEditor() {
         originalProgramId: null,
         audios: [],
         timelineMode: null,
-        collapsedSeries: new Set()
+        collapsedSeries: new Set(),
+        selectedEvents: new Set()
     };
+}
+
+/**
+ * Render the events-based view
+ */
+function renderEventsView() {
+    const container = document.getElementById('events-view-container');
+    const program = editorState.program;
+    
+    // Populate program details
+    const titleInput = document.getElementById('events-program-title');
+    const descInput = document.getElementById('events-program-description');
+    const idInput = document.getElementById('events-program-id');
+    const readonlyCheckbox = document.getElementById('events-program-readonly');
+    
+    if (titleInput) titleInput.value = program.title || '';
+    if (descInput) descInput.value = program.description || '';
+    if (idInput) idInput.value = program.id || '';
+    if (readonlyCheckbox) readonlyCheckbox.checked = program.readonly || false;
+    
+    if (!program.series || program.series.length === 0) {
+        container.innerHTML = '<p class="empty-message">No series added yet. Switch to Form tab to add series.</p>';
+        return;
+    }
+    
+    container.innerHTML = program.series.map((series, seriesIndex) => {
+        const isCollapsed = editorState.collapsedSeries.has(seriesIndex);
+        const totalEvents = series.events.length;
+        const totalDuration = series.events.reduce((sum, event) => sum + event.duration, 0);
+        
+        return `
+            <div class="events-view-series" data-series-index="${seriesIndex}" draggable="true" id="series-${seriesIndex}" title="Drag to reorder series">
+                <div class="events-view-series-header ${isCollapsed ? 'collapsed' : ''}">
+                    <button class="series-toggle-btn" data-series-index="${seriesIndex}" title="Toggle series">
+                        <span class="toggle-icon">${isCollapsed ? '▶' : '▼'}</span>
+                    </button>
+                    <div class="series-info">
+                        <h4>${series.name || `Series ${seriesIndex + 1}`}${series.optional ? ' <span class="optional-badge">Optional</span>' : ''}</h4>
+                        <span class="series-meta">${totalEvents} event${totalEvents !== 1 ? 's' : ''} • ${(totalDuration / 1000).toFixed(1)}s</span>
+                    </div>
+                    <div class="series-actions">
+                        <button class="icon-btn" data-action="edit-series" data-series-index="${seriesIndex}" title="Edit Series">
+                            <img src="/icons/edit_24_regular.svg" alt="Edit" width="20" height="20" />
+                        </button>
+                        <button class="icon-btn" data-action="duplicate-series" data-series-index="${seriesIndex}" title="Copy Series">
+                            <img src="public/icons/copy_24_regular.svg" alt="Copy" width="20" height="20" />
+                        </button>
+                        <button class="icon-btn delete-btn" data-action="delete-series-events-view" data-series-index="${seriesIndex}" title="Delete Series">
+                            <img src="/icons/delete_24_regular.svg" alt="Delete" width="20" height="20" />
+                        </button>
+                    </div>
+                </div>
+                ${!isCollapsed ? `
+                <div class="events-view-list" data-series-index="${seriesIndex}">
+                    ${series.events.length > 0 ? series.events.map((event, eventIndex) => {
+                        const eventId = `${seriesIndex}-${eventIndex}`;
+                        const isSelected = editorState.selectedEvents.has(eventId);
+                        const audioTitles = (event.audio_ids || []).map(id => {
+                            const audio = editorState.audios.find(a => a.id === id);
+                            return audio ? audio.title : `ID ${id}`;
+                        }).join(', ');
+                        
+                        return `
+                            <div class="events-view-item ${isSelected ? 'selected' : ''}" data-series-index="${seriesIndex}" data-event-index="${eventIndex}" data-event-id="${eventId}" draggable="true" title="Drag to reorder">
+                                <div class="event-select">
+                                    <div class="event-number">${eventIndex + 1}</div>
+                                    <input type="checkbox" class="event-checkbox" data-event-id="${eventId}" ${isSelected ? 'checked' : ''} />
+                                </div>
+                                <div class="event-details">
+                                    <div class="event-detail-row">
+                                        <span>Duration: ${(event.duration / 1000).toFixed(1)}s</span>
+                                        <span class="event-command-badge ${event.command || 'none'}">${event.command ? event.command.toUpperCase() : 'NO CHANGE'}</span>
+                                        ${(event.audio_ids && event.audio_ids.length > 0) ? `
+                                        <span class="audio-badge">♫ ${event.audio_ids.length}</span>
+                                        ${event.audio_ids.map(id => {
+                                            const audio = editorState.audios.find(a => a.id === id);
+                                            const title = audio ? audio.title : `ID ${id}`;
+                                            return `<span class="audio-title-badge" title="${title}">${title}</span>`;
+                                        }).join('')}
+                                        ` : ''}
+                                    </div>
+                                </div>
+                                <div class="event-actions">
+                                    <button class="icon-btn" data-action="edit-event" data-series-index="${seriesIndex}" data-event-index="${eventIndex}" title="Edit Event">
+                                        <img src="public/icons/edit_24_regular.svg" alt="Edit" width="20" height="20" />
+                                    </button>
+                                    <button class="icon-btn" data-action="duplicate-event" data-series-index="${seriesIndex}" data-event-index="${eventIndex}" title="Copy Event">
+                                        <img src="public/icons/copy_24_regular.svg" alt="Copy" width="20" height="20" />
+                                    </button>
+                                    <button class="icon-btn delete-btn" data-action="delete-event-events-view" data-series-index="${seriesIndex}" data-event-index="${eventIndex}" title="Delete Event">
+                                        <img src="public/icons/delete_24_regular.svg" alt="Delete" width="20" height="20" />
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('') : '<p class="empty-message">No events in this series.</p>'}
+                </div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
+    
+    // Update batch delete button visibility and select-all checkbox state
+    const selectedCount = editorState.selectedEvents.size;
+    const batchDeleteBtn = document.getElementById('batch-delete-btn');
+    const selectAllCheckbox = document.getElementById('select-all-events-checkbox');
+    
+    if (batchDeleteBtn) {
+        batchDeleteBtn.style.display = selectedCount > 0 ? 'flex' : 'none';
+    }
+    
+    // Update select-all checkbox state (all, none, or indeterminate)
+    if (selectAllCheckbox) {
+        const totalEvents = program.series.reduce((sum, series) => sum + series.events.length, 0);
+        if (selectedCount === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        } else if (selectedCount === totalEvents) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+        }
+    }
+    
+    // Populate the "Go to series" dropdown
+    const gotoSelect = document.getElementById('goto-series-select');
+    if (gotoSelect) {
+        gotoSelect.innerHTML = '<option value="">Go to series...</option>' + 
+            program.series.map((series, index) => 
+                `<option value="${index}">${series.name || `Series ${index + 1}`}</option>`
+            ).join('');
+    }
+    
+    // Update the summary
+    const summaryEl = document.getElementById('events-view-summary');
+    if (summaryEl) {
+        summaryEl.textContent = `${program.series.length} series`;
+    }
+    
+    attachEventsViewListeners();
 }
 
 /**
@@ -109,7 +254,8 @@ function renderEditor() {
     
     container.innerHTML = `
         <div class="editor-tabs">
-            <button class="editor-tab active" data-tab="editor">Editor</button>
+            <button class="editor-tab active" data-tab="editor">Form</button>
+            <button class="editor-tab" data-tab="events">Events</button>
             <button class="editor-tab" data-tab="preview">Preview</button>
             <button class="editor-tab" data-tab="json">JSON</button>
         </div>
@@ -157,6 +303,53 @@ function renderEditor() {
                 <div id="series-container"></div>
                 <button id="add-series-btn" class="primary">+ Add Series</button>
             </div>
+        </div>
+        <div class="editor-tab-content" id="editor-tab-events">
+            <div class="events-view-program-details">
+                <h3>Program Details</h3>
+                <div class="form-group-inline">
+                    <label>Title:</label>
+                    <input type="text" id="events-program-title" placeholder="Program Title" />
+                </div>
+                <div class="form-group-inline">
+                    <label>Description:</label>
+                    <input type="text" id="events-program-description" placeholder="Program Description" />
+                </div>
+                ${editorState.isEditing ? `
+                <div class="form-group-inline">
+                    <label>ID:</label>
+                    <input type="number" id="events-program-id" placeholder="Program ID" />
+                </div>
+                ` : `
+                <div class="form-group-inline">
+                    <label>ID:</label>
+                    <input type="number" id="events-program-id" placeholder="Auto-generated if empty" />
+                </div>
+                `}
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" id="events-program-readonly" />
+                        Read-only (prevents deletion/editing)
+                    </label>
+                </div>
+            </div>
+            <div class="events-view-header">
+                <div class="events-view-header-left">
+                    <input type="checkbox" id="select-all-events-checkbox" title="Select all / none" />
+                    <h3 id="events-view-summary"></h3>
+                    <button id="batch-delete-btn" class="icon-btn delete-btn" style="display: none;" title="Delete selected">
+                        <img src="/icons/delete_24_regular.svg" alt="Delete" width="20" height="20" />
+                    </button>
+                </div>
+                <div class="events-view-actions">
+                    <select id="goto-series-select" class="goto-series-select">
+                        <option value="">Go to series...</option>
+                    </select>
+                    <button id="expand-all-series-btn" class="secondary small">Expand All</button>
+                    <button id="collapse-all-series-btn" class="secondary small">Collapse All</button>
+                </div>
+            </div>
+            <div id="events-view-container"></div>
         </div>
         <div class="editor-tab-content" id="editor-tab-preview">
             <div class="preview-controls">
@@ -249,6 +442,11 @@ function attachTabListeners() {
             // If switching to JSON tab, update JSON editor
             if (targetTab === 'json') {
                 updateJsonEditor();
+            }
+            
+            // If switching to events tab, render events view
+            if (targetTab === 'events') {
+                renderEventsView();
             }
         });
     });
@@ -1163,6 +1361,670 @@ function attachEditorListeners() {
 }
 
 /**
+ * Attach event listeners to the events view
+ */
+// Track if we've already initialized event listeners
+if (!window.eventsViewListenersInitialized) {
+    window.eventsViewListenersInitialized = false;
+}
+
+function attachEventsViewListeners() {
+    // Only initialize listeners once - they use event delegation on persistent parents
+    if (window.eventsViewListenersInitialized) return;
+    window.eventsViewListenersInitialized = true;
+    
+    const container = document.getElementById('events-view-container');
+    if (!container) return;
+    
+    // Program details listeners
+    const titleInput = document.getElementById('events-program-title');
+    const descInput = document.getElementById('events-program-description');
+    const idInput = document.getElementById('events-program-id');
+    const readonlyCheckbox = document.getElementById('events-program-readonly');
+    
+    if (titleInput) {
+        titleInput.addEventListener('change', (e) => {
+            editorState.program.title = e.target.value;
+        });
+    }
+    
+    if (descInput) {
+        descInput.addEventListener('change', (e) => {
+            editorState.program.description = e.target.value;
+        });
+    }
+    
+    if (idInput) {
+        idInput.addEventListener('change', (e) => {
+            const value = parseInt(e.target.value);
+            editorState.program.id = isNaN(value) ? null : value;
+        });
+    }
+    
+    if (readonlyCheckbox) {
+        readonlyCheckbox.addEventListener('change', (e) => {
+            editorState.program.readonly = e.target.checked;
+        });
+    }
+    
+    // Expand/Collapse all buttons
+    const expandAllBtn = document.getElementById('expand-all-series-btn');
+    const collapseAllBtn = document.getElementById('collapse-all-series-btn');
+    
+    if (expandAllBtn) {
+        expandAllBtn.addEventListener('click', () => {
+            editorState.collapsedSeries.clear();
+            renderEventsView();
+        });
+    }
+    
+    if (collapseAllBtn) {
+        collapseAllBtn.addEventListener('click', () => {
+            editorState.program.series.forEach((_, index) => {
+                editorState.collapsedSeries.add(index);
+            });
+            renderEventsView();
+        });
+    }
+    
+    // Go to series dropdown
+    const gotoSelect = document.getElementById('goto-series-select');
+    if (gotoSelect) {
+        gotoSelect.addEventListener('change', (e) => {
+            const seriesIndex = e.target.value;
+            if (seriesIndex !== '') {
+                const seriesElement = document.getElementById(`series-${seriesIndex}`);
+                if (seriesElement) {
+                    seriesElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    // Ensure the series is expanded
+                    editorState.collapsedSeries.delete(parseInt(seriesIndex));
+                    renderEventsView();
+                }
+                // Reset dropdown
+                e.target.value = '';
+            }
+        });
+    }
+    
+    // Three-dot menu toggles
+    container.addEventListener('click', (e) => {
+        const menuBtn = e.target.closest('.series-menu-btn');
+        if (menuBtn) {
+            e.stopPropagation();
+            // Close all other menus
+            document.querySelectorAll('.series-menu-dropdown').forEach(menu => {
+                if (menu.parentElement !== menuBtn.parentElement) {
+                    menu.classList.remove('show');
+                }
+            });
+            // Toggle this menu
+            const dropdown = menuBtn.parentElement.querySelector('.series-menu-dropdown');
+            if (dropdown) {
+                dropdown.classList.toggle('show');
+            }
+            return;
+        }
+    });
+    
+    // Close menus when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.series-menu-container')) {
+            document.querySelectorAll('.series-menu-dropdown').forEach(menu => {
+                menu.classList.remove('show');
+            });
+        }
+    });
+    
+    // Series toggle buttons
+    container.addEventListener('click', (e) => {
+        const toggleBtn = e.target.closest('.series-toggle-btn');
+        if (toggleBtn) {
+            const seriesIndex = parseInt(toggleBtn.dataset.seriesIndex);
+            if (editorState.collapsedSeries.has(seriesIndex)) {
+                editorState.collapsedSeries.delete(seriesIndex);
+            } else {
+                editorState.collapsedSeries.add(seriesIndex);
+            }
+            renderEventsView();
+            return;
+        }
+        
+        // Handle action buttons
+        const actionBtn = e.target.closest('[data-action]');
+        if (actionBtn) {
+            const action = actionBtn.dataset.action;
+            const seriesIndex = parseInt(actionBtn.dataset.seriesIndex);
+            const eventIndex = parseInt(actionBtn.dataset.eventIndex);
+            
+            if (action === 'add-event-to-series') {
+                editorState.program.series[seriesIndex].events.push(createEmptyEvent());
+                renderEventsView();
+                renderTimelinePreview();
+            } else if (action === 'delete-series-events-view') {
+                if (confirm('Delete this series?')) {
+                    editorState.program.series.splice(seriesIndex, 1);
+                    // Update collapsed series indices
+                    const newCollapsed = new Set();
+                    editorState.collapsedSeries.forEach(idx => {
+                        if (idx < seriesIndex) newCollapsed.add(idx);
+                        else if (idx > seriesIndex) newCollapsed.add(idx - 1);
+                    });
+                    editorState.collapsedSeries = newCollapsed;
+                    renderEventsView();
+                    renderTimelinePreview();
+                }
+            } else if (action === 'edit-series') {
+                openSeriesEditModal(seriesIndex);
+            } else if (action === 'duplicate-series') {
+                const clonedSeries = JSON.parse(JSON.stringify(editorState.program.series[seriesIndex]));
+                clonedSeries.name = (clonedSeries.name || 'Series') + ' (Copy)';
+                editorState.program.series.splice(seriesIndex + 1, 0, clonedSeries);
+                renderEventsView();
+                renderTimelinePreview();
+            } else if (action === 'edit-event') {
+                openEventEditModal(seriesIndex, eventIndex);
+            } else if (action === 'duplicate-event') {
+                const clonedEvent = JSON.parse(JSON.stringify(editorState.program.series[seriesIndex].events[eventIndex]));
+                editorState.program.series[seriesIndex].events.splice(eventIndex + 1, 0, clonedEvent);
+                renderEventsView();
+                renderTimelinePreview();
+            } else if (action === 'delete-event-events-view') {
+                if (confirm('Delete this event?')) {
+                    editorState.program.series[seriesIndex].events.splice(eventIndex, 1);
+                    renderEventsView();
+                    renderTimelinePreview();
+                }
+            }
+        }
+    });
+    
+    // Event checkboxes for batch selection
+    container.addEventListener('change', (e) => {
+        if (e.target.classList.contains('event-checkbox')) {
+            const eventId = e.target.dataset.eventId;
+            if (e.target.checked) {
+                editorState.selectedEvents.add(eventId);
+            } else {
+                editorState.selectedEvents.delete(eventId);
+            }
+            renderEventsView();
+        }
+        
+    });
+    
+    // Select-all checkbox
+    const selectAllCheckbox = document.getElementById('select-all-events-checkbox');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', (e) => {
+            if (e.target.checked || e.target.indeterminate) {
+                // Select all events
+                editorState.selectedEvents.clear();
+                editorState.program.series.forEach((series, seriesIdx) => {
+                    series.events.forEach((event, eventIdx) => {
+                        editorState.selectedEvents.add(`${seriesIdx}-${eventIdx}`);
+                    });
+                });
+            } else {
+                // Deselect all
+                editorState.selectedEvents.clear();
+            }
+            renderEventsView();
+        });
+    }
+    
+    // Batch delete button
+    const batchDeleteBtn = document.getElementById('batch-delete-btn');
+    if (batchDeleteBtn) {
+        batchDeleteBtn.addEventListener('click', () => {
+            if (confirm(`Delete ${editorState.selectedEvents.size} selected event(s)?`)) {
+                // Convert selected event IDs to indices
+                const toDelete = Array.from(editorState.selectedEvents).map(id => {
+                    const [seriesIdx, eventIdx] = id.split('-').map(Number);
+                    return { seriesIdx, eventIdx };
+                });
+                
+                // Sort by series then event index in reverse to delete from end first.
+                // This is crucial because deleting from the beginning would shift indices
+                // of subsequent elements, causing us to delete wrong items.
+                toDelete.sort((a, b) => {
+                    if (a.seriesIdx !== b.seriesIdx) return b.seriesIdx - a.seriesIdx;
+                    return b.eventIdx - a.eventIdx;
+                });
+                
+                // Delete events
+                toDelete.forEach(({ seriesIdx, eventIdx }) => {
+                    if (editorState.program.series[seriesIdx] && 
+                        editorState.program.series[seriesIdx].events[eventIdx]) {
+                        editorState.program.series[seriesIdx].events.splice(eventIdx, 1);
+                    }
+                });
+                
+                editorState.selectedEvents.clear();
+                renderEventsView();
+                renderTimelinePreview();
+            }
+        });
+    }
+    
+    // Drag and drop for event reordering
+    container.addEventListener('dragstart', (e) => {
+        // Don't allow dragging when clicking on interactive elements
+        if (e.target.matches('input, button, select, a, .icon-btn, .menu-item')) {
+            e.preventDefault();
+            return;
+        }
+        
+        const seriesItem = e.target.closest('.events-view-series');
+        const eventItem = e.target.closest('.events-view-item');
+        
+        // Check if dragging an event (prioritize over series)
+        if (eventItem) {
+            eventItem.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', eventItem.dataset.eventId);
+            return;
+        }
+        
+        // Otherwise, handle series dragging
+        if (seriesItem) {
+            seriesItem.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', 'series-' + seriesItem.dataset.seriesIndex);
+        }
+    });
+    
+    container.addEventListener('dragend', (e) => {
+        const seriesItem = e.target.closest('.events-view-series');
+        const eventItem = e.target.closest('.events-view-item');
+        
+        if (seriesItem) {
+            seriesItem.classList.remove('dragging');
+        }
+        if (eventItem) {
+            eventItem.classList.remove('dragging');
+        }
+    });
+    
+    container.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        
+        // Check if dragging a series
+        const draggingSeries = document.querySelector('.events-view-series.dragging');
+        const targetSeries = e.target.closest('.events-view-series');
+        
+        if (draggingSeries && targetSeries && draggingSeries !== targetSeries) {
+            const allSeries = Array.from(container.querySelectorAll('.events-view-series'));
+            const draggingIndex = allSeries.indexOf(draggingSeries);
+            const targetIndex = allSeries.indexOf(targetSeries);
+            
+            if (draggingIndex < targetIndex) {
+                targetSeries.after(draggingSeries);
+            } else {
+                targetSeries.before(draggingSeries);
+            }
+            return;
+        }
+        
+        // Otherwise, handle event dragging
+        const draggingItem = document.querySelector('.events-view-item.dragging');
+        const targetItem = e.target.closest('.events-view-item');
+        
+        if (draggingItem && targetItem && draggingItem !== targetItem) {
+            const targetSeriesIndex = parseInt(targetItem.dataset.seriesIndex);
+            const draggingSeriesIndex = parseInt(draggingItem.dataset.seriesIndex);
+            
+            // Only allow reordering within the same series
+            if (targetSeriesIndex === draggingSeriesIndex) {
+                const container = targetItem.parentElement;
+                const allItems = Array.from(container.querySelectorAll('.events-view-item'));
+                const draggingIndex = allItems.indexOf(draggingItem);
+                const targetIndex = allItems.indexOf(targetItem);
+                
+                if (draggingIndex < targetIndex) {
+                    targetItem.after(draggingItem);
+                } else {
+                    targetItem.before(draggingItem);
+                }
+            }
+        }
+    });
+    
+    container.addEventListener('drop', (e) => {
+        e.preventDefault();
+        
+        // Check if dropping a series
+        const draggingSeries = document.querySelector('.events-view-series.dragging');
+        if (draggingSeries) {
+            const allSeries = Array.from(container.querySelectorAll('.events-view-series'));
+            const newSeriesOrder = allSeries.map(seriesElement => {
+                const oldSeriesIndex = parseInt(seriesElement.dataset.seriesIndex);
+                return editorState.program.series[oldSeriesIndex];
+            });
+            
+            // Update the series array with new order
+            editorState.program.series = newSeriesOrder;
+            
+            // Clear collapsed state and rebuild with new indices
+            const wasCollapsed = Array.from(editorState.collapsedSeries);
+            editorState.collapsedSeries.clear();
+            wasCollapsed.forEach(oldIndex => {
+                const series = newSeriesOrder[oldIndex];
+                const newIndex = editorState.program.series.indexOf(series);
+                if (newIndex !== -1) {
+                    editorState.collapsedSeries.add(newIndex);
+                }
+            });
+            
+            // Re-render to update indices
+            renderEventsView();
+            renderTimelinePreview();
+            return;
+        }
+        
+        // Otherwise, handle event dropping
+        const draggingItem = document.querySelector('.events-view-item.dragging');
+        
+        if (draggingItem) {
+            const seriesIndex = parseInt(draggingItem.dataset.seriesIndex);
+            const listContainer = draggingItem.parentElement;
+            
+            // Get new order of events
+            const eventItems = Array.from(listContainer.querySelectorAll('.events-view-item'));
+            const newEventOrder = eventItems.map(item => {
+                const oldEventIndex = parseInt(item.dataset.eventIndex);
+                return editorState.program.series[seriesIndex].events[oldEventIndex];
+            });
+            
+            // Update the events array with new order
+            editorState.program.series[seriesIndex].events = newEventOrder;
+            
+            // Re-render to update indices
+            renderEventsView();
+            renderTimelinePreview();
+        }
+    });
+    
+    // Keyboard navigation
+    container.addEventListener('keydown', (e) => {
+        const focusedItem = document.activeElement.closest('.events-view-item');
+        if (!focusedItem) return;
+        
+        const seriesIndex = parseInt(focusedItem.dataset.seriesIndex);
+        const eventIndex = parseInt(focusedItem.dataset.eventIndex);
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            const nextItem = focusedItem.nextElementSibling;
+            if (nextItem && nextItem.classList.contains('events-view-item')) {
+                nextItem.focus();
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const prevItem = focusedItem.previousElementSibling;
+            if (prevItem && prevItem.classList.contains('events-view-item')) {
+                prevItem.focus();
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            openEventEditModal(seriesIndex, eventIndex);
+        } else if (e.key === 'Delete') {
+            e.preventDefault();
+            if (confirm('Delete this event?')) {
+                editorState.program.series[seriesIndex].events.splice(eventIndex, 1);
+                renderEventsView();
+                renderTimelinePreview();
+            }
+        }
+    });
+    
+    // Make event items focusable for keyboard navigation
+    container.querySelectorAll('.events-view-item').forEach(item => {
+        item.setAttribute('tabindex', '0');
+    });
+}
+
+/**
+ * Open modal to edit event details
+ */
+/**
+ * Open modal to edit series details
+ */
+function openSeriesEditModal(seriesIndex) {
+    const series = editorState.program.series[seriesIndex];
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Series ${seriesIndex + 1}</h2>
+                <button class="close-btn" id="close-series-modal">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group-inline">
+                    <label>Name:</label>
+                    <input type="text" id="series-modal-name" value="${series.name || ''}" placeholder="Series Name" />
+                </div>
+                <div class="form-group-inline">
+                    <label>Optional:</label>
+                    <div class="checkbox-group">
+                        <label>
+                            <input type="checkbox" id="series-modal-optional" ${series.optional ? 'checked' : ''} />
+                            <span>This series is optional</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="secondary" id="cancel-series-modal">Cancel</button>
+                <button class="primary" id="save-series-modal">Save</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Attach event listeners
+    const closeBtn = modal.querySelector('#close-series-modal');
+    const cancelBtn = modal.querySelector('#cancel-series-modal');
+    const saveBtn = modal.querySelector('#save-series-modal');
+    
+    const closeModal = () => {
+        document.body.removeChild(modal);
+    };
+    
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    
+    saveBtn.addEventListener('click', () => {
+        const name = modal.querySelector('#series-modal-name').value;
+        const optional = modal.querySelector('#series-modal-optional').checked;
+        
+        editorState.program.series[seriesIndex].name = name;
+        editorState.program.series[seriesIndex].optional = optional;
+        
+        closeModal();
+        renderEventsView();
+        renderTimelinePreview();
+    });
+    
+    // Focus the name input
+    setTimeout(() => {
+        modal.querySelector('#series-modal-name').focus();
+    }, 100);
+}
+
+/**
+ * Open modal to edit event details
+ */
+function openEventEditModal(seriesIndex, eventIndex) {
+    const event = editorState.program.series[seriesIndex].events[eventIndex];
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Event ${eventIndex + 1}</h2>
+                <button class="close-btn" id="close-event-modal">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group-inline">
+                    <label>Duration (ms):</label>
+                    <input type="number" id="event-modal-duration" value="${event.duration}" min="0" step="100" />
+                </div>
+                <div class="form-group-inline">
+                    <label>Command:</label>
+                    <div class="radio-group-inline">
+                        <label class="radio-label">
+                            <input type="radio" name="event-modal-command" value="show" ${event.command === 'show' ? 'checked' : ''} />
+                            Show
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="event-modal-command" value="hide" ${event.command === 'hide' ? 'checked' : ''} />
+                            Hide
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="event-modal-command" value="" ${!event.command ? 'checked' : ''} />
+                            No Change
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group-inline">
+                    <label>Audio IDs:</label>
+                    <div class="audio-input-container">
+                        <div class="audio-search-container">
+                            <input type="text" id="event-modal-audio-search" class="audio-search-input" placeholder="Search audios by ID or title..." />
+                            <div class="audio-suggestions" id="event-modal-audio-suggestions"></div>
+                        </div>
+                        <div class="selected-audios" id="event-modal-selected-audios">
+                            ${renderSelectedAudiosForModal(event.audio_ids || [])}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="secondary" id="cancel-event-modal">Cancel</button>
+                <button class="primary" id="save-event-modal">Save</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Attach event listeners
+    const closeBtn = modal.querySelector('#close-event-modal');
+    const cancelBtn = modal.querySelector('#cancel-event-modal');
+    const saveBtn = modal.querySelector('#save-event-modal');
+    const audioSearch = modal.querySelector('#event-modal-audio-search');
+    
+    const closeModal = () => {
+        document.body.removeChild(modal);
+    };
+    
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    
+    saveBtn.addEventListener('click', () => {
+        const duration = parseInt(modal.querySelector('#event-modal-duration').value);
+        const commandInput = modal.querySelector('input[name="event-modal-command"]:checked');
+        const command = commandInput ? (commandInput.value || null) : null;
+        
+        editorState.program.series[seriesIndex].events[eventIndex].duration = duration;
+        editorState.program.series[seriesIndex].events[eventIndex].command = command;
+        
+        closeModal();
+        renderEventsView();
+        renderTimelinePreview();
+    });
+    
+    // Audio search functionality
+    audioSearch.addEventListener('input', () => {
+        handleAudioSearchInModal(audioSearch, event.audio_ids || []);
+    });
+    
+    // Handle audio selection
+    modal.addEventListener('click', (e) => {
+        if (e.target.classList.contains('audio-suggestion-item-modal')) {
+            const audioId = parseInt(e.target.dataset.audioId);
+            if (!event.audio_ids) event.audio_ids = [];
+            if (!event.audio_ids.includes(audioId)) {
+                event.audio_ids.push(audioId);
+                modal.querySelector('#event-modal-selected-audios').innerHTML = renderSelectedAudiosForModal(event.audio_ids);
+                audioSearch.value = '';
+                modal.querySelector('#event-modal-audio-suggestions').innerHTML = '';
+            }
+        }
+        
+        if (e.target.classList.contains('remove-audio-btn-modal')) {
+            const audioIndex = parseInt(e.target.dataset.audioIndex);
+            event.audio_ids.splice(audioIndex, 1);
+            modal.querySelector('#event-modal-selected-audios').innerHTML = renderSelectedAudiosForModal(event.audio_ids);
+        }
+    });
+}
+
+/**
+ * Render selected audios for modal
+ */
+function renderSelectedAudiosForModal(audioIds) {
+    if (audioIds.length === 0) {
+        return '<p class="empty-message small">No audios selected</p>';
+    }
+    
+    return audioIds.map((audioId, audioIndex) => {
+        const audio = editorState.audios.find(a => a.id === audioId);
+        const title = audio ? audio.title : 'Unknown';
+        return `
+            <div class="selected-audio-item">
+                <span class="audio-label">${audioId} - ${title}</span>
+                <button class="remove-audio-btn-modal icon-only" data-audio-index="${audioIndex}" title="Remove Audio">
+                    <img src="/icons/delete_24_regular.svg" alt="Remove" width="18" height="18" />
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * Handle audio search in modal
+ */
+function handleAudioSearchInModal(input, selectedIds) {
+    const searchTerm = input.value.toLowerCase();
+    const suggestionsContainer = document.getElementById('event-modal-audio-suggestions');
+    
+    if (!searchTerm) {
+        suggestionsContainer.innerHTML = '';
+        suggestionsContainer.classList.remove('active');
+        return;
+    }
+    
+    // Fuzzy search in audios
+    const matches = editorState.audios.filter(audio => {
+        if (selectedIds.includes(audio.id)) return false;
+        
+        const idStr = audio.id.toString();
+        const titleLower = audio.title.toLowerCase();
+        
+        return idStr.includes(searchTerm) || titleLower.includes(searchTerm);
+    }).slice(0, 10);
+    
+    if (matches.length === 0) {
+        suggestionsContainer.innerHTML = '<div class="no-suggestions">No matches found</div>';
+    } else {
+        suggestionsContainer.innerHTML = matches.map(audio => `
+            <div class="audio-suggestion-item-modal" data-audio-id="${audio.id}">
+                ${audio.id} - ${audio.title}
+            </div>
+        `).join('');
+    }
+    
+    suggestionsContainer.classList.add('active');
+}
+
+/**
  * Handle audio search with fuzzy matching
  */
 function handleAudioSearch(input) {
@@ -1287,7 +2149,6 @@ export function initializeProgramEditorModal(onSaveCallback) {
     modal.innerHTML = `
         <div class="modal-content large">
             <div class="modal-header">
-                <h2 id="editor-title">Program Editor</h2>
                 <button id="close-editor-btn" class="close-btn">×</button>
             </div>
             <div id="program-editor-content" class="modal-body"></div>
