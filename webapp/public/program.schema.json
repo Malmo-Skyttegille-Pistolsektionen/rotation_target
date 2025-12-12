@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema#",
+  "$id": "program.schema.json",
+  "title": "Program",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "title",
+    "description",
+    "readonly",
+    "series"
+  ],
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "readonly": {
+      "type": "boolean"
+    },
+    "series": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Series"
+      }
+    }
+  },
+  "$defs": {
+    "Series": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "optional",
+        "events"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "optional": {
+          "type": "boolean",
+          "default": false
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Event"
+          }
+        }
+      }
+    },
+    "Event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "duration"
+      ],
+      "properties": {
+        "duration": {
+          "type": "integer",
+          "description": "Duration of the event in tenths of a second. For example: 1 = 0.1s, 2 = 0.2s, ..., 10 = 1.0s"
+        },
+        "command": {
+          "type": "string"
+        },
+        "audio_ids": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "description": "List of audio IDs associated with the event."
+        },
+        "target_system": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "description": "List of target system IDs associated with the event. If not specified, all target systems are affected."
+        },
+        "start": {
+          "type": "boolean",
+          "description": "Marks this event as the starting event in the series. Only one event per series may have start=true."
+        }
+      }
+    }
+  }
+}

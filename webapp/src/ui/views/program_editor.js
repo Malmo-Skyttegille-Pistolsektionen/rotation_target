@@ -8,6 +8,31 @@ import { renderTimeline, TimelineType } from './timeline.js';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-json.js';
 import 'prismjs/themes/prism.css';
+import Ajv from 'ajv';
+
+// JSON Schema validator setup
+let ajv = null;
+let validateSchema = null;
+let programSchema = null;
+
+// Initialize Ajv and load schema
+async function initSchemaValidator() {
+    if (!ajv) {
+        // Don't validate the schema itself, just use it
+        ajv = new Ajv({ 
+            allErrors: true, 
+            verbose: true,
+            validateSchema: false  // Skip validation of the schema itself
+        });
+        try {
+            const response = await fetch('/program.schema.json');
+            programSchema = await response.json();
+            validateSchema = ajv.compile(programSchema);
+        } catch (error) {
+            console.error('Failed to load JSON schema:', error);
+        }
+    }
+}
 
 // State for the editor
 let editorState = {
@@ -65,6 +90,9 @@ export async function openProgramEditor(program = null) {
     editorState.isEditing = program !== null;
     editorState.originalProgramId = program ? program.id : null;
     editorState.program = program ? JSON.parse(JSON.stringify(program)) : createEmptyProgram();
+    
+    // Initialize schema validator
+    await initSchemaValidator();
     
     // Load audios if not already cached
     if (editorState.audios.length === 0) {
@@ -392,12 +420,12 @@ function renderEditor() {
                 <button id="format-json-btn" class="primary small">Format JSON</button>
                 <span id="json-validation-status" class="json-validation-status"></span>
             </div>
+            <div id="json-error-message" class="json-error-message"></div>
             <div class="json-editor-wrapper">
                 <div class="json-line-numbers" id="json-line-numbers"></div>
                 <textarea id="json-editor-textarea" class="json-editor-textarea" spellcheck="false"></textarea>
                 <pre id="json-highlight-preview" class="json-highlight-preview" aria-hidden="true"><code id="json-highlight-code"></code></pre>
             </div>
-            <div id="json-error-message" class="json-error-message"></div>
         </div>
     `;
     
@@ -945,22 +973,95 @@ function validateJson() {
     
     if (!textarea) return;
     
+    // First, validate JSON syntax
+    let parsed;
     try {
-        const parsed = JSON.parse(textarea.value);
+        parsed = JSON.parse(textarea.value);
         editorState.jsonError = null;
-        statusElement.textContent = '✓ Valid JSON';
-        statusElement.className = 'json-validation-status valid';
-        errorElement.textContent = '';
-        errorElement.style.display = 'none';
-        return parsed;
     } catch (error) {
         editorState.jsonError = error.message;
-        statusElement.textContent = '✗ Invalid JSON';
+        statusElement.textContent = '✗ Invalid JSON Syntax';
         statusElement.className = 'json-validation-status invalid';
-        errorElement.textContent = `Error: ${error.message}`;
+        errorElement.textContent = `Syntax Error: ${error.message}`;
         errorElement.style.display = 'block';
         return null;
     }
+    
+    // If JSON syntax is valid, validate against schema
+    if (validateSchema) {
+        const valid = validateSchema(parsed);
+        
+        if (valid) {
+            statusElement.textContent = '✓ JSON complies with schema';
+            statusElement.className = 'json-validation-status valid';
+            errorElement.textContent = '';
+            errorElement.style.display = 'none';
+        } else {
+            // Schema validation failed
+            statusElement.textContent = '⚠ JSON does not comply with schema';
+            statusElement.className = 'json-validation-status warning';
+            
+            // Format schema validation errors with detailed information
+            const errors = validateSchema.errors || [];
+            const errorMessages = errors.map(err => {
+                const path = err.instancePath || '/';
+                let message = '';
+                
+                if (err.keyword === 'required') {
+                    const missingProp = err.params.missingProperty;
+                    message = `<strong>Path:</strong> <code>${escapeHtml(path)}</code><br>`;
+                    message += `<strong>Error:</strong> Missing required property <code>${escapeHtml(missingProp)}</code><br>`;
+                    message += `<strong>Fix:</strong> Add the missing property to the object`;
+                } else if (err.keyword === 'type') {
+                    const expectedType = err.params.type;
+                    const actualType = Array.isArray(err.data) ? 'array' : (err.data === null ? 'null' : typeof err.data);
+                    message = `<strong>Path:</strong> <code>${escapeHtml(path)}</code><br>`;
+                    message += `<strong>Error:</strong> Expected type <code>${escapeHtml(expectedType)}</code>, but got <code>${escapeHtml(actualType)}</code><br>`;
+                    message += `<strong>Current value:</strong> <code>${escapeHtml(JSON.stringify(err.data))}</code><br>`;
+                    message += `<strong>Fix:</strong> Change the value to be of type <code>${escapeHtml(expectedType)}</code>`;
+                } else if (err.keyword === 'enum') {
+                    const allowedValues = err.params.allowedValues || [];
+                    message = `<strong>Path:</strong> <code>${escapeHtml(path)}</code><br>`;
+                    message += `<strong>Error:</strong> Value must be one of: ${allowedValues.map(v => `<code>${escapeHtml(JSON.stringify(v))}</code>`).join(', ')}<br>`;
+                    message += `<strong>Current value:</strong> <code>${escapeHtml(JSON.stringify(err.data))}</code><br>`;
+                    message += `<strong>Fix:</strong> Use one of the allowed values`;
+                } else if (err.keyword === 'additionalProperties') {
+                    const additionalProp = err.params.additionalProperty;
+                    message = `<strong>Path:</strong> <code>${escapeHtml(path)}</code><br>`;
+                    message += `<strong>Error:</strong> Additional property <code>${escapeHtml(additionalProp)}</code> is not allowed<br>`;
+                    message += `<strong>Fix:</strong> Remove the <code>${escapeHtml(additionalProp)}</code> property`;
+                } else if (err.keyword === 'minimum' || err.keyword === 'maximum') {
+                    const limit = err.params.limit;
+                    const comparison = err.params.comparison || (err.keyword === 'minimum' ? '>=' : '<=');
+                    message = `<strong>Path:</strong> <code>${escapeHtml(path)}</code><br>`;
+                    message += `<strong>Error:</strong> Value must be ${escapeHtml(comparison)} ${limit}<br>`;
+                    message += `<strong>Current value:</strong> <code>${escapeHtml(JSON.stringify(err.data))}</code><br>`;
+                    message += `<strong>Fix:</strong> Change the value to meet the constraint`;
+                } else {
+                    // Generic error format
+                    message = `<strong>Path:</strong> <code>${escapeHtml(path)}</code><br>`;
+                    message += `<strong>Error:</strong> ${escapeHtml(err.message || 'Validation failed')}<br>`;
+                    if (err.data !== undefined) {
+                        message += `<strong>Current value:</strong> <code>${escapeHtml(JSON.stringify(err.data))}</code><br>`;
+                    }
+                    message += `<strong>Fix:</strong> Check the value against the schema requirements`;
+                }
+                
+                return message;
+            });
+            
+            errorElement.innerHTML = `<strong>Schema Validation Errors (${errors.length}):</strong><div class="schema-error-list">${errorMessages.map(msg => `<div class="schema-error-item">${msg}</div>`).join('')}</div>`;
+            errorElement.style.display = 'block';
+        }
+    } else {
+        // Schema not loaded yet, only show JSON syntax validation
+        statusElement.textContent = '✓ Valid JSON (Schema not loaded)';
+        statusElement.className = 'json-validation-status valid';
+        errorElement.textContent = '';
+        errorElement.style.display = 'none';
+    }
+    
+    return parsed;
 }
 
 /**

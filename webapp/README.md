@@ -13,6 +13,10 @@ This is a development setup for the MSG rotation target system frontend using:
 - View and track real-time program status
 - Program Editor with multiple views (Form, Events, Timeline, Preview, JSON)
 - JSON editor with syntax highlighting (powered by Prism.js)
+- JSON Schema validation in the JSON editor tab (powered by Ajv)
+  - Real-time validation against the program schema
+  - Clear error messages for schema violations
+  - Differentiates between JSON syntax errors and schema compliance issues
 - Built-in mock server for development
 
 ## File Overview
