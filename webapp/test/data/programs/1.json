@@ -10,26 +10,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            50,
-            1,
-            28
-          ],
+          "audio_ids": [50, 1, 28],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 10000,
@@ -41,18 +33,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -62,24 +48,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            64
-          ],
+          "audio_ids": [64],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 10000,
@@ -91,18 +71,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -112,24 +86,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            65
-          ],
+          "audio_ids": [65],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 10000,
@@ -141,18 +109,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -162,24 +124,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            66
-          ],
+          "audio_ids": [66],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 10000,
@@ -191,18 +147,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -212,24 +162,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            67
-          ],
+          "audio_ids": [67],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 10000,
@@ -241,18 +185,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -262,24 +200,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            84
-          ],
+          "audio_ids": [84],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 10000,
@@ -291,18 +223,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -312,24 +238,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            85
-          ],
+          "audio_ids": [85],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 10000,
@@ -341,18 +261,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -362,24 +276,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            68
-          ],
+          "audio_ids": [68],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 8000,
@@ -391,18 +299,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -412,24 +314,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            69
-          ],
+          "audio_ids": [69],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 8000,
@@ -441,18 +337,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -462,24 +352,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            70
-          ],
+          "audio_ids": [70],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 8000,
@@ -491,18 +375,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -512,24 +390,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            71
-          ],
+          "audio_ids": [71],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 8000,
@@ -541,18 +413,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -562,24 +428,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            86
-          ],
+          "audio_ids": [86],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 8000,
@@ -591,18 +451,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -612,24 +466,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            87
-          ],
+          "audio_ids": [87],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 8000,
@@ -641,18 +489,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -662,24 +504,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            72
-          ],
+          "audio_ids": [72],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 6000,
@@ -691,18 +527,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -712,24 +542,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            73
-          ],
+          "audio_ids": [73],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 6000,
@@ -741,18 +565,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -762,24 +580,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            74
-          ],
+          "audio_ids": [74],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 6000,
@@ -791,18 +603,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -812,24 +618,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            75
-          ],
+          "audio_ids": [75],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 6000,
@@ -841,18 +641,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -862,24 +656,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            88
-          ],
+          "audio_ids": [88],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 6000,
@@ -891,18 +679,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     },
@@ -912,24 +694,18 @@
       "events": [
         {
           "duration": 5000,
-          "audio_ids": [
-            89
-          ],
+          "audio_ids": [89],
           "command": "show"
         },
         {
           "duration": 60000,
-          "audio_ids": [
-            26
-          ],
+          "audio_ids": [26],
           "command": "show"
         },
         {
           "duration": 7000,
           "command": "hide",
-          "audio_ids": [
-            31
-          ]
+          "audio_ids": [31]
         },
         {
           "duration": 6000,
@@ -941,18 +717,12 @@
         },
         {
           "duration": 3000,
-          "audio_ids": [
-            34
-          ]
+          "audio_ids": [34]
         },
         {
           "duration": 1000,
           "command": "show",
-          "audio_ids": [
-            37,
-            36,
-            39
-          ]
+          "audio_ids": [37, 36, 39]
         }
       ]
     }

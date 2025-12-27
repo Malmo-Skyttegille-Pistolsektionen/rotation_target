@@ -1,50 +1,91 @@
-# MSG Shooting Target Frontend - Web App
+# Rotation Target Frontend Webapp
 
-This is a development setup for the MSG rotation target system frontend using:
+This project is a frontend application for controlling rotating targets for Malmö Skyttegille shooting club. The system communicates with an ESP32 backend via REST API and Server-Sent Events (SSE).
 
-- REST API (OpenAPI 3.1.0)
-- Server-Sent Events (SSE) for real-time updates
-- Mock backend using Vite middleware
+## Tech Stack
+
+- **Language:** TypeScript
+- **Framework:** React 19
+- **Routing:** TanStack Router
+- **State/Data:** TanStack Query
+- **Build Tool:** Vite
+- **Package Manager:** Yarn 4 (with PnP and strict security)
+- **Styling:** CSS Modules (CLSX)
+- **Linting/Formatting:** ESLint, Prettier
 
 ## Features
 
-- Load and run shooting programs
-- Upload and delete audio files
-- View and track real-time program status
-- Program Editor with multiple views (Form, Events, Timeline, Preview, JSON)
-- JSON editor with syntax highlighting (powered by Prism.js)
-- JSON Schema validation in the JSON editor tab (powered by Ajv)
-  - Real-time validation against the program schema
-  - Clear error messages for schema violations
-  - Differentiates between JSON syntax errors and schema compliance issues
-- Built-in mock server for development
+The web app has the following main features:
 
-## File Overview
+1.  **Run Tab:**
+    - Load programs (shooting series).
+    - Start/stop series.
+    - Show timeline and stopwatch for series.
+    - Manual target control (Show/Hide).
+    - Real-time updates from hardware via SSE.
 
-| File              | Purpose                                                   |
-|-------------------|-----------------------------------------------------------|
-| `vite.config.ts`  | Vite plugin with REST and SSE mock logic                  |
-| `main.js`         | Application shell wiring up program selection and control |
-| `rest-client.js`  | All REST API interactions from OpenAPI spec               |
-| `sse-client.js`   | SSE connection + event type map                           |
-| `integration-ui.js` | UI logic for audio uploads, status rendering, etc.       |
+2.  **Audio Tab:**
+    - Upload audio files to hardware.
+    - Play audio (for testing).
+    - Manage audio library.
 
-## SSE Events Handled
+3.  **Programs Tab:**
+    - Create and edit shooting programs.
+    - Upload programs to hardware.
 
-- `program_loaded`
-- `series_started`
-- `event_started`
-- `series_completed`
-- `series_skipped`
-- `program_completed`
-- `sts_status`
+4.  **Settings Tab:**
+    - Configure backend IP address.
+    - Admin mode.
 
 ## Development
 
-Start your Vite dev server and the mock server will intercept requests automatically.
+### Start dev server
 
-```
-npm run dev
+```bash
+yarn dev
 ```
 
-Then access the web application on http://localhost:5173/
+This starts the Vite server at `http://localhost:8080`.
+A built-in **Mock Server** simulates the hardware API and SSE streams, so you can develop without physical hardware.
+
+### Build for production
+
+```bash
+yarn build
+```
+
+This generates an optimized build in the `dist/` folder.
+
+### Code style
+
+The project uses strict ESLint and Prettier.
+
+```bash
+yarn lint
+yarn format
+```
+
+## UI/UX
+
+Primary audience is tablet and mobile, which requires larger, touch-friendly buttons and controls.
+
+## Project Structure
+
+- `src/`: Source code (React)
+  - `routes/`: Application routes (TanStack Router)
+  - `components/`: Reusable components
+  - `hooks/`: Custom hooks (e.g. useSSE)
+  - `api/`: API clients and types
+- `vite-plugins/`: Mock server and other Vite plugins
+- `src_legacy/`: Legacy codebase (reference)
+
+## Security
+
+The project is configured to minimize supply-chain attack risk:
+
+- Yarn 4 with `enableScripts: false` (no postinstall scripts run automatically).
+- Dependencies are locked via `yarn.lock`.
+
+## Contact
+
+Project maintained by MSG.

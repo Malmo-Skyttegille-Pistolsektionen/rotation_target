@@ -1,0 +1,178 @@
+import { createFileRoute } from '@tanstack/react-router';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { useState } from 'react';
+import clsx from 'clsx';
+import { programsApi } from '../api/programs';
+import type { StateUpdatePayload } from '../api/types';
+import { Timeline } from '../components/Timeline';
+import styles from './run.module.css';
+
+export const Route = createFileRoute('/run')({
+  component: RunView,
+});
+
+function RunView(): React.ReactNode {
+  const [timelineMode, setTimelineMode] = useState<'auto' | 'default' | 'field'>('auto');
+
+  const { data: programs } = useQuery({
+    queryKey: ['programs'],
+    queryFn: programsApi.list,
+  });
+
+  const { data: state } = useQuery<StateUpdatePayload | null>({
+    queryKey: ['state'],
+    queryFn: async () => null,
+    initialData: null,
+    enabled: false,
+  });
+
+  const loadedProgramId = state?.loadedProgramId ?? null;
+  const currentSeriesIndex = state?.programState?.currentSeriesIndex;
+  const currentEventIndex = state?.programState?.currentEventIndex;
+  const tickerSeconds = state?.programState?.tickerSeconds;
+  const isRunning = state?.programState?.running ?? false;
+
+  const { data: loadedProgram } = useQuery({
+    queryKey: ['program', loadedProgramId],
+    queryFn: () => programsApi.get(loadedProgramId!),
+    enabled: loadedProgramId != null,
+    staleTime: Infinity,
+  });
+
+  const activeProgram = loadedProgram ?? null;
+
+  const loadMutation = useMutation({
+    mutationFn: programsApi.load,
+  });
+
+  const skipToSeriesMutation = useMutation({
+    mutationFn: programsApi.skipToSeries,
+  });
+
+  const startMutation = useMutation({
+    mutationFn: programsApi.start,
+  });
+
+  const stopMutation = useMutation({
+    mutationFn: programsApi.stop,
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: programsApi.reset,
+  });
+
+  const toggleTargetsMutation = useMutation({
+    mutationFn: programsApi.toggleTargets,
+  });
+
+  const handleProgramChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
+    const id = Number(e.target.value);
+    if (id) {
+      loadMutation.mutate(id);
+    }
+  };
+
+  const handleSeriesChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
+    const index = Number(e.target.value);
+    if (!isNaN(index)) {
+      skipToSeriesMutation.mutate(index);
+    }
+  };
+
+  const handleStart = (): void => startMutation.mutate();
+  const handlePause = (): void => stopMutation.mutate();
+  const handleReset = (): void => resetMutation.mutate();
+  const handleToggleTargets = (): void => toggleTargetsMutation.mutate();
+
+  return (
+    <div className={styles.container}>
+      <h2>Run Program</h2>
+
+      <div className={styles.controls}>
+        <select
+          className={styles.select}
+          value={loadedProgramId ?? ''}
+          onChange={handleProgramChange}
+          disabled={loadMutation.isPending}
+        >
+          <option value='' disabled>
+            Choose program
+          </option>
+          {programs?.map((program) => (
+            <option key={program.id} value={program.id}>
+              {program.title} {program.id === loadedProgramId ? '(Loaded)' : ''}
+            </option>
+          ))}
+        </select>
+
+        {loadMutation.isPending && <span>Loading...</span>}
+
+        {activeProgram && (
+          <select
+            className={styles.select}
+            value={currentSeriesIndex ?? 0}
+            onChange={handleSeriesChange}
+            disabled={isRunning}
+          >
+            <option value='' disabled>
+              Choose a series
+            </option>
+            {activeProgram.series.map((series, index) => (
+              <option key={index} value={index}>
+                {series.name} {series.optional ? '(optional)' : ''}
+              </option>
+            ))}
+          </select>
+        )}
+
+        <select
+          className={styles.select}
+          value={timelineMode}
+          onChange={(e) => setTimelineMode(e.target.value as 'auto' | 'default' | 'field')}
+        >
+          <option value='auto'>Timeline: Auto</option>
+          <option value='default'>Timeline: Event-based</option>
+          <option value='field'>Timeline: Time-scaled</option>
+        </select>
+      </div>
+
+      <div className={styles.statusPanel}>
+        <h3>Status</h3>
+        <p>Current Program ID: {loadedProgramId ?? 'None'}</p>
+        <p>Targets: {state?.targetStatus}</p>
+
+        {tickerSeconds != null && <div className={styles.chrono}>Time: {tickerSeconds}s</div>}
+
+        <div className={styles.controls}>
+          {!isRunning ? (
+            <button className={clsx(styles.button)} onClick={handleStart} disabled={!loadedProgramId}>
+              Start
+            </button>
+          ) : (
+            <button className={clsx(styles.button)} onClick={handlePause}>
+              Pause
+            </button>
+          )}
+
+          <button className={clsx(styles.button)} onClick={handleReset} disabled={!loadedProgramId || isRunning}>
+            Reset
+          </button>
+
+          <button className={clsx(styles.button)} onClick={handleToggleTargets}>
+            Toggle Targets
+          </button>
+        </div>
+      </div>
+
+      {activeProgram && (
+        <Timeline
+          program={activeProgram}
+          currentSeriesIndex={currentSeriesIndex ?? null}
+          currentEventIndex={currentEventIndex ?? null}
+          tickerSeconds={tickerSeconds ?? null}
+          mode={timelineMode}
+        />
+      )}
+    </div>
+  );
+}

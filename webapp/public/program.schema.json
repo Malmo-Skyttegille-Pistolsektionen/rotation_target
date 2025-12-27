@@ -4,13 +4,7 @@
   "title": "Program",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "id",
-    "title",
-    "description",
-    "readonly",
-    "series"
-  ],
+  "required": ["id", "title", "description", "readonly", "series"],
   "properties": {
     "id": {
       "type": "integer"
@@ -35,11 +29,7 @@
     "Series": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "name",
-        "optional",
-        "events"
-      ],
+      "required": ["name", "optional", "events"],
       "properties": {
         "name": {
           "type": "string"
@@ -59,9 +49,7 @@
     "Event": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "duration"
-      ],
+      "required": ["duration"],
       "properties": {
         "duration": {
           "type": "integer",
