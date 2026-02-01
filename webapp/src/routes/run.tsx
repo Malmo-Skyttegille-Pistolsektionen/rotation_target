@@ -2,11 +2,12 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useState, useEffect, useRef } from 'react';
 import clsx from 'clsx';
-import { programsApi } from '../api/programs';
+import { useProgramsApi } from '../api/programs';
 import type { StateUpdatePayload } from '../api/types';
 import { Timeline } from '../components/Timeline';
 import { CountdownModal } from '../components/CountdownModal';
 import { useSettings } from '../context/SettingsContext';
+import { useAdminStatus } from '../hooks/useAdminStatus';
 import styles from './run.module.css';
 
 export const Route = createFileRoute('/run')({
@@ -18,8 +19,15 @@ function RunView(): React.ReactNode {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showCountdownModal, setShowCountdownModal] = useState(false);
   const { settings } = useSettings();
+  const { adminModeEnabled } = useAdminStatus();
+  const { adminToken } = useSettings();
   const { startDelaySeconds } = settings;
   const countdownRef = useRef<number | null>(null);
+  const programsApi = useProgramsApi();
+
+  // Check if user can control (admin mode off OR authenticated)
+  const isAdminAuthenticated = adminModeEnabled && adminToken !== null;
+  const canControl = !adminModeEnabled || isAdminAuthenticated;
 
   const { data: programs } = useQuery({
     queryKey: ['programs'],
@@ -176,77 +184,113 @@ function RunView(): React.ReactNode {
 
         <div className={styles.controlsRow}>
           <div className={styles.inputsGroup}>
-            <select
-              className={styles.select}
-              value={loadedProgramId ?? ''}
-              onChange={handleProgramChange}
-              disabled={loadMutation.isPending}
-            >
-              <option value='' disabled>
-                Choose program
-              </option>
-              {programs?.map((program) => (
-                <option key={program.id} value={program.id}>
-                  {program.title} {program.id === loadedProgramId ? '(Loaded)' : ''}
-                </option>
-              ))}
-            </select>
-
-            {activeProgram && (
-              <select
-                className={styles.select}
-                value={currentSeriesIndex ?? 0}
-                onChange={handleSeriesChange}
-                disabled={isRunning}
-              >
-                <option value='' disabled>
-                  Choose a series
-                </option>
-                {activeProgram.series.map((series, index) => (
-                  <option key={index} value={index}>
-                    {series.name} {series.optional ? '(optional)' : ''}
+            {canControl ? (
+              <>
+                <select
+                  className={styles.select}
+                  value={loadedProgramId ?? ''}
+                  onChange={handleProgramChange}
+                  disabled={loadMutation.isPending}
+                >
+                  <option value='' disabled>
+                    Choose program
                   </option>
-                ))}
-              </select>
-            )}
+                  {programs?.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.title} {program.id === loadedProgramId ? '(Loaded)' : ''}
+                    </option>
+                  ))}
+                </select>
 
-            <select
-              className={styles.select}
-              value={timelineMode}
-              onChange={(e) => setTimelineMode(e.target.value as 'auto' | 'default' | 'field')}
-            >
-              <option value='auto'>Timeline: Auto</option>
-              <option value='default'>Timeline: Event-based</option>
-              <option value='field'>Timeline: Time-scaled</option>
-            </select>
+                {activeProgram && (
+                  <select
+                    className={styles.select}
+                    value={currentSeriesIndex ?? 0}
+                    onChange={handleSeriesChange}
+                    disabled={isRunning}
+                  >
+                    <option value='' disabled>
+                      Choose a series
+                    </option>
+                    {activeProgram.series.map((series, index) => (
+                      <option key={index} value={index}>
+                        {series.name} {series.optional ? '(optional)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                <select
+                  className={styles.select}
+                  value={timelineMode}
+                  onChange={(e) => setTimelineMode(e.target.value as 'auto' | 'default' | 'field')}
+                >
+                  <option value='auto'>Timeline: Auto</option>
+                  <option value='default'>Timeline: Event-based</option>
+                  <option value='field'>Timeline: Time-scaled</option>
+                </select>
+              </>
+            ) : (
+              <div className={styles.readOnlyInfo}>
+                <div className={styles.readOnlyItem}>
+                  <span className={styles.readOnlyLabel}>Program:</span>
+                  <span className={styles.readOnlyValue}>
+                    {programs?.find((p) => p.id === loadedProgramId)?.title ?? 'None loaded'}
+                  </span>
+                </div>
+                {activeProgram && currentSeriesIndex != null && (
+                  <div className={styles.readOnlyItem}>
+                    <span className={styles.readOnlyLabel}>Series:</span>
+                    <span className={styles.readOnlyValue}>
+                      {activeProgram.series[currentSeriesIndex]?.name ?? '-'}
+                    </span>
+                  </div>
+                )}
+                <div className={styles.readOnlyItem}>
+                  <span className={styles.readOnlyLabel}>Timeline:</span>
+                  <span className={styles.readOnlyValue}>
+                    {timelineMode === 'auto' ? 'Auto' : timelineMode === 'default' ? 'Event-based' : 'Time-scaled'}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className={styles.actionsGroup}>
-            {!isRunning ? (
-              <button
-                className={clsx(styles.button, styles.buttonStart)}
-                onClick={handleStart}
-                disabled={!loadedProgramId}
-              >
-                Start
-              </button>
+            {canControl ? (
+              <>
+                {!isRunning ? (
+                  <button
+                    className={clsx(styles.button, styles.buttonStart)}
+                    onClick={handleStart}
+                    disabled={!loadedProgramId}
+                  >
+                    Start
+                  </button>
+                ) : (
+                  <button className={clsx(styles.button, styles.buttonPause)} onClick={handlePause}>
+                    Pause
+                  </button>
+                )}
+
+                <button
+                  className={clsx(styles.button, styles.buttonDestructiveGhost)}
+                  onClick={handleReset}
+                  disabled={!loadedProgramId || isRunning}
+                >
+                  Reset
+                </button>
+
+                <button className={clsx(styles.button, styles.buttonSecondary)} onClick={handleToggleTargets}>
+                  Toggle Targets
+                </button>
+              </>
             ) : (
-              <button className={clsx(styles.button, styles.buttonPause)} onClick={handlePause}>
-                Pause
-              </button>
+              <div className={styles.viewOnlyBadge}>
+                <span className={styles.viewOnlyIcon}>👁</span>
+                <span>View Only - Login as admin to control</span>
+              </div>
             )}
-
-            <button
-              className={clsx(styles.button, styles.buttonDestructiveGhost)}
-              onClick={handleReset}
-              disabled={!loadedProgramId || isRunning}
-            >
-              Reset
-            </button>
-
-            <button className={clsx(styles.button, styles.buttonSecondary)} onClick={handleToggleTargets}>
-              Toggle Targets
-            </button>
           </div>
         </div>
       </div>

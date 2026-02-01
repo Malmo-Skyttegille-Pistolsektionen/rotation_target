@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 
 const STORAGE_PREFIX = 'rt_settings_';
 const STORAGE_KEYS = {
@@ -23,6 +23,7 @@ export interface SettingsContextType {
   setServerBaseUrl: (url: string) => void;
   setStartDelaySeconds: (seconds: number) => void;
   setAdminToken: (token: string | null) => void;
+  logoutAdmin: () => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
@@ -57,25 +58,30 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     return localStorage.getItem(STORAGE_KEYS.adminToken);
   });
 
-  const setServerBaseUrl = useCallback((url: string): void => {
+  function setServerBaseUrl(url: string): void {
     localStorage.setItem(STORAGE_KEYS.serverBaseUrl, url);
     setSettings((prev) => ({ ...prev, serverBaseUrl: url }));
-  }, []);
+  }
 
-  const setStartDelaySeconds = useCallback((seconds: number): void => {
+  function setStartDelaySeconds(seconds: number): void {
     const validSeconds = Math.max(1, Math.min(60, seconds));
     localStorage.setItem(STORAGE_KEYS.startDelaySeconds, String(validSeconds));
     setSettings((prev) => ({ ...prev, startDelaySeconds: validSeconds }));
-  }, []);
+  }
 
-  const setAdminToken = useCallback((token: string | null): void => {
+  function setAdminToken(token: string | null): void {
     if (token) {
       localStorage.setItem(STORAGE_KEYS.adminToken, token);
     } else {
       localStorage.removeItem(STORAGE_KEYS.adminToken);
     }
     setAdminTokenState(token);
-  }, []);
+  }
+
+  function logoutAdmin(): void {
+    localStorage.removeItem(STORAGE_KEYS.adminToken);
+    setAdminTokenState(null);
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -102,6 +108,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     setServerBaseUrl,
     setStartDelaySeconds,
     setAdminToken,
+    logoutAdmin,
   };
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

@@ -93,6 +93,7 @@ import styles from './component.module.css';
 
 - Functional components only
 - Use React Compiler (automatic memoization)
+- **Never use `useCallback` or `useMemo`** - React Compiler handles memoization automatically
 - Colocate CSS modules with components
 - **Never use one-line early returns** - always use explicit blocks
 
@@ -373,3 +374,17 @@ Do NOT update when:
 - Use class components
 - Create global CSS (use CSS modules)
 - Skip TypeScript types
+
+## Implementation Protocol
+
+**Always ask for explicit confirmation before starting implementation.**
+
+When a plan is created and ready for development:
+
+1. Present the plan to the user
+2. Wait for explicit confirmation (e.g., "yes", "go ahead", "implement it")
+3. Only then begin implementation
+
+This ensures the user has a chance to review and approve the approach before code changes are made.
+
+**Exception:** Minor, clearly understood changes (single file edits, obvious bug fixes) may proceed without explicit confirmation.

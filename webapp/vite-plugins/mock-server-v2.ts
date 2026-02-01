@@ -22,7 +22,6 @@ const API_PREFIX = '/api/v2';
 const SSE_PATH = '/sse/v2';
 const HEARTBEAT_INTERVAL = 10000; // 10 seconds
 const TICK_INTERVAL = 1000; // 1 second
-const ADMIN_PASSWORD = 'admin';
 
 // --- Server State (completely separate from v1) ---
 interface ServerState {
@@ -135,10 +134,9 @@ function parseCookies(req: IncomingMessage): Record<string, string> {
 }
 
 function checkAdminAuth(req: IncomingMessage, res: ServerResponse): boolean {
+  // If admin mode is disabled, allow all requests
   if (!isAdminEnabled()) {
-    res.writeHead(401, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Admin mode not enabled' }));
-    return false;
+    return true;
   }
 
   // Check Authorization header first
@@ -306,14 +304,9 @@ export function mockServerV2Plugin(): Plugin[] {
 
           // GET /admin-mode/status
           if (path === '/admin-mode/status' && req.method === 'GET') {
-            // Check if request has valid admin auth
-            const auth = req.headers['authorization'];
-            const cookies = parseCookies(req);
-            const hasValidAuth =
-              (auth && auth.startsWith('Bearer ') && auth.slice(7) === state.adminModeToken) ||
-              cookies['admin'] === state.adminModeToken;
-
-            jsonResponse(res, 200, { enabled: isAdminEnabled() && hasValidAuth });
+            // Return admin mode status without requiring auth
+            // All clients need to know if admin mode is enabled
+            jsonResponse(res, 200, { enabled: isAdminEnabled() });
             return;
           }
 
@@ -322,7 +315,7 @@ export function mockServerV2Plugin(): Plugin[] {
             const body = await parseBody(req);
             try {
               const data = JSON.parse(body);
-              if (data.password === ADMIN_PASSWORD) {
+              if (typeof data.password === 'string' && data.password.length > 0) {
                 state.adminModeToken = Math.random().toString(36).slice(2) + Date.now();
                 res.setHeader('Set-Cookie', `admin=${state.adminModeToken}; Path=/; SameSite=Lax`);
                 jsonResponse(res, 200, { token: state.adminModeToken });
@@ -343,12 +336,9 @@ export function mockServerV2Plugin(): Plugin[] {
             return;
           }
 
-          // --- All other endpoints require admin ---
-          if (!checkAdminAuth(req, res)) return;
-
           // --- Programs Endpoints ---
 
-          // GET /programs
+          // GET /programs - No auth required (read-only)
           if (path === '/programs' && req.method === 'GET') {
             const list: ProgramSummary[] = Object.values(programs).map((p) => ({
               id: p.id,
@@ -360,7 +350,7 @@ export function mockServerV2Plugin(): Plugin[] {
             return;
           }
 
-          // GET /programs/{id}
+          // GET /programs/{id} - No auth required (read-only)
           const programGetMatch = path.match(/^\/programs\/(\d+)$/);
           if (programGetMatch && req.method === 'GET') {
             const id = parseInt(programGetMatch[1], 10);
@@ -373,9 +363,10 @@ export function mockServerV2Plugin(): Plugin[] {
             return;
           }
 
-          // POST /programs/{id}/load
+          // POST /programs/{id}/load - Requires auth
           const programLoadMatch = path.match(/^\/programs\/(\d+)\/load$/);
           if (programLoadMatch && req.method === 'POST') {
+            if (!checkAdminAuth(req, res)) return;
             const id = parseInt(programLoadMatch[1], 10);
             const program = programs[id];
             if (!program) {
@@ -397,8 +388,9 @@ export function mockServerV2Plugin(): Plugin[] {
             return;
           }
 
-          // POST /programs/start
+          // POST /programs/start - Requires auth
           if (path === '/programs/start' && req.method === 'POST') {
+            if (!checkAdminAuth(req, res)) return;
             if (!state.loadedProgram || !state.programState) {
               jsonResponse(res, 400, { error: 'No program loaded' });
               return;
@@ -428,8 +420,9 @@ export function mockServerV2Plugin(): Plugin[] {
             return;
           }
 
-          // POST /programs/stop
+          // POST /programs/stop - Requires auth
           if (path === '/programs/stop' && req.method === 'POST') {
+            if (!checkAdminAuth(req, res)) return;
             if (!state.programState?.running) {
               jsonResponse(res, 400, { error: 'Program not running' });
               return;
@@ -444,8 +437,9 @@ export function mockServerV2Plugin(): Plugin[] {
             return;
           }
 
-          // POST /programs/reset
+          // POST /programs/reset - Requires auth
           if (path === '/programs/reset' && req.method === 'POST') {
+            if (!checkAdminAuth(req, res)) return;
             if (!state.loadedProgram || !state.programState) {
               jsonResponse(res, 400, { error: 'No program loaded' });
               return;
@@ -462,10 +456,11 @@ export function mockServerV2Plugin(): Plugin[] {
             return;
           }
 
-          // POST /programs/series/{idx}/skip_to
+          // POST /programs/series/{idx}/skip_to - Requires auth
           // skip_to index bounds: 0 <= idx < series.length, else 400
           const skipToMatch = path.match(/^\/programs\/series\/(\d+)\/skip_to$/);
           if (skipToMatch && req.method === 'POST') {
+            if (!checkAdminAuth(req, res)) return;
             const idx = parseInt(skipToMatch[1], 10);
 
             if (!state.loadedProgram || !state.programState) {
@@ -491,24 +486,27 @@ export function mockServerV2Plugin(): Plugin[] {
 
           // --- Targets Endpoints ---
 
-          // POST /targets/show
+          // POST /targets/show - Requires auth
           if (path === '/targets/show' && req.method === 'POST') {
+            if (!checkAdminAuth(req, res)) return;
             state.targetStatus = 'shown';
             broadcastState();
             jsonResponse(res, 200, { message: 'Targets shown' });
             return;
           }
 
-          // POST /targets/hide
+          // POST /targets/hide - Requires auth
           if (path === '/targets/hide' && req.method === 'POST') {
+            if (!checkAdminAuth(req, res)) return;
             state.targetStatus = 'hidden';
             broadcastState();
             jsonResponse(res, 200, { message: 'Targets hidden' });
             return;
           }
 
-          // POST /targets/toggle
+          // POST /targets/toggle - Requires auth
           if (path === '/targets/toggle' && req.method === 'POST') {
+            if (!checkAdminAuth(req, res)) return;
             state.targetStatus = state.targetStatus === 'shown' ? 'hidden' : 'shown';
             broadcastState();
             jsonResponse(res, 200, { message: `Targets ${state.targetStatus}` });
@@ -525,7 +523,9 @@ export function mockServerV2Plugin(): Plugin[] {
 
           // POST /audios/{id}/play
           const audioPlayMatch = path.match(/^\/audios\/(\d+)\/play$/);
+          // POST /audios/{id}/play - Requires auth
           if (audioPlayMatch && req.method === 'POST') {
+            if (!checkAdminAuth(req, res)) return;
             const id = parseInt(audioPlayMatch[1], 10);
             const audio = audios.find((a) => a.id === id);
             if (!audio) {

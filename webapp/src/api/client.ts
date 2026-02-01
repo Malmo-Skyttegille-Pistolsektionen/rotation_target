@@ -1,11 +1,8 @@
 import { useSettings } from '../context/SettingsContext';
 
 const DEFAULT_BASE_URL = 'http://localhost:8080';
-const ADMIN_PASSWORD = 'admin';
 
 let dynamicBaseUrl = DEFAULT_BASE_URL;
-let adminEnabled = false;
-let adminEnabling: Promise<void> | null = null;
 
 export function getApiBaseUrl(): string {
   return `${dynamicBaseUrl}/api/v2`;
@@ -17,37 +14,17 @@ export function getSseBaseUrl(): string {
 
 export function updateBaseUrl(url: string): void {
   dynamicBaseUrl = url;
-  adminEnabled = false;
-  adminEnabling = null;
 }
 
 export function initializeBaseUrl(url: string): void {
   dynamicBaseUrl = url;
 }
 
-async function enableAdminMode(): Promise<void> {
-  if (adminEnabled) return;
-  if (!adminEnabling) {
-    adminEnabling = fetch(`${getApiBaseUrl()}/admin-mode/enable`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: ADMIN_PASSWORD }),
-      credentials: 'include',
-    }).then((response) => {
-      if (!response.ok) {
-        throw new Error(`Admin enable failed: ${response.statusText}`);
-      }
-      adminEnabled = true;
-    });
-  }
-  await adminEnabling;
-}
-
 async function request<T>(
   endpoint: string,
   options?: RequestInit,
-  hasRetried = false,
   adminToken?: string | null,
+  onAuthError?: () => void,
 ): Promise<T> {
   const headers: Record<string, string> = {};
 
@@ -69,10 +46,9 @@ async function request<T>(
   });
 
   if (!response.ok) {
-    if (response.status === 401 && !hasRetried && !endpoint.startsWith('/admin-mode')) {
-      adminEnabled = false;
-      await enableAdminMode();
-      return request<T>(endpoint, options, true, adminToken);
+    // If 401 and we have a token, the token is invalid (password changed)
+    if (response.status === 401 && adminToken && onAuthError) {
+      onAuthError();
     }
     throw new Error(`API Error: ${response.statusText}`);
   }
@@ -81,16 +57,26 @@ async function request<T>(
   return text ? JSON.parse(text) : ({} as T);
 }
 
+// For use outside of React components (no auth error handling)
 export async function client<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  return request<T>(endpoint, options);
+  return request<T>(endpoint, options, undefined, undefined);
+}
+
+// For use inside React components with proper auth error handling
+export function createAuthenticatedClient(adminToken: string | null, onAuthError: () => void) {
+  return {
+    request: async <T>(endpoint: string, options?: RequestInit): Promise<T> => {
+      return request<T>(endpoint, options, adminToken, onAuthError);
+    },
+  };
 }
 
 export function useClient() {
-  const { adminToken } = useSettings();
+  const { adminToken, logoutAdmin } = useSettings();
 
   return {
     request: async <T>(endpoint: string, options?: RequestInit): Promise<T> => {
-      return request<T>(endpoint, options, false, adminToken);
+      return request<T>(endpoint, options, adminToken, logoutAdmin);
     },
   };
 }
