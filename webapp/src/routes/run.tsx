@@ -1,10 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import { programsApi } from '../api/programs';
 import type { StateUpdatePayload } from '../api/types';
 import { Timeline } from '../components/Timeline';
+import { CountdownModal } from '../components/CountdownModal';
+import { useSettings } from '../context/SettingsContext';
 import styles from './run.module.css';
 
 export const Route = createFileRoute('/run')({
@@ -13,6 +15,11 @@ export const Route = createFileRoute('/run')({
 
 function RunView(): React.ReactNode {
   const [timelineMode, setTimelineMode] = useState<'auto' | 'default' | 'field'>('auto');
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [showCountdownModal, setShowCountdownModal] = useState(false);
+  const { settings } = useSettings();
+  const { startDelaySeconds } = settings;
+  const countdownRef = useRef<number | null>(null);
 
   const { data: programs } = useQuery({
     queryKey: ['programs'],
@@ -79,10 +86,61 @@ function RunView(): React.ReactNode {
     }
   };
 
-  const handleStart = (): void => startMutation.mutate();
+  const handleStart = (): void => {
+    if (startDelaySeconds > 0) {
+      countdownRef.current = startDelaySeconds;
+      setCountdown(startDelaySeconds);
+      setShowCountdownModal(true);
+    } else {
+      startMutation.mutate();
+    }
+  };
+
+  const handleCancelCountdown = (): void => {
+    setShowCountdownModal(false);
+    setCountdown(null);
+    countdownRef.current = null;
+  };
+
+  const handleStartNow = (): void => {
+    setShowCountdownModal(false);
+    setCountdown(null);
+    countdownRef.current = null;
+    startMutation.mutate();
+  };
+
   const handlePause = (): void => stopMutation.mutate();
   const handleReset = (): void => resetMutation.mutate();
   const handleToggleTargets = (): void => toggleTargetsMutation.mutate();
+
+  // Countdown timer effect - handles timer tick and completion
+  useEffect(() => {
+    if (!showCountdownModal || countdown === null) {
+      return;
+    }
+
+    if (countdown <= 0) {
+      // Completion is handled by the timer callback when it reaches 0
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const newValue = countdown - 1;
+      countdownRef.current = newValue;
+
+      if (newValue <= 0) {
+        // Handle completion - countdown reached 0
+        setShowCountdownModal(false);
+        setCountdown(null);
+        countdownRef.current = null;
+        startMutation.mutate();
+      } else {
+        setCountdown(newValue);
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [countdown, showCountdownModal, startMutation]);
 
   return (
     <div className={styles.container}>
@@ -201,6 +259,10 @@ function RunView(): React.ReactNode {
           tickerSeconds={tickerSeconds ?? null}
           mode={timelineMode}
         />
+      )}
+
+      {showCountdownModal && countdown !== null && (
+        <CountdownModal seconds={countdown} onCancel={handleCancelCountdown} onStartNow={handleStartNow} />
       )}
     </div>
   );
