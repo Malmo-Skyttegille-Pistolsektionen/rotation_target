@@ -68,7 +68,7 @@ export function Timeline({
                 series={series}
                 activeEventIndex={isCurrentSeries ? currentEventIndex : null}
                 elapsedMs={elapsedMs}
-                showCursor={isCurrentSeries && tickerSeconds !== null}
+                showCursor={isCurrentSeries}
               />
             )}
           </div>
