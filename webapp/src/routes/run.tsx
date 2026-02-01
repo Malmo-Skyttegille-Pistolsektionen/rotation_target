@@ -86,81 +86,110 @@ function RunView(): React.ReactNode {
 
   return (
     <div className={styles.container}>
-      <h2>Run Program</h2>
+      <div className={styles.controlBoard}>
+        <div className={styles.boardHeader}>
+          <div className={styles.headerLeft}>
+            <h2 className={styles.title}>Run Program</h2>
 
-      <div className={styles.controls}>
-        <select
-          className={styles.select}
-          value={loadedProgramId ?? ''}
-          onChange={handleProgramChange}
-          disabled={loadMutation.isPending}
-        >
-          <option value='' disabled>
-            Choose program
-          </option>
-          {programs?.map((program) => (
-            <option key={program.id} value={program.id}>
-              {program.title} {program.id === loadedProgramId ? '(Loaded)' : ''}
-            </option>
-          ))}
-        </select>
+            {tickerSeconds != null && (
+              <div className={clsx(styles.infoBadge, styles.badgeTime)}>
+                <span className={styles.badgeLabel}>Time:</span>
+                <span className={styles.timerValue}>{tickerSeconds}s</span>
+              </div>
+            )}
 
-        {loadMutation.isPending && <span>Loading...</span>}
+            <div
+              className={clsx(styles.infoBadge, {
+                [styles.badgeGreen]: state?.targetStatus === 'shown',
+                [styles.badgeRed]: state?.targetStatus === 'hidden',
+              })}
+            >
+              <span className={styles.badgeLabel}>Targets:</span>
+              <strong>{state?.targetStatus ?? '-'}</strong>
+            </div>
+          </div>
 
-        {activeProgram && (
-          <select
-            className={styles.select}
-            value={currentSeriesIndex ?? 0}
-            onChange={handleSeriesChange}
-            disabled={isRunning}
-          >
-            <option value='' disabled>
-              Choose a series
-            </option>
-            {activeProgram.series.map((series, index) => (
-              <option key={index} value={index}>
-                {series.name} {series.optional ? '(optional)' : ''}
+          <div className={styles.statusDisplay}>
+            <span className={styles.statusItem}>
+              Program ID: <strong>{loadedProgramId ?? '-'}</strong>
+            </span>
+          </div>
+        </div>
+
+        <div className={styles.controlsRow}>
+          <div className={styles.inputsGroup}>
+            <select
+              className={styles.select}
+              value={loadedProgramId ?? ''}
+              onChange={handleProgramChange}
+              disabled={loadMutation.isPending}
+            >
+              <option value='' disabled>
+                Choose program
               </option>
-            ))}
-          </select>
-        )}
+              {programs?.map((program) => (
+                <option key={program.id} value={program.id}>
+                  {program.title} {program.id === loadedProgramId ? '(Loaded)' : ''}
+                </option>
+              ))}
+            </select>
 
-        <select
-          className={styles.select}
-          value={timelineMode}
-          onChange={(e) => setTimelineMode(e.target.value as 'auto' | 'default' | 'field')}
-        >
-          <option value='auto'>Timeline: Auto</option>
-          <option value='default'>Timeline: Event-based</option>
-          <option value='field'>Timeline: Time-scaled</option>
-        </select>
-      </div>
+            {activeProgram && (
+              <select
+                className={styles.select}
+                value={currentSeriesIndex ?? 0}
+                onChange={handleSeriesChange}
+                disabled={isRunning}
+              >
+                <option value='' disabled>
+                  Choose a series
+                </option>
+                {activeProgram.series.map((series, index) => (
+                  <option key={index} value={index}>
+                    {series.name} {series.optional ? '(optional)' : ''}
+                  </option>
+                ))}
+              </select>
+            )}
 
-      <div className={styles.statusPanel}>
-        <h3>Status</h3>
-        <p>Current Program ID: {loadedProgramId ?? 'None'}</p>
-        <p>Targets: {state?.targetStatus}</p>
+            <select
+              className={styles.select}
+              value={timelineMode}
+              onChange={(e) => setTimelineMode(e.target.value as 'auto' | 'default' | 'field')}
+            >
+              <option value='auto'>Timeline: Auto</option>
+              <option value='default'>Timeline: Event-based</option>
+              <option value='field'>Timeline: Time-scaled</option>
+            </select>
+          </div>
 
-        {tickerSeconds != null && <div className={styles.chrono}>Time: {tickerSeconds}s</div>}
+          <div className={styles.actionsGroup}>
+            {!isRunning ? (
+              <button
+                className={clsx(styles.button, styles.buttonStart)}
+                onClick={handleStart}
+                disabled={!loadedProgramId}
+              >
+                Start
+              </button>
+            ) : (
+              <button className={clsx(styles.button, styles.buttonPause)} onClick={handlePause}>
+                Pause
+              </button>
+            )}
 
-        <div className={styles.controls}>
-          {!isRunning ? (
-            <button className={clsx(styles.button)} onClick={handleStart} disabled={!loadedProgramId}>
-              Start
+            <button
+              className={clsx(styles.button, styles.buttonDestructiveGhost)}
+              onClick={handleReset}
+              disabled={!loadedProgramId || isRunning}
+            >
+              Reset
             </button>
-          ) : (
-            <button className={clsx(styles.button)} onClick={handlePause}>
-              Pause
+
+            <button className={clsx(styles.button, styles.buttonSecondary)} onClick={handleToggleTargets}>
+              Toggle Targets
             </button>
-          )}
-
-          <button className={clsx(styles.button)} onClick={handleReset} disabled={!loadedProgramId || isRunning}>
-            Reset
-          </button>
-
-          <button className={clsx(styles.button)} onClick={handleToggleTargets}>
-            Toggle Targets
-          </button>
+          </div>
         </div>
       </div>
 

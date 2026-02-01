@@ -19,7 +19,8 @@
 
 .series.active {
   background-color: #f0f4ff;
-  border-color: #c5ceff;
+  border: 2px solid #6366f1;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
 }
 
 .seriesTitle {
