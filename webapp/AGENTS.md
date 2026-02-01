@@ -94,6 +94,33 @@ import styles from './component.module.css';
 - Functional components only
 - Use React Compiler (automatic memoization)
 - Colocate CSS modules with components
+- **Never use one-line early returns** - always use explicit blocks
+
+```typescript
+// Bad - one-line early return
+if (condition) return;
+
+// Good - explicit block
+if (condition) {
+  return;
+}
+```
+
+- **Prefer `function` keyword** over arrow functions for named functions
+
+```typescript
+// Bad - arrow function for named function
+const myFunc = (arg: string) => {
+  // ...
+};
+
+// Good - function keyword
+function myFunc(arg: string) {
+  // ...
+}
+```
+
+- **Arrow functions OK for:** simple expressions, callbacks, inline handlers, type definitions
 
 ```typescript
 // Good: ComponentName.tsx + ComponentName.module.css
