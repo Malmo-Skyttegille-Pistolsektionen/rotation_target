@@ -18,17 +18,19 @@ Rotation Target is a system for controlling rotation targets at a shooting club.
 │  │  - targetStatus (shown/hidden)                          │    │
 │  └─────────────────────────────────────────────────────────┘    │
 │                            │                                    │
-│            ┌───────────────┴───────────────┐                    │
-│            ▼                               ▼                    │
-│   ┌─────────────────┐             ┌─────────────────┐           │
-│   │    REST API     │             │      SSE        │           │
-│   │   /api/v2/*     │             │    /sse/v2      │           │
-│   │  (mutations)    │             │    (reads)      │           │
-│   └─────────────────┘             └─────────────────┘           │
+│         ┌──────────────────┼──────────────────┐                 │
+│         ▼                  ▼                  ▼                 │
+│  ┌────────────┐    ┌────────────┐     ┌────────────┐            │
+│  │  REST API  │    │  REST API  │     │    SSE     │            │
+│  │  /api/v2/* │    │  /api/v2/* │     │  /sse/v2   │            │
+│  │  (POST)    │    │  (GET)     │     │  (stream)  │            │
+│  │ mutations  │    │ large data │     │ live state │            │
+│  └────────────┘    └────────────┘     └────────────┘            │
 └─────────────────────────────────────────────────────────────────┘
-          ▲                               │
-          │ POST                          │ stateUpdate events
-          │                               ▼
+        ▲                  │                   │
+        │ POST             │ GET               │ stateUpdate event
+        │                  │ programs,         │
+        │                  │ program/{id}      ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                      FRONTEND (React SPA)                       │
 │                                                                 │
@@ -36,13 +38,14 @@ Rotation Target is a system for controlling rotation targets at a shooting club.
 │   │   useSSE     │───►│ TanStack     │◄───│  Components  │      │
 │   │   hook       │    │   Query      │    │  (useQuery)  │      │
 │   └──────────────┘    │   Cache      │    └──────────────┘      │
-│                       └──────────────┘                          │
-│                             ▲                                   │
-│                             │                                   │
-│                      ┌───────────────┐                          │
-│                      │  Mutations    │                          │
-│                      │  (useMutation)│                          │
-│                      └───────────────┘                          │
+│                       └──────────────┘           │              │
+│                          ▲       ▲               │              │
+│                          │       │               │              │
+│                   ┌──────┘       └──────┐        │              │
+│            ┌───────────────┐   ┌─────────────────┐              │
+│            │  Mutations    │   │  REST Queries   │              │
+│            │  (useMutation)│   │  (useQuery+GET) │              │
+│            └───────────────┘   └─────────────────┘              │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -88,14 +91,14 @@ This design minimizes SSE payload size (~80 bytes vs ~2KB) since program structu
 
 ## Key Design Decisions
 
-| Decision                              | Rationale                                                           |
-| ------------------------------------- | ------------------------------------------------------------------- |
-| SSE for reads, REST for writes        | Real-time updates without polling; simple mutation model            |
-| Server as source of truth             | No client-side state logic; all clients stay in sync                |
-| TanStack Query as cache               | SSE updates cache directly; components read from cache              |
-| Admin auth required for mutations     | Prevent accidental/unauthorized changes                             |
-| SSE sends ID only, REST for structure | Minimizes bandwidth; program structure is static during run         |
-| REST for large data                   | Data too large for SSE (programs, lists) fetched via REST on demand |
+| Decision                                             | Rationale                                                           |
+| ---------------------------------------------------- | ------------------------------------------------------------------- |
+| SSE for live state, REST for mutations + large reads | Real-time updates without polling; REST for large/static data       |
+| Server as source of truth                            | No client-side state logic; all clients stay in sync                |
+| TanStack Query as cache                              | SSE updates cache directly; components read from cache              |
+| Admin auth required for mutations                    | Prevent accidental/unauthorized changes                             |
+| SSE sends ID only, REST for structure                | Minimizes bandwidth; program structure is static during run         |
+| REST for large data                                  | Data too large for SSE (programs, lists) fetched via REST on demand |
 
 ## State Management
 

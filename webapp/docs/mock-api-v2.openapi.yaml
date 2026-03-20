@@ -1,0 +1,764 @@
+# Generated from docs/mock-api-v2.openapi.json
+# Run `yarn openapi:yaml` after editing the JSON source.
+
+openapi: 3.1.0
+info:
+  title: Rotation Target Mock API v2
+  version: 2.0.0-mock
+  description: "Machine-readable contract for the current mock implementation in `vite-plugins/mock-server-v2.ts`. This spec intentionally matches the mock server as it behaves today, including current quirks: read endpoints stay public, mutating endpoints are only protected while admin mode is enabled, program payloads expose `audio_ids` in snake_case, event `command` is optional in stored program JSON, `POST /api/v2/admin-mode/enable` accepts any non-empty password string, and `POST /api/v2/admin-mode/disable` does not send a cookie-clearing header."
+servers:
+  - url: http://localhost:8080
+    description: Local Vite dev server with mock API v2
+tags:
+  - name: Admin Mode
+    description: Admin mode status and token issuance.
+  - name: Programs
+    description: Program listing, loading, and execution control.
+  - name: Targets
+    description: Manual target visibility control.
+  - name: Audios
+    description: Audio catalog and playback acknowledgement.
+  - name: SSE
+    description: Server-Sent Events stream for current state.
+paths:
+  /api/v2/admin-mode/status:
+    get:
+      tags:
+        - Admin Mode
+      operationId: getAdminModeStatus
+      summary: Get admin mode status
+      description: Public endpoint. Returns only whether admin mode is currently enabled on the mock server. Request authentication does not change the response.
+      responses:
+        "200":
+          description: Current admin mode status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStatusResponse"
+              example:
+                enabled: false
+  /api/v2/admin-mode/enable:
+    post:
+      tags:
+        - Admin Mode
+      operationId: enableAdminMode
+      summary: Enable admin mode
+      description: Parses a JSON body with `password`. Any non-empty string succeeds and replaces the current server token. On success the response also sets an `admin` cookie with `Path=/` and `SameSite=Lax`, but without `HttpOnly`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminEnableRequest"
+            example:
+              password: competition-secret
+      responses:
+        "200":
+          description: Admin mode enabled and a new token issued.
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/AdminSessionCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEnableResponse"
+              example:
+                token: abc1231773773309919
+        "400":
+          $ref: "#/components/responses/InvalidJson"
+        "401":
+          $ref: "#/components/responses/InvalidPassword"
+  /api/v2/admin-mode/disable:
+    post:
+      tags:
+        - Admin Mode
+      operationId: disableAdminMode
+      summary: Disable admin mode
+      description: Disables admin mode. When admin mode is enabled, the request must include a valid bearer token or `admin` cookie. When admin mode is already disabled, the endpoint still returns `200` without auth. The mock implementation does not send a cookie-clearing header.
+      security:
+        - bearerAuth: []
+        - adminCookie: []
+      x-security-note: Only enforced while admin mode is enabled.
+      responses:
+        "200":
+          description: Admin mode disabled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Admin mode disabled
+        "401":
+          $ref: "#/components/responses/InvalidOrMissingBearerToken"
+  /api/v2/programs:
+    get:
+      tags:
+        - Programs
+      operationId: listPrograms
+      summary: List programs
+      description: Public endpoint. Returns program summaries for the raw JSON programs plus editable copies with ids offset by `+1000`.
+      responses:
+        "200":
+          description: Program summaries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProgramSummary"
+              example:
+                - id: 1
+                  title: Militär Snabbmatch
+                  description: Provserie 10s, 10s x 4 (+2), 8s x 4 (+2), 6s x 4 (+2)
+                  readonly: true
+                - id: 1001
+                  title: Militär Snabbmatch
+                  description: Provserie 10s, 10s x 4 (+2), 8s x 4 (+2), 6s x 4 (+2)
+                  readonly: false
+  /api/v2/programs/{id}:
+    get:
+      tags:
+        - Programs
+      operationId: getProgram
+      summary: Get program
+      description: Public endpoint. Returns the raw stored program JSON. Event payloads use `audio_ids` in snake_case, and `command` is optional because some stored events only define duration or audio ids.
+      parameters:
+        - $ref: "#/components/parameters/ProgramId"
+      responses:
+        "200":
+          description: Program payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Program"
+              example:
+                id: 40
+                title: Fältträning
+                description: Each series starts hidden for 10s, then 3x show/hide cycles
+                readonly: true
+                series:
+                  - name: Series 1 (x=3, y=3)
+                    optional: false
+                    events:
+                      - command: hide
+                        duration: 10000
+                      - command: show
+                        duration: 3000
+        "404":
+          $ref: "#/components/responses/ProgramNotFound"
+  /api/v2/programs/{id}/load:
+    post:
+      tags:
+        - Programs
+      operationId: loadProgram
+      summary: Load program
+      description: Loads the selected program into server state and broadcasts a `stateUpdate`. When admin mode is enabled, the request must include a valid bearer token or `admin` cookie.
+      security:
+        - bearerAuth: []
+        - adminCookie: []
+      x-security-note: Only enforced while admin mode is enabled.
+      parameters:
+        - $ref: "#/components/parameters/ProgramId"
+      responses:
+        "200":
+          description: Program loaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Program loaded
+        "401":
+          $ref: "#/components/responses/InvalidOrMissingBearerToken"
+        "404":
+          $ref: "#/components/responses/ProgramNotFound"
+  /api/v2/programs/start:
+    post:
+      tags:
+        - Programs
+      operationId: startProgram
+      summary: Start or resume program
+      description: Starts the current series. If `tickerSeconds` is already set, execution resumes from that whole-second position. When admin mode is enabled, the request must include a valid bearer token or `admin` cookie.
+      security:
+        - bearerAuth: []
+        - adminCookie: []
+      x-security-note: Only enforced while admin mode is enabled.
+      responses:
+        "200":
+          description: Program started.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Program started
+        "400":
+          description: Request rejected because no program is loaded or program state is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                noProgramLoaded:
+                  value:
+                    error: No program loaded
+                invalidProgramState:
+                  value:
+                    error: Invalid program state
+        "401":
+          $ref: "#/components/responses/InvalidOrMissingBearerToken"
+  /api/v2/programs/stop:
+    post:
+      tags:
+        - Programs
+      operationId: stopProgram
+      summary: Pause program
+      description: Pauses execution and keeps the current series position and `tickerSeconds`. When admin mode is enabled, the request must include a valid bearer token or `admin` cookie.
+      security:
+        - bearerAuth: []
+        - adminCookie: []
+      x-security-note: Only enforced while admin mode is enabled.
+      responses:
+        "200":
+          description: Program paused.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Program paused
+        "400":
+          $ref: "#/components/responses/ProgramNotRunning"
+        "401":
+          $ref: "#/components/responses/InvalidOrMissingBearerToken"
+  /api/v2/programs/reset:
+    post:
+      tags:
+        - Programs
+      operationId: resetProgram
+      summary: Reset current series
+      description: Resets execution state to the start of the current series, sets `running=false`, sets `currentEventIndex=0`, clears `tickerSeconds`, and broadcasts a `stateUpdate`. When admin mode is enabled, the request must include a valid bearer token or `admin` cookie.
+      security:
+        - bearerAuth: []
+        - adminCookie: []
+      x-security-note: Only enforced while admin mode is enabled.
+      responses:
+        "200":
+          description: Program reset.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Program reset
+        "400":
+          $ref: "#/components/responses/NoProgramLoaded"
+        "401":
+          $ref: "#/components/responses/InvalidOrMissingBearerToken"
+  /api/v2/programs/series/{idx}/skip_to:
+    post:
+      tags:
+        - Programs
+      operationId: skipToSeries
+      summary: Skip to series
+      description: Moves execution to the start of the selected series, sets `running=false`, clears `tickerSeconds`, and broadcasts a `stateUpdate`. When admin mode is enabled, the request must include a valid bearer token or `admin` cookie.
+      security:
+        - bearerAuth: []
+        - adminCookie: []
+      x-security-note: Only enforced while admin mode is enabled.
+      parameters:
+        - $ref: "#/components/parameters/SeriesIndex"
+      responses:
+        "200":
+          description: Execution moved to the requested series.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Skipped to series 1
+        "400":
+          description: Request rejected because no program is loaded or the requested index is out of bounds.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                noProgramLoaded:
+                  value:
+                    error: No program loaded
+                seriesIndexOutOfBounds:
+                  value:
+                    error: Series index out of bounds
+        "401":
+          $ref: "#/components/responses/InvalidOrMissingBearerToken"
+  /api/v2/targets/show:
+    post:
+      tags:
+        - Targets
+      operationId: showTargets
+      summary: Show targets
+      description: Sets `targetStatus` to `shown` and broadcasts a `stateUpdate`. When admin mode is enabled, the request must include a valid bearer token or `admin` cookie.
+      security:
+        - bearerAuth: []
+        - adminCookie: []
+      x-security-note: Only enforced while admin mode is enabled.
+      responses:
+        "200":
+          description: Targets shown.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Targets shown
+        "401":
+          $ref: "#/components/responses/InvalidOrMissingBearerToken"
+  /api/v2/targets/hide:
+    post:
+      tags:
+        - Targets
+      operationId: hideTargets
+      summary: Hide targets
+      description: Sets `targetStatus` to `hidden` and broadcasts a `stateUpdate`. When admin mode is enabled, the request must include a valid bearer token or `admin` cookie.
+      security:
+        - bearerAuth: []
+        - adminCookie: []
+      x-security-note: Only enforced while admin mode is enabled.
+      responses:
+        "200":
+          description: Targets hidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Targets hidden
+        "401":
+          $ref: "#/components/responses/InvalidOrMissingBearerToken"
+  /api/v2/targets/toggle:
+    post:
+      tags:
+        - Targets
+      operationId: toggleTargets
+      summary: Toggle targets
+      description: Toggles `targetStatus` between `shown` and `hidden`, then broadcasts a `stateUpdate`. When admin mode is enabled, the request must include a valid bearer token or `admin` cookie.
+      security:
+        - bearerAuth: []
+        - adminCookie: []
+      x-security-note: Only enforced while admin mode is enabled.
+      responses:
+        "200":
+          description: Targets toggled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              examples:
+                shown:
+                  value:
+                    message: Targets shown
+                hidden:
+                  value:
+                    message: Targets hidden
+        "401":
+          $ref: "#/components/responses/InvalidOrMissingBearerToken"
+  /api/v2/audios:
+    get:
+      tags:
+        - Audios
+      operationId: listAudios
+      summary: List audios
+      description: Public endpoint. Returns a wrapper object with an `audios` array. The mock server includes readonly base entries plus editable copies with ids offset by `+1000` for the last three audio items.
+      responses:
+        "200":
+          description: Audio catalog.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AudioListResponse"
+              example:
+                audios:
+                  - id: 1
+                    title: "1"
+                    readonly: true
+                  - id: 1089
+                    title: Färdigskjutning 2, 6 sekunder
+                    readonly: false
+  /api/v2/audios/{id}/play:
+    post:
+      tags:
+        - Audios
+      operationId: playAudio
+      summary: Acknowledge audio playback
+      description: Checks that the audio id exists and returns an acknowledgement object. No playback state is stored. When admin mode is enabled, the request must include a valid bearer token or `admin` cookie.
+      security:
+        - bearerAuth: []
+        - adminCookie: []
+      x-security-note: Only enforced while admin mode is enabled.
+      parameters:
+        - $ref: "#/components/parameters/AudioId"
+      responses:
+        "200":
+          description: Playback acknowledged.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AudioPlayResponse"
+              example:
+                message: Playback started
+                audioId: 26
+        "401":
+          $ref: "#/components/responses/InvalidOrMissingBearerToken"
+        "404":
+          $ref: "#/components/responses/AudioNotFound"
+  /sse/v2:
+    get:
+      tags:
+        - SSE
+      operationId: streamState
+      summary: Subscribe to state events
+      description: Public Server-Sent Events stream. The connection immediately emits a `stateUpdate` event, emits another `stateUpdate` after every state mutation, and emits `heartbeat` every 10 seconds. `stateUpdate` payload shape = `StateUpdatePayload`. `heartbeat` payload shape = `HeartbeatPayload`.
+      responses:
+        "200":
+          description: Active `text/event-stream` connection.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: |+
+                event: stateUpdate
+                data: {"loadedProgramId":null,"programState":null,"targetStatus":"hidden"}
+
+                event: heartbeat
+                data: {"id":1}
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Accepted by mutating endpoints while admin mode is enabled.
+    adminCookie:
+      type: apiKey
+      in: cookie
+      name: admin
+      description: Cookie alternative to bearer auth while admin mode is enabled.
+  headers:
+    AdminSessionCookie:
+      description: Set on successful `POST /api/v2/admin-mode/enable`. The mock server sends `admin=<token>; Path=/; SameSite=Lax` and does not add `HttpOnly`.
+      schema:
+        type: string
+      example: admin=9xrm8e9n5591773774261327; Path=/; SameSite=Lax
+  parameters:
+    ProgramId:
+      name: id
+      in: path
+      required: true
+      description: Numeric program id.
+      schema:
+        type: integer
+        minimum: 0
+    AudioId:
+      name: id
+      in: path
+      required: true
+      description: Numeric audio id.
+      schema:
+        type: integer
+        minimum: 0
+    SeriesIndex:
+      name: idx
+      in: path
+      required: true
+      description: Zero-based series index.
+      schema:
+        type: integer
+        minimum: 0
+  schemas:
+    AdminStatusResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - enabled
+      properties:
+        enabled:
+          type: boolean
+    AdminEnableRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - password
+      properties:
+        password:
+          type: string
+          description: Any non-empty string returns `200`. Empty string or non-string values return `401` with `Invalid password`.
+    AdminEnableResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - token
+      properties:
+        token:
+          type: string
+    ProgramSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - title
+        - description
+        - readonly
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        readonly:
+          type: boolean
+    Program:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - title
+        - description
+        - readonly
+        - series
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        readonly:
+          type: boolean
+        series:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProgramSeries"
+    ProgramSeries:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - optional
+        - events
+      properties:
+        name:
+          type: string
+        optional:
+          type: boolean
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProgramEvent"
+    ProgramEvent:
+      type: object
+      additionalProperties: false
+      required:
+        - duration
+      properties:
+        duration:
+          type: integer
+          description: Duration in milliseconds.
+        command:
+          type: string
+          enum:
+            - show
+            - hide
+          description: Optional in the stored mock JSON. When omitted, the server still accepts the program payload as-is.
+        audio_ids:
+          type: array
+          items:
+            type: integer
+          description: Optional snake_case field returned directly from the stored JSON files.
+      examples:
+        - duration: 5000
+          audio_ids:
+            - 50
+        - duration: 10000
+          command: show
+        - duration: 7000
+          command: hide
+          audio_ids:
+            - 31
+    AudioFile:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - title
+        - readonly
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        readonly:
+          type: boolean
+    AudioListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - audios
+      properties:
+        audios:
+          type: array
+          items:
+            $ref: "#/components/schemas/AudioFile"
+    AudioPlayResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - message
+        - audioId
+      properties:
+        message:
+          type: string
+        audioId:
+          type: integer
+    ProgramState:
+      type: object
+      additionalProperties: false
+      required:
+        - running
+        - currentSeriesIndex
+        - currentEventIndex
+        - tickerSeconds
+      properties:
+        running:
+          type: boolean
+        currentSeriesIndex:
+          type:
+            - integer
+            - "null"
+        currentEventIndex:
+          type:
+            - integer
+            - "null"
+        tickerSeconds:
+          type:
+            - integer
+            - "null"
+          description: Whole seconds elapsed in the current series.
+      example:
+        running: false
+        currentSeriesIndex: 0
+        currentEventIndex: 0
+        tickerSeconds: null
+    StateUpdatePayload:
+      type: object
+      additionalProperties: false
+      required:
+        - loadedProgramId
+        - programState
+        - targetStatus
+      properties:
+        loadedProgramId:
+          type:
+            - integer
+            - "null"
+        programState:
+          oneOf:
+            - $ref: "#/components/schemas/ProgramState"
+            - type: "null"
+        targetStatus:
+          type: string
+          enum:
+            - shown
+            - hidden
+      example:
+        loadedProgramId: 40
+        programState:
+          running: false
+          currentSeriesIndex: 0
+          currentEventIndex: 0
+          tickerSeconds: null
+        targetStatus: hidden
+    HeartbeatPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+      properties:
+        id:
+          type: integer
+      example:
+        id: 1
+    MessageResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - message
+      properties:
+        message:
+          type: string
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - error
+      properties:
+        error:
+          type: string
+  responses:
+    InvalidJson:
+      description: Malformed JSON request body.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: Invalid JSON
+    InvalidPassword:
+      description: Password missing, empty, or not a string.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: Invalid password
+    InvalidOrMissingBearerToken:
+      description: Mutation rejected because admin mode is enabled and the request did not include a valid bearer token or `admin` cookie.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: Invalid or missing bearer token
+    ProgramNotFound:
+      description: No program exists for the requested id.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: Program not found
+    AudioNotFound:
+      description: No audio exists for the requested id.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: Audio not found
+    NoProgramLoaded:
+      description: No program is currently loaded in server state.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: No program loaded
+    ProgramNotRunning:
+      description: Program execution is not currently running.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: Program not running

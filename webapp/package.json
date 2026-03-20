@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "openapi:yaml": "node scripts/export-openapi-yaml.mts",
     "preview": "vite preview",
     "lint": "eslint .",
+    "swagger": "node scripts/swagger-ui-server.mts",
     "format": "prettier --write .",
     "zip": "ts-node --esm scripts/zip-dist.ts"
   },
@@ -40,9 +42,11 @@
     "globals": "^16.5.0",
     "prettier": "^3.7.4",
     "prismjs": "^1.30.0",
+    "swagger-ui-dist": "^5.32.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.50.1",
-    "vite": "^7.3.0"
+    "vite": "^7.3.0",
+    "yaml": "^2.8.2"
   }
 }

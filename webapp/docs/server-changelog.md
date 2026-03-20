@@ -4,6 +4,8 @@
 
 This document lists behavioral deltas to port into the production server.
 
+Canonical contract: `docs/mock-api-v2.openapi.json`.
+
 ## Breaking / Behavioral Changes
 
 - SSE uses `/sse/v2` and emits only `stateUpdate` + `heartbeat`.
@@ -13,12 +15,14 @@ This document lists behavioral deltas to port into the production server.
 - `programState.currentEventIndex` is derived from `tickerSeconds` based on cumulative event durations.
 - SSE no longer includes admin mode status, program lists, or audio lists.
 - REST `GET /api/v1/status` removed; state comes from SSE only.
-- REST `GET /api/v1/admin-mode/status` remains REST-only.
+- REST program payloads are served from stored JSON and still expose snake_case `audio_ids`.
+- Stored mock program events may omit `command`.
 
 ## REST API Changes
 
 - New `/api/v2/*` prefix for the new app.
-- All `/api/v2/*` endpoints require admin auth.
+- `GET /api/v2/programs`, `GET /api/v2/programs/{id}`, `GET /api/v2/audios`, and `GET /api/v2/admin-mode/status` stay public.
+- Mutating endpoints require auth only while admin mode is enabled.
 - New `POST /api/v2/programs/reset` endpoint.
 - `stop` now pauses execution and preserves `tickerSeconds` value.
 - `start` resumes from paused `tickerSeconds` position.
@@ -26,13 +30,16 @@ This document lists behavioral deltas to port into the production server.
 
 ## Auth Changes
 
-- Admin auth token flow unchanged from v1.
+- `POST /api/v2/admin-mode/enable` accepts any non-empty password string.
 - Token automatically set as `admin` cookie on successful enable.
 - Auth accepts both `Authorization: Bearer <token>` header and `Cookie: admin=<token>`.
-- New `GET /api/v2/admin-mode/status` endpoint returns `{ enabled: true/false }` based on request auth.
+- New `GET /api/v2/admin-mode/status` endpoint returns only the global `{ enabled: true/false }` state and ignores request auth.
+- Enable response cookie is `SameSite=Lax` but not `HttpOnly`.
+- Disable does not clear the cookie in the response.
 
 ## Naming Changes
 
-- SSE event: `stateUpdate` (single event type).
-- Payload fields camelCase: `loadedProgram`, `programState`, `currentSeriesIndex`, `currentEventIndex`, `targetStatus`, `audioIds`.
+- SSE event: `stateUpdate` (single state event type).
+- SSE payload fields camelCase: `loadedProgramId`, `programState`, `currentSeriesIndex`, `currentEventIndex`, `targetStatus`.
+- Program REST payloads are not camelized; they keep stored `audio_ids`.
 - Heartbeat payload: `{ id: number }`.
