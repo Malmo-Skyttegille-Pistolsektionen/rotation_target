@@ -39,7 +39,7 @@ src/
   hooks/         # Custom React hooks
   routes/        # File-based routes (TanStack Router)
 vite-plugins/    # Custom Vite plugins (mock server)
-src_legacy/      # Legacy code (reference only, do not edit)
+src_legacy/      # Legacy snapshot (read-only, do not edit)
 test/data/       # Mock data for development
 plans/           # Implementation plans and specs
 docs/            # API specs and changelogs
@@ -249,7 +249,7 @@ Located at `vite-plugins/mock-server.ts`. Provides:
 - Program simulation with events
 - Admin mode authentication
 
-**Keep mock server updated when API contracts change.**
+**Do not edit `vite-plugins/mock-server.ts`. API v1 is a read-only snapshot of pre-migration behavior.**
 
 ## Mock Server v2
 
@@ -369,7 +369,7 @@ Do NOT update when:
 
 ## Do Not
 
-- Edit files in `src_legacy/` unless fixing critical bugs
+- Edit files in `src_legacy/`, `legacy.html`, or `vite-plugins/mock-server.ts`
 - Use Tailwind CSS
 - Use class components
 - Create global CSS (use CSS modules)

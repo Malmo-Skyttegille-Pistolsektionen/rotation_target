@@ -28,7 +28,8 @@ interface ServerState {
   loadedProgram: Program | null;
   programState: ProgramState | null;
   targetStatus: 'shown' | 'hidden';
-  adminModeToken: string | null;
+  adminModePassword: string | null;
+  adminModeTokens: Set<string>;
   // Internal execution state
   seriesStartTime: number | null; // timestamp when series started running
 }
@@ -37,7 +38,8 @@ const state: ServerState = {
   loadedProgram: null,
   programState: null,
   targetStatus: 'hidden',
-  adminModeToken: null,
+  adminModePassword: null,
+  adminModeTokens: new Set<string>(),
   seriesStartTime: null,
 };
 
@@ -118,7 +120,26 @@ function sendStateToClient(res: ServerResponse): void {
 }
 
 function isAdminEnabled(): boolean {
-  return state.adminModeToken !== null;
+  return state.adminModePassword !== null;
+}
+
+function createAdminToken(): string {
+  return Math.random().toString(36).slice(2) + Date.now();
+}
+
+function hasAdminToken(token: string | undefined): boolean {
+  if (!token) {
+    return false;
+  }
+
+  return state.adminModeTokens.has(token);
+}
+
+function issueAdminSession(res: ServerResponse): string {
+  const token = createAdminToken();
+  state.adminModeTokens.add(token);
+  res.setHeader('Set-Cookie', `admin=${token}; Path=/; SameSite=Lax`);
+  return token;
 }
 
 function parseCookies(req: IncomingMessage): Record<string, string> {
@@ -141,13 +162,13 @@ function checkAdminAuth(req: IncomingMessage, res: ServerResponse): boolean {
 
   // Check Authorization header first
   const auth = req.headers['authorization'];
-  if (auth && auth.startsWith('Bearer ') && auth.slice(7) === state.adminModeToken) {
+  if (auth && auth.startsWith('Bearer ') && hasAdminToken(auth.slice(7))) {
     return true;
   }
 
   // Check cookie as fallback
   const cookies = parseCookies(req);
-  if (cookies['admin'] === state.adminModeToken) {
+  if (hasAdminToken(cookies['admin'])) {
     return true;
   }
 
@@ -171,6 +192,18 @@ function parseBody(req: IncomingMessage): Promise<string> {
 function jsonResponse(res: ServerResponse, status: number, data: unknown): void {
   res.writeHead(status, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(data));
+}
+
+function getAdminModeAlreadyEnabledError(): { error: string } {
+  return {
+    error: 'Admin mode is already enabled. Log in or disable it before enabling again.',
+  };
+}
+
+function getAdminModeNotEnabledError(): { error: string } {
+  return {
+    error: 'Admin mode is not enabled. Enable it before logging in.',
+  };
 }
 
 function logSSE(msg: string): void {
@@ -313,12 +346,41 @@ export function mockServerV2Plugin(): Plugin[] {
           // POST /admin-mode/enable
           if (path === '/admin-mode/enable' && req.method === 'POST') {
             const body = await parseBody(req);
+
+            if (isAdminEnabled()) {
+              jsonResponse(res, 409, getAdminModeAlreadyEnabledError());
+              return;
+            }
+
             try {
               const data = JSON.parse(body);
               if (typeof data.password === 'string' && data.password.length > 0) {
-                state.adminModeToken = Math.random().toString(36).slice(2) + Date.now();
-                res.setHeader('Set-Cookie', `admin=${state.adminModeToken}; Path=/; SameSite=Lax`);
-                jsonResponse(res, 200, { token: state.adminModeToken });
+                state.adminModePassword = data.password;
+                const token = issueAdminSession(res);
+                jsonResponse(res, 200, { token });
+              } else {
+                jsonResponse(res, 401, { error: 'Invalid password' });
+              }
+            } catch {
+              jsonResponse(res, 400, { error: 'Invalid JSON' });
+            }
+            return;
+          }
+
+          // POST /admin-mode/login
+          if (path === '/admin-mode/login' && req.method === 'POST') {
+            const body = await parseBody(req);
+
+            if (!isAdminEnabled()) {
+              jsonResponse(res, 409, getAdminModeNotEnabledError());
+              return;
+            }
+
+            try {
+              const data = JSON.parse(body);
+              if (typeof data.password === 'string' && data.password === state.adminModePassword) {
+                const token = issueAdminSession(res);
+                jsonResponse(res, 200, { token });
               } else {
                 jsonResponse(res, 401, { error: 'Invalid password' });
               }
@@ -331,7 +393,8 @@ export function mockServerV2Plugin(): Plugin[] {
           // POST /admin-mode/disable
           if (path === '/admin-mode/disable' && req.method === 'POST') {
             if (!checkAdminAuth(req, res)) return;
-            state.adminModeToken = null;
+            state.adminModePassword = null;
+            state.adminModeTokens.clear();
             jsonResponse(res, 200, { message: 'Admin mode disabled' });
             return;
           }

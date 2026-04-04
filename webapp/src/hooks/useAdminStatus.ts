@@ -18,11 +18,26 @@ export function useAdminStatus() {
 
   const adminModeEnabled = adminStatus?.enabled ?? false;
 
-  // Login mutation
-  const loginMutation = useMutation({
+  // Enable mutation
+  const enableMutation = useMutation({
     mutationFn: (password: string) => adminApi.enable(password),
     onSuccess: (data) => {
       setAdminToken(data.token);
+      queryClient.invalidateQueries({ queryKey: ['admin-status'] });
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-status'] });
+    },
+  });
+
+  // Login mutation
+  const loginMutation = useMutation({
+    mutationFn: (password: string) => adminApi.login(password),
+    onSuccess: (data) => {
+      setAdminToken(data.token);
+      queryClient.invalidateQueries({ queryKey: ['admin-status'] });
+    },
+    onError: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-status'] });
     },
   });
@@ -37,16 +52,18 @@ export function useAdminStatus() {
   });
 
   // Logout (just clear token, don't disable)
-  const logout = () => {
+  function logout(): void {
     logoutAdmin();
-  };
+  }
 
   return {
     adminModeEnabled,
     isLoading,
-    login: loginMutation.mutate,
-    disable: disableMutation.mutate,
+    enable: enableMutation.mutateAsync,
+    login: loginMutation.mutateAsync,
+    disable: disableMutation.mutateAsync,
     logout,
+    isEnablePending: enableMutation.isPending,
     isLoginPending: loginMutation.isPending,
     isDisablePending: disableMutation.isPending,
   };

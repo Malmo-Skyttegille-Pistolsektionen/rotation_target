@@ -194,7 +194,7 @@ Mock API v2 spec:
 
 These are accurately captured in the spec because they exist in the mock, but they may be poor production behavior:
 
-- `POST /api/v2/admin-mode/enable` accepts any non-empty password
+- `POST /api/v2/admin-mode/enable` accepts any non-empty password while admin mode is off, and `POST /api/v2/admin-mode/login` reuses that password while admin mode is on
 - Enable cookie is not `HttpOnly`
 - Disable does not send a cookie-clearing header
 

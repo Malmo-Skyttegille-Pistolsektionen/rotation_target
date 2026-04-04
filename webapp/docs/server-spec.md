@@ -19,8 +19,9 @@ Mock Server v2 is SSE-first. The legacy server (`/sse/v1`, `/api/v1/*`) still ex
   - `Authorization: Bearer <token>`
   - `Cookie: admin=<token>`
 - `GET /api/v2/admin-mode/status` is public and returns only `{ enabled: boolean }`.
-- `POST /api/v2/admin-mode/enable` accepts any non-empty `password` string.
-- Successful enable sets `Set-Cookie: admin=<token>; Path=/; SameSite=Lax`.
+- `POST /api/v2/admin-mode/enable` accepts any non-empty `password` string while admin mode is off, and returns `409` if admin mode is already enabled.
+- `POST /api/v2/admin-mode/login` accepts the active admin password while admin mode is on, and returns `409` if admin mode is off.
+- Successful enable/login sets `Set-Cookie: admin=<token>; Path=/; SameSite=Lax`.
 - The mock cookie is not marked `HttpOnly`.
 - `POST /api/v2/admin-mode/disable` disables admin mode server-side, but does not send a cookie-clearing header.
 
@@ -37,6 +38,7 @@ Mock Server v2 is SSE-first. The legacy server (`/sse/v1`, `/api/v1/*`) still ex
 
 - `GET /api/v2/admin-mode/status`
 - `POST /api/v2/admin-mode/enable`
+- `POST /api/v2/admin-mode/login`
 - `GET /api/v2/programs`
 - `GET /api/v2/programs/{id}`
 - `GET /api/v2/audios`

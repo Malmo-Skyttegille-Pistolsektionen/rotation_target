@@ -20,6 +20,38 @@ export function initializeBaseUrl(url: string): void {
   dynamicBaseUrl = url;
 }
 
+function getErrorMessageFromPayload(payload: unknown): string | null {
+  if (typeof payload !== 'object' || payload === null) {
+    return null;
+  }
+
+  if ('error' in payload && typeof payload.error === 'string' && payload.error.length > 0) {
+    return payload.error;
+  }
+
+  if ('message' in payload && typeof payload.message === 'string' && payload.message.length > 0) {
+    return payload.message;
+  }
+
+  return null;
+}
+
+async function getResponseErrorMessage(response: Response): Promise<string> {
+  const text = await response.text();
+  const fallbackMessage = response.statusText ? `API Error: ${response.statusText}` : `API Error: ${response.status}`;
+
+  if (!text) {
+    return fallbackMessage;
+  }
+
+  try {
+    const payload: unknown = JSON.parse(text);
+    return getErrorMessageFromPayload(payload) ?? fallbackMessage;
+  } catch {
+    return text;
+  }
+}
+
 async function request<T>(
   endpoint: string,
   options?: RequestInit,
@@ -50,7 +82,8 @@ async function request<T>(
     if (response.status === 401 && adminToken && onAuthError) {
       onAuthError();
     }
-    throw new Error(`API Error: ${response.statusText}`);
+
+    throw new Error(await getResponseErrorMessage(response));
   }
 
   const text = await response.text();

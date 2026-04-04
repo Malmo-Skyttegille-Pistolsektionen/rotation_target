@@ -4,36 +4,73 @@ import { useSettings } from '../context/SettingsContext';
 import { useAdminStatus } from '../hooks/useAdminStatus';
 import styles from './AdminModeSection.module.css';
 
+function getActionErrorMessage(error: unknown, fallbackMessage: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallbackMessage;
+}
+
 export function AdminModeSection(): React.ReactNode {
   const { adminToken } = useSettings();
-  const { adminModeEnabled, isLoading, login, disable, logout, isLoginPending, isDisablePending } = useAdminStatus();
+  const {
+    adminModeEnabled,
+    isLoading,
+    enable,
+    login,
+    disable,
+    logout,
+    isEnablePending,
+    isLoginPending,
+    isDisablePending,
+  } = useAdminStatus();
   const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const isPending = isLoginPending || isDisablePending;
+  const isPending = isEnablePending || isLoginPending || isDisablePending;
   const isAuthenticated = adminModeEnabled && adminToken !== null;
 
-  const handleEnableOrLogin = async (): Promise<void> => {
-    if (!password.trim()) return;
+  const handleEnable = async (): Promise<void> => {
+    if (!password.trim()) {
+      return;
+    }
 
-    setLoginError(null);
+    setActionError(null);
+    try {
+      await enable(password);
+      setPassword('');
+    } catch (error) {
+      setActionError(getActionErrorMessage(error, 'Failed to enable admin mode.'));
+    }
+  };
+
+  const handleLogin = async (): Promise<void> => {
+    if (!password.trim()) {
+      return;
+    }
+
+    setActionError(null);
     try {
       await login(password);
       setPassword('');
-    } catch {
-      setLoginError('Invalid password');
+    } catch (error) {
+      setActionError(getActionErrorMessage(error, 'Failed to log in as admin.'));
     }
   };
 
   const handleDisable = async (): Promise<void> => {
+    setActionError(null);
+
     try {
       await disable();
-    } catch {
-      // Error handled by mutation
+    } catch (error) {
+      setActionError(getActionErrorMessage(error, 'Failed to disable admin mode.'));
     }
   };
 
   const handleLogout = (): void => {
+    setActionError(null);
     logout();
   };
 
@@ -66,13 +103,13 @@ export function AdminModeSection(): React.ReactNode {
             />
             <button
               className={clsx(styles.button, styles.buttonPrimary)}
-              onClick={handleEnableOrLogin}
+              onClick={handleEnable}
               disabled={!password.trim() || isPending}
             >
               {isPending ? 'Enabling...' : 'Enable Admin Mode'}
             </button>
           </div>
-          {loginError && <div className={styles.errorMessage}>{loginError}</div>}
+          {actionError && <div className={styles.errorMessage}>{actionError}</div>}
         </div>
       </section>
     );
@@ -98,14 +135,14 @@ export function AdminModeSection(): React.ReactNode {
             />
             <button
               className={clsx(styles.button, styles.buttonPrimary)}
-              onClick={handleEnableOrLogin}
+              onClick={handleLogin}
               disabled={!password.trim() || isPending}
             >
-              {isPending ? 'Logging in...' : 'Login as Admin'}
+              {isLoginPending ? 'Logging in...' : 'Login as Admin'}
             </button>
           </div>
-          <div className={styles.infoText}>Admin controls are hidden. Login to enable them.</div>
-          {loginError && <div className={styles.errorMessage}>{loginError}</div>}
+          <div className={styles.infoText}>Login to control the app or disable admin mode.</div>
+          {actionError && <div className={styles.errorMessage}>{actionError}</div>}
         </div>
       </section>
     );
@@ -132,6 +169,7 @@ export function AdminModeSection(): React.ReactNode {
             {isPending ? 'Disabling...' : 'Disable Admin Mode'}
           </button>
         </div>
+        {actionError && <div className={styles.errorMessage}>{actionError}</div>}
       </div>
     </section>
   );

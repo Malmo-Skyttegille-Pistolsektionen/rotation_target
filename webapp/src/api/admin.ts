@@ -23,6 +23,13 @@ export function useAdminApi() {
       });
     },
 
+    login: (password: string): Promise<AdminEnableResponse> => {
+      return request<AdminEnableResponse>('/admin-mode/login', {
+        method: 'POST',
+        body: JSON.stringify({ password }),
+      });
+    },
+
     disable: (): Promise<void> => {
       return request<void>('/admin-mode/disable', {
         method: 'POST',
@@ -54,6 +61,22 @@ export async function enableAdmin(password: string): Promise<AdminEnableResponse
 
   if (!response.ok) {
     throw new Error(`Failed to enable admin mode: ${response.statusText}`);
+  }
+
+  const text = await response.text();
+  return text ? JSON.parse(text) : { token: '' };
+}
+
+export async function loginAdmin(password: string): Promise<AdminEnableResponse> {
+  const response = await fetch(`${getApiBaseUrl()}/admin-mode/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to login admin mode: ${response.statusText}`);
   }
 
   const text = await response.text();

@@ -125,7 +125,7 @@ POST /programs/start with Bearer token in header
 
 ### Enabling Admin Mode
 
-**Note:** Any non-empty password can be used to enable admin mode. Each competition can set their own unique password.
+**Note:** Any non-empty password can be used to enable admin mode. That password becomes the shared admin password until admin mode is disabled.
 
 ```
 User enters any password in Settings
@@ -136,21 +136,22 @@ POST /admin-mode/enable
    │
    ├──► Success (200)
    │    Server accepts any non-empty password
-   │    Sets http-only cookie with token
+   │    Stores it as the active admin password
+   │    Sets admin cookie with token
    │    Returns: { token: "xxx" }
    │    │
    │    ▼
    │ Store token in React context
    │ UI updates to show "ON ✓" state
    │
-   └──► 401 Unauthorized
-        Empty password or invalid request
-        Show error: "Invalid password"
+   └──► 409 Conflict
+        Admin mode already enabled
+        Show error: "Admin mode is already enabled. Log in or disable it before enabling again."
 ```
 
 ### Login When Admin Mode Already Enabled
 
-**Note:** Must use the same password that was used to enable admin mode. Each competition can have a different password.
+**Note:** Must use the same password that was used to enable admin mode. Multiple admins can login at the same time and each gets their own session token.
 
 ```
 Admin mode is ON, user has no token (view-only)
@@ -159,12 +160,12 @@ Admin mode is ON, user has no token (view-only)
 User enters password in Settings
    │
    ▼
-POST /admin-mode/enable
+POST /admin-mode/login
 { password: "competition-secret-2024" }
    │
    ├──► Success (200)
    │    Server validates password matches current admin mode password
-   │    Sets http-only cookie
+   │    Sets admin cookie
    │    Returns: { token: "xxx" }
    │    │
    │    ▼
@@ -173,7 +174,6 @@ POST /admin-mode/enable
    │
    └──► 401 Unauthorized
         Wrong password for this competition
-        Token from previous competition invalid
         Show error: "Invalid password"
 ```
 
@@ -257,9 +257,18 @@ export function useAdminStatus() {
 
   const adminModeEnabled = adminStatus?.enabled ?? false;
 
+  // Enable mutation
+  const enableMutation = useMutation({
+    mutationFn: (password: string) => adminApi.enable(password),
+    onSuccess: (data) => {
+      setAdminToken(data.token);
+      queryClient.invalidateQueries({ queryKey: ['admin-status'] });
+    },
+  });
+
   // Login mutation
   const loginMutation = useMutation({
-    mutationFn: (password: string) => adminApi.enable(password),
+    mutationFn: (password: string) => adminApi.login(password),
     onSuccess: (data) => {
       setAdminToken(data.token);
       queryClient.invalidateQueries({ queryKey: ['admin-status'] });
@@ -278,9 +287,11 @@ export function useAdminStatus() {
   return {
     adminModeEnabled,
     isLoading,
-    login: loginMutation.mutate,
-    disable: disableMutation.mutate,
+    enable: enableMutation.mutateAsync,
+    login: loginMutation.mutateAsync,
+    disable: disableMutation.mutateAsync,
     logout,
+    isEnablePending: enableMutation.isPending,
     isLoginPending: loginMutation.isPending,
     isDisablePending: disableMutation.isPending,
   };
@@ -340,11 +351,20 @@ Uses `useAdminStatus()` for `adminModeEnabled` and checks for `adminToken` in co
 
 ### POST /admin-mode/enable
 
-**Body:** `{ password: string }` - Any non-empty password is accepted when enabling admin mode for the first time. When admin mode is already enabled, the same password must be used to authenticate.  
+**Body:** `{ password: string }` - Any non-empty password is accepted when admin mode is off.  
 **Response:** `{ token: string }`  
-**Auth required:** No (but requires matching password when mode is already enabled)  
-**Purpose:** Enable admin mode OR authenticate when already enabled  
-**Note:** Each competition can set their own unique password. The password is set when admin mode is first enabled and must be used for all subsequent logins until admin mode is disabled.
+**Auth required:** No  
+**Purpose:** Enable admin mode and issue the first admin session  
+**Errors:** `409` if admin mode is already enabled  
+**Note:** Each competition can set their own unique password. The password is set when admin mode is first enabled and must be used for all subsequent admin logins until admin mode is disabled.
+
+### POST /admin-mode/login
+
+**Body:** `{ password: string }` - Must match the active admin password.  
+**Response:** `{ token: string }`  
+**Auth required:** No  
+**Purpose:** Authenticate another admin session while admin mode is already enabled  
+**Errors:** `409` if admin mode is not enabled
 
 ### POST /admin-mode/disable
 
@@ -405,6 +425,12 @@ if (response.status === 401 && adminToken) {
 - Client shows error message
 - Token not stored
 - User remains in view-only mode
+
+### Wrong Endpoint For Current State
+
+- `POST /admin-mode/enable` returns 409 if admin mode is already enabled
+- `POST /admin-mode/login` returns 409 if admin mode is not enabled
+- Client shows the server error message
 
 ### Token Invalid (Password Changed)
 

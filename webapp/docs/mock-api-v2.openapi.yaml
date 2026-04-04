@@ -5,7 +5,7 @@ openapi: 3.1.0
 info:
   title: Rotation Target Mock API v2
   version: 2.0.0-mock
-  description: "Machine-readable contract for the current mock implementation in `vite-plugins/mock-server-v2.ts`. This spec intentionally matches the mock server as it behaves today, including current quirks: read endpoints stay public, mutating endpoints are only protected while admin mode is enabled, program payloads expose `audio_ids` in snake_case, event `command` is optional in stored program JSON, `POST /api/v2/admin-mode/enable` accepts any non-empty password string, and `POST /api/v2/admin-mode/disable` does not send a cookie-clearing header."
+  description: "Machine-readable contract for the current mock implementation in `vite-plugins/mock-server-v2.ts`. This spec intentionally matches the mock server as it behaves today, including current quirks: read endpoints stay public, mutating endpoints are only protected while admin mode is enabled, program payloads expose `audio_ids` in snake_case, event `command` is optional in stored program JSON, `POST /api/v2/admin-mode/enable` accepts any non-empty password string only while admin mode is off, `POST /api/v2/admin-mode/login` reuses that password while admin mode is on, and `POST /api/v2/admin-mode/disable` does not send a cookie-clearing header."
 servers:
   - url: http://localhost:8080
     description: Local Vite dev server with mock API v2
@@ -43,7 +43,7 @@ paths:
         - Admin Mode
       operationId: enableAdminMode
       summary: Enable admin mode
-      description: Parses a JSON body with `password`. Any non-empty string succeeds and replaces the current server token. On success the response also sets an `admin` cookie with `Path=/` and `SameSite=Lax`, but without `HttpOnly`.
+      description: Parses a JSON body with `password`. Any non-empty string enables admin mode while it is off. If admin mode is already enabled, the endpoint returns `409` with an error telling the client to log in or disable admin mode first. On success the response also sets an `admin` cookie with `Path=/` and `SameSite=Lax`, but without `HttpOnly`.
       requestBody:
         required: true
         content:
@@ -54,7 +54,7 @@ paths:
               password: competition-secret
       responses:
         "200":
-          description: Admin mode enabled and a new token issued.
+          description: Admin mode enabled and the first admin token issued.
           headers:
             Set-Cookie:
               $ref: "#/components/headers/AdminSessionCookie"
@@ -68,6 +68,41 @@ paths:
           $ref: "#/components/responses/InvalidJson"
         "401":
           $ref: "#/components/responses/InvalidPassword"
+        "409":
+          $ref: "#/components/responses/AdminModeAlreadyEnabled"
+  /api/v2/admin-mode/login:
+    post:
+      tags:
+        - Admin Mode
+      operationId: loginAdminMode
+      summary: Login admin session
+      description: Parses a JSON body with `password`. When admin mode is enabled, the password must match the currently active admin password. On success the response sets an `admin` cookie with `Path=/` and `SameSite=Lax`, but without `HttpOnly`, and returns a fresh admin token for that session.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminEnableRequest"
+            example:
+              password: competition-secret
+      responses:
+        "200":
+          description: Admin session authenticated and a fresh token issued.
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/AdminSessionCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEnableResponse"
+              example:
+                token: abc1231773773309920
+        "400":
+          $ref: "#/components/responses/InvalidJson"
+        "401":
+          $ref: "#/components/responses/InvalidPassword"
+        "409":
+          $ref: "#/components/responses/AdminModeNotEnabled"
   /api/v2/admin-mode/disable:
     post:
       tags:
@@ -722,6 +757,22 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
           example:
             error: Invalid password
+    AdminModeAlreadyEnabled:
+      description: Request rejected because admin mode is already enabled and the client must log in or disable it before enabling again.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: Admin mode is already enabled. Log in or disable it before enabling again.
+    AdminModeNotEnabled:
+      description: Request rejected because admin mode is not enabled yet and must be enabled before admins can log in.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: Admin mode is not enabled. Enable it before logging in.
     InvalidOrMissingBearerToken:
       description: Mutation rejected because admin mode is enabled and the request did not include a valid bearer token or `admin` cookie.
       content:

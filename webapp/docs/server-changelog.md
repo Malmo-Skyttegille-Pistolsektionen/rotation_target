@@ -30,8 +30,10 @@ Canonical contract: `docs/mock-api-v2.openapi.json`.
 
 ## Auth Changes
 
-- `POST /api/v2/admin-mode/enable` accepts any non-empty password string.
-- Token automatically set as `admin` cookie on successful enable.
+- `POST /api/v2/admin-mode/enable` accepts any non-empty password string while admin mode is off, and returns `409` if admin mode is already enabled.
+- New `POST /api/v2/admin-mode/login` endpoint accepts the active admin password while admin mode is on and issues additional admin sessions.
+- Token automatically set as `admin` cookie on successful enable/login.
+- Protected requests accept any issued admin token until admin mode is disabled.
 - Auth accepts both `Authorization: Bearer <token>` header and `Cookie: admin=<token>`.
 - New `GET /api/v2/admin-mode/status` endpoint returns only the global `{ enabled: true/false }` state and ignores request auth.
 - Enable response cookie is `SameSite=Lax` but not `HttpOnly`.
