@@ -2,8 +2,6 @@
 
 Canonical machine-readable contract: `docs/mock-api-v2.openapi.json`.
 
-Generated YAML mirror: `docs/mock-api-v2.openapi.yaml`.
-
 ## Overview
 
 Mock Server v2 is SSE-first. The legacy server (`/sse/v1`, `/api/v1/*`) still exists, but the current React app uses:

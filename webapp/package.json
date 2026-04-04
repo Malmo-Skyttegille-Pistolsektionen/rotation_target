@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "openapi:yaml": "node scripts/export-openapi-yaml.mts",
     "preview": "vite preview",
     "lint": "eslint .",
     "swagger": "node scripts/swagger-ui-server.mts",
