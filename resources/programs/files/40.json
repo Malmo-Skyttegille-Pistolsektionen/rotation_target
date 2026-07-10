@@ -1,21 +1,21 @@
 {
   "id": 40,
   "title": "Fältträning",
-  "description": "Each series starts hidden for 10s, then 3x show/hide cycles",
+  "description": "Each series starts hidden for 7s, then 5x show/hide cycles (4000, 3000, 2500, 2000)",
   "readonly": false,
   "series": [
     {
       "events": [
         {
           "command": "hide",
-          "duration": 10000,
+          "duration": 7000,
           "audio_ids": [
             31
           ]
         },
         {
           "command": "show",
-          "duration": 3000
+          "duration": 4000
         },
         {
           "command": "hide",
@@ -23,7 +23,7 @@
         },
         {
           "command": "show",
-          "duration": 3000
+          "duration": 4000
         },
         {
           "command": "hide",
@@ -31,21 +31,143 @@
         },
         {
           "command": "show",
+          "duration": 4000
+        },
+        {
+          "command": "hide",
           "duration": 3000
+        },
+        {
+          "command": "show",
+          "duration": 4000
+        },
+        {
+          "command": "hide",
+          "duration": 3000
+        },
+        {
+          "command": "show",
+          "duration": 4000
         },
         {
           "command": "hide",
           "duration": 3000
         }
       ],
-      "name": "Series 1 (x=3, y=3)",
+      "name": "Series 1 (show=4, hide=3)",
       "optional": false
     },
     {
       "events": [
         {
           "command": "hide",
-          "duration": 10000,
+          "duration": 7000,
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "command": "show",
+          "duration": 4000
+        },
+        {
+          "command": "hide",
+          "duration": 3000
+        },
+        {
+          "command": "show",
+          "duration": 3000
+        },
+        {
+          "command": "hide",
+          "duration": 3000
+        },
+        {
+          "command": "show",
+          "duration": 3000
+        },
+        {
+          "command": "hide",
+          "duration": 3000
+        },
+        {
+          "command": "show",
+          "duration": 3000
+        },
+        {
+          "command": "hide",
+          "duration": 3000
+        },
+        {
+          "command": "show",
+          "duration": 3000
+        },
+        {
+          "command": "hide",
+          "duration": 3000
+        }
+      ],
+      "name": "Series 2 (show=3, hide=3)",
+      "optional": false
+    },
+    {
+      "events": [
+        {
+          "command": "hide",
+          "duration": 7000,
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "command": "show",
+          "duration": 2500
+        },
+        {
+          "command": "hide",
+          "duration": 3000
+        },
+        {
+          "command": "show",
+          "duration": 2500
+        },
+        {
+          "command": "hide",
+          "duration": 3000
+        },
+        {
+          "command": "show",
+          "duration": 2500
+        },
+        {
+          "command": "hide",
+          "duration": 3000
+        },
+        {
+          "command": "show",
+          "duration": 2500
+        },
+        {
+          "command": "hide",
+          "duration": 3000
+        },
+        {
+          "command": "show",
+          "duration": 2500
+        },
+        {
+          "command": "hide",
+          "duration": 3000
+        }
+      ],
+      "name": "Series 3 (show=2.5, hide=3)",
+      "optional": false
+    },
+    {
+      "events": [
+        {
+          "command": "hide",
+          "duration": 7000,
           "audio_ids": [
             31
           ]
@@ -73,10 +195,26 @@
         {
           "command": "hide",
           "duration": 3000
+        },
+        {
+          "command": "show",
+          "duration": 2000
+        },
+        {
+          "command": "hide",
+          "duration": 3000
+        },
+        {
+          "command": "show",
+          "duration": 2000
+        },
+        {
+          "command": "hide",
+          "duration": 3000
         }
       ],
-      "name": "Series 2 (x=2, y=3)",
+      "name": "Series 1 (show=2, hide=3)",
       "optional": false
     }
-  ]
+]
 }

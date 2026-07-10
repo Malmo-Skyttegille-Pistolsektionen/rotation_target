@@ -2,7 +2,7 @@
 
 SCHEMA="../openapi/program.schema.json"
 
-for file in *.json; do
+for file in files/*.json; do
     echo "Validating $file..."
     check-jsonschema --schemafile "$SCHEMA" "$file"
     if [ $? -eq 0 ]; then
