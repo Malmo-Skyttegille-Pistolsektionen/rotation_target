@@ -11,7 +11,11 @@ const char *TAG = "targets";
 void init() {
   gpio_config_t cfg = {};
   cfg.pin_bit_mask = 1ULL << kTargetPin;
-  cfg.mode = GPIO_MODE_OUTPUT;
+  // INPUT_OUTPUT, not OUTPUT: with the input buffer left on, gpio_get_level()
+  // reads the real pad voltage rather than the output latch, so a pin that is
+  // being held by something external is distinguishable from one the firmware
+  // never drove.
+  cfg.mode = GPIO_MODE_INPUT_OUTPUT;
   cfg.pull_up_en = GPIO_PULLUP_DISABLE;
   cfg.pull_down_en = GPIO_PULLDOWN_DISABLE;
   cfg.intr_type = GPIO_INTR_DISABLE;
@@ -23,6 +27,14 @@ void init() {
   // repositories and brings up I2S; the targets faced the shooters for that
   // whole window on every boot and every watchdog reboot.
   set(false);
+}
+
+int level() {
+  return gpio_get_level(kTargetPin);
+}
+
+int pin() {
+  return static_cast<int>(kTargetPin);
 }
 
 void set(bool shown) {

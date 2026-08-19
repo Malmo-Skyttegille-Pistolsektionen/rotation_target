@@ -31,6 +31,7 @@
 #include "programs.h"
 #include "sse_hub.h"
 #include "storage.h"
+#include "targets.h"
 #include "wifi_mgr.h"
 
 namespace web_server {
@@ -390,6 +391,13 @@ void register_diagnostics_routes() {
     out += std::to_string(audios::all().size());
     out += ",\"ipAddress\":";
     out += rt::json_quote(wifi_mgr::ip_address());
+    // What the target pin is configured as, and what is actually on the pad -
+    // the pair that distinguishes "the firmware never drove it" from
+    // "something else is holding it".
+    out += ",\"targetGpio\":";
+    out += std::to_string(targets::pin());
+    out += ",\"targetGpioLevel\":";
+    out += std::to_string(targets::level());
     out += ",\"adminModeEnabled\":";
     out += s_admin.enabled() ? "true" : "false";
     out += "}";
