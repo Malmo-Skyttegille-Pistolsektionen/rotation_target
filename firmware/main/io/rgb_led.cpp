@@ -2,14 +2,32 @@
 
 #include "config.h"
 #include "esp_log.h"
+#include "sdkconfig.h"
+
+#if CONFIG_RT_RGB_LED_ENABLED
 #include "led_strip.h"
+#endif
 
 namespace rgb_led {
-namespace {
 
+#if !CONFIG_RT_RGB_LED_ENABLED
+
+// The board has no addressable LED - a bare ESP32-S3-WROOM module does not
+// carry one, unlike the DevKitC-1. Every call is a no-op rather than a driver
+// failure logged on each boot; the same status is in the serial log and in
+// GET /api/v2/diagnostics/info.
+void init() {}
+void set(uint8_t, uint8_t, uint8_t) {}
+void off() {}
+void red() {}
+void green() {}
+void yellow() {}
+
+#else
+
+namespace {
 const char *TAG = "rgb_led";
 led_strip_handle_t s_strip = nullptr;
-
 }  // namespace
 
 void init() {
@@ -52,7 +70,9 @@ void green() {
   set(0, 10, 0);
 }
 void yellow() {
-  set(255, 255, 0);
+  set(60, 60, 0);
 }
+
+#endif  // CONFIG_RT_RGB_LED_ENABLED
 
 }  // namespace rgb_led

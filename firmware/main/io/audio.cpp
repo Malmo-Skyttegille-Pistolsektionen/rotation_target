@@ -4,13 +4,36 @@
 #include <cstring>
 
 #include "config.h"
-#include "driver/i2s_std.h"
 #include "esp_log.h"
+#include "sdkconfig.h"
+
+#if CONFIG_RT_AUDIO_ENABLED
+#include "driver/i2s_std.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#endif
 
 namespace audio {
+
+#if !CONFIG_RT_AUDIO_ENABLED
+
+// No DAC on this board. Programs still run and the API still lists audio; the
+// clips simply do not play, which is a legitimate configuration for a target
+// that only turns.
+bool init() {
+  return true;
+}
+void play(const std::vector<std::string> &) {}
+bool is_playing(const std::string &) {
+  return false;
+}
+bool probe_wav(const char *, rt::WavInfo &) {
+  return false;
+}
+
+#else
+
 namespace {
 
 const char *TAG = "audio";
@@ -209,5 +232,7 @@ void play(const std::vector<std::string> &paths) {
   if (xQueueReceive(s_queue, &stale, 0) == pdTRUE) delete stale;
   if (xQueueSend(s_queue, &list, 0) != pdTRUE) delete list;
 }
+
+#endif  // CONFIG_RT_AUDIO_ENABLED
 
 }  // namespace audio
