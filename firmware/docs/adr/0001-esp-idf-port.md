@@ -48,8 +48,10 @@ behind the same wire format, not a redesign.
 
 ## Consequences
 
-**Gained:** dual OTA slots with rollback, task and interrupt watchdogs with
-panic, core dump to flash, brownout detection, a run loop that wakes on event
+**Gained:** task and interrupt watchdogs with panic, core dump to flash,
+brownout detection, the partition layout and rollback machinery for OTA (the
+update *endpoint* is still to come - today the only way to write the second
+slot is `idf.py app-flash` over USB), a run loop that wakes on event
 and second boundaries within 200 ms, audio on its own task at its own priority,
 and a host test suite that exercises the real executor with no sleeps.
 

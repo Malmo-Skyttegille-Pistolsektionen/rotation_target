@@ -2,6 +2,7 @@
 
 #include <sys/stat.h>
 
+#include <cerrno>
 #include <cstring>
 #include <string>
 
@@ -38,11 +39,6 @@ bool make_dirs(const char *path) {
     p = slash + 1;
   }
   return true;
-}
-
-bool file_exists(const char *path) {
-  struct stat st;
-  return stat(path, &st) == 0 && S_ISREG(st.st_mode);
 }
 
 bool init() {

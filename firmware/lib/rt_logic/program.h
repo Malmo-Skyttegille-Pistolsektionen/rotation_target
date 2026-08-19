@@ -19,6 +19,11 @@ namespace rt {
 // inside int32.
 constexpr int32_t kMaxEventMs = 60 * 60 * 1000;
 
+// Floor on a parsed event duration. locate_event() uses a half-open interval,
+// so a zero-duration event would never be entered at all and its command and
+// audio would silently not happen.
+constexpr int32_t kMinEventMs = 1;
+
 // A single step of a series: hold for `duration_ms`, optionally moving the
 // targets and playing audio on entry.
 struct Event {

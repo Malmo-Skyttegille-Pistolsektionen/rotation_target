@@ -20,6 +20,8 @@ QueueHandle_t s_queue = nullptr;
 // Guards s_tx across the reconfigure/enable/disable a clip does, so a queued
 // clip cannot start while the previous one is tearing down.
 SemaphoreHandle_t s_i2s_lock = nullptr;
+// The clip the audio task has open right now, or empty. Guarded by s_i2s_lock.
+std::string s_playing;
 
 // One queued playlist. Sent by pointer through the queue and deleted by the
 // playback task.
@@ -65,12 +67,14 @@ void play_one(const std::string &path) {
   }
 
   xSemaphoreTake(s_i2s_lock, portMAX_DELAY);
+  s_playing = path;
 
   // Clips are generated at a range of sample rates, so the clock is set per
   // clip rather than once at init.
   i2s_std_clk_config_t clk = I2S_STD_CLK_DEFAULT_CONFIG(info.sample_rate);
   if (i2s_channel_reconfig_std_clock(s_tx, &clk) != ESP_OK || i2s_channel_enable(s_tx) != ESP_OK) {
     ESP_LOGE(TAG, "I2S setup failed for %s", path.c_str());
+    s_playing.clear();
     xSemaphoreGive(s_i2s_lock);
     fclose(f);
     return;
@@ -113,6 +117,7 @@ void play_one(const std::string &path) {
   }
 
   i2s_channel_disable(s_tx);
+  s_playing.clear();
   xSemaphoreGive(s_i2s_lock);
   fclose(f);
   ESP_LOGD(TAG, "Played %s", path.c_str());
@@ -130,6 +135,14 @@ void playback_task(void *) {
 }
 
 }  // namespace
+
+bool is_playing(const std::string &path) {
+  if (s_i2s_lock == nullptr) return false;
+  xSemaphoreTake(s_i2s_lock, portMAX_DELAY);
+  const bool playing = !s_playing.empty() && s_playing == path;
+  xSemaphoreGive(s_i2s_lock);
+  return playing;
+}
 
 bool probe_wav(const char *path, rt::WavInfo &out) {
   FILE *f = fopen(path, "rb");

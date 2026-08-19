@@ -1,6 +1,6 @@
 dependencies:
   # The version this firmware is built and tested against. CI pins v6.0.2.
-  idf: ">=5.3"
+  idf: ">=6.0"
   # LittleFS for the `storage` partition: the shipped audio and programs, plus
   # uploads. Chosen over SPIFFS for real directory support - the shipped and
   # uploaded trees are separate directories, and that separation is what makes

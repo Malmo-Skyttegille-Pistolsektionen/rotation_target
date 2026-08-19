@@ -212,8 +212,11 @@ void test_a_hostile_duration_is_clamped() {
   TEST_ASSERT_TRUE(rt::parse_program(doc, strlen(doc), false, p));
 
   TEST_ASSERT_EQUAL_INT32(rt::kMaxEventMs, p.series[0].events[0].duration_ms);
-  TEST_ASSERT_EQUAL_INT32(0, p.series[0].events[1].duration_ms);
-  TEST_ASSERT_EQUAL_INT32(rt::kMaxEventMs, p.series[0].total_ms());
+  // Floored at 1 ms, not 0: locate_event()'s half-open interval means a
+  // zero-length event can never be entered, so its command and audio would be
+  // silently skipped.
+  TEST_ASSERT_EQUAL_INT32(rt::kMinEventMs, p.series[0].events[1].duration_ms);
+  TEST_ASSERT_EQUAL_INT32(rt::kMaxEventMs + rt::kMinEventMs, p.series[0].total_ms());
 }
 
 int main() {

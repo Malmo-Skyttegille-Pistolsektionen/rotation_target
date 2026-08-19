@@ -73,7 +73,12 @@ mode is on.
   token; `409` if admin mode is off
 - Both send `Set-Cookie: admin=<token>; Path=/; SameSite=Lax`
 - `POST /api/v2/admin-mode/disable` clears the password and invalidates every
-  issued token
+  issued token — note this turns protection *off*, it is not "log out"
+- `POST /api/v2/admin-mode/logout` invalidates only the presenting token and
+  clears the cookie, leaving admin mode on. This is what a client leaving a
+  shared range laptop wants
+- Tokens expire 12 hours after they are issued, and at most 8 sessions are
+  held at once (oldest evicted first)
 
 Tokens are 16 bytes from `esp_fill_random()`, hex-encoded.
 
@@ -98,6 +103,7 @@ Tokens are 16 bytes from `esp_fill_random()`, hex-encoded.
 | Method | Path |
 |--------|------|
 | `POST` | `/api/v2/admin-mode/disable` |
+| `POST` | `/api/v2/admin-mode/logout` |
 | `POST` | `/api/v2/programs/{id}/load` |
 | `POST` | `/api/v2/programs/start` |
 | `POST` | `/api/v2/programs/stop` |
@@ -124,11 +130,13 @@ Tokens are 16 bytes from `esp_fill_random()`, hex-encoded.
   that is not three-part semver degrades to zeroes rather than failing.
 - **`POST /api/v2/audios/{id}/play` returns immediately** and plays on the
   audio task, rather than holding the response open for the length of the clip.
-- **CORS allows credentials.** The webapp sends the admin cookie and bearer
-  token with every call, so the device reflects the request origin and sets
-  `Access-Control-Allow-Credentials`. A browser refuses
-  `Access-Control-Allow-Origin: *` on a credentialed request, which is why the
-  origin is reflected rather than wildcarded.
+- **CORS allows credentials, against an allowlist.** The webapp sends the admin
+  cookie and bearer token with every call, and a browser refuses
+  `Access-Control-Allow-Origin: *` on a credentialed request — so the origin is
+  echoed rather than wildcarded. It is echoed only if it matches the device's
+  own mDNS name or current IP, or `CONFIG_RT_DEV_ORIGIN`. Any other origin gets
+  no CORS headers, so a page the operator happens to be visiting cannot script
+  the device or read its responses.
 
 Note that `SameSite=Lax` means the cookie is only sent when the webapp is served
 from the device itself. A webapp on another origin authenticates with the bearer
@@ -172,6 +180,18 @@ the device assigns the next free id from 100 and rewrites the file from the
 parsed program, so what is persisted is what will come back on the next boot.
 
 `POST /api/v2/audios` takes a multipart body with a `file` part and a `title`
-field. The clip is streamed straight to flash, then validated as PCM 16-bit
-mono/stereo WAV — a file that fails validation is deleted again before the
-caller is told it is unusable. Filenames containing `/` or `..` are refused.
+field. The clip is streamed to a staging file, validated as PCM 16-bit
+mono/stereo WAV, and only then renamed to `<id>.wav`.
+
+**The client's filename is never used on disk** — only its `.wav` extension is
+checked, as an early reject. A client-chosen name could collide with the
+repository's own `audios.json` index (destroying it) or with an existing clip
+(leaving two ids sharing one file, so deleting either broke the other). Every
+failure path removes the staging file, so a repeated failed upload cannot fill
+the partition.
+
+Uploads are bounded by `kMaxUploadBytes` (1 MB), applied to the HTTP layer —
+not just when reading files back.
+
+`DELETE /api/v2/audios/{id}/delete` answers `409` if the clip is playing:
+LittleFS has no unlink-while-open, so deleting it would corrupt the read.

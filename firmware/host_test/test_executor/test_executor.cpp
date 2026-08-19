@@ -333,6 +333,24 @@ void test_reset_returns_to_the_start_of_the_series() {
                            h->effects.broadcasts.back().c_str());
 }
 
+void test_reset_leaves_the_targets_where_they_are() {
+  // Deliberate, and matching the MicroPython backend: reset() rewinds the
+  // position but does not move the hardware. Only a series boundary hides the
+  // targets. Asserted here because the published state must stay honest about
+  // it - the existing reset test resets 250 ms in, which is already inside the
+  // "hide" event, so the shown case was never covered.
+  h->executor.load(&g_program);
+  h->executor.start();  // event 0 is "show"
+
+  TEST_ASSERT_TRUE(h->state.target_status_shown);
+
+  h->executor.reset();
+
+  TEST_ASSERT_TRUE(h->state.target_status_shown);
+  TEST_ASSERT_EQUAL_STRING(state("false", "0", "0", "null", "shown").c_str(),
+                           h->effects.broadcasts.back().c_str());
+}
+
 void test_unloading_clears_the_published_state() {
   h->executor.load(&g_program);
 
@@ -387,6 +405,7 @@ int main() {
   RUN_TEST(test_pause_and_resume_keeps_the_position);
   RUN_TEST(test_resume_after_a_multi_second_pause_keeps_the_event);
   RUN_TEST(test_reset_returns_to_the_start_of_the_series);
+  RUN_TEST(test_reset_leaves_the_targets_where_they_are);
   RUN_TEST(test_unloading_clears_the_published_state);
 
   RUN_TEST(test_toggle_targets_flips_the_published_flag_and_the_pin);

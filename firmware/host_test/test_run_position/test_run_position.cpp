@@ -61,9 +61,17 @@ void test_an_empty_series_has_no_location() {
   TEST_ASSERT_FALSE(rt::locate_event(rt::Series{}, 0).valid);
 }
 
-void test_sleep_stops_at_the_next_whole_second() {
-  // 100 ms in, the next second is 900 ms away, so the cap applies first.
+void test_sleep_is_capped_below_the_next_second() {
+  // 100 ms in, the next second is 900 ms away, so the cap applies first. Named
+  // for what it actually asserts - it was previously called
+  // "stops_at_the_next_whole_second", which it never exercised.
   TEST_ASSERT_EQUAL_INT32(rt::kMaxSleepMs, rt::next_sleep_ms(100, 60000, 60000));
+}
+
+void test_sleep_stops_at_the_next_whole_second() {
+  // The next-second bound winning on its own: 950 ms in, with the event and
+  // the series both ending far away, the 1000 ms tick is the nearest wake-up.
+  TEST_ASSERT_EQUAL_INT32(50, rt::next_sleep_ms(950, 5000, 60000));
 }
 
 void test_sleep_stops_at_the_end_of_the_event() {
@@ -93,6 +101,7 @@ int main() {
   RUN_TEST(test_mid_event_reports_the_offset);
   RUN_TEST(test_the_end_of_the_series_is_not_a_location);
   RUN_TEST(test_an_empty_series_has_no_location);
+  RUN_TEST(test_sleep_is_capped_below_the_next_second);
   RUN_TEST(test_sleep_stops_at_the_next_whole_second);
   RUN_TEST(test_sleep_stops_at_the_end_of_the_event);
   RUN_TEST(test_sleep_stops_at_the_end_of_the_series);

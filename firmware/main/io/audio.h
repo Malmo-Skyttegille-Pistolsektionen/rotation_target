@@ -21,4 +21,9 @@ void play(const std::vector<std::string> &paths);
 // Parses and validates the header; see lib/rt_logic/wav_header.h.
 bool probe_wav(const char *path, rt::WavInfo &out);
 
+// Whether `path` is the clip the audio task currently has open. LittleFS has
+// no POSIX unlink-while-open semantics, so deleting a playing clip corrupts
+// the read rather than deferring - callers check first and refuse.
+bool is_playing(const std::string &path);
+
 }  // namespace audio

@@ -24,9 +24,9 @@ file(REMOVE_RECURSE "${LITTLEFS_STAGE}")
 file(MAKE_DIRECTORY "${LITTLEFS_STAGE}/shipped/audio" "${LITTLEFS_STAGE}/shipped/programs")
 file(COPY "${CMAKE_CURRENT_LIST_DIR}/resources/audios/audios.json"
      DESTINATION "${LITTLEFS_STAGE}/shipped/audio")
-file(GLOB SHIPPED_WAVS "${CMAKE_CURRENT_LIST_DIR}/resources/audios/files/*.wav")
+file(GLOB SHIPPED_WAVS CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/resources/audios/files/*.wav")
 file(COPY ${SHIPPED_WAVS} DESTINATION "${LITTLEFS_STAGE}/shipped/audio")
-file(GLOB SHIPPED_PROGRAMS "${CMAKE_CURRENT_LIST_DIR}/resources/programs/files/*.json")
+file(GLOB SHIPPED_PROGRAMS CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/resources/programs/files/*.json")
 file(COPY ${SHIPPED_PROGRAMS} DESTINATION "${LITTLEFS_STAGE}/shipped/programs")
 
 littlefs_create_partition_image(storage "${LITTLEFS_STAGE}" FLASH_IN_PROJECT)

@@ -41,11 +41,19 @@ const char *TAG = "web_server";
 PsychicHttpServer s_server;
 PsychicUploadHandler s_audio_upload;
 
+// Uploads land here first and are renamed to <id>.wav once validated.
+constexpr const char *kStagedUploadPath = "/storage/uploads/audio/.staging";
+bool s_upload_in_flight = false;
+
 void esp_random_bytes(uint8_t *out, size_t len) {
   esp_fill_random(out, len);
 }
 
-rt::AdminMode s_admin(esp_random_bytes);
+int64_t now_ms() {
+  return esp_timer_get_time() / 1000;
+}
+
+rt::AdminMode s_admin(esp_random_bytes, now_ms);
 
 // --- response helpers ------------------------------------------------------
 
@@ -102,6 +110,23 @@ std::string password_from(PsychicRequest *req) {
   return doc["password"] | "";
 }
 
+// Origins the webapp may legitimately be served from: the device itself by
+// mDNS name or by whatever address it currently holds, plus an optional
+// development origin. Anything else gets no CORS headers, so the browser
+// blocks the response.
+bool origin_allowed(const std::string &origin) {
+  const std::string host = std::string(CONFIG_RT_HOSTNAME);
+  if (origin == "http://" + host + ".local" || origin == "https://" + host + ".local") return true;
+
+  const std::string ip = wifi_mgr::ip_address();
+  if (!ip.empty() && (origin == "http://" + ip || origin == "https://" + ip)) return true;
+
+  const std::string dev = CONFIG_RT_DEV_ORIGIN;
+  if (!dev.empty() && origin == dev) return true;
+
+  return false;
+}
+
 // --- path parsing ---------------------------------------------------------
 
 // rt::path_id does the work; see lib/rt_logic/uri_path.h. It lives there
@@ -139,6 +164,22 @@ void register_admin_mode_routes() {
     if (token.empty()) return send_error(res, 401, "Invalid password");
     return send_admin_session(res, token);
   });
+
+  s_server.on("/api/v2/admin-mode/logout", HTTP_POST,
+              [](PsychicRequest *req, PsychicResponse *res) {
+                // Ends this session only. disable() turns protection off
+                // entirely, which is the opposite of what a client logging out
+                // of a shared range laptop wants.
+                const char *header = req->header("Authorization");
+                std::string token = rt::AdminMode::bearer_token(header != nullptr ? header : "");
+                if (token.empty()) {
+                  const char *cookie = req->getCookie("admin");
+                  if (cookie != nullptr) token = cookie;
+                }
+                s_admin.logout(token);
+                res->addHeader("Set-Cookie", "admin=; Path=/; SameSite=Lax; Max-Age=0");
+                return send_message(res, "Logged out");
+              });
 
   s_server.on("/api/v2/admin-mode/disable", HTTP_POST,
               [](PsychicRequest *req, PsychicResponse *res) {
@@ -201,9 +242,13 @@ void register_program_routes() {
     if (!require_admin(req, res)) return ESP_OK;
 
     const char *body = req->body();
-    if (body == nullptr || *body == '\0') return send_error(res, 400, "Invalid program");
+    const size_t length = static_cast<size_t>(req->contentLength());
+    if (body == nullptr || length == 0) return send_error(res, 400, "Invalid program");
 
-    const int32_t id = programs::add_uploaded(body, strlen(body));
+    // contentLength, not strlen: a body carrying an embedded NUL would
+    // otherwise be parsed as the prefix before it and rejected with a
+    // misleading error.
+    const int32_t id = programs::add_uploaded(body, length);
     if (id < 0) return send_error(res, 400, "Invalid program");
 
     return send_json(res, 201, "{\"id\":" + std::to_string(id) + "}");
@@ -238,8 +283,17 @@ void register_program_routes() {
     if (!path_id(req->uri(), "/api/v2/programs/", "/delete", id)) {
       return send_error(res, 404, "Not found");
     }
-    // Unload first: dropping the program while the run loop holds a pointer to
-    // it would dangle, and the client needs the stateUpdate either way.
+    // Deletability first, THEN unload. programs::remove refuses shipped
+    // (read-only) programs, so unloading first meant a DELETE against a
+    // shipped program aborted a running series and *then* answered 404 - the
+    // caller told nothing happened while the range run had already stopped.
+    const rt::Program *program = programs::get(id);
+    if (program == nullptr || program->readonly) {
+      return send_error(res, 404, "Program not found");
+    }
+
+    // Only now: dropping the program while the run loop holds a pointer to it
+    // would dangle, and the client needs the stateUpdate either way.
     executor::unload_if_loaded(id);
     if (!programs::remove(id)) return send_error(res, 404, "Program not found");
 
@@ -382,62 +436,109 @@ void register_audio_routes() {
     if (!path_id(req->uri(), "/api/v2/audios/", "/delete", id)) {
       return send_error(res, 404, "Not found");
     }
-    if (!audios::remove(id)) return send_error(res, 404, "Audio not found");
+    switch (audios::remove(id)) {
+      case audios::RemoveResult::kNotFound:
+        return send_error(res, 404, "Audio not found");
+      case audios::RemoveResult::kPlaying:
+        return send_error(res, 409, "Audio is currently playing");
+      case audios::RemoveResult::kOk:
+        break;
+    }
     return send_message(res, "Audio deleted successfully");
   });
 
-  // Streamed straight to LittleFS rather than buffered: a WAV is far larger
-  // than the heap can hold in one piece.
+  // Streamed to a fixed staging file rather than a client-named one. The
+  // client's filename is never used on disk: it could collide with the
+  // repository's own audios.json index (destroying it) or with an existing
+  // clip (leaving two ids sharing one file). audios::add_uploaded renames the
+  // staged file to <id>.wav once an id is assigned.
   s_audio_upload.onUpload([](PsychicRequest *req, const char *filename, uint64_t index,
                              uint8_t *data, size_t len, bool final) -> esp_err_t {
     if (filename == nullptr || *filename == '\0') return ESP_FAIL;
-    // Reject any path separator: the filename comes from the client and is
-    // about to be concatenated into a path.
-    if (strchr(filename, '/') != nullptr || strstr(filename, "..") != nullptr) return ESP_FAIL;
 
-    const std::string path = std::string(kUploadAudioDir) + "/" + filename;
-    storage::make_dirs(kUploadAudioDir);
+    // Extension is the only thing taken from the client name, and only as an
+    // early reject - the header is validated properly once the file has landed.
+    const size_t name_len = strlen(filename);
+    if (name_len < 5 || strcasecmp(filename + name_len - 4, ".wav") != 0) {
+      ESP_LOGW(TAG, "Rejected upload '%s': not a .wav", filename);
+      return ESP_FAIL;
+    }
 
-    FILE *f = fopen(path.c_str(), index == 0 ? "wb" : "ab");
-    if (f == nullptr) return ESP_FAIL;
+    if (index == 0) {
+      // One staging slot, so two uploads at once would interleave into one
+      // file. Rare enough to refuse rather than engineer around.
+      if (s_upload_in_flight) {
+        ESP_LOGW(TAG, "Rejected upload: another is already in flight");
+        return ESP_FAIL;
+      }
+      s_upload_in_flight = true;
+      storage::make_dirs(kUploadAudioDir);
+    }
+
+    FILE *f = fopen(kStagedUploadPath, index == 0 ? "wb" : "ab");
+    if (f == nullptr) {
+      s_upload_in_flight = false;
+      ::remove(kStagedUploadPath);
+      return ESP_FAIL;
+    }
     const size_t written = fwrite(data, 1, len, f);
     fclose(f);
-    if (written != len) return ESP_FAIL;
 
-    if (final) req->setSessionKey("upload_filename", filename);
+    if (written != len) {
+      // Out of space, most likely. Never leave the partial behind: a repeated
+      // failed upload would otherwise fill the partition.
+      s_upload_in_flight = false;
+      ::remove(kStagedUploadPath);
+      return ESP_FAIL;
+    }
+
+    if (final) req->setSessionKey("upload_done", "1");
     return ESP_OK;
   });
 
-  // Gated as handler middleware, not inside onRequest: PsychicHandler::process
-  // runs the chain before handleRequest, and handleRequest is what streams the
-  // body to flash. Checking afterwards would let an unauthenticated caller
-  // write a file and only then be told no.
   s_audio_upload.addMiddleware(
       [](PsychicRequest *req, PsychicResponse *res, PsychicMiddlewareNext next) -> esp_err_t {
+        // Gated as middleware, not inside onRequest: PsychicHandler::process
+        // runs the chain before handleRequest, and handleRequest is what
+        // streams the body to flash. Checking afterwards would let an
+        // unauthenticated caller write a file and only then be told no.
         if (!require_admin(req, res)) return ESP_OK;
         return next();
       });
 
   s_audio_upload.onRequest([](PsychicRequest *req, PsychicResponse *res) -> esp_err_t {
+    // sess_ctx is per-socket, not per-request, so a second upload on the same
+    // keep-alive connection would otherwise still see the previous one's flag
+    // and register the earlier file again under a new id.
+    const bool uploaded = req->hasSessionKey("upload_done");
+    req->setSessionKey("upload_done", "");
+    s_upload_in_flight = false;
+
+    // From here every failure path removes the staged file.
+    struct Staged {
+      ~Staged() {
+        if (armed) ::remove(kStagedUploadPath);
+      }
+      bool armed = true;
+    } staged;
+
+    if (!uploaded) return send_error(res, 400, "No file uploaded");
+
     PsychicWebParameter *title = req->hasParam("title") ? req->getParam("title", false) : nullptr;
-    if (title == nullptr) return send_error(res, 400, "Missing title or codec");
+    if (title == nullptr || title->value() == nullptr || *title->value() == '\0') {
+      return send_error(res, 400, "Missing title");
+    }
 
-    const char *filename =
-        req->hasSessionKey("upload_filename") ? req->getSessionKey("upload_filename") : nullptr;
-    if (filename == nullptr || *filename == '\0') return send_error(res, 400, "No file uploaded");
-
-    // Rejected here rather than at the first byte: the file is already on
-    // flash, so it is removed again before the caller is told it is unusable.
     rt::WavInfo info;
-    const std::string path = std::string(kUploadAudioDir) + "/" + filename;
-    if (!audio::probe_wav(path.c_str(), info)) {
-      ::remove(path.c_str());
+    if (!audio::probe_wav(kStagedUploadPath, info)) {
       return send_error(res, 400, "Unsupported audio format");
     }
 
-    const int32_t id = audios::add_uploaded(title->value(), filename);
+    const int32_t id = audios::add_uploaded(title->value(), kStagedUploadPath);
     if (id < 0) return send_error(res, 500, "Failed to add audio");
 
+    // add_uploaded renamed the staged file into place; nothing left to clean.
+    staged.armed = false;
     return send_json(res, 201, "{\"id\":" + std::to_string(id) + "}");
   });
 
@@ -454,10 +555,17 @@ void register_static_routes() {
 
 }  // namespace
 
-void start() {
-  // Must stay above the real registration count; a failed registration is only
-  // an "Add endpoint failed" log line, trivially missed.
-  s_server.config.max_uri_handlers = 32;
+bool start() {
+  // PsychicHttpServer::start() computes max_uri_handlers itself (one wildcard
+  // meta-handler per HTTP method; it dispatches endpoints from its own list),
+  // so setting it here was dead and the "keep it above the route count"
+  // comment described a guard this library version does not have.
+
+  // The documented 1 MB ceiling was only ever consulted when reading files
+  // *back* off flash. Without these the real limits were PsychicHttp's
+  // defaults - 16 KB for a JSON body and 2 MB for an upload.
+  s_server.maxUploadSize = kMaxUploadBytes;
+  s_server.maxRequestBodySize = kMaxUploadBytes;
   // Every connected client holds a socket open indefinitely for /sse/v2 on top
   // of its REST traffic. Bounded by LWIP: httpd requires
   // max_open_sockets <= CONFIG_LWIP_MAX_SOCKETS - 3, and sdkconfig.defaults
@@ -465,15 +573,21 @@ void start() {
   s_server.config.max_open_sockets = 12;
   s_server.config.lru_purge_enable = true;
 
-  // Credentialed CORS. The webapp sends the admin cookie and bearer token with
-  // every call, and a browser refuses `Access-Control-Allow-Origin: *` on a
-  // credentialed request - so the request's own Origin is reflected back.
-  // PsychicHttp's built-in CorsMiddleware only emits a fixed origin, which is
-  // why this is hand-rolled.
+  // Credentialed CORS, against an allowlist.
+  //
+  // A browser refuses `Access-Control-Allow-Origin: *` on a credentialed
+  // request, so the origin has to be echoed - but echoing *any* origin meant
+  // any page an operator visited on the range network could script the device
+  // cross-origin and read every response. The allowlist keeps the webapp
+  // working (served from the device, or a dev origin set in Kconfig) while
+  // making a drive-by page fail the preflight.
+  //
+  // PsychicHttp's built-in CorsMiddleware only emits one fixed origin, which
+  // is why this is hand-rolled.
   s_server.addMiddleware(
       [](PsychicRequest *req, PsychicResponse *res, PsychicMiddlewareNext next) -> esp_err_t {
         const char *origin = req->header("Origin");
-        if (origin != nullptr && *origin != '\0') {
+        if (origin != nullptr && *origin != '\0' && origin_allowed(origin)) {
           const std::string reflected = origin;
           res->addHeader("Access-Control-Allow-Origin", reflected.c_str());
           res->addHeader("Access-Control-Allow-Credentials", "true");
@@ -514,13 +628,35 @@ void start() {
 
   sse_hub::attach(s_server, "/sse/v2");
 
+  // PsychicHttpServer::notFoundHandler builds a fresh request and does not run
+  // the server middleware chain, so an unmatched URI answered with no CORS
+  // headers - which a browser surfaces as an opaque CORS failure rather than
+  // the 404 it is. The headers are therefore set here rather than inherited.
+  s_server.onNotFound([](PsychicRequest *req, PsychicResponse *res) {
+    const char *origin = req->header("Origin");
+    if (origin != nullptr && *origin != '\0' && origin_allowed(origin)) {
+      const std::string reflected = origin;
+      res->addHeader("Access-Control-Allow-Origin", reflected.c_str());
+      res->addHeader("Access-Control-Allow-Credentials", "true");
+      res->addHeader("Vary", "Origin");
+    }
+    return send_error(res, 404, "Not found");
+  });
+
   register_static_routes();
 
   // Routes are registered against the server object first and bound when it
   // starts, so nothing can arrive at a half-registered surface.
-  s_server.start();
+  if (s_server.start() != ESP_OK) {
+    // Notably ESP_ERR_INVALID_ARG when the socket budget is mis-tuned against
+    // CONFIG_LWIP_MAX_SOCKETS. Dropping the result meant logging "listening"
+    // and turning the LED green on a device serving nothing.
+    ESP_LOGE(TAG, "HTTP server failed to start");
+    return false;
+  }
 
   ESP_LOGI(TAG, "HTTP server listening on port %u", kHttpPort);
+  return true;
 }
 
 }  // namespace web_server

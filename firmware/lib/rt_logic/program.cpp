@@ -15,8 +15,12 @@ Event parse_event(JsonObjectConst src) {
   // overflow that sum (UB), and a negative one makes the run loop complete the
   // series on its first tick. kMaxEventMs is far longer than any real event.
   const int64_t duration = src["duration"] | static_cast<int64_t>(0);
-  e.duration_ms =
-      duration < 0 ? 0 : (duration > kMaxEventMs ? kMaxEventMs : static_cast<int32_t>(duration));
+  // Floor of 1 ms, not 0: locate_event() uses a half-open interval, so a
+  // zero-duration event can never contain any elapsed time - its command and
+  // audio would be silently skipped rather than fired.
+  const int64_t clamped =
+      duration < kMinEventMs ? kMinEventMs : (duration > kMaxEventMs ? kMaxEventMs : duration);
+  e.duration_ms = static_cast<int32_t>(clamped);
   e.command = src["command"] | "";
 
   JsonArrayConst ids = src["audio_ids"];

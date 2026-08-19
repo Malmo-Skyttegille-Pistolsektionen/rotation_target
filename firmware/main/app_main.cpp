@@ -72,7 +72,11 @@ extern "C" void app_main() {
     setup_portal::run();  // never returns; reboots once credentials are saved
   }
 
-  web_server::start();
+  if (!web_server::start()) {
+    ESP_LOGE(TAG, "HTTP server unavailable - restarting");
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    esp_restart();
+  }
   rgb_led::green();
 
   ESP_LOGI(TAG, "Ready on http://%s", wifi_mgr::ip_address().c_str());
@@ -80,5 +84,5 @@ extern "C" void app_main() {
   // Mark the running image good so the bootloader stops holding the previous
   // one in reserve; reaching here means storage, audio and the server all came
   // up. Only meaningful after an OTA - a no-op on a serial flash.
-  esp_ota_mark_app_valid_cancel_rollback();
+  ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ota_mark_app_valid_cancel_rollback());
 }

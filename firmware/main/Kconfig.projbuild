@@ -20,6 +20,14 @@ config RT_WIFI_MAX_RETRIES
         initial connect. A range device that cannot reach the AP is useless, so
         exhausting the retries reboots rather than sitting idle.
 
+config RT_DEV_ORIGIN
+    string "Additional allowed CORS origin"
+    default ""
+    help
+        An extra origin the webapp may be served from, e.g.
+        "http://localhost:5173" while developing the frontend. Empty in a
+        normal build - the device's own mDNS name and IP are always allowed.
+
 config RT_SETUP_AP_PASSWORD
     string "Setup access-point password"
     default "rotationtarget"

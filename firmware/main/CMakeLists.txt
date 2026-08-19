@@ -14,7 +14,13 @@ idf_component_register(
     INCLUDE_DIRS "." "io" "storage" "repositories" "executor" "net"
     REQUIRES rt_logic arduinojson psychic_http
              nvs_flash esp_wifi esp_netif esp_event esp_timer esp_system
-             esp_http_server esp_https_server app_update espcoredump
-             driver esp_driver_gpio esp_driver_i2s
+             esp_http_server app_update espcoredump
+             esp_driver_gpio esp_driver_i2s
              joltwallet__littlefs espressif__led_strip espressif__mdns dns_server
 )
+
+# The tested half (host_test/) builds with -Wall -Wextra -Werror; without this
+# the firmware half - the part that actually touches hardware - got no warnings
+# at all. Not -Werror here: a toolchain bump raising a new warning in vendored
+# or IDF headers should not stop the range device being rebuilt.
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra)

@@ -59,14 +59,23 @@ struct Lock {
 // the run loop so a control call takes effect immediately instead of after the
 // current sleep.
 void flush(bool wake_run_loop) {
-  std::string payload;
   {
     Lock lock;
-    if (!s_effects.pending_broadcast) return;
-    s_effects.pending_broadcast = false;
-    payload = rt::state_update_json(s_state);
+    if (s_effects.pending_broadcast) {
+      s_effects.pending_broadcast = false;
+      // Serialized AND handed to the SSE hub under the same lock. The hub only
+      // enqueues onto the httpd work queue - it does not touch a socket - so
+      // this cannot block. Doing both under one lock is what keeps snapshot
+      // order and send order identical: releasing between them let two tasks
+      // snapshot A then B and send B then A, leaving every client holding a
+      // stale final state that nothing would ever correct.
+      sse_hub::broadcast_state(rt::state_update_json(s_state));
+    }
   }
-  sse_hub::broadcast_state(payload);
+
+  // Outside the `pending_broadcast` check on purpose. A control call whose
+  // broadcast was already consumed by the run loop's own flush still has to
+  // wake the loop, or start() can lose up to kIdleSleepMs of series time.
   if (wake_run_loop && s_run_task != nullptr) xTaskNotifyGive(s_run_task);
 }
 

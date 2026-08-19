@@ -4,8 +4,11 @@
 
 #include <cstdio>
 
+#include "audio.h"
 #include "config.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "json_util.h"
 #include "storage.h"
 
@@ -14,6 +17,20 @@ namespace {
 
 const char *TAG = "audios";
 std::map<int32_t, Audio> s_audios;
+
+// The run loop reads this map (Executor -> play_audios -> paths_for) while the
+// httpd task uploads and deletes. std::map rebalances on insert and frees the
+// node on erase, so an unsynchronised concurrent traversal is a use-after-free.
+SemaphoreHandle_t s_lock = nullptr;
+
+struct Lock {
+  Lock() {
+    if (s_lock != nullptr) xSemaphoreTakeRecursive(s_lock, portMAX_DELAY);
+  }
+  ~Lock() {
+    if (s_lock != nullptr) xSemaphoreGiveRecursive(s_lock);
+  }
+};
 
 std::string index_path(const char *dir) {
   return std::string(dir) + "/audios.json";
@@ -115,6 +132,11 @@ bool write_upload_index() {
 }  // namespace
 
 void load_all() {
+  // Created here rather than lazily: load_all() runs in app_main before the
+  // run loop or the HTTP server exist, so there is no race to create it.
+  if (s_lock == nullptr) s_lock = xSemaphoreCreateRecursiveMutex();
+
+  Lock lock;
   s_audios.clear();
   load_index(kShippedAudioDir, true);
   load_index(kUploadAudioDir, false);
@@ -122,6 +144,7 @@ void load_all() {
 }
 
 const Audio *get(int32_t id) {
+  Lock lock;
   auto it = s_audios.find(id);
   return it == s_audios.end() ? nullptr : &it->second;
 }
@@ -131,12 +154,14 @@ const std::map<int32_t, Audio> &all() {
 }
 
 std::vector<std::string> paths_for(const std::vector<int32_t> &ids) {
+  Lock lock;
   std::vector<std::string> paths;
   paths.reserve(ids.size());
   for (int32_t id : ids) {
-    const Audio *audio = get(id);
-    if (audio != nullptr) {
-      paths.push_back(audio->path);
+    auto it = s_audios.find(id);
+    if (it != s_audios.end()) {
+      // Copied, not referenced: the caller uses these after the lock is gone.
+      paths.push_back(it->second.path);
     } else {
       ESP_LOGD(TAG, "Audio id %d not found", static_cast<int>(id));
     }
@@ -145,6 +170,7 @@ std::vector<std::string> paths_for(const std::vector<int32_t> &ids) {
 }
 
 std::string list_json() {
+  Lock lock;
   std::string out = "{\"audios\":[";
   bool first = true;
   for (const auto &kv : s_audios) {
@@ -164,33 +190,54 @@ std::string list_json() {
   return out;
 }
 
-int32_t add_uploaded(const std::string &title, const std::string &filename) {
+int32_t add_uploaded(const std::string &title, const std::string &staged_path) {
+  Lock lock;
+
   int32_t id = kFirstUploadId;
   while (s_audios.count(id) > 0) id++;
+
+  const std::string final_path = std::string(kUploadAudioDir) + "/" + std::to_string(id) + ".wav";
+  if (rename(staged_path.c_str(), final_path.c_str()) != 0) {
+    ESP_LOGE(TAG, "Could not move %s to %s", staged_path.c_str(), final_path.c_str());
+    return -1;
+  }
 
   Audio audio;
   audio.id = id;
   audio.title = title;
-  audio.path = std::string(kUploadAudioDir) + "/" + filename;
+  audio.path = final_path;
   audio.readonly = false;
   s_audios[id] = audio;
 
   if (!write_upload_index()) {
     s_audios.erase(id);
+    ::remove(final_path.c_str());
     ESP_LOGE(TAG, "Could not rewrite the upload index");
     return -1;
   }
   return id;
 }
 
-bool remove(int32_t id) {
+RemoveResult remove(int32_t id) {
+  Lock lock;
+
   auto it = s_audios.find(id);
-  if (it == s_audios.end() || it->second.readonly) return false;
+  if (it == s_audios.end() || it->second.readonly) return RemoveResult::kNotFound;
+
+  // LittleFS has no unlink-while-open, so deleting the clip the audio task is
+  // reading corrupts the read rather than deferring the unlink.
+  if (audio::is_playing(it->second.path)) return RemoveResult::kPlaying;
 
   ::remove(it->second.path.c_str());
   s_audios.erase(it);
-  write_upload_index();
-  return true;
+
+  if (!write_upload_index()) {
+    // The file is gone but the index still lists it, so the entry would come
+    // back on the next boot pointing at nothing. Nothing to roll back to -
+    // say so loudly rather than reporting success.
+    ESP_LOGE(TAG, "Deleted audio %d but could not rewrite the index", static_cast<int>(id));
+  }
+  return RemoveResult::kOk;
 }
 
 }  // namespace audios

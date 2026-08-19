@@ -9,6 +9,7 @@
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "freertos/semphr.h"
 #include "mdns.h"
 #include "rgb_led.h"
 #include "wifi_store.h"
@@ -28,7 +29,10 @@ int s_retries = 0;
 // applies - see the header: giving up mid-session leaves the device powered on
 // and unreachable, needing someone to walk to it and power-cycle it.
 bool s_joined_once = false;
+// Written on the WiFi event task, read from the main task and from the
+// diagnostics handler on the httpd task.
 std::string s_ip;
+SemaphoreHandle_t s_ip_lock = nullptr;
 
 void on_event(void *, esp_event_base_t base, int32_t id, void *data) {
   if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
@@ -53,11 +57,15 @@ void on_event(void *, esp_event_base_t base, int32_t id, void *data) {
     auto *event = static_cast<ip_event_got_ip_t *>(data);
     char buf[16];
     snprintf(buf, sizeof(buf), IPSTR, IP2STR(&event->ip_info.ip));
-    s_ip = buf;
+    if (s_ip_lock != nullptr) {
+      xSemaphoreTake(s_ip_lock, portMAX_DELAY);
+      s_ip = buf;
+      xSemaphoreGive(s_ip_lock);
+    }
     s_retries = 0;
     s_joined_once = true;
     rgb_led::green();
-    ESP_LOGI(TAG, "Connected, IP %s", s_ip.c_str());
+    ESP_LOGI(TAG, "Connected, IP %s", buf);
     xEventGroupSetBits(s_events, kConnectedBit);
   }
 }
@@ -76,7 +84,11 @@ void start_mdns() {
 }  // namespace
 
 std::string ip_address() {
-  return s_ip;
+  if (s_ip_lock == nullptr) return {};
+  xSemaphoreTake(s_ip_lock, portMAX_DELAY);
+  const std::string copy = s_ip;
+  xSemaphoreGive(s_ip_lock);
+  return copy;
 }
 
 Result connect() {
@@ -89,6 +101,7 @@ Result connect() {
     return Result::kSetupPortal;
   }
 
+  s_ip_lock = xSemaphoreCreateMutex();
   s_events = xEventGroupCreate();
 
   ESP_ERROR_CHECK(esp_netif_init());

@@ -116,7 +116,12 @@ int32_t add_uploaded(const char *json, size_t len) {
   fclose(f);
   if (written != serialized.size()) {
     ESP_LOGE(TAG, "Short write for %s", path.c_str());
-    remove(id);
+    // ::remove, not remove: unqualified lookup finds programs::remove(int32_t)
+    // in the enclosing namespace and stops there, so <cstdio>'s remove is never
+    // considered. It also returns false immediately, because the program is not
+    // inserted into s_programs until below - so the truncated file was left on
+    // flash and rescanned on every boot.
+    ::remove(path.c_str());
     return -1;
   }
 

@@ -29,10 +29,18 @@ std::vector<std::string> paths_for(const std::vector<int32_t> &ids);
 
 std::string list_json();
 
-// Register an already-saved upload under the next free id. Returns -1 if the
-// index could not be rewritten.
-int32_t add_uploaded(const std::string &title, const std::string &filename);
+// Claims the next free id for an upload staged at `staged_path`, renaming it to
+// the id-derived name and registering it. Returns -1 on failure, leaving the
+// staged file for the caller to clean up.
+//
+// The stored name is derived from the id rather than taken from the client:
+// a client-supplied name could collide with the repository's own audios.json
+// index (destroying it), or with an existing clip (leaving two ids sharing one
+// file, so deleting either broke the other).
+int32_t add_uploaded(const std::string &title, const std::string &staged_path);
 
-bool remove(int32_t id);
+enum class RemoveResult { kOk, kNotFound, kPlaying };
+
+RemoveResult remove(int32_t id);
 
 }  // namespace audios

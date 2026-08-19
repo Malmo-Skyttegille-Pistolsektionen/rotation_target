@@ -22,7 +22,6 @@ class FakeClock : public rt::Clock {
  public:
   int64_t now_ms() const override { return now_; }
   void advance(int64_t ms) { now_ += ms; }
-  void set(int64_t ms) { now_ = ms; }
 
  private:
   // Deliberately not zero: a real device's clock has been running since boot,
@@ -66,8 +65,8 @@ struct Harness {
   Harness() { effects.state = &state; }
 
   // Run the loop until it goes idle or `max_iterations` is hit, advancing the
-  // clock by exactly what tick() asked to sleep. Returns the iteration count,
-  // so a test can assert the loop terminated rather than hit the guard.
+  // clock by exactly what tick() asked to sleep. Returns the iteration count;
+  // a value equal to max_iterations means the loop never terminated.
   int run_to_idle(int max_iterations = 10000) {
     for (int i = 0; i < max_iterations; i++) {
       if (!state.running) return i;

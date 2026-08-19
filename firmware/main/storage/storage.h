@@ -11,6 +11,4 @@ bool init();
 // mkdir -p, tolerating components that already exist.
 bool make_dirs(const char *path);
 
-bool file_exists(const char *path);
-
 }  // namespace storage
