@@ -14,6 +14,7 @@
 #include "program_executor.h"
 #include "programs.h"
 #include "rgb_led.h"
+#include "setup_portal.h"
 #include "storage.h"
 #include "targets.h"
 #include "web_server.h"
@@ -64,10 +65,11 @@ extern "C" void app_main() {
   // is what the first stateUpdate a client receives will say.
   executor::init();
 
-  if (!wifi_mgr::connect()) {
-    ESP_LOGE(TAG, "Network unavailable - restarting");
-    vTaskDelay(pdMS_TO_TICKS(5000));
-    esp_restart();
+  if (wifi_mgr::connect() == wifi_mgr::Result::kSetupPortal) {
+    // No usable network. Serving the setup AP is the useful thing to do -
+    // rebooting into the same failure would just loop, and the club would have
+    // no way to point the device at a different network without a toolchain.
+    setup_portal::run();  // never returns; reboots once credentials are saved
   }
 
   web_server::start();

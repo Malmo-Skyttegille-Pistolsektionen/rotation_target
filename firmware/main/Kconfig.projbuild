@@ -20,6 +20,14 @@ config RT_WIFI_MAX_RETRIES
         initial connect. A range device that cannot reach the AP is useless, so
         exhausting the retries reboots rather than sitting idle.
 
+config RT_SETUP_AP_PASSWORD
+    string "Setup access-point password"
+    default "rotationtarget"
+    help
+        Used only by the setup portal the device falls back to when it cannot
+        join a network. WPA2 needs at least 8 characters; shorter than that and
+        the AP comes up OPEN, which is logged loudly at boot.
+
 config RT_HOSTNAME
     string "Hostname advertised over DHCP and mDNS"
     default "rotation-target"

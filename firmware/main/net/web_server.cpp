@@ -17,13 +17,21 @@
 #include "audios.h"
 #include "config.h"
 #include "esp_app_desc.h"
+#include "esp_core_dump.h"
+#include "esp_heap_caps.h"
+#include "esp_idf_version.h"
+#include "esp_littlefs.h"
+#include "esp_ota_ops.h"
 #include "esp_log.h"
 #include "esp_random.h"
+#include "esp_timer.h"
 #include "json_util.h"
+#include "uri_path.h"
 #include "program_executor.h"
 #include "programs.h"
 #include "sse_hub.h"
 #include "storage.h"
+#include "wifi_mgr.h"
 
 namespace web_server {
 namespace {
@@ -94,36 +102,12 @@ std::string password_from(PsychicRequest *req) {
   return doc["password"] | "";
 }
 
-// --- path parsing ----------------------------------------------------------
+// --- path parsing ---------------------------------------------------------
 
-// Pull the numeric segment out of a URI shaped `<prefix><id><suffix>`, e.g.
-// "/api/v2/programs/" + 12 + "/load". Anything non-numeric, empty or
-// mismatched is refused, so a bad path is a 404 rather than an id of 0.
-bool path_id(const char *uri, const char *prefix, const char *suffix, int32_t &out) {
-  std::string path(uri);
-  const size_t query = path.find('?');
-  if (query != std::string::npos) path.resize(query);
-
-  const size_t prefix_len = strlen(prefix);
-  const size_t suffix_len = strlen(suffix);
-  if (path.size() <= prefix_len + suffix_len) return false;
-  if (path.compare(0, prefix_len, prefix) != 0) return false;
-  if (suffix_len > 0 && path.compare(path.size() - suffix_len, suffix_len, suffix) != 0) {
-    return false;
-  }
-
-  const std::string digits = path.substr(prefix_len, path.size() - prefix_len - suffix_len);
-  if (digits.empty()) return false;
-
-  int64_t value = 0;
-  for (char c : digits) {
-    if (c < '0' || c > '9') return false;
-    value = value * 10 + (c - '0');
-    if (value > INT32_MAX) return false;
-  }
-  out = static_cast<int32_t>(value);
-  return true;
-}
+// rt::path_id does the work; see lib/rt_logic/uri_path.h. It lives there
+// rather than here so host_test/test_uri_path can cover it - it is the
+// security boundary for every {id} route.
+using rt::path_id;
 
 // --- routes ----------------------------------------------------------------
 
@@ -263,6 +247,91 @@ void register_program_routes() {
   });
 }
 
+const char *reset_reason_name(esp_reset_reason_t reason) {
+  switch (reason) {
+    case ESP_RST_POWERON:
+      return "poweron";
+    case ESP_RST_EXT:
+      return "external";
+    case ESP_RST_SW:
+      return "software";
+    case ESP_RST_PANIC:
+      return "panic";
+    case ESP_RST_INT_WDT:
+      return "interrupt_watchdog";
+    case ESP_RST_TASK_WDT:
+      return "task_watchdog";
+    case ESP_RST_WDT:
+      return "other_watchdog";
+    case ESP_RST_DEEPSLEEP:
+      return "deepsleep";
+    case ESP_RST_BROWNOUT:
+      return "brownout";
+    case ESP_RST_SDIO:
+      return "sdio";
+    default:
+      return "unknown";
+  }
+}
+
+// Answers "what happened to the device last Tuesday" without a USB cable.
+// Deliberately public, like every other GET: it carries no credential and no
+// program data - only the firmware's own identity and health. The coredump
+// itself is NOT exposed here; it is a raw RAM snapshot and can contain the
+// WiFi password, so retrieving it stays an out-of-band, physical-access job.
+void register_diagnostics_routes() {
+  s_server.on("/api/v2/diagnostics/info", HTTP_GET, [](PsychicRequest *, PsychicResponse *res) {
+    const esp_app_desc_t *desc = esp_app_get_description();
+    const esp_partition_t *running = esp_ota_get_running_partition();
+
+    size_t fs_total = 0, fs_used = 0;
+    esp_littlefs_info("storage", &fs_total, &fs_used);
+
+    // ESP_OK means an image is waiting to be pulled; anything else
+    // (including "no coredump") is reported as absent.
+    size_t dump_addr = 0, dump_size = 0;
+    const bool coredump = esp_core_dump_image_get(&dump_addr, &dump_size) == ESP_OK;
+
+    std::string out = "{\"version\":";
+    out += rt::json_quote(desc->version);
+    out += ",\"idfVersion\":";
+    out += rt::json_quote(IDF_VER);
+    out += ",\"buildDate\":";
+    out += rt::json_quote(std::string(desc->date) + " " + desc->time);
+    out += ",\"resetReason\":";
+    out += rt::json_quote(reset_reason_name(esp_reset_reason()));
+    out += ",\"uptimeSeconds\":";
+    out += std::to_string(esp_timer_get_time() / 1000000);
+    out += ",\"freeHeapBytes\":";
+    out += std::to_string(esp_get_free_heap_size());
+    // The low-water mark, not the current free figure: a leak that
+    // has already been reclaimed is invisible in the latter.
+    out += ",\"minFreeHeapBytes\":";
+    out += std::to_string(esp_get_minimum_free_heap_size());
+    out += ",\"freePsramBytes\":";
+    out += std::to_string(heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+    out += ",\"runningPartition\":";
+    out += rt::json_quote(running != nullptr ? running->label : "unknown");
+    out += ",\"coredumpPresent\":";
+    out += coredump ? "true" : "false";
+    out += ",\"storageTotalBytes\":";
+    out += std::to_string(fs_total);
+    out += ",\"storageUsedBytes\":";
+    out += std::to_string(fs_used);
+    out += ",\"programCount\":";
+    out += std::to_string(programs::all().size());
+    out += ",\"audioCount\":";
+    out += std::to_string(audios::all().size());
+    out += ",\"ipAddress\":";
+    out += rt::json_quote(wifi_mgr::ip_address());
+    out += ",\"adminModeEnabled\":";
+    out += s_admin.enabled() ? "true" : "false";
+    out += "}";
+
+    return send_json(res, 200, out);
+  });
+}
+
 void register_target_routes() {
   s_server.on("/api/v2/targets/show", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
     if (!require_admin(req, res)) return ESP_OK;
@@ -359,7 +428,7 @@ void register_audio_routes() {
 
     // Rejected here rather than at the first byte: the file is already on
     // flash, so it is removed again before the caller is told it is unusable.
-    audio::WavInfo info;
+    rt::WavInfo info;
     const std::string path = std::string(kUploadAudioDir) + "/" + filename;
     if (!audio::probe_wav(path.c_str(), info)) {
       ::remove(path.c_str());
@@ -439,6 +508,7 @@ void start() {
 
   register_admin_mode_routes();
   register_program_routes();
+  register_diagnostics_routes();
   register_target_routes();
   register_audio_routes();
 

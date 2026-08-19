@@ -37,7 +37,7 @@ git clone --recursive https://github.com/Malmo-Skyttegille-Pistolsektionen/rotat
 cd rotation_target_backend_esp32_espidf
 
 idf.py set-target esp32s3          # once, per clone
-idf.py menuconfig                  # set WiFi SSID/password under "Rotation target backend"
+idf.py menuconfig                  # optional: seed WiFi under "Rotation target backend"
 idf.py build
 idf.py -p /dev/ttyACM0 flash monitor
 ```
@@ -49,8 +49,26 @@ without `--recursive` fails the build with a message telling you to run
 `idf.py flash` writes the LittleFS image too, which **replaces anything
 uploaded to the device**. Use `idf.py app-flash` to update only the firmware.
 
-WiFi credentials are `sdkconfig` values and `sdkconfig` is gitignored, the same
-way the MicroPython backend kept `wifi_credentials.py` out of git.
+### WiFi
+
+Credentials live in **NVS**, not in the firmware, so moving the device to a new
+network does not need a rebuild. `idf.py flash` leaves the `nvs` partition
+alone, so they also survive a firmware update.
+
+If the device cannot join a network — out of the box, or because the range's
+WiFi password changed — it brings up a **setup access point** and a captive
+portal instead of sitting there unreachable:
+
+1. Join `rotation-target-setup-XXXX` (password: `CONFIG_RT_SETUP_AP_PASSWORD`,
+   default `rotationtarget`).
+2. A setup page should open automatically; if not, browse to
+   `http://192.168.4.1`.
+3. Enter the network details. The device saves them and restarts.
+
+The Kconfig `RT_WIFI_SSID`/`RT_WIFI_PASSWORD` values are only a first-boot
+seed — leave them at the defaults and use the portal, or set them to skip it.
+`sdkconfig` is gitignored either way, the same way the MicroPython backend kept
+`wifi_credentials.py` out of git.
 
 Once up, the device is at `http://rotation-target.local` (mDNS) or whatever
 address it logs on boot.
@@ -64,7 +82,19 @@ and admin mode all run on the build machine — no hardware, no sleeps:
 cd host_test && cmake -B build && cmake --build build -j && cd build && ctest --output-on-failure
 ```
 
-Add `-DRT_COVERAGE=ON` to the `cmake -B build` step for gcov/gcovr coverage.
+Add `-DRT_COVERAGE=ON` for gcov/gcovr coverage, or `-DRT_SANITIZE=ON` to build
+the suites with ASan + UBSan:
+
+```bash
+cd host_test && cmake -B build-san -DRT_SANITIZE=ON && cmake --build build-san -j \
+  && cd build-san && ctest --output-on-failure
+```
+
+CI runs both the plain and the sanitized build — the sanitizers force `-O1` and
+change codegen, so a clean run of one is not evidence about the other. UBSan is
+what catches signed-overflow in the duration and id arithmetic, which `-Wall`
+cannot see.
+
 Only `IDF_PATH` is needed (for ESP-IDF's copy of Unity), not the cross
 toolchain.
 
@@ -80,7 +110,8 @@ excluded and must stay byte-identical to upstream — never reformat them.
 
 ## API
 
-[`docs/api-v2.md`](docs/api-v2.md) — REST under `/api/v2`, SSE at `/sse/v2`.
+[`docs/api-v2.md`](docs/api-v2.md) — REST under `/api/v2`, SSE at `/sse/v2`,
+plus `GET /api/v2/diagnostics/info` for post-incident triage without a cable.
 The canonical machine-readable contract lives with the webapp, in
 `docs/mock-api-v2.openapi.json` in the
 [frontend repository](https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target_frontend_webapp).

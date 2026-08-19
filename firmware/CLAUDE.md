@@ -49,12 +49,15 @@ idf.py -p /dev/ttyACM0 flash monitor
   silently ignored. Delete `sdkconfig` (or `idf.py fullclean`) and rebuild,
   then grep the generated `sdkconfig` to confirm the value landed. This fails
   quietly and looks exactly like the change not working.
-- **Host tests** — the whole run state machine, deterministically, no hardware:
+- **Host tests** — the whole run state machine and every parser,
+  deterministically, no hardware:
   ```bash
   cd host_test && cmake -B build && cmake --build build -j && cd build && ctest --output-on-failure
   ```
-  Add `-DRT_COVERAGE=ON` for coverage. Only `IDF_PATH` is needed (for Unity),
-  not the cross toolchain — so these run in CI without installing xtensa.
+  Add `-DRT_COVERAGE=ON` for coverage, `-DRT_SANITIZE=ON` for ASan + UBSan. CI
+  runs plain and sanitized separately — the sanitizers force `-O1`, so a clean
+  run of one says nothing about the other. Only `IDF_PATH` is needed (for
+  Unity), not the cross toolchain.
 - **Lint** — `pre-commit run --all-files`. The clang-format hook rewrites in
   place, so a first run failing and a second passing is normal; re-stage what
   it changed.
@@ -72,6 +75,13 @@ hand-advanced clock and a recorder.
 `main/`.** If a change cannot be tested in `host_test/`, that is usually a sign
 the logic ended up on the wrong side of the line.
 
+**Parsers especially: anything turning outside bytes into meaning goes in
+`rt_logic`.** WAV headers, URI path ids, program documents, program filenames.
+They are the attacker-reachable surface, and in `main/` — behind a `FILE*` or an
+HTTP request, in an anonymous namespace — no host test reaches them and no
+sanitizer ever sees them. Take an abstraction (`rt::ByteSource`) rather than a
+`FILE*`; the firmware adapts stdio to it, the tests adapt a `std::vector`.
+
 - `rt::Executor::tick()` is one iteration of the run loop and returns how long
   to sleep — at most `rt::kMaxSleepMs` (200 ms), so `stop` lands promptly.
 - **SSE broadcasts must stay outside the state lock.** `Effects::state_changed()`
@@ -84,6 +94,10 @@ the logic ended up on the wrong side of the line.
 - `PsychicRequest::header()` and `getCookie()` both return the same per-request
   scratch string. Copy a value out before reading another, or the first turns
   into the second.
+- **WiFi credentials live in NVS**, not the firmware; Kconfig only seeds the
+  first boot. The retry budget bounds the *initial* join only — once joined,
+  reconnection is unbounded on purpose. A failed initial join hands over to
+  `setup_portal::run()`, which never returns.
 
 ## Conventions
 

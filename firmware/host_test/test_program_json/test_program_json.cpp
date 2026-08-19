@@ -179,6 +179,43 @@ void test_a_parsed_program_serializes_back() {
   TEST_ASSERT_EQUAL_STRING(json.c_str(), rt::program_json(again).c_str());
 }
 
+// --- filename ids ----------------------------------------------------------
+
+void test_a_numeric_filename_parses() {
+  int32_t id = 0;
+  TEST_ASSERT_TRUE(rt::parse_program_filename("42.json", id));
+  TEST_ASSERT_EQUAL_INT32(42, id);
+}
+
+void test_a_non_numeric_filename_is_refused() {
+  int32_t id = 0;
+  TEST_ASSERT_FALSE(rt::parse_program_filename("audios.json", id));
+  TEST_ASSERT_FALSE(rt::parse_program_filename("1a.json", id));
+  TEST_ASSERT_FALSE(rt::parse_program_filename(".json", id));
+  TEST_ASSERT_FALSE(rt::parse_program_filename("42.txt", id));
+  TEST_ASSERT_FALSE(rt::parse_program_filename("42", id));
+  TEST_ASSERT_FALSE(rt::parse_program_filename(nullptr, id));
+}
+
+void test_a_filename_id_past_int32_is_refused() {
+  // An unbounded accumulator here was signed overflow on a long enough name.
+  int32_t id = 0;
+  TEST_ASSERT_FALSE(rt::parse_program_filename("99999999999.json", id));
+}
+
+void test_a_hostile_duration_is_clamped() {
+  // duration is attacker-controlled; total_ms() sums into an int32.
+  rt::Program p;
+  const char *doc =
+      "{\"id\":1,\"series\":[{\"events\":[{\"duration\":9999999999},"
+      "{\"duration\":-5000}]}]}";
+  TEST_ASSERT_TRUE(rt::parse_program(doc, strlen(doc), false, p));
+
+  TEST_ASSERT_EQUAL_INT32(rt::kMaxEventMs, p.series[0].events[0].duration_ms);
+  TEST_ASSERT_EQUAL_INT32(0, p.series[0].events[1].duration_ms);
+  TEST_ASSERT_EQUAL_INT32(rt::kMaxEventMs, p.series[0].total_ms());
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_a_program_round_trips_its_fields);
@@ -195,5 +232,10 @@ int main() {
   RUN_TEST(test_an_event_omits_absent_command_and_audio);
   RUN_TEST(test_titles_are_escaped);
   RUN_TEST(test_a_parsed_program_serializes_back);
+
+  RUN_TEST(test_a_numeric_filename_parses);
+  RUN_TEST(test_a_non_numeric_filename_is_refused);
+  RUN_TEST(test_a_filename_id_past_int32_is_refused);
+  RUN_TEST(test_a_hostile_duration_is_clamped);
   return UNITY_END();
 }

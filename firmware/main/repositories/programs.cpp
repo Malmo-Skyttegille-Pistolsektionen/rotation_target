@@ -4,7 +4,6 @@
 
 #include <cstdio>
 #include <cstring>
-#include <vector>
 
 #include "config.h"
 #include "esp_log.h"
@@ -39,21 +38,6 @@ bool read_file(const std::string &path, std::string &out) {
   return got > 0;
 }
 
-// `<digits>.json` only - the id is the filename, so anything else is not a
-// program file (and `.json` alone would let a stray index file in).
-bool numeric_json_name(const char *name, int32_t &id) {
-  const size_t len = strlen(name);
-  if (len < 6 || strcmp(name + len - 5, ".json") != 0) return false;
-
-  int32_t parsed = 0;
-  for (size_t i = 0; i + 5 < len; i++) {
-    if (name[i] < '0' || name[i] > '9') return false;
-    parsed = parsed * 10 + (name[i] - '0');
-  }
-  id = parsed;
-  return true;
-}
-
 void load_dir(const char *dir, bool readonly) {
   DIR *d = opendir(dir);
   if (d == nullptr) {
@@ -64,7 +48,7 @@ void load_dir(const char *dir, bool readonly) {
   int loaded = 0;
   while (dirent *entry = readdir(d)) {
     int32_t id = 0;
-    if (!numeric_json_name(entry->d_name, id)) continue;
+    if (!rt::parse_program_filename(entry->d_name, id)) continue;
 
     std::string json;
     if (!read_file(std::string(dir) + "/" + entry->d_name, json)) {

@@ -38,6 +38,34 @@ jobs:
           cmake --build build -j"$(nproc)"
           cd build && ctest --output-on-failure
 
+  host-test-sanitized:
+    # Same suites under ASan + UBSan. Kept as a separate job rather than
+    # replacing the plain run: the sanitizers change codegen and force -O1, so a
+    # clean sanitized run is not evidence the -O0 build is clean, or vice versa.
+    name: host tests (asan+ubsan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Check out ESP-IDF (for Unity only)
+        uses: actions/checkout@v4
+        with:
+          repository: espressif/esp-idf
+          ref: v6.0.2
+          path: esp-idf
+          submodules: false
+
+      - name: Build and run
+        env:
+          IDF_PATH: ${{ github.workspace }}/esp-idf
+        run: |
+          cd host_test
+          cmake -B build-san -DRT_SANITIZE=ON
+          cmake --build build-san -j"$(nproc)"
+          cd build-san && ctest --output-on-failure
+
   firmware:
     name: firmware (esp32s3)
     runs-on: ubuntu-latest

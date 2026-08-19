@@ -85,6 +85,7 @@ Tokens are 16 bytes from `esp_fill_random()`, hex-encoded.
 |--------|------|
 | `GET` | `/sse/v2` |
 | `GET` | `/api/v2/version` |
+| `GET` | `/api/v2/diagnostics/info` |
 | `GET` | `/api/v2/admin-mode/status` |
 | `POST` | `/api/v2/admin-mode/enable` |
 | `POST` | `/api/v2/admin-mode/login` |
@@ -132,6 +133,37 @@ Tokens are 16 bytes from `esp_fill_random()`, hex-encoded.
 Note that `SameSite=Lax` means the cookie is only sent when the webapp is served
 from the device itself. A webapp on another origin authenticates with the bearer
 token instead.
+
+## Diagnostics
+
+`GET /api/v2/diagnostics/info` reports firmware identity and health, so a range
+incident is diagnosable without a USB cable:
+
+```jsonc
+{
+  "version": "0.1.0-3-gab12cde", "idfVersion": "v6.0.2",
+  "buildDate": "Aug 19 2026 11:42:03",
+  "resetReason": "task_watchdog",   // poweron | panic | brownout | ...
+  "uptimeSeconds": 5231,
+  "freeHeapBytes": 214512, "minFreeHeapBytes": 198320,
+  "freePsramBytes": 8210432,
+  "runningPartition": "ota_0",
+  "coredumpPresent": true,
+  "storageTotalBytes": 10223616, "storageUsedBytes": 7812096,
+  "programCount": 7, "audioCount": 77,
+  "ipAddress": "192.168.1.42",
+  "adminModeEnabled": false
+}
+```
+
+It is public, like every other `GET`: it carries no credential and no program
+data. `minFreeHeapBytes` is the low-water mark since boot — a leak that has
+already been reclaimed is invisible in the current figure.
+
+**The coredump itself is deliberately not exposed.** It is a raw RAM snapshot
+and can contain the WiFi password in plaintext, so retrieving one stays an
+out-of-band job needing physical access. `coredumpPresent` only tells you there
+is something to go and fetch.
 
 ## Uploads
 

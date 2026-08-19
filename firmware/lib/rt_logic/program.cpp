@@ -2,13 +2,21 @@
 
 #include <ArduinoJson.h>
 
+#include <cstring>
+
 namespace rt {
 
 namespace {
 
 Event parse_event(JsonObjectConst src) {
   Event e;
-  e.duration_ms = src["duration"] | 0;
+  // Clamped, not merely read: `duration` is attacker-controlled via program
+  // upload, and Series::total_ms() sums these into an int32. Unbounded values
+  // overflow that sum (UB), and a negative one makes the run loop complete the
+  // series on its first tick. kMaxEventMs is far longer than any real event.
+  const int64_t duration = src["duration"] | static_cast<int64_t>(0);
+  e.duration_ms =
+      duration < 0 ? 0 : (duration > kMaxEventMs ? kMaxEventMs : static_cast<int32_t>(duration));
   e.command = src["command"] | "";
 
   JsonArrayConst ids = src["audio_ids"];
@@ -51,6 +59,25 @@ bool parse_program(const char *json, size_t len, bool readonly, Program &out) {
   out.series.reserve(series.size());
   for (JsonObjectConst s : series) out.series.push_back(parse_series(s));
 
+  return true;
+}
+
+bool parse_program_filename(const char *name, int32_t &out) {
+  if (name == nullptr) return false;
+
+  const size_t len = strlen(name);
+  constexpr const char *kExt = ".json";
+  constexpr size_t kExtLen = 5;
+  // Needs at least one digit before the extension.
+  if (len <= kExtLen || strcmp(name + len - kExtLen, kExt) != 0) return false;
+
+  int64_t value = 0;
+  for (size_t i = 0; i + kExtLen < len; i++) {
+    if (name[i] < '0' || name[i] > '9') return false;
+    value = value * 10 + (name[i] - '0');
+    if (value > INT32_MAX) return false;
+  }
+  out = static_cast<int32_t>(value);
   return true;
 }
 

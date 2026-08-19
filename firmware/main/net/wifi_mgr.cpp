@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "config.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
@@ -9,8 +10,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "mdns.h"
-#include "nvs_flash.h"
 #include "rgb_led.h"
+#include "wifi_store.h"
 
 namespace wifi_mgr {
 namespace {
@@ -23,19 +24,27 @@ constexpr int kFailedBit = BIT1;
 EventGroupHandle_t s_events = nullptr;
 esp_netif_t *s_netif = nullptr;
 int s_retries = 0;
+// Set on the first successful association. After that the retry cap no longer
+// applies - see the header: giving up mid-session leaves the device powered on
+// and unreachable, needing someone to walk to it and power-cycle it.
+bool s_joined_once = false;
 std::string s_ip;
 
 void on_event(void *, esp_event_base_t base, int32_t id, void *data) {
   if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
     esp_wifi_connect();
   } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
-    // Also fires when an established link drops, not just during the initial
-    // join - reconnecting indefinitely after that is what keeps the device
-    // reachable through an AP reboot mid-session.
+    rgb_led::red();
+
+    if (s_joined_once) {
+      ESP_LOGW(TAG, "Link lost - reconnecting");
+      esp_wifi_connect();
+      return;
+    }
+
     if (s_retries < CONFIG_RT_WIFI_MAX_RETRIES) {
       s_retries++;
-      rgb_led::red();
-      ESP_LOGW(TAG, "Disconnected, retry %d/%d", s_retries, CONFIG_RT_WIFI_MAX_RETRIES);
+      ESP_LOGW(TAG, "Join attempt %d/%d failed", s_retries, CONFIG_RT_WIFI_MAX_RETRIES);
       esp_wifi_connect();
     } else {
       xEventGroupSetBits(s_events, kFailedBit);
@@ -46,7 +55,8 @@ void on_event(void *, esp_event_base_t base, int32_t id, void *data) {
     snprintf(buf, sizeof(buf), IPSTR, IP2STR(&event->ip_info.ip));
     s_ip = buf;
     s_retries = 0;
-    rgb_led::yellow();
+    s_joined_once = true;
+    rgb_led::green();
     ESP_LOGI(TAG, "Connected, IP %s", s_ip.c_str());
     xEventGroupSetBits(s_events, kConnectedBit);
   }
@@ -59,7 +69,7 @@ void start_mdns() {
   }
   mdns_hostname_set(CONFIG_RT_HOSTNAME);
   mdns_instance_name_set("Rotation target");
-  mdns_service_add(nullptr, "_http", "_tcp", 80, nullptr, 0);
+  mdns_service_add(nullptr, "_http", "_tcp", kHttpPort, nullptr, 0);
   ESP_LOGI(TAG, "Reachable at http://%s.local", CONFIG_RT_HOSTNAME);
 }
 
@@ -69,7 +79,16 @@ std::string ip_address() {
   return s_ip;
 }
 
-bool connect() {
+Result connect() {
+  const wifi_store::Credentials creds = wifi_store::load();
+
+  // Nothing provisioned and no compiled-in default worth trying: go straight
+  // to the portal rather than burning the retry budget on a placeholder.
+  if (creds.ssid.empty() || creds.ssid == "changeme") {
+    ESP_LOGW(TAG, "No network configured - starting the setup portal");
+    return Result::kSetupPortal;
+  }
+
   s_events = xEventGroupCreate();
 
   ESP_ERROR_CHECK(esp_netif_init());
@@ -86,10 +105,12 @@ bool connect() {
                                                       nullptr, nullptr));
 
   wifi_config_t wifi_cfg = {};
-  strncpy(reinterpret_cast<char *>(wifi_cfg.sta.ssid), CONFIG_RT_WIFI_SSID,
-          sizeof(wifi_cfg.sta.ssid) - 1);
-  strncpy(reinterpret_cast<char *>(wifi_cfg.sta.password), CONFIG_RT_WIFI_PASSWORD,
-          sizeof(wifi_cfg.sta.password) - 1);
+  // sizeof, not sizeof-1: the struct is zero-initialised and the field is not
+  // required to be NUL-terminated, so an SSID of exactly 32 bytes is legal.
+  strncpy(reinterpret_cast<char *>(wifi_cfg.sta.ssid), creds.ssid.c_str(),
+          sizeof(wifi_cfg.sta.ssid));
+  strncpy(reinterpret_cast<char *>(wifi_cfg.sta.password), creds.password.c_str(),
+          sizeof(wifi_cfg.sta.password));
 
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
@@ -98,16 +119,20 @@ bool connect() {
   ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
   ESP_ERROR_CHECK(esp_wifi_start());
 
-  ESP_LOGI(TAG, "Joining '%s'", CONFIG_RT_WIFI_SSID);
+  ESP_LOGI(TAG, "Joining '%s'", creds.ssid.c_str());
   const EventBits_t bits =
       xEventGroupWaitBits(s_events, kConnectedBit | kFailedBit, pdFALSE, pdFALSE, portMAX_DELAY);
+
   if ((bits & kConnectedBit) == 0) {
-    ESP_LOGE(TAG, "Could not join '%s'", CONFIG_RT_WIFI_SSID);
-    return false;
+    ESP_LOGE(TAG, "Could not join '%s' - starting the setup portal", creds.ssid.c_str());
+    // Torn down so the portal can bring the radio up as an AP cleanly.
+    esp_wifi_stop();
+    esp_wifi_deinit();
+    return Result::kSetupPortal;
   }
 
   start_mdns();
-  return true;
+  return Result::kConnected;
 }
 
 }  // namespace wifi_mgr

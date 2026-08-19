@@ -13,6 +13,12 @@
 
 namespace rt {
 
+// Ceiling on a single event's duration, and therefore on how far a malformed
+// or hostile program can push Series::total_ms(). One hour is already far
+// beyond any real shooting sequence; 64 events at this ceiling still sum well
+// inside int32.
+constexpr int32_t kMaxEventMs = 60 * 60 * 1000;
+
 // A single step of a series: hold for `duration_ms`, optionally moving the
 // targets and playing audio on entry.
 struct Event {
@@ -131,5 +137,11 @@ bool parse_program(const char *json, size_t len, bool readonly, Program &out);
 inline bool parse_program(const std::string &json, bool readonly, Program &out) {
   return parse_program(json.c_str(), json.size(), readonly, out);
 }
+
+// A program file is named `<digits>.json` and the filename is the authority on
+// the id. Rejects anything else, including values that would overflow int32 -
+// the accumulator this replaced had no bound, so a long enough filename on the
+// uploads partition was signed-overflow UB.
+bool parse_program_filename(const char *name, int32_t &out);
 
 }  // namespace rt

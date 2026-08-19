@@ -8,13 +8,13 @@ of ESP-IDF and hardware, and is covered by the Unity suites in `host_test/`.
 
 | Layer | Holds |
 |---|---|
-| `lib/rt_logic/` | Program model + JSON (`program.*`), run state + `stateUpdate` serializer (`program_state.h`), run-position maths (`run_position.h`), the run state machine (`executor.*`), admin mode (`admin_mode.h`) |
+| `lib/rt_logic/` | Program model + JSON (`program.*`), run state + `stateUpdate` serializer (`program_state.h`), run-position maths (`run_position.h`), the run state machine (`executor.*`), admin mode (`admin_mode.h`), WAV header parsing (`wav_header.*`), URI path ids (`uri_path.h`) |
 | `main/io/` | `targets` (GPIO), `audio` (I2S WAV playback), `rgb_led` |
 | `main/storage/` | LittleFS mount and directory helpers |
 | `main/repositories/` | `programs`, `audios` — what is on the filesystem |
 | `main/executor/` | The run-loop task and the real clock/effects behind `rt::Executor` |
-| `main/net/` | `wifi_mgr`, `web_server` (REST), `sse_hub` (SSE + heartbeat) |
-| `lib/psychic_http/`, `lib/arduinojson/` | Vendored third-party, never reformatted |
+| `main/net/` | `wifi_mgr`, `wifi_store` (NVS credentials), `setup_portal` (SoftAP fallback), `web_server` (REST), `sse_hub` (SSE + heartbeat) |
+| `lib/psychic_http/`, `lib/arduinojson/`, `lib/dns_server/` | Vendored third-party, never reformatted |
 
 `rt::Executor` takes a `rt::Clock` and a `rt::Effects` by reference. The
 firmware supplies `esp_timer_get_time()` and the real target/audio/SSE
@@ -22,6 +22,24 @@ side effects; the host tests supply a clock they advance by hand and an
 effects recorder. That is what lets the whole run state machine — including
 the exact `stateUpdate` sequence a client sees for a full series — be asserted
 on the build machine with no sleeps and no hardware.
+
+### Every parser belongs in `rt_logic`
+
+**If it takes bytes from outside the device and turns them into meaning, it goes
+in `rt_logic`, not `main/`.** That covers the WAV header (`wav_header.*`), URI
+path ids (`uri_path.h`), program documents and program filenames (`program.*`).
+
+This is not tidiness. Those parsers are the attacker-reachable surface — an
+uploaded WAV, a URI, an uploaded program — and in `main/` they sit behind a
+`FILE*` or an HTTP request in an anonymous namespace, where no host test can
+reach them and neither ASan nor UBSan ever sees them. In `rt_logic` they are
+covered by `host_test/` and run under both sanitizers in CI on every push.
+
+`wav_header.h` shows the shape: it takes a `ByteSource` (absolute `uint64_t`
+offsets) rather than a `FILE*`. The firmware adapts stdio to it in
+`main/io/audio.cpp`; the tests adapt a `std::vector`. The abstraction also
+makes a whole bug class unrepresentable — the relative-seek form it replaced
+could seek *backwards* on a crafted chunk size and loop forever.
 
 ## Concurrency
 
@@ -70,6 +88,20 @@ in-memory store.
 Programs are held in a `std::map`, not an `unordered_map`: `ProgramState` holds
 a bare `const rt::Program *` at whatever is loaded, and reference stability
 across inserts is what keeps it from dangling.
+
+## Getting on the network
+
+Credentials come from NVS, falling back to the Kconfig seed values. The retry
+budget (`CONFIG_RT_WIFI_MAX_RETRIES`) bounds the **initial** association only —
+once joined, reconnection is unbounded, because a device that gave up mid-session
+would sit powered on and unreachable until someone walked to it.
+
+If the initial join fails, `setup_portal::run()` takes over: a SoftAP, a
+wildcard DNS responder (`lib/dns_server/`) so captive-portal probes land on the
+setup page, and a form that writes credentials to NVS and reboots. It runs its
+own minimal `esp_http_server` rather than the API server — nothing else on the
+device is meaningful in that state, and keeping them apart means no API route
+can ever be exposed on an open setup AP.
 
 ## Boot order
 

@@ -9,11 +9,12 @@ idf_component_register(
          "storage/storage.cpp"
          "repositories/programs.cpp" "repositories/audios.cpp"
          "executor/program_executor.cpp"
-         "net/wifi_mgr.cpp" "net/web_server.cpp" "net/sse_hub.cpp"
+         "net/wifi_mgr.cpp" "net/wifi_store.cpp" "net/setup_portal.cpp"
+         "net/web_server.cpp" "net/sse_hub.cpp"
     INCLUDE_DIRS "." "io" "storage" "repositories" "executor" "net"
     REQUIRES rt_logic arduinojson psychic_http
              nvs_flash esp_wifi esp_netif esp_event esp_timer esp_system
-             esp_http_server esp_https_server app_update esp_partition
+             esp_http_server esp_https_server app_update espcoredump
              driver esp_driver_gpio esp_driver_i2s
-             joltwallet__littlefs espressif__led_strip espressif__mdns
+             joltwallet__littlefs espressif__led_strip espressif__mdns dns_server
 )
