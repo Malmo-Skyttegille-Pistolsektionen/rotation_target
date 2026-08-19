@@ -125,6 +125,13 @@ Result connect() {
   strncpy(reinterpret_cast<char *>(wifi_cfg.sta.password), creds.password.c_str(),
           sizeof(wifi_cfg.sta.password));
 
+  // The club's network is hidden, which means it never answers a passive scan.
+  // An all-channel active scan puts the SSID in the probe request, which is
+  // what makes a hidden AP respond at all. WIFI_FAST_SCAN (the default) stops
+  // at the first matching AP found passively and would never find it.
+  wifi_cfg.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+  wifi_cfg.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
+
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
   // Maximum performance rather than the default modem sleep: the SSE stream is
