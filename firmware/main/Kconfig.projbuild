@@ -1,0 +1,27 @@
+menu "Rotation target backend"
+
+config RT_WIFI_SSID
+    string "WiFi SSID"
+    default "changeme"
+    help
+        The network the device joins at boot. Credentials live in sdkconfig,
+        which is gitignored - the MicroPython backend kept them out of git the
+        same way, in wifi_credentials.py.
+
+config RT_WIFI_PASSWORD
+    string "WiFi password"
+    default ""
+
+config RT_WIFI_MAX_RETRIES
+    int "WiFi connection attempts before giving up"
+    default 10
+    help
+        The device keeps serving on its own once joined; this only bounds the
+        initial connect. A range device that cannot reach the AP is useless, so
+        exhausting the retries reboots rather than sitting idle.
+
+config RT_HOSTNAME
+    string "Hostname advertised over DHCP and mDNS"
+    default "rotation-target"
+
+endmenu

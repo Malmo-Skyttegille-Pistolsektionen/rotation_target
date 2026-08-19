@@ -1,0 +1,12 @@
+dependencies:
+  # The version this firmware is built and tested against. CI pins v6.0.2.
+  idf: ">=5.3"
+  # LittleFS for the `storage` partition: the shipped audio and programs, plus
+  # uploads. Chosen over SPIFFS for real directory support - the shipped and
+  # uploaded trees are separate directories, and that separation is what makes
+  # a program read-only or not.
+  joltwallet/littlefs: "^1.14.8"
+  # The onboard WS2812 on the ESP32-S3-DevKitC-1.
+  espressif/led_strip: "^3.0.0"
+  # http://rotation-target.local, so the webapp does not need the DHCP lease.
+  espressif/mdns: "^1.2.0"

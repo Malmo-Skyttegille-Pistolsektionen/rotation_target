@@ -1,0 +1,63 @@
+# Host (Linux) tests for lib/rt_logic, built on ESP-IDF's toolchain-independent
+# Unity.
+#
+# Plain CMake + CTest, not an idf.py app: each test_*/test_*.cpp defines its own
+# main(), so the suites cannot be linked into one "linux" target app. Requires
+# IDF_PATH (i.e. ESP-IDF's export.sh sourced) only to locate the vendored Unity
+# source - nothing else here needs the toolchain.
+#
+# Named per ESP-IDF convention: host_test/ is what ESP-IDF itself uses for tests
+# that run on the build machine. Deliberately NOT test_apps/, which in that
+# convention means an on-target application you flash to the chip.
+cmake_minimum_required(VERSION 3.16)
+project(rt_logic_tests C CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+option(RT_COVERAGE "Instrument test suites for gcov/gcovr coverage" OFF)
+
+if(NOT DEFINED ENV{IDF_PATH})
+  message(FATAL_ERROR "IDF_PATH is not set - source $IDF_PATH/export.sh first")
+endif()
+
+set(UNITY_DIR "$ENV{IDF_PATH}/components/unity/unity/src")
+
+add_library(unity STATIC "${UNITY_DIR}/unity.c")
+target_include_directories(unity PUBLIC "${UNITY_DIR}")
+
+set(RT_LOGIC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../lib/rt_logic")
+set(ARDUINOJSON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../lib/arduinojson")
+set(TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+
+# The same sources the firmware compiles, so tested code == shipped code.
+add_library(rt_logic STATIC
+  "${RT_LOGIC_DIR}/program.cpp"
+  "${RT_LOGIC_DIR}/executor.cpp"
+)
+target_include_directories(rt_logic PUBLIC "${RT_LOGIC_DIR}" "${ARDUINOJSON_DIR}")
+target_compile_options(rt_logic PRIVATE -Wall -Wextra -Werror)
+
+enable_testing()
+
+file(GLOB test_suites RELATIVE "${TEST_DIR}" "${TEST_DIR}/test_*")
+foreach(suite ${test_suites})
+  set(suite_dir "${TEST_DIR}/${suite}")
+  if(IS_DIRECTORY "${suite_dir}")
+    file(GLOB suite_src "${suite_dir}/*.cpp")
+    add_executable(${suite} ${suite_src})
+    target_include_directories(${suite} PRIVATE "${TEST_DIR}/fakes")
+    target_link_libraries(${suite} PRIVATE rt_logic unity)
+    target_compile_options(${suite} PRIVATE -Wall -Wextra -Werror)
+    if(RT_COVERAGE)
+      target_compile_options(${suite} PRIVATE --coverage -O0 -g)
+      target_link_options(${suite} PRIVATE --coverage)
+    endif()
+    add_test(NAME ${suite} COMMAND ${suite})
+  endif()
+endforeach()
+
+if(RT_COVERAGE)
+  target_compile_options(rt_logic PRIVATE --coverage -O0 -g)
+  target_link_options(rt_logic PUBLIC --coverage)
+endif()
