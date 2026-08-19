@@ -1,8 +1,13 @@
 #include "sse_hub.h"
 
 #include <PsychicHttp.h>
+#include <errno.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <sys/socket.h>
 
 #include <string>
+#include <vector>
 
 #include "config.h"
 #include "esp_log.h"
@@ -60,10 +65,52 @@ void enqueue(const char *event, std::string payload) {
   }
 }
 
+// Whether the peer on `sock` is still there.
+//
+// A send is NOT a liveness test: httpd_socket_send into a half-open TCP
+// connection buffers locally and returns success, so PsychicEventSource never
+// saw the failure that would have made it drop the client. A peek does see it -
+// a cleanly closed peer makes recv return 0.
+bool peer_is_alive(int sock) {
+  char probe = 0;
+  const ssize_t n = recv(sock, &probe, 1, MSG_PEEK | MSG_DONTWAIT);
+  if (n > 0) return true;                          // unread data waiting
+  if (n == 0) return false;                        // peer sent FIN
+  return errno == EAGAIN || errno == EWOULDBLOCK;  // alive, nothing to read
+}
+
+// Drops SSE clients whose peer has gone. Without this they accumulate: each one
+// holds an httpd socket, and once max_open_sockets is reached new connections
+// are refused until lru_purge reclaims them one failed connection at a time.
+// Observed on hardware as roughly five REST calls failing before one succeeded.
+//
+// Runs on the httpd task, like every other client-list access.
+void reap_dead_clients(void *) {
+  if (s_server == nullptr || s_server->server == nullptr) return;
+
+  // The sockets are collected first and closed after: closing runs
+  // PsychicHttp's close callback, which mutates the very list being walked.
+  std::vector<int> dead;
+  for (PsychicClient *client : s_events.getClientList()) {
+    if (client != nullptr && !peer_is_alive(client->socket())) dead.push_back(client->socket());
+  }
+
+  for (int sock : dead) {
+    ESP_LOGI(TAG, "Reaping dead SSE client %d", sock);
+    httpd_sess_trigger_close(s_server->server, sock);
+  }
+}
+
 void send_heartbeat(void *) {
   // Matches the MicroPython backend's shape: a monotonic id a client can use
   // to spot a missed beat.
   enqueue("heartbeat", "{\"id\":" + std::to_string(++s_heartbeat_id) + "}");
+
+  // Same cadence as the heartbeat: a client that has gone is detected within
+  // one beat rather than holding a socket until the device is rebooted.
+  if (s_server != nullptr && s_server->server != nullptr) {
+    httpd_queue_work(s_server->server, reap_dead_clients, nullptr);
+  }
 }
 
 }  // namespace
@@ -77,6 +124,17 @@ void attach(PsychicHttpServer &server, const char *uri) {
     const std::string payload = executor::state_json();
     client->send(payload.c_str(), "stateUpdate", static_cast<uint32_t>(esp_timer_get_time() / 1000),
                  500);
+    // TCP keepalive as the backstop for a peer that vanishes without a FIN -
+    // a phone going out of range or losing power. The peek test only catches a
+    // clean close; without keepalive such a socket would linger indefinitely.
+    const int enable = 1;
+    const int idle_s = 30, interval_s = 10, count = 3;
+    const int sock = client->socket();
+    setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &enable, sizeof(enable));
+    setsockopt(sock, IPPROTO_TCP, TCP_KEEPIDLE, &idle_s, sizeof(idle_s));
+    setsockopt(sock, IPPROTO_TCP, TCP_KEEPINTVL, &interval_s, sizeof(interval_s));
+    setsockopt(sock, IPPROTO_TCP, TCP_KEEPCNT, &count, sizeof(count));
+
     ESP_LOGI(TAG, "Client %d connected", client->socket());
   });
 

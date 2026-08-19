@@ -323,6 +323,18 @@ const char *reset_reason_name(esp_reset_reason_t reason) {
       return "brownout";
     case ESP_RST_SDIO:
       return "sdio";
+    // Added after a device reported "unknown": a USB-Serial/JTAG reset is what
+    // every development reset looks like, and it was not in the switch.
+    case ESP_RST_USB:
+      return "usb";
+    case ESP_RST_JTAG:
+      return "jtag";
+    case ESP_RST_EFUSE:
+      return "efuse";
+    case ESP_RST_PWR_GLITCH:
+      return "power_glitch";
+    case ESP_RST_CPU_LOCKUP:
+      return "cpu_lockup";
     default:
       return "unknown";
   }
@@ -611,9 +623,21 @@ bool start() {
     // see CLAUDE.md's Conventions. The three-part split is what the webapp
     // expects; a non-semver describe output degrades to zeroes rather than
     // failing the call.
+    // Strict: sscanf alone accepted a bare `git describe` hash, because
+    // "9f7c98d" parses as major=9 and the device then reported 9.0.0. Require
+    // all three fields AND that what follows is a legitimate semver
+    // continuation - end of string, or the -N-gHASH / +meta that describe adds.
     const esp_app_desc_t *desc = esp_app_get_description();
     unsigned major = 0, minor = 0, patch = 0;
-    sscanf(desc->version, "%u.%u.%u", &major, &minor, &patch);
+    int consumed = 0;
+    if (sscanf(desc->version, "%u.%u.%u%n", &major, &minor, &patch, &consumed) != 3 ||
+        consumed <= 0 ||
+        (desc->version[consumed] != '\0' && desc->version[consumed] != '-' &&
+         desc->version[consumed] != '+')) {
+      // An untagged build has no version to report; 0.0.0 says so honestly
+      // rather than inventing one from the hash.
+      major = minor = patch = 0;
+    }
 
     return send_json(res, 200,
                      "{\"major\":" + std::to_string(major) + ",\"minor\":" + std::to_string(minor) +
