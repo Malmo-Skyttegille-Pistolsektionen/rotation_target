@@ -13,22 +13,16 @@ port exists.
 
 ## Hardware
 
-**ESP32-S3-DevKitC-1 N16R8** — 16 MB flash, 8 MB octal PSRAM.
+**ESP32-S3** with 16 MB flash and 8 MB PSRAM — an ESP32-S3-DevKitC-1 N16R8, or
+the club's own REVOLVENOW Rev 1 board.
 
-| ESP32 pin | Connects to | Function |
-|---|---|---|
-| GPIO5 | DB9 pin 2, via a 1 kΩ resistor and a BC547B NPN transistor | Target control |
-| GND | DB9 pin 5 | Common ground |
-| GPIO10 / GPIO12 / GPIO11 | PCM5102A BCK / LRCK / DIN | I2S audio |
-| GPIO48 | onboard WS2812 | Status LED (red joining, yellow joined, green serving) |
+No pin is hardcoded: the target GPIO **and its polarity**, the status LED, and
+the I2S pins are all `menuconfig` options, so a different board is a different
+`sdkconfig` rather than a source edit.
 
-```
-ESP32 GPIO5 ----[1kΩ]----|B  BC547B  C|---- DB9 pin 2 (target control)
-                              E
-ESP32 GND --------------------+--------- DB9 pin 5 (ground)
-```
-
-Pins are in [`main/config.h`](main/config.h).
+See [`docs/HARDWARE.md`](docs/HARDWARE.md) for the wiring, the full option list,
+the partition layout, and the esptool `--no-stub` quirk you will hit when
+flashing these boards.
 
 ## Build, flash, test
 
@@ -128,6 +122,17 @@ locking rules and the storage layout.
 | `main/` | The firmware: `io/`, `storage/`, `repositories/`, `executor/`, `net/` |
 | `host_test/` | Unity suites for `lib/rt_logic/`, plus the CMake + CTest harness |
 | `resources/` | Submodule: the shipped audio and programs |
+
+## Documentation
+
+| Document | Covers |
+|---|---|
+| [`docs/api-v2.md`](docs/api-v2.md) | The REST + SSE contract, shared with the MicroPython backend |
+| [`docs/HARDWARE.md`](docs/HARDWARE.md) | Boards, pin configuration, flashing, partitions |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Task model, locking, storage layout |
+| [`docs/adr/0001-esp-idf-port.md`](docs/adr/0001-esp-idf-port.md) | Why this port exists |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Workflow, tests, commit conventions |
+| [`SECURITY.md`](SECURITY.md) | Threat model and reporting |
 
 ## Related
 
