@@ -65,7 +65,8 @@
       "properties": {
         "duration": {
           "type": "integer",
-          "description": "Duration of the event in tenths of a second. For example: 1 = 0.1s, 2 = 0.2s, ..., 10 = 1.0s"
+          "description": "Duration of the event in milliseconds. For example: 1000 = 1.0s, 5000 = 5.0s, 60000 = 60s.",
+          "minimum": 0
         },
         "command": {
           "type": "string"
