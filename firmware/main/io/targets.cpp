@@ -39,7 +39,11 @@ int pin() {
 
 void set(bool shown) {
   gpio_set_level(kTargetPin, shown ? kTargetLevelShown : kTargetLevelHidden);
-  ESP_LOGD(TAG, "Targets %s", shown ? "shown" : "hidden");
+  // INFO, not DEBUG: transitions are rare (one per program event) and this is
+  // the only record of what the pin was told to do - on hardware it is the
+  // first thing to compare against the relay, and under QEMU the serial log is
+  // the only effects-layer observation channel (GPIO reads are stubbed).
+  ESP_LOGI(TAG, "Targets %s", shown ? "shown" : "hidden");
 }
 
 }  // namespace targets
