@@ -27,8 +27,8 @@ flashing these boards.
 ## Build, flash, test
 
 ```bash
-git clone --recursive https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target_backend_esp32_espidf.git
-cd rotation_target_backend_esp32_espidf
+git clone https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target.git
+cd rotation_target/firmware
 
 idf.py set-target esp32s3          # once, per clone
 idf.py menuconfig                  # optional: seed WiFi under "Rotation target backend"
@@ -36,9 +36,9 @@ idf.py build
 idf.py -p /dev/ttyACM0 flash monitor
 ```
 
-The shipped audio and programs live in the `resources/` submodule — a clone
-without `--recursive` fails the build with a message telling you to run
-`git submodule update --init --recursive`.
+The shipped audio and programs live in the monorepo's sibling `resources/`
+directory. The build reads them from there by default; point `RT_RESOURCES_DIR`
+elsewhere to override.
 
 `idf.py flash` writes the LittleFS image too, which **replaces anything
 uploaded to the device**. Use `idf.py app-flash` to update only the firmware.
@@ -99,8 +99,9 @@ pre-commit run --all-files
 ```
 
 `.clang-format` covers `main/`, `lib/rt_logic/` and `host_test/`. Vendored code
-(`lib/psychic_http/`, `lib/arduinojson/`) and the `resources/` submodule are
-excluded and must stay byte-identical to upstream — never reformat them.
+(`lib/psychic_http/`, `lib/arduinojson/`) and the repository's `resources/`
+tree are excluded and must stay byte-identical to upstream — never reformat
+them.
 
 ## API
 
@@ -121,7 +122,7 @@ locking rules and the storage layout.
 | `lib/psychic_http/`, `lib/arduinojson/` | Vendored third-party |
 | `main/` | The firmware: `io/`, `storage/`, `repositories/`, `executor/`, `net/` |
 | `host_test/` | Unity suites for `lib/rt_logic/`, plus the CMake + CTest harness |
-| `resources/` | Submodule: the shipped audio and programs |
+| `../resources/` | The shipped audio and programs (sibling directory) |
 
 ## Documentation
 

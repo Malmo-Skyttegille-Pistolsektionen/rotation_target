@@ -49,9 +49,10 @@ idf.py menuconfig           # optional WiFi seed, under "Rotation target backend
 idf.py build
 ```
 
-- **Clone with `--recursive`.** The shipped audio and programs come from the
-  `resources/` submodule; the root `CMakeLists.txt` fails the build with an
-  explicit message if it is empty.
+- **The shipped audio and programs come from the monorepo's `resources/`
+  directory**, found via the `RT_RESOURCES_DIR` cache variable (default
+  `../resources`); `CMakeLists.txt` fails the build with an explicit message if
+  that path holds no `audios/audios.json`.
 - **Toolchain:** ESP-IDF **>= 6.0** (`main/idf_component.yml`); CI pins v6.0.2.
   5.x does not build: 6.0 removed `i2s_port_t`, so `i2s_chan_config_t::id` is a
   plain `int` — see `kI2sPort` in `main/config.h`.
