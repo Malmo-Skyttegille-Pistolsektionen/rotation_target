@@ -1,0 +1,960 @@
+{
+  "id": 1,
+  "title": "Militär Snabbmatch",
+  "description": "Provserie 10s, 10s x 4 (+2), 8s x 4 (+2), 6s x 4 (+2)",
+  "readonly": true,
+  "series": [
+    {
+      "name": "Provserie 10s",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            50,
+            1,
+            28
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 10000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10s Serie 1",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            64
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 10000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10s Serie 2",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            65
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 10000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10s Serie 3",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            66
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 10000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10s Serie 4",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            67
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 10000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Färdigskjutning 1, 10 sekunder",
+      "optional": true,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            84
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 10000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Färdigskjutning 2, 10 sekunder",
+      "optional": true,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            85
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 10000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8s Serie 1",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            68
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 8000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8s Serie 2",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            69
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 8000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8s Serie 3",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            70
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 8000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8s Serie 4",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            71
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 8000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Färdigskjutning 1, 8 sekunder",
+      "optional": true,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            86
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 8000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Färdigskjutning 2, 8 sekunder",
+      "optional": true,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            87
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 8000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6s Serie 1",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            72
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 6000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6s Serie 2",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            73
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 6000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6s Serie 3",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            74
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 6000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6s Serie 4",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            75
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 6000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Färdigskjutning 1, 6 sekunder",
+      "optional": true,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            88
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 6000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Färdigskjutning 2, 6 sekunder",
+      "optional": true,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            89
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 6000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    }
+  ]
+}

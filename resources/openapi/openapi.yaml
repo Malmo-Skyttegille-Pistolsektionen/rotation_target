@@ -1,0 +1,468 @@
+# yaml-language-server: $schema=https://spec.openapis.org/oas/3.1/schema/2022-10-07
+
+openapi: 3.1.0
+info:
+  title: MSG Shooting Target System REST API
+  version: 1.0.0
+  description: |
+    This is the REST API for the MSG Shooting Target System, which allows users to manage shooting programs,
+    audio files, and target visibility. The API provides endpoints for uploading programs, managing series and
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Base URL for version 1 of the API
+
+security:
+  - {}
+
+paths:
+  /version:
+    get:
+      summary: Get backend semantic version
+      operationId: getBackendVersion
+      responses:
+        "200":
+          description: Semantic version of the backend
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  major:
+                    type: integer
+                  minor:
+                    type: integer
+                  patch:
+                    type: integer
+        "400":
+          description: Bad request
+  /programs:
+    get:
+      summary: List all programs
+      operationId: listPrograms
+      responses:
+        "200":
+          description: List of available programs with ID, title, and description
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    title:
+                      type: string
+                    description:
+                      type: string
+                    readonly:
+                      type: boolean
+        "400":
+          description: Bad request
+
+    post:
+      summary: Upload a new program
+      operationId: uploadProgram
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProgramUpload"
+      responses:
+        "201":
+          description: Program uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+        "400":
+          description: Invalid program structure
+
+  /programs/{id}:
+    get:
+      summary: Get a specific program
+      operationId: getProgram
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Program found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Program"
+        "404":
+          description: Program not found
+        "400":
+          description: Invalid ID
+
+  /programs/{id}/load:
+    post:
+      summary: Load a specific program
+      operationId: loadProgram
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Program loaded
+        "404":
+          description: Program ID not found
+        "400":
+          description: Invalid ID
+
+  /programs/start:
+    post:
+      summary: Start next series
+      operationId: startNextSeries
+      responses:
+        "200":
+          description: Series started
+        "400":
+          description: No program loaded
+
+  /programs/stop:
+    post:
+      summary: Stop current series
+      operationId: stopCurrentSeries
+      responses:
+        "200":
+          description: Series stopped
+        "400":
+          description: No program loaded or no program running
+
+  /programs/series/{series_index}/skip_to:
+    post:
+      summary: Skip to a specific series in the program
+      operationId: skipToSeries
+      parameters:
+        - in: path
+          name: series_index
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Skipped to the specified series
+        "400":
+          description: No program loaded or invalid series index
+
+  /programs/{id}/delete:
+    delete:
+      summary: Delete a program by ID
+      operationId: deleteProgram
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Program deleted successfully
+        "404":
+          description: Program not found
+        "400":
+          description: Invalid ID
+
+  /status:
+    get:
+      summary: Get current program and target status
+      operationId: getStatus
+      responses:
+        "200":
+          description: Current program and target state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgramStatus"
+        "400":
+          description: Bad request
+
+  /audios:
+    get:
+      summary: List all audios
+      operationId: listAudios
+      responses:
+        "200":
+          description: Built-in and uploaded audio files
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  audios:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Audio"
+        "400":
+          description: Bad request
+
+    post:
+      summary: Upload a new audio file
+      operationId: uploadAudio
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - codec
+                - title
+              properties:
+                file:
+                  type: string
+                  format: binary
+                codec:
+                  type: string
+                  enum: [pcm, mp3]
+                title:
+                  type: string
+      responses:
+        "201":
+          description: Audio uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+        "415":
+          description: Unsupported Media Type — invalid audio format
+        "400":
+          description: Invalid audio upload
+
+  /audios/{id}/delete:
+    delete:
+      summary: Delete an audio file by ID
+      operationId: deleteAudio
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Audio deleted successfully
+        "404":
+          description: Audio not found
+        "400":
+          description: Invalid ID
+
+  /audios/{id}/play:
+    post:
+      summary: Play an audio file by ID
+      operationId: playAudio
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Playback started successfully
+        "404":
+          description: Audio not found
+        "400":
+          description: Invalid ID
+
+  /targets/show:
+    post:
+      summary: Show the target
+      operationId: showTarget
+      responses:
+        "200":
+          description: Target is now shown
+        "400":
+          description: Bad request
+
+  /targets/hide:
+    post:
+      summary: Hide the target
+      operationId: hideTarget
+      responses:
+        "200":
+          description: Target is now hidden
+        "400":
+          description: Bad request
+
+  /targets/toggle:
+    post:
+      summary: Toggle the target visibility
+      operationId: toggleTarget
+      responses:
+        "200":
+          description: Target visibility toggled
+        "400":
+          description: Bad request
+
+  /admin-mode/status:
+    get:
+      summary: Get admin mode status
+      operationId: getAdminModeStatus
+      responses:
+        "200":
+          description: Returns whether admin mode is enabled or disabled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+
+  /admin-mode/enable:
+    post:
+      summary: Enable admin mode
+      operationId: enableAdminMode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - password
+              properties:
+                password:
+                  type: string
+                  description: Password required to enable admin mode
+      responses:
+        "200":
+          description: Admin mode enabled, returns OAuth bearer token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: OAuth bearer token for admin actions
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+
+  /admin-mode/disable:
+    post:
+      summary: Disable admin mode
+      operationId: disableAdminMode
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Admin mode disabled
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+
+  /programs/{id}/update:
+    put:
+      summary: Update a program by ID (full replacement)
+      operationId: updateProgram
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProgramUpload"
+      responses:
+        "200":
+          description: Program updated successfully
+        "404":
+          description: Program not found
+        "400":
+          description: Invalid program structure or ID
+        "403":
+          description: Program is readonly and cannot be updated
+
+components:
+  schemas:
+    Audio:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        readonly:
+          type: boolean
+
+    Program:
+      $ref: "./program.schema.json"
+    Series:
+      $ref: "./program.schema.json#/$defs/Series"
+    Event:
+      $ref: "./program.schema.json#/$defs/Event"
+
+    ProgramStatus:
+      type: object
+      required:
+        - running
+      properties:
+        running:
+          type: boolean
+        next_event:
+          type: [object, "null"]
+          description: Optional. Present only if a next event is known.
+          required:
+            - program_id
+            - series_index
+            - event_index
+          properties:
+            program_id:
+              type: integer
+            series_index:
+              type: integer
+            event_index:
+              type: integer
+        target_status:
+          type: [string, "null"]
+          enum: [shown, hidden]
+
+    ProgramUpload:
+      type: object
+      required:
+        - title
+        - description
+        - series
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        series:
+          type: array
+          items:
+            $ref: "#/components/schemas/Series"
