@@ -347,6 +347,43 @@ editor in the new app.
 complication for one form; porting the editor partially; deleting `src_legacy`
 before authoring exists in React.
 
+## D-19 — REST errors become RFC 9457 problem details *(Decided 2026-08-20, implementation pending)*
+
+**Decision:** every REST error response becomes an RFC 9457 problem detail
+served as `application/problem+json`, carrying `type`, `title`, `status` and
+`detail`. `instance` is omitted — it identifies a single occurrence, which
+means nothing on a device with no request ids. `type` is a stable relative URI
+(`/problems/<slug>`) that is never dereferenced.
+
+**The slug vocabulary is shared with the SSE `backend_issue` codes**, so the
+system speaks one error language on both channels rather than two.
+
+**Why:** the API has 39 error sites and the shape is `{"error": "prose"}`.
+Four distinct reasons already answer `409` — admin not enabled, audio playing,
+program loaded, program read-only — and the audio-deletion guard adds three
+more. A client that must react differently to them (the Programs tab does:
+"loaded" means offer to load another, "read-only" means offer upload-as-new)
+can only tell them apart by **string-matching English prose**. That breaks on
+any rewording and cannot be localised for a Swedish club. The SSE side already
+solved this with `backend_issue`'s `{code, message, context}`; REST never got
+the same treatment.
+
+RFC 9457 over a home-grown `code` field: the discriminator is where the value
+is, but the standard costs little more, ends the field-naming argument, and the
+existing tooling understands it — Redocly lints `application/problem+json`, and
+`openapi-typescript` gives the webapp a discriminated union to switch on.
+
+**Why now:** the same window that made D-16 safe is still open. No `firmware-v*`
+tag has been cut, and the webapp ships inside the firmware image, so producer
+and consumer deploy atomically — there is no skew period where an old client
+meets a new error shape. After the first release this becomes a breaking change
+with deprecation cost, and the error surface grows every week.
+
+**Rejected:** a bespoke `{"error", "code"}` pair (cheaper, but a convention
+every future contributor must be taught); `instance` (no request ids);
+converting piecemeal (would leave a half-and-half API — one focused PR changes
+the helper, all 39 sites, the contract, the webapp and the mock together).
+
 ## Open questions
 
 - **Are `app` / `x86_linux` used by anyone?** (asked — drives D-03's
