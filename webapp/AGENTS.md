@@ -29,5 +29,7 @@ e2e/                              # Playwright suite against the QEMU-hosted fir
 
 - Edit files in `src_legacy/`, `legacy.html`, or `vite-plugins/mock-server.ts`.
   These are a snapshot of the v1 implementation — and `src_legacy` is
-  load-bearing: the Audio and Programs tabs exist nowhere else.
+  load-bearing: the Programs tab exists nowhere else. (The Audios tab is
+  ported, at `src/routes/audios.tsx`; the legacy one stays until Programs is
+  ported too.)
 - Use Tailwind CSS

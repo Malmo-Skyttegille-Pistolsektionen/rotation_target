@@ -48,7 +48,10 @@ async function getResponseErrorMessage(response: Response): Promise<string> {
     const payload: unknown = JSON.parse(text);
     return getErrorMessageFromPayload(payload) ?? fallbackMessage;
   } catch {
-    return text;
+    // A body over the 1 MiB cap is refused by the HTTP layer with an HTML
+    // page rather than the JSON error shape (contract, "Limits") - rendering
+    // that markup as the error message is worse than the status line.
+    return text.trimStart().startsWith('<') ? fallbackMessage : text;
   }
 }
 
