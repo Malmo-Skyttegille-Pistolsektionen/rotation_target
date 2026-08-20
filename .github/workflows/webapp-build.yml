@@ -54,11 +54,17 @@ jobs:
         run: |
           budget=$(cat size-budget)
           total=0
+          count=0
           while IFS= read -r -d '' f; do
-            size=$(gzip -c "$f" | wc -c)
+            size=$(gzip -nc "$f" | wc -c)
             total=$((total + size))
+            count=$((count + 1))
           done < <(find dist -type f \( -name '*.js' -o -name '*.css' \) -print0)
-          echo "Total gzipped dist/**/*.{js,css}: ${total} bytes (budget: ${budget} bytes)"
+          if [ "$count" -eq 0 ]; then
+            echo "::error::no dist/**/*.{js,css} files found — build produced nothing to measure"
+            exit 1
+          fi
+          echo "Total gzipped dist/**/*.{js,css}: ${total} bytes across ${count} files (budget: ${budget} bytes)"
           if [ "$total" -gt "$budget" ]; then
             echo "::error::gzip size budget exceeded: ${total} > ${budget} bytes (see webapp/size-budget)"
             exit 1

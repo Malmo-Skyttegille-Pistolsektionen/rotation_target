@@ -2,5 +2,5 @@
 !.editorconfig
 !.ignore
 !.prettierrc
-!.yarnrc.yml
+!.npmrc
 !plans
