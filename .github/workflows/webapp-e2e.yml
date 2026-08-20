@@ -116,9 +116,9 @@ jobs:
         shell: bash
         run: |
           . "$IDF_PATH/export.sh"
-          # The runner execs qemu after a (no-op, the tree was just built)
-          # idf.py pass, so this PID ends up being the emulator's.
-          scripts/run-qemu.sh --headless > qemu-serial.log 2>&1 &
+          # --no-build: the step above already built the tree, and the runner
+          # execs qemu, so this PID is the emulator's.
+          scripts/run-qemu.sh --no-build --headless > qemu-serial.log 2>&1 &
           echo "$!" > qemu.pid
           for _ in $(seq 1 180); do
             if curl -sf -o /dev/null http://127.0.0.1:8080/api/v2/version; then

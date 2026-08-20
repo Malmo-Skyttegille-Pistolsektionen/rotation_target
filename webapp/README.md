@@ -124,8 +124,8 @@ Notes for writing tests:
 
 - There is **one device** and its state persists across tests, so the config
   pins `workers: 1` and every spec calls `resetDevice()` in `beforeEach`.
-- Navigate to `/`, never to `/run` directly: the firmware serves the bundle
-  with a plain static handler and no SPA fallback, so a deep link is a 404.
+- Deep links are fine to navigate to: the firmware answers a non-API `GET` miss
+  with `index.html`, so `/run` reloads as the page it is.
 - `backend_issue` is not covered — it needs audio hardware, and QEMU emulates
   no I2S.
 

@@ -9,6 +9,8 @@
 #include <ArduinoJson.h>
 #include <PsychicHttp.h>
 
+#include <sys/stat.h>
+
 #include <cstring>
 #include <string>
 
@@ -615,12 +617,25 @@ void register_audio_routes() {
   s_server.on("/api/v2/audios", HTTP_POST, &s_audio_upload);
 }
 
+constexpr const char *kWebappDir = "/storage/webapp/";
+constexpr const char *kWebappIndex = "/storage/webapp/index.html";
+
+// Whether the build bundled a webapp at all. An API-only image has no
+// index.html to fall back to and keeps the JSON 404 for everything.
+bool s_webapp_bundled = false;
+
 // Serves the built webapp from LittleFS when one has been uploaded. Kept last
 // so it never shadows an API route.
 void register_static_routes() {
+  // Only .gz survives the build for the text assets (firmware/CMakeLists.txt),
+  // so the uncompressed name is not the one to probe for.
+  struct stat st;
+  const std::string gz = std::string(kWebappIndex) + ".gz";
+  s_webapp_bundled = stat(kWebappIndex, &st) == 0 || stat(gz.c_str(), &st) == 0;
+
   // The native ESP-IDF overload takes a POSIX path; the fs::FS one is
   // Arduino-only (see lib/psychic_http/src/PsychicFS.h).
-  s_server.serveStatic("/", "/storage/webapp/")->setDefaultFile("index.html");
+  s_server.serveStatic("/", kWebappDir)->setDefaultFile("index.html");
 }
 
 }  // namespace
@@ -722,6 +737,23 @@ bool start() {
       res->addHeader("Access-Control-Allow-Credentials", "true");
       res->addHeader("Vary", "Origin");
     }
+
+    // SPA fallback. The webapp routes client-side, so GET /run is a real page
+    // with no file behind it and a reload would otherwise answer a JSON 404.
+    //
+    // It lives here rather than in a catch-all route because _process() matches
+    // endpoints before handlers: a `/*` GET endpoint would shadow every static
+    // file whenever it was registered. onNotFound runs only once both have
+    // missed, which is exactly the condition. rt::spa_fallback_eligible keeps
+    // the API's and the assets' own 404s intact.
+    if (s_webapp_bundled && req->method() == HTTP_GET &&
+        rt::spa_fallback_eligible(req->uriCStr())) {
+      // PsychicFileResponse picks index.html.gz and sets Content-Encoding
+      // itself, the same way the static handler serves the file for `/`.
+      PsychicFileResponse index(res, kWebappIndex);
+      return index.send();
+    }
+
     return send_error(res, 404, "Not found");
   });
 
