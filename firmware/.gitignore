@@ -1,0 +1,16 @@
+# ESP-IDF
+build/
+sdkconfig
+sdkconfig.old
+managed_components/
+
+# dependencies.lock IS committed - it pins the managed component versions
+# (littlefs, led_strip, mdns) so a clone builds the same tree.
+
+# Host tests
+host_test/build/
+
+# Editors
+.vscode/
+.idea/
+compile_commands.json
