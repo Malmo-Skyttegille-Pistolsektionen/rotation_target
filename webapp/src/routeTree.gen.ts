@@ -9,19 +9,20 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as RunRouteImport } from './routes/run'
-import { Route as LegacyRouteImport } from './routes/legacy'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AudiosRouteImport } from './routes/audios'
+import { Route as LegacyRouteImport } from './routes/legacy'
+import { Route as RunRouteImport } from './routes/run'
+import { Route as SettingsRouteImport } from './routes/settings'
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RunRoute = RunRouteImport.update({
-  id: '/run',
-  path: '/run',
+const AudiosRoute = AudiosRouteImport.update({
+  id: '/audios',
+  path: '/audios',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LegacyRoute = LegacyRouteImport.update({
@@ -29,20 +30,27 @@ const LegacyRoute = LegacyRouteImport.update({
   path: '/legacy',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const RunRoute = RunRouteImport.update({
+  id: '/run',
+  path: '/run',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/audios': typeof AudiosRoute
   '/legacy': typeof LegacyRoute
   '/run': typeof RunRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/audios': typeof AudiosRoute
   '/legacy': typeof LegacyRoute
   '/run': typeof RunRoute
   '/settings': typeof SettingsRoute
@@ -50,20 +58,22 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/audios': typeof AudiosRoute
   '/legacy': typeof LegacyRoute
   '/run': typeof RunRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/legacy' | '/run' | '/settings'
+  fullPaths: '/' | '/audios' | '/legacy' | '/run' | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/legacy' | '/run' | '/settings'
-  id: '__root__' | '/' | '/legacy' | '/run' | '/settings'
+  to: '/' | '/audios' | '/legacy' | '/run' | '/settings'
+  id: '__root__' | '/' | '/audios' | '/legacy' | '/run' | '/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AudiosRoute: typeof AudiosRoute
   LegacyRoute: typeof LegacyRoute
   RunRoute: typeof RunRoute
   SettingsRoute: typeof SettingsRoute
@@ -71,18 +81,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/run': {
-      id: '/run'
-      path: '/run'
-      fullPath: '/run'
-      preLoaderRoute: typeof RunRouteImport
+    '/audios': {
+      id: '/audios'
+      path: '/audios'
+      fullPath: '/audios'
+      preLoaderRoute: typeof AudiosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/legacy': {
@@ -92,11 +102,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegacyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/run': {
+      id: '/run'
+      path: '/run'
+      fullPath: '/run'
+      preLoaderRoute: typeof RunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -104,6 +121,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AudiosRoute: AudiosRoute,
   LegacyRoute: LegacyRoute,
   RunRoute: RunRoute,
   SettingsRoute: SettingsRoute,

@@ -20,6 +20,9 @@ export const Route = createRootRoute({
         <Link to='/settings' className={styles.link} activeProps={{ className: styles.active }}>
           Settings
         </Link>
+        <Link to='/audios' className={styles.link} activeProps={{ className: styles.active }}>
+          Audios
+        </Link>
         <Link to='/legacy' className={styles.link} activeProps={{ className: styles.active }}>
           Legacy App
         </Link>

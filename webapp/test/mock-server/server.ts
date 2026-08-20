@@ -30,6 +30,15 @@ const API_PREFIX = '/api/v2';
 const SSE_PATH = '/sse/v2';
 const HEARTBEAT_INTERVAL = 10000; // 10 seconds
 const TICK_INTERVAL = 1000; // 1 second
+/** `kMaxUploadBytes` in firmware/main/config.h. */
+const MAX_UPLOAD_BYTES = 1024 * 1024;
+/** `kFirstUploadId` in firmware/main/config.h. */
+const FIRST_UPLOAD_ID = 100;
+/**
+ * How long a clip counts as playing, so `DELETE` can answer 409 the way the
+ * device does. Under a fake clock nothing expires until a test advances it.
+ */
+const PLAYBACK_DURATION = 3000;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(here, '../data');
@@ -119,6 +128,9 @@ interface ServerState {
   adminModeTokens: Set<string>;
   /** Clock time the current series started running at. */
   seriesStartTime: number | null;
+  /** The clip `POST /audios/{id}/play` last started, and when it stops counting as playing. */
+  playingAudioId: number | null;
+  playingUntil: number | null;
 }
 
 interface SSEClient {
@@ -129,7 +141,11 @@ interface SSEClient {
 export function createMockServer(options: MockServerOptions = {}): MockServer {
   const clock = options.clock ?? realClock;
   const requestedPort = options.port ?? 0;
-  const { programs, audios } = options.seed ?? loadSeedFromDisk();
+  const seed = options.seed ?? loadSeedFromDisk();
+  const { programs } = seed;
+  // Uploads and deletes mutate this, so it is a copy of the seed and `reset()`
+  // puts it back.
+  const audios: AudioFile[] = [...seed.audios];
 
   const state: ServerState = {
     loadedProgram: null,
@@ -138,6 +154,8 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     adminModePassword: null,
     adminModeTokens: new Set<string>(),
     seriesStartTime: null,
+    playingAudioId: null,
+    playingUntil: null,
   };
 
   const clients: SSEClient[] = [];
@@ -232,6 +250,76 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     });
   }
 
+  function parseBodyBuffer(req: IncomingMessage): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk: Buffer) => chunks.push(chunk));
+      req.on('end', () => resolve(Buffer.concat(chunks)));
+      // Without these a client that hangs up mid-body never settles the
+      // promise, and the request handler is stuck for the life of the server.
+      req.on('error', reject);
+      req.on('aborted', () => reject(new Error('request aborted')));
+    });
+  }
+
+  interface ParsedUpload {
+    filename: string;
+    title: string;
+    content: Buffer;
+  }
+
+  /**
+   * Enough of RFC 7578 for one file part and one text field. The device does
+   * not inspect the file part's name either, so neither does this.
+   */
+  function parseMultipart(req: IncomingMessage, body: Buffer): ParsedUpload | null {
+    const contentType = req.headers['content-type'] ?? '';
+    const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/);
+    if (!boundaryMatch) return null;
+
+    const boundary = `--${boundaryMatch[1] ?? boundaryMatch[2]}`;
+    const parts = body.toString('latin1').split(boundary).slice(1, -1);
+
+    let filename: string | null = null;
+    let title = '';
+    let content = Buffer.alloc(0);
+
+    for (const part of parts) {
+      const separator = part.indexOf('\r\n\r\n');
+      if (separator === -1) continue;
+
+      const headers = part.slice(0, separator);
+      // Trailing CRLF belongs to the boundary, not the payload.
+      const value = part.slice(separator + 4, part.length - 2);
+
+      const nameMatch = headers.match(/name="([^"]*)"/);
+      const filenameMatch = headers.match(/filename="([^"]*)"/);
+
+      if (filenameMatch) {
+        filename = filenameMatch[1];
+        content = Buffer.from(value, 'latin1');
+      } else if (nameMatch?.[1] === 'title') {
+        // Split latin1 so byte offsets survive binary parts; a text field has
+        // to be decoded back out of those bytes as UTF-8, or "Klubbmasterskap"
+        // arrives mojibaked.
+        title = Buffer.from(value, 'latin1').toString('utf8');
+      }
+    }
+
+    return filename === null ? null : { filename, title, content };
+  }
+
+  /** `audios::add_uploaded`: the first free slot at or above `kFirstUploadId`, so a deleted id is reused. */
+  function nextUploadedId(): number {
+    let id = FIRST_UPLOAD_ID;
+    while (audios.some((audio) => audio.id === id)) id++;
+    return id;
+  }
+
+  function isPlaying(id: number): boolean {
+    return state.playingAudioId === id && state.playingUntil !== null && clock.now() < state.playingUntil;
+  }
+
   function jsonResponse(res: ServerResponse, status: number, data: unknown): void {
     res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(data));
@@ -286,7 +374,8 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     // Whole seconds decide *whether* to publish; milliseconds are what gets
     // published. Same split as rt::Executor::tick - see D-16.
     const elapsedSeconds = Math.floor(elapsedMs / 1000);
-    const publishedSeconds = state.programState.tickerMs === null ? null : Math.floor(state.programState.tickerMs / 1000);
+    const publishedSeconds =
+      state.programState.tickerMs === null ? null : Math.floor(state.programState.tickerMs / 1000);
     const changed = state.programState.currentEventIndex !== location.index || publishedSeconds !== elapsedSeconds;
 
     if (changed) {
@@ -551,8 +640,70 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         jsonResponse(res, 404, { error: 'Audio not found' });
         return;
       }
-      // Just acknowledge playback (no state change needed)
+      state.playingAudioId = id;
+      state.playingUntil = clock.now() + PLAYBACK_DURATION;
       jsonResponse(res, 200, { message: 'Playback started', audioId: id });
+      return;
+    }
+
+    // POST /audios - Requires auth. Multipart, and only the two things the
+    // firmware actually checks are checked here: a `.wav` filename and a
+    // non-empty title. The body is measured, not parsed into a file.
+    if (endpoint === '/audios' && req.method === 'POST') {
+      if (!checkAdminAuth(req, res)) return;
+      const body = await parseBodyBuffer(req);
+
+      if (body.byteLength > MAX_UPLOAD_BYTES) {
+        // Refused above the handler, so not the JSON error shape:
+        // `httpd_resp_send_err` labels it `text/html` but sends
+        // PsychicUploadHandler's sentence verbatim, markup and all absent.
+        res.writeHead(400, { 'Content-Type': 'text/html' });
+        res.end(`File size must be less than ${MAX_UPLOAD_BYTES} bytes!`);
+        return;
+      }
+
+      const upload = parseMultipart(req, body);
+      if (!upload || !upload.filename.toLowerCase().endsWith('.wav')) {
+        jsonResponse(res, 400, { error: 'No file uploaded' });
+        return;
+      }
+      if (!upload.title) {
+        jsonResponse(res, 400, { error: 'Missing title' });
+        return;
+      }
+      if (!upload.content.subarray(0, 4).equals(Buffer.from('RIFF'))) {
+        jsonResponse(res, 400, { error: 'Unsupported audio format' });
+        return;
+      }
+
+      const id = nextUploadedId();
+      audios.push({
+        id,
+        title: upload.title,
+        filename: `/storage/uploads/audio/${id}.wav`,
+        readonly: false,
+      });
+      jsonResponse(res, 201, { id });
+      return;
+    }
+
+    // DELETE /audios/{id}/delete - Requires auth
+    const audioDeleteMatch = endpoint.match(/^\/audios\/(\d+)\/delete$/);
+    if (audioDeleteMatch && req.method === 'DELETE') {
+      if (!checkAdminAuth(req, res)) return;
+      const id = parseInt(audioDeleteMatch[1], 10);
+      const index = audios.findIndex((a) => a.id === id);
+      // A shipped clip is indistinguishable from a missing one, by contract.
+      if (index === -1 || audios[index].readonly) {
+        jsonResponse(res, 404, { error: 'Audio not found' });
+        return;
+      }
+      if (isPlaying(id)) {
+        jsonResponse(res, 409, { error: 'Audio is currently playing' });
+        return;
+      }
+      audios.splice(index, 1);
+      jsonResponse(res, 200, { message: 'Audio deleted successfully' });
       return;
     }
 
@@ -616,6 +767,9 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       state.adminModePassword = null;
       state.adminModeTokens.clear();
       state.seriesStartTime = null;
+      state.playingAudioId = null;
+      state.playingUntil = null;
+      audios.splice(0, audios.length, ...seed.audios);
     },
 
     listen(): Promise<number> {
