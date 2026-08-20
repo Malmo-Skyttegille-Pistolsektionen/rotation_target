@@ -148,6 +148,14 @@ reusable workflows.
 committed manifest of asset versions — pin in the *output* (artifact +
 `GET /api/v2/diagnostics/info`), not the input.
 
+**Amended 2026-08-20 (implementation):** only `common-release-assets` is
+reusable as-is. `common-release-prepare`, `-tag` and `-promote` assume bare
+`X.Y.Z` tags — they validate the version as semver and tag it unprefixed — so
+they are ported into `.github/workflows/firmware-release.yml` rather than
+called. Releases are also **not** marked "latest": with three tag lines in one
+repository that flag would name a webapp release as the newest firmware.
+See `docs/RELEASING.md`.
+
 ## D-12 — Webapp package manager: npm *(Decided 2026-08-20)*
 
 **Decision:** npm. Generate `package-lock.json`, delete `yarn.lock`,
