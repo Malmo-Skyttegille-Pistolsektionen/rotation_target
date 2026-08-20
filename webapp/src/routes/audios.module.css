@@ -1,0 +1,290 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #333;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 0.5rem;
+}
+
+.panel {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.uploadForm {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 200px;
+}
+
+.fieldLabel {
+  color: #6b7280;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.input {
+  padding: 0.5rem;
+  font-size: 0.95rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  color: #333;
+  height: 40px;
+  box-sizing: border-box;
+}
+
+.hint {
+  margin: 0;
+  flex-basis: 100%;
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.button {
+  padding: 0 1.25rem;
+  height: 40px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 0.2s,
+    opacity 0.2s;
+}
+
+.buttonPrimary {
+  background-color: #646cff;
+  color: #fff;
+}
+
+.buttonPrimary:hover {
+  background-color: #535bf2;
+}
+
+.buttonSecondary {
+  background-color: #fff;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.buttonSecondary:hover {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.buttonDestructive {
+  background-color: #dc2626;
+  color: #fff;
+}
+
+.buttonDestructive:hover {
+  background-color: #b91c1c;
+}
+
+.buttonDestructiveGhost {
+  background-color: transparent;
+  color: #dc2626;
+  border: 1px solid #dc2626;
+}
+
+.buttonDestructiveGhost:hover {
+  background-color: #fef2f2;
+  border-color: #b91c1c;
+  color: #b91c1c;
+}
+
+.button:disabled {
+  background-color: #f3f4f6;
+  color: #9ca3af;
+  border-color: #e5e7eb;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 0.5rem;
+  border-bottom: 1px solid #eee;
+  vertical-align: middle;
+}
+
+.table th {
+  color: #6b7280;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.idCell {
+  font-family: monospace;
+  color: #6b7280;
+}
+
+.fileCell {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: #6b7280;
+  overflow-wrap: anywhere;
+}
+
+.actionsHeader,
+.actionsCell {
+  text-align: right;
+}
+
+.actionsCell {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.noActions {
+  color: #9ca3af;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badgeShipped {
+  background-color: #e0e7ff;
+  color: #312e81;
+  border: 1px solid #6366f1;
+}
+
+.badgeUploaded {
+  background-color: #dcfce7;
+  color: #14532d;
+  border: 1px solid #16a34a;
+}
+
+.empty {
+  margin: 0;
+  color: #6b7280;
+}
+
+.feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.feedback span:first-child {
+  flex: 1;
+}
+
+.feedbackInfo {
+  background-color: #eef2ff;
+  border: 1px solid #6366f1;
+  color: #312e81;
+}
+
+.feedbackError {
+  background-color: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #7f1d1d;
+}
+
+.feedbackDismiss {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+}
+
+.viewOnlyBadge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #fef3c7;
+  color: #d97706;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: 1px solid #fcd34d;
+  align-self: flex-start;
+}
+
+.viewOnlyIcon {
+  font-size: 1.1rem;
+}
+
+@media (max-width: 768px) {
+  .uploadForm {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .fileCell {
+    display: none;
+  }
+
+  .table th:nth-child(4) {
+    display: none;
+  }
+
+  .actionsCell {
+    justify-content: flex-start;
+  }
+}
