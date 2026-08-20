@@ -1,4 +1,4 @@
-To verify new changes run `yarn lint` and `yarn build`
+To verify new changes run `npm run lint` and `npm run build`
 
 ## special files and directories
 ```
