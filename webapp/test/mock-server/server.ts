@@ -40,7 +40,7 @@ const HEARTBEAT_INTERVAL = 10000; // 10 seconds
 const TICK_INTERVAL = 1000; // 1 second
 /** `kMaxUploadBytes` in firmware/main/config.h. */
 const MAX_UPLOAD_BYTES = 1024 * 1024;
-/** `kFirstUploadId` in firmware/main/config.h. */
+/** `kFirstUploadId` in firmware/main/config.h - the floor for uploaded audio AND program ids. */
 const FIRST_UPLOAD_ID = 100;
 /**
  * How long a clip counts as playing, so `DELETE` can answer 409 the way the
@@ -48,8 +48,6 @@ const FIRST_UPLOAD_ID = 100;
  */
 const PLAYBACK_DURATION = 3000;
 
-/** Uploaded programs are numbered from here up, keeping them clear of shipped ids. */
-const FIRST_UPLOAD_ID = 100;
 /** Per-event clamp the firmware applies on parse. */
 const MIN_DURATION_MS = 1;
 const MAX_DURATION_MS = 3600000;

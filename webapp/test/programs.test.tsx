@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // Same-origin with the mock, as the app runs for real — the firmware serves
 // the bundle. See the note in useAdminStatus.test.tsx.
-// @vitest-environment-options { "url": "http://127.0.0.1:18081" }
+// @vitest-environment-options { "url": "http://127.0.0.1:18082" }
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -14,7 +14,9 @@ import { createFakeClock } from './mock-server/clock';
 import { createMockServer, type MockServer } from './mock-server/server';
 import { enableAdminElsewhere, requestElsewhere } from './other-client';
 
-const PORT = 18081;
+// Distinct per suite: vitest runs files in parallel, so a shared port is an
+// EADDRINUSE flake (18080 useAdminStatus, 18081 audios, 18082 here).
+const PORT = 18082;
 
 /** Shipped: read-only, no file behind it, so it can only be loaded. */
 const SHIPPED: Program = { ...PROGRAM_FALT_TRANING, id: 40, readonly: true };
