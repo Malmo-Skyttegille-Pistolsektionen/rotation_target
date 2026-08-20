@@ -1,0 +1,106 @@
+---
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A superseded push should not keep a full firmware build running to completion.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-test:
+    # Runs first and on its own: the host tests need only IDF's Unity source,
+    # not the cross toolchain, so they fail in ~a minute instead of after the
+    # firmware build's toolchain download.
+    name: host tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Check out ESP-IDF (for Unity only)
+        uses: actions/checkout@v4
+        with:
+          repository: espressif/esp-idf
+          ref: v6.0.2
+          path: esp-idf
+          submodules: false
+
+      - name: Build and run
+        env:
+          IDF_PATH: ${{ github.workspace }}/esp-idf
+        run: |
+          cd host_test
+          cmake -B build -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build -j"$(nproc)"
+          cd build && ctest --output-on-failure
+
+  host-test-sanitized:
+    # Same suites under ASan + UBSan. Kept as a separate job rather than
+    # replacing the plain run: the sanitizers change codegen and force -O1, so a
+    # clean sanitized run is not evidence the -O0 build is clean, or vice versa.
+    name: host tests (asan+ubsan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Check out ESP-IDF (for Unity only)
+        uses: actions/checkout@v4
+        with:
+          repository: espressif/esp-idf
+          ref: v6.0.2
+          path: esp-idf
+          submodules: false
+
+      - name: Build and run
+        env:
+          IDF_PATH: ${{ github.workspace }}/esp-idf
+        run: |
+          cd host_test
+          cmake -B build-san -DRT_SANITIZE=ON
+          cmake --build build-san -j"$(nproc)"
+          cd build-san && ctest --output-on-failure
+
+  firmware:
+    name: firmware (esp32s3)
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.0.2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The LittleFS image is built from the resources submodule, so the
+          # build fails outright without it.
+          submodules: recursive
+
+      - name: Build
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py set-target esp32s3
+          idf.py build
+
+      - name: Report image size
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py size
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: |
+            build/rotation_target_backend.bin
+            build/bootloader/bootloader.bin
+            build/partition_table/partition-table.bin
+            build/storage.bin
+          if-no-files-found: error

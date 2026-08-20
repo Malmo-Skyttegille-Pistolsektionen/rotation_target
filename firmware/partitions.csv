@@ -1,0 +1,11 @@
+# Name,     Type, SubType,  Offset,   Size,     Flags
+# 16 MB flash (ESP32-S3-DevKitC-1 N16R8). The storage partition holds the
+# shipped audio (7.5 MB of WAVs) plus whatever is uploaded to the device, so it
+# takes the bulk of the part; 3 MB app slots are ~3x what this firmware needs
+# and leave room to grow without repartitioning a deployed device.
+nvs,         data, nvs,      0x9000,   0x6000,
+otadata,     data, ota,      0xf000,   0x2000,
+ota_0,       app,  ota_0,    0x20000,  0x300000,
+ota_1,       app,  ota_1,    ,         0x300000,
+storage,     data, littlefs, ,         0x9C0000,
+coredump,    data, coredump, ,         0x20000,
