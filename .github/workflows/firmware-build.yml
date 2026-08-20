@@ -133,3 +133,120 @@ jobs:
             firmware/build/partition_table/partition-table.bin
             firmware/build/storage.bin
           if-no-files-found: error
+
+  qemu-smoke:
+    # Lives in this workflow rather than one of its own: it wants exactly the
+    # same triggers, paths filter and cancel-in-progress group as the firmware
+    # build, and there is no cache to keep separate - the espressif/idf image
+    # already ships qemu-xtensa.
+    name: qemu boot smoke
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.0.2
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: false
+
+      - name: Build the QEMU profile
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          scripts/run-qemu.sh --build-only
+
+      - name: Boot QEMU headless
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          # espressif/idf:v6.0.2 ships qemu-xtensa 9.2.2 already installed and
+          # on PATH after export.sh, so the runner's install-on-first-use branch
+          # never fires here and there is nothing worth caching.
+          qemu-system-xtensa --version | head -1
+          # The runner execs qemu, so this PID is the emulator's.
+          scripts/run-qemu.sh --no-build --headless > qemu-serial.log 2>&1 &
+          echo "$!" > qemu.pid
+
+      - name: Wait for the API to answer
+        shell: bash
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -sf -o /dev/null http://127.0.0.1:8080/api/v2/version; then
+              echo "Serving after ${SECONDS}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::QEMU did not serve /api/v2/version within 30s"
+          tail -40 qemu-serial.log
+          exit 1
+
+      - name: GET /api/v2/version
+        shell: bash
+        run: |
+          curl -sSf http://127.0.0.1:8080/api/v2/version -o version.json
+          cat version.json
+          python3 - version.json <<'EOF'
+          import json, sys
+          d = json.load(open(sys.argv[1]))
+          missing = [k for k in ("major", "minor", "patch") if not isinstance(d.get(k), int)]
+          assert not missing, f"/api/v2/version has no integer {missing}: {d}"
+          EOF
+
+      - name: GET /api/v2/programs
+        shell: bash
+        run: |
+          curl -sSf http://127.0.0.1:8080/api/v2/programs -o programs.json
+          python3 - programs.json <<'EOF'
+          import json, sys
+          d = json.load(open(sys.argv[1]))
+          assert isinstance(d, list), f"/api/v2/programs is not a JSON array: {d!r:.200}"
+          assert d, "/api/v2/programs is empty - the LittleFS image carries no shipped programs"
+          for p in d:
+              assert isinstance(p.get("id"), int) and p.get("title"), f"malformed entry: {p}"
+          print(f"{len(d)} program(s): " + ", ".join(f"{p['id']} {p['title']}" for p in d))
+          EOF
+
+      - name: One SSE stateUpdate frame
+        shell: bash
+        run: |
+          # A stateUpdate is sent on connect (main/net/sse_hub.cpp), so a short
+          # read is enough. curl exits 28 on --max-time; that is the normal end
+          # of a stream that never closes, not a failure.
+          curl -sN --max-time 5 http://127.0.0.1:8080/sse/v2 -o sse.txt || true
+          cat sse.txt
+          python3 - sse.txt <<'EOF'
+          import json, sys
+          lines = open(sys.argv[1]).read().splitlines()
+          i = next((n for n, ln in enumerate(lines) if ln == "event: stateUpdate"), None)
+          assert i is not None, "no stateUpdate frame arrived on /sse/v2 within 5s"
+          data = next(ln for ln in lines[i + 1:] if ln.startswith("data: "))
+          state = json.loads(data[len("data: "):])
+          assert "targetStatus" in state, f"stateUpdate carries no targetStatus: {state}"
+          EOF
+
+      - name: GET / is the API-only 404
+        shell: bash
+        run: |
+          # This job deliberately does not build the webapp, so `webapp/dist` is
+          # absent and firmware/CMakeLists.txt bundles no frontend - the device
+          # serves the API only and `/` falls through to the 404 handler. Build
+          # a dist into the image (task 4.5) and this becomes 200.
+          code=$(curl -sS -o root.txt -w '%{http_code}' http://127.0.0.1:8080/)
+          echo "GET / -> ${code} $(cat root.txt)"
+          test "${code}" = 404
+
+      - name: Stop QEMU
+        if: always()
+        shell: bash
+        run: |
+          [ -f qemu.pid ] || exit 0
+          kill "$(cat qemu.pid)" 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: qemu-serial-log
+          path: firmware/qemu-serial.log
+          if-no-files-found: warn
