@@ -4,6 +4,37 @@ set(EXTRA_COMPONENT_DIRS "${CMAKE_CURRENT_LIST_DIR}/lib")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
+# The reported version is the git tag and nothing else - see docs/RELEASING.md.
+# IDF would otherwise derive PROJECT_VER from a bare `git describe`, which in
+# this monorepo would happily name the firmware after a `webapp-v*` tag. Setting
+# PROJECT_VER before project() takes precedence over that.
+set(RT_VERSION_TAG_PREFIX "firmware-v")
+execute_process(
+    COMMAND git describe --tags --match "${RT_VERSION_TAG_PREFIX}*" --always --dirty
+    WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+    OUTPUT_VARIABLE RT_GIT_DESCRIBE
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+    RESULT_VARIABLE RT_GIT_DESCRIBE_RESULT)
+
+if(NOT RT_GIT_DESCRIBE_RESULT EQUAL 0 OR "${RT_GIT_DESCRIBE}" STREQUAL "")
+    # No git at all (a tarball, or a build container without the repository).
+    set(PROJECT_VER "unknown")
+    message(STATUS "Firmware version: no git metadata - the device will report 0.0.0")
+elseif("${RT_GIT_DESCRIBE}" MATCHES "^${RT_VERSION_TAG_PREFIX}")
+    string(REGEX REPLACE "^${RT_VERSION_TAG_PREFIX}" "" PROJECT_VER "${RT_GIT_DESCRIBE}")
+    message(STATUS "Firmware version: ${PROJECT_VER} (${RT_GIT_DESCRIBE})")
+else()
+    # `--always` fell back to a bare commit hash, so no ${RT_VERSION_TAG_PREFIX}*
+    # tag is reachable. Kept as-is rather than faked into a number: the API's
+    # parser rejects it and answers 0.0.0, which is the honest answer.
+    set(PROJECT_VER "${RT_GIT_DESCRIBE}")
+    message(STATUS
+        "Firmware version: no ${RT_VERSION_TAG_PREFIX}* tag reachable from HEAD "
+        "(${RT_GIT_DESCRIBE}) - the device will report 0.0.0. Fetch tags, or cut "
+        "a release, to get a real version.")
+endif()
+
 project(rotation_target_backend)
 
 # The shipped programs and audio come from the monorepo's `resources/` tree and

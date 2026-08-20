@@ -181,10 +181,12 @@ Load-bearing invariants:
 
 ## Conventions
 
-- **Version is derived from git, never hand-maintained.** ESP-IDF populates
-  `esp_app_desc_t.version` from `git describe --always --tags --dirty`;
-  `GET /api/v2/version` splits that. Never add a version constant to the source.
-  Tags are bare three-part semver (`2.0.0`, not `v2.0.0`).
+- **Version is derived from git, never hand-maintained.** The root
+  `CMakeLists.txt` sets `PROJECT_VER` from `git describe --tags --match
+  'firmware-v*'` with the prefix stripped, which lands in
+  `esp_app_desc_t.version`; `GET /api/v2/version` splits that. Never add a
+  version constant to the source. Tags are `firmware-vX.Y.Z` - the monorepo
+  also carries `webapp-v*` and `resources-v*`. See `docs/RELEASING.md`.
 - Constants belong in `main/config.h` (firmware) or as `constexpr` in the
   relevant `rt_logic` header — prefer a named constant over a literal in logic.
 - **Vendored code is never reformatted.** `lib/psychic_http/`,
