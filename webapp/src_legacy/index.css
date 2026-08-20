@@ -1751,15 +1751,15 @@ button.secondary:hover {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .timeline-series-select {
     width: 100%;
   }
-  
+
   .timeline-event {
     min-width: 60px;
   }
-  
+
   .timeline-event-body {
     font-size: 0.75rem;
   }

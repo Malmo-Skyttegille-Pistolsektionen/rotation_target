@@ -12,8 +12,8 @@ Admin mode is designed for **competition scenarios** where:
 
 ### 1. Admin Mode OFF (Practice Mode)
 
-**Who:** Everyone  
-**Access:** Full read/write access to all endpoints  
+**Who:** Everyone
+**Access:** Full read/write access to all endpoints
 **Use case:** Practice sessions, training, development
 
 ```
@@ -27,8 +27,8 @@ Admin mode is designed for **competition scenarios** where:
 
 ### 2. Admin Mode ON + Not Authenticated (Spectator Mode)
 
-**Who:** Non-authenticated visitors  
-**Access:** Read-only (view status, timeline, targets)  
+**Who:** Non-authenticated visitors
+**Access:** Read-only (view status, timeline, targets)
 **Use case:** Competition spectators, other competitors
 
 ```
@@ -49,8 +49,8 @@ Run Page shows:
 
 ### 3. Admin Mode ON + Authenticated (Admin Mode)
 
-**Who:** Authenticated admins only  
-**Access:** Full control (load programs, start/stop/reset, toggle targets)  
+**Who:** Authenticated admins only
+**Access:** Full control (load programs, start/stop/reset, toggle targets)
 **Use case:** Competition hosts, administrators
 
 ```
@@ -344,37 +344,37 @@ Uses `useAdminStatus()` for `adminModeEnabled` and checks for `adminToken` in co
 
 ### GET /admin-mode/status
 
-**Response:** `{ enabled: boolean }`  
-**Auth required:** No  
-**Purpose:** Check if admin mode is enabled on server  
+**Response:** `{ enabled: boolean }`
+**Auth required:** No
+**Purpose:** Check if admin mode is enabled on server
 **Note:** This is public - any client can check if admin mode is on/off
 
 ### POST /admin-mode/enable
 
-**Body:** `{ password: string }` - Any non-empty password is accepted when admin mode is off.  
-**Response:** `{ token: string }`  
-**Auth required:** No  
-**Purpose:** Enable admin mode and issue the first admin session  
-**Errors:** `409` if admin mode is already enabled  
+**Body:** `{ password: string }` - Any non-empty password is accepted when admin mode is off.
+**Response:** `{ token: string }`
+**Auth required:** No
+**Purpose:** Enable admin mode and issue the first admin session
+**Errors:** `409` if admin mode is already enabled
 **Note:** Each competition can set their own unique password. The password is set when admin mode is first enabled and must be used for all subsequent admin logins until admin mode is disabled.
 
 ### POST /admin-mode/login
 
-**Body:** `{ password: string }` - Must match the active admin password.  
-**Response:** `{ token: string }`  
-**Auth required:** No  
-**Purpose:** Authenticate another admin session while admin mode is already enabled  
+**Body:** `{ password: string }` - Must match the active admin password.
+**Response:** `{ token: string }`
+**Auth required:** No
+**Purpose:** Authenticate another admin session while admin mode is already enabled
 **Errors:** `409` if admin mode is not enabled
 
 ### POST /admin-mode/disable
 
-**Response:** `{ message: string }`  
-**Auth required:** Yes (must be authenticated admin)  
+**Response:** `{ message: string }`
+**Auth required:** Yes (must be authenticated admin)
 **Purpose:** Disable admin mode entirely
 
 ### All Other Endpoints (POST/PUT/DELETE)
 
-**Auth required:** Only when admin mode is enabled  
+**Auth required:** Only when admin mode is enabled
 **Behavior:**
 
 - If admin mode OFF: Allow all requests
@@ -382,7 +382,7 @@ Uses `useAdminStatus()` for `adminModeEnabled` and checks for `adminToken` in co
 
 ### GET Endpoints (Read-Only)
 
-**Auth required:** Never  
+**Auth required:** Never
 **Examples:**
 
 - `GET /programs` - List all programs

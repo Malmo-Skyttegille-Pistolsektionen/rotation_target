@@ -1,6 +1,6 @@
 To verify new changes run `yarn lint` and `yarn build`
 
-## special files and directories 
+## special files and directories
 ```
 vite-plugins/mock-server-v2.ts    # Custom Vite plugin for mock server. SSE, rest, etc
 ```
@@ -11,4 +11,3 @@ vite-plugins/mock-server-v2.ts    # Custom Vite plugin for mock server. SSE, res
 
 - Edit files in `src_legacy/`, `legacy.html`, or `vite-plugins/mock-server.ts`. These are a snapshot of the v1 implementation.
 - Use Tailwind CSS
-

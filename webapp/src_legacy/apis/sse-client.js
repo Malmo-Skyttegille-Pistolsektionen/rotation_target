@@ -62,4 +62,3 @@ export function connectToEventStream(onEvent) {
 
   return currentSSESource;
 }
-

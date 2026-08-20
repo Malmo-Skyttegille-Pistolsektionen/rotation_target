@@ -16,7 +16,7 @@ dist/
 
 # Ignore environment settings
 .env
-.env.* 
+.env.*
 
 # Ignore local VSCode settings (optional)
 .vscode/
@@ -36,4 +36,3 @@ yarn-error.log*
 
 *.zip
 wifi_credentials.py
-

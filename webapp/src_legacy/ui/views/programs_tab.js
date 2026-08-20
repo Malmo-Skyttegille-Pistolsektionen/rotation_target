@@ -142,7 +142,7 @@ function onProgramContainerClick(e) {
     if (target.tagName === 'IMG') {
         target = target.closest('button');
     }
-    
+
     const tr = target.closest("tr");
     if (!tr) return;
     const id = tr.querySelector(".id-cell")?.textContent;
@@ -204,7 +204,7 @@ export async function initializeProgramsTab() {
             }
         }
     });
-    
+
     if (!programsTabListenersAdded) {
         if (addProgramBtn) addProgramBtn.addEventListener("click", onAddProgramClick);
 

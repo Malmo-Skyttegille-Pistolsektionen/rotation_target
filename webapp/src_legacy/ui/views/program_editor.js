@@ -19,8 +19,8 @@ let programSchema = null;
 async function initSchemaValidator() {
     if (!ajv) {
         // Don't validate the schema itself, just use it
-        ajv = new Ajv({ 
-            allErrors: true, 
+        ajv = new Ajv({
+            allErrors: true,
             verbose: true,
             validateSchema: false  // Skip validation of the schema itself
         });
@@ -90,10 +90,10 @@ export async function openProgramEditor(program = null) {
     editorState.isEditing = program !== null;
     editorState.originalProgramId = program ? program.id : null;
     editorState.program = program ? JSON.parse(JSON.stringify(program)) : createEmptyProgram();
-    
+
     // Initialize schema validator
     await initSchemaValidator();
-    
+
     // Load audios if not already cached
     if (editorState.audios.length === 0) {
         try {
@@ -114,7 +114,7 @@ export async function openProgramEditor(program = null) {
             ];
         }
     }
-    
+
     renderEditor();
     document.getElementById('program-editor-modal').classList.remove('hidden');
 }
@@ -145,28 +145,28 @@ export function closeProgramEditor() {
 function renderEventsView() {
     const container = document.getElementById('events-view-container');
     const program = editorState.program;
-    
+
     // Populate program details
     const titleInput = document.getElementById('events-program-title');
     const descInput = document.getElementById('events-program-description');
     const idInput = document.getElementById('events-program-id');
     const readonlyCheckbox = document.getElementById('events-program-readonly');
-    
+
     if (titleInput) titleInput.value = program.title || '';
     if (descInput) descInput.value = program.description || '';
     if (idInput) idInput.value = program.id || '';
     if (readonlyCheckbox) readonlyCheckbox.checked = program.readonly || false;
-    
+
     if (!program.series || program.series.length === 0) {
         container.innerHTML = '<p class="empty-message">No series added yet. Switch to Form tab to add series.</p>';
         return;
     }
-    
+
     container.innerHTML = program.series.map((series, seriesIndex) => {
         const isCollapsed = editorState.collapsedSeries.has(seriesIndex);
         const totalEvents = series.events.length;
         const totalDuration = series.events.reduce((sum, event) => sum + event.duration, 0);
-        
+
         return `
             <div class="events-view-series" data-series-index="${seriesIndex}" draggable="true" id="series-${seriesIndex}" title="Drag to reorder series">
                 <div class="events-view-series-header ${isCollapsed ? 'collapsed' : ''}">
@@ -198,7 +198,7 @@ function renderEventsView() {
                             const audio = editorState.audios.find(a => a.id === id);
                             return audio ? audio.title : `ID ${id}`;
                         }).join(', ');
-                        
+
                         return `
                             <div class="events-view-item ${isSelected ? 'selected' : ''}" data-series-index="${seriesIndex}" data-event-index="${eventIndex}" data-event-id="${eventId}" draggable="true" title="Drag to reorder">
                                 <div class="event-select">
@@ -238,16 +238,16 @@ function renderEventsView() {
             </div>
         `;
     }).join('');
-    
+
     // Update batch delete button visibility and select-all checkbox state
     const selectedCount = editorState.selectedEvents.size;
     const batchDeleteBtn = document.getElementById('batch-delete-btn');
     const selectAllCheckbox = document.getElementById('select-all-events-checkbox');
-    
+
     if (batchDeleteBtn) {
         batchDeleteBtn.style.display = selectedCount > 0 ? 'flex' : 'none';
     }
-    
+
     // Update select-all checkbox state (all, none, or indeterminate)
     if (selectAllCheckbox) {
         const totalEvents = program.series.reduce((sum, series) => sum + series.events.length, 0);
@@ -262,22 +262,22 @@ function renderEventsView() {
             selectAllCheckbox.indeterminate = true;
         }
     }
-    
+
     // Populate the "Go to series" dropdown
     const gotoSelect = document.getElementById('goto-series-select');
     if (gotoSelect) {
-        gotoSelect.innerHTML = '<option value="">Go to series...</option>' + 
-            program.series.map((series, index) => 
+        gotoSelect.innerHTML = '<option value="">Go to series...</option>' +
+            program.series.map((series, index) =>
                 `<option value="${index}">${series.name || `Series ${index + 1}`}</option>`
             ).join('');
     }
-    
+
     // Update the summary
     const summaryEl = document.getElementById('events-view-summary');
     if (summaryEl) {
         summaryEl.textContent = `${program.series.length} series`;
     }
-    
+
     attachEventsViewListeners();
 }
 
@@ -287,7 +287,7 @@ function renderEventsView() {
 function renderEditor() {
     const container = document.getElementById('program-editor-content');
     const program = editorState.program;
-    
+
     container.innerHTML = `
         <div class="editor-tabs">
             <button class="editor-tab active" data-tab="editor">Form</button>
@@ -325,7 +325,7 @@ function renderEditor() {
                     </label>
                 </div>
             </div>
-            
+
             <div class="editor-section">
                 <div class="series-controls">
                     <h3>Series</h3>
@@ -428,7 +428,7 @@ function renderEditor() {
             </div>
         </div>
     `;
-    
+
     renderAllSeries();
     renderTimelinePreview();
     attachEditorListeners();
@@ -441,23 +441,23 @@ function renderEditor() {
 function renderTimelinePreview() {
     const previewContainer = document.getElementById('editor-timeline-preview');
     const program = editorState.program;
-    
+
     // Don't render if no series or events
     if (!program.series || program.series.length === 0) {
         previewContainer.innerHTML = '<p class="empty-message">Add series and events to see timeline preview</p>';
         return;
     }
-    
+
     // Check if any series has events
     const hasEvents = program.series.some(series => series.events && series.events.length > 0);
     if (!hasEvents) {
         previewContainer.innerHTML = '<p class="empty-message">Add events to series to see timeline preview</p>';
         return;
     }
-    
+
     // Determine timeline type based on mode selector
     let timelineType = editorState.timelineMode;
-    
+
     // Render the timeline
     renderTimeline(previewContainer, program, timelineType);
 }
@@ -470,39 +470,39 @@ function attachTabListeners() {
     tabs.forEach(tab => {
         tab.addEventListener('click', (e) => {
             const targetTab = e.target.dataset.tab;
-            
+
             // Check if switching away from JSON tab before removing active class
             const currentActiveTab = document.querySelector('.editor-tab.active');
             const switchingFromJson = currentActiveTab && currentActiveTab.dataset.tab === 'json' && targetTab !== 'json';
-            
+
             // Remove active class from all tabs and contents
             document.querySelectorAll('.editor-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.editor-tab-content').forEach(c => c.classList.remove('active'));
-            
+
             // Add active class to clicked tab and corresponding content
             e.target.classList.add('active');
             document.getElementById(`editor-tab-${targetTab}`).classList.add('active');
-            
+
             // If switching away from JSON tab, sync changes
             if (switchingFromJson) {
                 syncJsonToProgram();
             }
-            
+
             // If switching to preview tab, refresh the timeline
             if (targetTab === 'preview') {
                 renderTimelinePreview();
             }
-            
+
             // If switching to JSON tab, update JSON editor
             if (targetTab === 'json') {
                 updateJsonEditor();
             }
-            
+
             // If switching to events tab, render events view
             if (targetTab === 'events') {
                 renderEventsView();
             }
-            
+
             // If switching to timeline tab, render timeline editor
             if (targetTab === 'timeline') {
                 attachTimelineEditorListeners(); // Attach listeners first time
@@ -518,12 +518,12 @@ function attachTabListeners() {
 function renderAllSeries() {
     const container = document.getElementById('series-container');
     const program = editorState.program;
-    
+
     if (program.series.length === 0) {
         container.innerHTML = '<p class="empty-message">No series added yet. Click "Add Series" to get started.</p>';
         return;
     }
-    
+
     container.innerHTML = program.series.map((series, seriesIndex) => {
         const isCollapsed = editorState.collapsedSeries.has(seriesIndex);
         return `
@@ -562,7 +562,7 @@ function renderAllSeries() {
         </div>
         `;
     }).join('');
-    
+
     // Update series navigation dropdown
     updateSeriesNavigation();
 }
@@ -573,19 +573,19 @@ function renderAllSeries() {
 function updateSeriesNavigation() {
     const seriesNav = document.getElementById('series-navigation');
     if (!seriesNav) return;
-    
+
     const program = editorState.program;
-    
+
     if (program.series.length === 0) {
         seriesNav.classList.add('hidden');
         return;
     }
-    
+
     seriesNav.classList.remove('hidden');
-    
+
     // Keep the default option and add series options
     seriesNav.innerHTML = '<option value="" disabled selected>Go to series...</option>';
-    
+
     program.series.forEach((series, index) => {
         const option = document.createElement('option');
         option.value = index;
@@ -601,7 +601,7 @@ function renderEvents(events, seriesIndex) {
     if (events.length === 0) {
         return '<p class="empty-message">No events in this series.</p>';
     }
-    
+
     return events.map((event, eventIndex) => `
         <div class="event-item" data-series-index="${seriesIndex}" data-event-index="${eventIndex}" draggable="true">
             <div class="event-header">
@@ -659,7 +659,7 @@ function renderSelectedAudios(audioIds, seriesIndex, eventIndex) {
     if (audioIds.length === 0) {
         return '<p class="empty-message small">No audios selected</p>';
     }
-    
+
     return audioIds.map((audioId, audioIndex) => {
         const audio = editorState.audios.find(a => a.id === audioId);
         const title = audio ? audio.title : 'Unknown';
@@ -681,18 +681,18 @@ function renderSelectedAudios(audioIds, seriesIndex, eventIndex) {
 function showSeriesContextMenu(event, seriesIndex) {
     event.preventDefault();
     event.stopPropagation();
-    
+
     // Remove any existing context menu
     const existingMenu = document.querySelector('.context-menu');
     if (existingMenu) {
         existingMenu.remove();
     }
-    
+
     const program = editorState.program;
     const totalSeries = program.series.length;
     const isFirst = seriesIndex === 0;
     const isLast = seriesIndex === totalSeries - 1;
-    
+
     // Create context menu
     const menu = document.createElement('div');
     menu.className = 'context-menu';
@@ -705,16 +705,16 @@ function showSeriesContextMenu(event, seriesIndex) {
         <button data-action="duplicate-series" data-index="${seriesIndex}">Copy</button>
         <button data-action="delete-series-ctx" data-index="${seriesIndex}">Delete</button>
     `;
-    
+
     // Position the menu
     const button = event.target.closest('button');
     const rect = button.getBoundingClientRect();
     menu.style.position = 'fixed';
     menu.style.top = `${rect.bottom + 5}px`;
     menu.style.left = `${rect.left}px`;
-    
+
     document.body.appendChild(menu);
-    
+
     // Close menu on click outside
     const closeMenu = (e) => {
         if (!menu.contains(e.target)) {
@@ -723,12 +723,12 @@ function showSeriesContextMenu(event, seriesIndex) {
         }
     };
     setTimeout(() => document.addEventListener('click', closeMenu), 0);
-    
+
     // Handle menu actions
     menu.addEventListener('click', (e) => {
         const action = e.target.dataset.action;
         const index = parseInt(e.target.dataset.index);
-        
+
         if (action === 'move-series-top') {
             moveSeriesTo(index, 0);
         } else if (action === 'move-series-up') {
@@ -747,7 +747,7 @@ function showSeriesContextMenu(event, seriesIndex) {
                 renderTimelinePreview();
             }
         }
-        
+
         menu.remove();
         document.removeEventListener('click', closeMenu);
     });
@@ -759,18 +759,18 @@ function showSeriesContextMenu(event, seriesIndex) {
 function showEventContextMenu(event, seriesIndex, eventIndex) {
     event.preventDefault();
     event.stopPropagation();
-    
+
     // Remove any existing context menu
     const existingMenu = document.querySelector('.context-menu');
     if (existingMenu) {
         existingMenu.remove();
     }
-    
+
     const series = editorState.program.series[seriesIndex];
     const totalEvents = series.events.length;
     const isFirst = eventIndex === 0;
     const isLast = eventIndex === totalEvents - 1;
-    
+
     // Create context menu
     const menu = document.createElement('div');
     menu.className = 'context-menu';
@@ -783,16 +783,16 @@ function showEventContextMenu(event, seriesIndex, eventIndex) {
         <button data-action="duplicate-event" data-series="${seriesIndex}" data-event="${eventIndex}">Copy</button>
         <button data-action="delete-event-ctx" data-series="${seriesIndex}" data-event="${eventIndex}">Delete</button>
     `;
-    
+
     // Position the menu
     const button = event.target.closest('button');
     const rect = button.getBoundingClientRect();
     menu.style.position = 'fixed';
     menu.style.top = `${rect.bottom + 5}px`;
     menu.style.left = `${rect.left}px`;
-    
+
     document.body.appendChild(menu);
-    
+
     // Close menu on click outside
     const closeMenu = (e) => {
         if (!menu.contains(e.target)) {
@@ -801,13 +801,13 @@ function showEventContextMenu(event, seriesIndex, eventIndex) {
         }
     };
     setTimeout(() => document.addEventListener('click', closeMenu), 0);
-    
+
     // Handle menu actions
     menu.addEventListener('click', (e) => {
         const action = e.target.dataset.action;
         const sIndex = parseInt(e.target.dataset.series);
         const eIndex = parseInt(e.target.dataset.event);
-        
+
         if (action === 'move-event-top') {
             moveEventTo(sIndex, eIndex, 0);
         } else if (action === 'move-event-up') {
@@ -825,7 +825,7 @@ function showEventContextMenu(event, seriesIndex, eventIndex) {
                 renderTimelinePreview();
             }
         }
-        
+
         menu.remove();
         document.removeEventListener('click', closeMenu);
     });
@@ -837,7 +837,7 @@ function showEventContextMenu(event, seriesIndex, eventIndex) {
 function moveSeriesTo(fromIndex, toIndex) {
     const series = editorState.program.series.splice(fromIndex, 1)[0];
     editorState.program.series.splice(toIndex, 0, series);
-    
+
     // Update collapsed state
     const wasCollapsed = editorState.collapsedSeries.has(fromIndex);
     const newCollapsedSeries = new Set();
@@ -863,7 +863,7 @@ function moveSeriesTo(fromIndex, toIndex) {
         newCollapsedSeries.add(toIndex);
     }
     editorState.collapsedSeries = newCollapsedSeries;
-    
+
     renderAllSeries();
     renderTimelinePreview();
 }
@@ -875,7 +875,7 @@ function moveEventTo(seriesIndex, fromIndex, toIndex) {
     const series = editorState.program.series[seriesIndex];
     const event = series.events.splice(fromIndex, 1)[0];
     series.events.splice(toIndex, 0, event);
-    
+
     renderAllSeries();
     renderTimelinePreview();
 }
@@ -887,7 +887,7 @@ function duplicateSeries(index) {
     const series = editorState.program.series[index];
     const duplicate = JSON.parse(JSON.stringify(series));
     editorState.program.series.splice(index + 1, 0, duplicate);
-    
+
     renderAllSeries();
     renderTimelinePreview();
 }
@@ -900,7 +900,7 @@ function duplicateEvent(seriesIndex, eventIndex) {
     const event = series.events[eventIndex];
     const duplicate = JSON.parse(JSON.stringify(event));
     series.events.splice(eventIndex + 1, 0, duplicate);
-    
+
     renderAllSeries();
     renderTimelinePreview();
 }
@@ -939,9 +939,9 @@ function updateJsonEditor() {
 function updateLineNumbers() {
     const textarea = document.getElementById('json-editor-textarea');
     const lineNumbersDiv = document.getElementById('json-line-numbers');
-    
+
     if (!textarea || !lineNumbersDiv) return;
-    
+
     const lines = textarea.value.split('\n');
     const lineNumbersHtml = lines.map((_, index) => `<div>${index + 1}</div>`).join('');
     lineNumbersDiv.innerHTML = lineNumbersHtml;
@@ -953,11 +953,11 @@ function updateLineNumbers() {
 function highlightJson() {
     const textarea = document.getElementById('json-editor-textarea');
     const codeElement = document.getElementById('json-highlight-code');
-    
+
     if (!textarea || !codeElement) return;
-    
+
     const json = textarea.value;
-    
+
     // Use Prism.js to highlight JSON
     const highlighted = Prism.highlight(json, Prism.languages.json, 'json');
     codeElement.innerHTML = highlighted;
@@ -970,9 +970,9 @@ function validateJson() {
     const textarea = document.getElementById('json-editor-textarea');
     const statusElement = document.getElementById('json-validation-status');
     const errorElement = document.getElementById('json-error-message');
-    
+
     if (!textarea) return;
-    
+
     // First, validate JSON syntax
     let parsed;
     try {
@@ -986,11 +986,11 @@ function validateJson() {
         errorElement.style.display = 'block';
         return null;
     }
-    
+
     // If JSON syntax is valid, validate against schema
     if (validateSchema) {
         const valid = validateSchema(parsed);
-        
+
         if (valid) {
             statusElement.textContent = '✓ JSON complies with schema';
             statusElement.className = 'json-validation-status valid';
@@ -1000,13 +1000,13 @@ function validateJson() {
             // Schema validation failed
             statusElement.textContent = '⚠ JSON does not comply with schema';
             statusElement.className = 'json-validation-status warning';
-            
+
             // Format schema validation errors with detailed information
             const errors = validateSchema.errors || [];
             const errorMessages = errors.map(err => {
                 const path = err.instancePath || '/';
                 let message = '';
-                
+
                 if (err.keyword === 'required') {
                     const missingProp = err.params.missingProperty;
                     message = `<strong>Path:</strong> <code>${escapeHtml(path)}</code><br>`;
@@ -1046,10 +1046,10 @@ function validateJson() {
                     }
                     message += `<strong>Fix:</strong> Check the value against the schema requirements`;
                 }
-                
+
                 return message;
             });
-            
+
             errorElement.innerHTML = `<strong>Schema Validation Errors (${errors.length}):</strong><div class="schema-error-list">${errorMessages.map(msg => `<div class="schema-error-item">${msg}</div>`).join('')}</div>`;
             errorElement.style.display = 'block';
         }
@@ -1060,7 +1060,7 @@ function validateJson() {
         errorElement.textContent = '';
         errorElement.style.display = 'none';
     }
-    
+
     return parsed;
 }
 
@@ -1070,7 +1070,7 @@ function validateJson() {
 function formatJson() {
     const textarea = document.getElementById('json-editor-textarea');
     if (!textarea) return;
-    
+
     try {
         const parsed = JSON.parse(textarea.value);
         textarea.value = JSON.stringify(parsed, null, 2);
@@ -1100,7 +1100,7 @@ function syncJsonToProgram() {
             errorElement.style.display = 'block';
             return;
         }
-        
+
         editorState.program = parsed;
         // Re-render other views to reflect changes
         renderAllSeries();
@@ -1116,11 +1116,11 @@ function attachEditorListeners() {
     document.getElementById('program-title').addEventListener('input', (e) => {
         editorState.program.title = e.target.value;
     });
-    
+
     document.getElementById('program-description').addEventListener('input', (e) => {
         editorState.program.description = e.target.value;
     });
-    
+
     document.getElementById('program-id').addEventListener('input', (e) => {
         const value = e.target.value;
         if (value) {
@@ -1130,11 +1130,11 @@ function attachEditorListeners() {
             editorState.program.id = null;
         }
     });
-    
+
     document.getElementById('program-readonly').addEventListener('change', (e) => {
         editorState.program.readonly = e.target.checked;
     });
-    
+
     // Timeline mode selector
     document.getElementById('editor-timeline-mode-select').addEventListener('change', (e) => {
         const mode = e.target.value;
@@ -1147,14 +1147,14 @@ function attachEditorListeners() {
         }
         renderTimelinePreview();
     });
-    
+
     // Add series button
     document.getElementById('add-series-btn').addEventListener('click', () => {
         editorState.program.series.push(createEmptySeries());
         renderAllSeries();
         renderTimelinePreview();
     });
-    
+
     // Collapse/Expand all buttons
     document.getElementById('collapse-all-btn').addEventListener('click', () => {
         editorState.program.series.forEach((_, index) => {
@@ -1162,12 +1162,12 @@ function attachEditorListeners() {
         });
         renderAllSeries();
     });
-    
+
     document.getElementById('expand-all-btn').addEventListener('click', () => {
         editorState.collapsedSeries.clear();
         renderAllSeries();
     });
-    
+
     // Series navigation dropdown
     document.getElementById('series-navigation').addEventListener('change', (e) => {
         const seriesIndex = parseInt(e.target.value);
@@ -1186,17 +1186,17 @@ function attachEditorListeners() {
             e.target.value = '';
         }
     });
-    
+
     // Event delegation for series and events
     const seriesContainer = document.getElementById('series-container');
-    
+
     seriesContainer.addEventListener('click', (e) => {
         // Find the button element if we clicked on a child element
         const button = e.target.closest('button');
         if (!button) return;
-        
+
         const action = button.dataset.action;
-        
+
         if (action === 'toggle-series') {
             const index = parseInt(button.dataset.index);
             if (editorState.collapsedSeries.has(index)) {
@@ -1235,10 +1235,10 @@ function attachEditorListeners() {
             }
         }
     });
-    
+
     seriesContainer.addEventListener('input', (e) => {
         const target = e.target;
-        
+
         if (target.classList.contains('series-name')) {
             const index = parseInt(target.dataset.index);
             editorState.program.series[index].name = target.value;
@@ -1266,11 +1266,11 @@ function attachEditorListeners() {
             handleAudioSearch(target);
         }
     });
-    
+
     // Handle audio selection from suggestions
     seriesContainer.addEventListener('click', (e) => {
         const target = e.target;
-        
+
         // Handle audio suggestion click
         if (target.classList.contains('audio-suggestion-item')) {
             const audioId = parseInt(target.dataset.audioId);
@@ -1278,7 +1278,7 @@ function attachEditorListeners() {
             const eventIndex = parseInt(target.dataset.eventIndex);
             addAudioToEvent(seriesIndex, eventIndex, audioId);
         }
-        
+
         // Handle remove audio button
         if (target.classList.contains('remove-audio-btn')) {
             const seriesIndex = parseInt(target.dataset.seriesIndex);
@@ -1287,7 +1287,7 @@ function attachEditorListeners() {
             removeAudioFromEvent(seriesIndex, eventIndex, audioIndex);
         }
     });
-    
+
     // Handle drag and drop for audio reordering
     seriesContainer.addEventListener('dragstart', (e) => {
         if (e.target.classList.contains('selected-audio-item')) {
@@ -1308,7 +1308,7 @@ function attachEditorListeners() {
             e.dataTransfer.setData('text/html', e.target.innerHTML);
         }
     });
-    
+
     seriesContainer.addEventListener('dragend', (e) => {
         if (e.target.classList.contains('selected-audio-item')) {
             e.target.classList.remove('dragging');
@@ -1322,19 +1322,19 @@ function attachEditorListeners() {
             e.target.classList.remove('dragging');
         }
     });
-    
+
     seriesContainer.addEventListener('dragover', (e) => {
         // Handle audio item dragover
         if (e.target.closest('.selected-audio-item')) {
             e.preventDefault();
             const draggingElement = document.querySelector('.dragging.selected-audio-item');
             const targetElement = e.target.closest('.selected-audio-item');
-            
+
             if (draggingElement && targetElement && draggingElement !== targetElement) {
                 const container = targetElement.parentElement;
                 const draggingIndex = Array.from(container.children).indexOf(draggingElement);
                 const targetIndex = Array.from(container.children).indexOf(targetElement);
-                
+
                 if (draggingIndex < targetIndex) {
                     targetElement.after(draggingElement);
                 } else {
@@ -1342,23 +1342,23 @@ function attachEditorListeners() {
                 }
             }
         }
-        
+
         // Handle event item dragover
         if (e.target.closest('.event-item')) {
             e.preventDefault();
             const draggingElement = document.querySelector('.dragging.event-item');
             const targetElement = e.target.closest('.event-item');
-            
+
             if (draggingElement && targetElement && draggingElement !== targetElement) {
                 // Make sure they're in the same series
                 const draggingSeriesIndex = draggingElement.dataset.seriesIndex;
                 const targetSeriesIndex = targetElement.dataset.seriesIndex;
-                
+
                 if (draggingSeriesIndex === targetSeriesIndex) {
                     const container = targetElement.parentElement;
                     const draggingIndex = Array.from(container.children).filter(el => el.classList.contains('event-item')).indexOf(draggingElement);
                     const targetIndex = Array.from(container.children).filter(el => el.classList.contains('event-item')).indexOf(targetElement);
-                    
+
                     if (draggingIndex < targetIndex) {
                         targetElement.after(draggingElement);
                     } else {
@@ -1367,18 +1367,18 @@ function attachEditorListeners() {
                 }
             }
         }
-        
+
         // Handle series item dragover
         if (e.target.closest('.series-item')) {
             e.preventDefault();
             const draggingElement = document.querySelector('.dragging.series-item');
             const targetElement = e.target.closest('.series-item');
-            
+
             if (draggingElement && targetElement && draggingElement !== targetElement) {
                 const container = targetElement.parentElement;
                 const draggingIndex = Array.from(container.children).indexOf(draggingElement);
                 const targetIndex = Array.from(container.children).indexOf(targetElement);
-                
+
                 if (draggingIndex < targetIndex) {
                     targetElement.after(draggingElement);
                 } else {
@@ -1387,69 +1387,69 @@ function attachEditorListeners() {
             }
         }
     });
-    
+
     seriesContainer.addEventListener('drop', (e) => {
         e.preventDefault();
         const draggingAudio = document.querySelector('.dragging.selected-audio-item');
         const draggingEvent = document.querySelector('.dragging.event-item');
         const draggingSeries = document.querySelector('.dragging.series-item');
-        
+
         // Handle audio drop
         if (draggingAudio) {
             const container = draggingAudio.parentElement;
             const seriesIndex = parseInt(container.dataset.seriesIndex);
             const eventIndex = parseInt(container.dataset.eventIndex);
-            
+
             // Get new order of audio IDs
             const newOrder = Array.from(container.querySelectorAll('.selected-audio-item')).map(item => {
                 const label = item.querySelector('.audio-label').textContent;
                 return parseInt(label.split(' - ')[0]);
             });
-            
+
             editorState.program.series[seriesIndex].events[eventIndex].audio_ids = newOrder;
             renderTimelinePreview();
         }
-        
+
         // Handle event drop
         if (draggingEvent) {
             const seriesIndex = parseInt(draggingEvent.dataset.seriesIndex);
             const container = draggingEvent.parentElement;
-            
+
             // Get new order of events
             const eventElements = Array.from(container.querySelectorAll('.event-item'));
             const newEventOrder = eventElements.map(el => {
                 const oldEventIndex = parseInt(el.dataset.eventIndex);
                 return editorState.program.series[seriesIndex].events[oldEventIndex];
             });
-            
+
             // Update the events array with new order
             editorState.program.series[seriesIndex].events = newEventOrder;
-            
+
             // Re-render to update indices
             renderAllSeries();
             renderTimelinePreview();
         }
-        
+
         // Handle series drop
         if (draggingSeries) {
             const container = draggingSeries.parentElement;
-            
+
             // Get new order of series
             const seriesElements = Array.from(container.querySelectorAll('.series-item'));
             const newSeriesOrder = seriesElements.map(el => {
                 const oldSeriesIndex = parseInt(el.dataset.seriesIndex);
                 return editorState.program.series[oldSeriesIndex];
             });
-            
+
             // Update the series array with new order
             editorState.program.series = newSeriesOrder;
-            
+
             // Re-render to update indices
             renderAllSeries();
             renderTimelinePreview();
         }
     });
-    
+
     // JSON editor event listeners
     const jsonTextarea = document.getElementById('json-editor-textarea');
     if (jsonTextarea) {
@@ -1459,7 +1459,7 @@ function attachEditorListeners() {
             highlightJson();
             validateJson();
         });
-        
+
         // Sync scroll between textarea, line numbers, and highlight preview
         jsonTextarea.addEventListener('scroll', () => {
             const lineNumbers = document.getElementById('json-line-numbers');
@@ -1472,28 +1472,28 @@ function attachEditorListeners() {
                 highlightPreview.scrollLeft = jsonTextarea.scrollLeft;
             }
         });
-        
+
         // Sync changes to program on blur (when user leaves the field)
         jsonTextarea.addEventListener('blur', () => {
             syncJsonToProgram();
         });
-        
+
         // Handle tab key for indentation
         jsonTextarea.addEventListener('keydown', (e) => {
             if (e.key === 'Tab') {
                 e.preventDefault();
                 const start = jsonTextarea.selectionStart;
                 const end = jsonTextarea.selectionEnd;
-                
+
                 if (e.shiftKey) {
                     // Shift+Tab: Remove indentation
                     const textBefore = jsonTextarea.value.substring(0, start);
                     const lastLineStart = textBefore.lastIndexOf('\n') + 1;
                     const lineStart = jsonTextarea.value.substring(lastLineStart, start);
-                    
+
                     if (lineStart.startsWith('  ')) {
-                        jsonTextarea.value = jsonTextarea.value.substring(0, lastLineStart) + 
-                                           lineStart.substring(2) + 
+                        jsonTextarea.value = jsonTextarea.value.substring(0, lastLineStart) +
+                                           lineStart.substring(2) +
                                            jsonTextarea.value.substring(start);
                         jsonTextarea.selectionStart = jsonTextarea.selectionEnd = start - 2;
                     }
@@ -1502,13 +1502,13 @@ function attachEditorListeners() {
                     jsonTextarea.value = jsonTextarea.value.substring(0, start) + '  ' + jsonTextarea.value.substring(end);
                     jsonTextarea.selectionStart = jsonTextarea.selectionEnd = start + 2;
                 }
-                
+
                 updateLineNumbers();
                 validateJson();
             }
         });
     }
-    
+
     // Format JSON button
     const formatBtn = document.getElementById('format-json-btn');
     if (formatBtn) {
@@ -1530,52 +1530,52 @@ function attachEventsViewListeners() {
     // Only initialize listeners once - they use event delegation on persistent parents
     if (window.eventsViewListenersInitialized) return;
     window.eventsViewListenersInitialized = true;
-    
+
     const container = document.getElementById('events-view-container');
     if (!container) return;
-    
+
     // Program details listeners
     const titleInput = document.getElementById('events-program-title');
     const descInput = document.getElementById('events-program-description');
     const idInput = document.getElementById('events-program-id');
     const readonlyCheckbox = document.getElementById('events-program-readonly');
-    
+
     if (titleInput) {
         titleInput.addEventListener('change', (e) => {
             editorState.program.title = e.target.value;
         });
     }
-    
+
     if (descInput) {
         descInput.addEventListener('change', (e) => {
             editorState.program.description = e.target.value;
         });
     }
-    
+
     if (idInput) {
         idInput.addEventListener('change', (e) => {
             const value = parseInt(e.target.value);
             editorState.program.id = isNaN(value) ? null : value;
         });
     }
-    
+
     if (readonlyCheckbox) {
         readonlyCheckbox.addEventListener('change', (e) => {
             editorState.program.readonly = e.target.checked;
         });
     }
-    
+
     // Expand/Collapse all buttons
     const expandAllBtn = document.getElementById('expand-all-series-btn');
     const collapseAllBtn = document.getElementById('collapse-all-series-btn');
-    
+
     if (expandAllBtn) {
         expandAllBtn.addEventListener('click', () => {
             editorState.collapsedSeries.clear();
             renderEventsView();
         });
     }
-    
+
     if (collapseAllBtn) {
         collapseAllBtn.addEventListener('click', () => {
             editorState.program.series.forEach((_, index) => {
@@ -1584,7 +1584,7 @@ function attachEventsViewListeners() {
             renderEventsView();
         });
     }
-    
+
     // Go to series dropdown
     const gotoSelect = document.getElementById('goto-series-select');
     if (gotoSelect) {
@@ -1603,7 +1603,7 @@ function attachEventsViewListeners() {
             }
         });
     }
-    
+
     // Three-dot menu toggles
     container.addEventListener('click', (e) => {
         const menuBtn = e.target.closest('.series-menu-btn');
@@ -1623,7 +1623,7 @@ function attachEventsViewListeners() {
             return;
         }
     });
-    
+
     // Close menus when clicking outside
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.series-menu-container')) {
@@ -1632,7 +1632,7 @@ function attachEventsViewListeners() {
             });
         }
     });
-    
+
     // Series toggle buttons
     container.addEventListener('click', (e) => {
         const toggleBtn = e.target.closest('.series-toggle-btn');
@@ -1646,14 +1646,14 @@ function attachEventsViewListeners() {
             renderEventsView();
             return;
         }
-        
+
         // Handle action buttons
         const actionBtn = e.target.closest('[data-action]');
         if (actionBtn) {
             const action = actionBtn.dataset.action;
             const seriesIndex = parseInt(actionBtn.dataset.seriesIndex);
             const eventIndex = parseInt(actionBtn.dataset.eventIndex);
-            
+
             if (action === 'add-event-to-series') {
                 editorState.program.series[seriesIndex].events.push(createEmptyEvent());
                 renderEventsView();
@@ -1695,7 +1695,7 @@ function attachEventsViewListeners() {
             }
         }
     });
-    
+
     // Event checkboxes for batch selection
     container.addEventListener('change', (e) => {
         if (e.target.classList.contains('event-checkbox')) {
@@ -1707,9 +1707,9 @@ function attachEventsViewListeners() {
             }
             renderEventsView();
         }
-        
+
     });
-    
+
     // Select-all checkbox
     const selectAllCheckbox = document.getElementById('select-all-events-checkbox');
     if (selectAllCheckbox) {
@@ -1729,7 +1729,7 @@ function attachEventsViewListeners() {
             renderEventsView();
         });
     }
-    
+
     // Batch delete button
     const batchDeleteBtn = document.getElementById('batch-delete-btn');
     if (batchDeleteBtn) {
@@ -1740,7 +1740,7 @@ function attachEventsViewListeners() {
                     const [seriesIdx, eventIdx] = id.split('-').map(Number);
                     return { seriesIdx, eventIdx };
                 });
-                
+
                 // Sort by series then event index in reverse to delete from end first.
                 // This is crucial because deleting from the beginning would shift indices
                 // of subsequent elements, causing us to delete wrong items.
@@ -1748,22 +1748,22 @@ function attachEventsViewListeners() {
                     if (a.seriesIdx !== b.seriesIdx) return b.seriesIdx - a.seriesIdx;
                     return b.eventIdx - a.eventIdx;
                 });
-                
+
                 // Delete events
                 toDelete.forEach(({ seriesIdx, eventIdx }) => {
-                    if (editorState.program.series[seriesIdx] && 
+                    if (editorState.program.series[seriesIdx] &&
                         editorState.program.series[seriesIdx].events[eventIdx]) {
                         editorState.program.series[seriesIdx].events.splice(eventIdx, 1);
                     }
                 });
-                
+
                 editorState.selectedEvents.clear();
                 renderEventsView();
                 renderTimelinePreview();
             }
         });
     }
-    
+
     // Drag and drop for event reordering
     container.addEventListener('dragstart', (e) => {
         // Don't allow dragging when clicking on interactive elements
@@ -1771,10 +1771,10 @@ function attachEventsViewListeners() {
             e.preventDefault();
             return;
         }
-        
+
         const seriesItem = e.target.closest('.events-view-series');
         const eventItem = e.target.closest('.events-view-item');
-        
+
         // Check if dragging an event (prioritize over series)
         if (eventItem) {
             eventItem.classList.add('dragging');
@@ -1782,7 +1782,7 @@ function attachEventsViewListeners() {
             e.dataTransfer.setData('text/plain', eventItem.dataset.eventId);
             return;
         }
-        
+
         // Otherwise, handle series dragging
         if (seriesItem) {
             seriesItem.classList.add('dragging');
@@ -1790,11 +1790,11 @@ function attachEventsViewListeners() {
             e.dataTransfer.setData('text/plain', 'series-' + seriesItem.dataset.seriesIndex);
         }
     });
-    
+
     container.addEventListener('dragend', (e) => {
         const seriesItem = e.target.closest('.events-view-series');
         const eventItem = e.target.closest('.events-view-item');
-        
+
         if (seriesItem) {
             seriesItem.classList.remove('dragging');
         }
@@ -1802,19 +1802,19 @@ function attachEventsViewListeners() {
             eventItem.classList.remove('dragging');
         }
     });
-    
+
     container.addEventListener('dragover', (e) => {
         e.preventDefault();
-        
+
         // Check if dragging a series
         const draggingSeries = document.querySelector('.events-view-series.dragging');
         const targetSeries = e.target.closest('.events-view-series');
-        
+
         if (draggingSeries && targetSeries && draggingSeries !== targetSeries) {
             const allSeries = Array.from(container.querySelectorAll('.events-view-series'));
             const draggingIndex = allSeries.indexOf(draggingSeries);
             const targetIndex = allSeries.indexOf(targetSeries);
-            
+
             if (draggingIndex < targetIndex) {
                 targetSeries.after(draggingSeries);
             } else {
@@ -1822,22 +1822,22 @@ function attachEventsViewListeners() {
             }
             return;
         }
-        
+
         // Otherwise, handle event dragging
         const draggingItem = document.querySelector('.events-view-item.dragging');
         const targetItem = e.target.closest('.events-view-item');
-        
+
         if (draggingItem && targetItem && draggingItem !== targetItem) {
             const targetSeriesIndex = parseInt(targetItem.dataset.seriesIndex);
             const draggingSeriesIndex = parseInt(draggingItem.dataset.seriesIndex);
-            
+
             // Only allow reordering within the same series
             if (targetSeriesIndex === draggingSeriesIndex) {
                 const container = targetItem.parentElement;
                 const allItems = Array.from(container.querySelectorAll('.events-view-item'));
                 const draggingIndex = allItems.indexOf(draggingItem);
                 const targetIndex = allItems.indexOf(targetItem);
-                
+
                 if (draggingIndex < targetIndex) {
                     targetItem.after(draggingItem);
                 } else {
@@ -1846,10 +1846,10 @@ function attachEventsViewListeners() {
             }
         }
     });
-    
+
     container.addEventListener('drop', (e) => {
         e.preventDefault();
-        
+
         // Check if dropping a series
         const draggingSeries = document.querySelector('.events-view-series.dragging');
         if (draggingSeries) {
@@ -1858,10 +1858,10 @@ function attachEventsViewListeners() {
                 const oldSeriesIndex = parseInt(seriesElement.dataset.seriesIndex);
                 return editorState.program.series[oldSeriesIndex];
             });
-            
+
             // Update the series array with new order
             editorState.program.series = newSeriesOrder;
-            
+
             // Clear collapsed state and rebuild with new indices
             const wasCollapsed = Array.from(editorState.collapsedSeries);
             editorState.collapsedSeries.clear();
@@ -1872,44 +1872,44 @@ function attachEventsViewListeners() {
                     editorState.collapsedSeries.add(newIndex);
                 }
             });
-            
+
             // Re-render to update indices
             renderEventsView();
             renderTimelinePreview();
             return;
         }
-        
+
         // Otherwise, handle event dropping
         const draggingItem = document.querySelector('.events-view-item.dragging');
-        
+
         if (draggingItem) {
             const seriesIndex = parseInt(draggingItem.dataset.seriesIndex);
             const listContainer = draggingItem.parentElement;
-            
+
             // Get new order of events
             const eventItems = Array.from(listContainer.querySelectorAll('.events-view-item'));
             const newEventOrder = eventItems.map(item => {
                 const oldEventIndex = parseInt(item.dataset.eventIndex);
                 return editorState.program.series[seriesIndex].events[oldEventIndex];
             });
-            
+
             // Update the events array with new order
             editorState.program.series[seriesIndex].events = newEventOrder;
-            
+
             // Re-render to update indices
             renderEventsView();
             renderTimelinePreview();
         }
     });
-    
+
     // Keyboard navigation
     container.addEventListener('keydown', (e) => {
         const focusedItem = document.activeElement.closest('.events-view-item');
         if (!focusedItem) return;
-        
+
         const seriesIndex = parseInt(focusedItem.dataset.seriesIndex);
         const eventIndex = parseInt(focusedItem.dataset.eventIndex);
-        
+
         if (e.key === 'ArrowDown') {
             e.preventDefault();
             const nextItem = focusedItem.nextElementSibling;
@@ -1934,7 +1934,7 @@ function attachEventsViewListeners() {
             }
         }
     });
-    
+
     // Make event items focusable for keyboard navigation
     container.querySelectorAll('.events-view-item').forEach(item => {
         item.setAttribute('tabindex', '0');
@@ -1961,29 +1961,29 @@ function escapeHtml(unsafe) {
 function renderTimelineEditor() {
     const container = document.getElementById('timeline-editor-content');
     const program = editorState.program;
-    
+
     // Update series selector
     const seriesSelect = document.getElementById('timeline-series-select');
     if (seriesSelect) {
-        seriesSelect.innerHTML = '<option value="">All Series</option>' + 
-            program.series.map((series, index) => 
+        seriesSelect.innerHTML = '<option value="">All Series</option>' +
+            program.series.map((series, index) =>
                 `<option value="${index}" ${editorState.timelineSelectedSeries === index ? 'selected' : ''}>${escapeHtml(series.name || `Series ${index + 1}`)}</option>`
             ).join('');
     }
-    
+
     if (!program.series || program.series.length === 0) {
         container.innerHTML = '<p class="empty-message">No series added yet. Switch to Form tab to add series.</p>';
         return;
     }
-    
+
     // Determine which series to show
-    const seriesToShow = editorState.timelineSelectedSeries !== null 
+    const seriesToShow = editorState.timelineSelectedSeries !== null
         ? [{ series: program.series[editorState.timelineSelectedSeries], index: editorState.timelineSelectedSeries }]
         : program.series.map((series, index) => ({ series, index }));
-    
+
     // Calculate pixel per second based on zoom
     const pixelsPerSecond = 40 * editorState.timelineZoom;
-    
+
     container.innerHTML = seriesToShow.map(({ series, index: seriesIndex }) => {
         if (!series.events || series.events.length === 0) {
             return `
@@ -1995,7 +1995,7 @@ function renderTimelineEditor() {
                 </div>
             `;
         }
-        
+
         // Calculate cumulative timeline
         let cumulativeTime = 0;
         const eventsWithPositions = series.events.map((event, eventIndex) => {
@@ -2003,17 +2003,17 @@ function renderTimelineEditor() {
             cumulativeTime += event.duration;
             return { event, eventIndex, startTime, endTime: cumulativeTime };
         });
-        
+
         const totalDuration = cumulativeTime;
         const totalDurationSeconds = Math.ceil(totalDuration / 1000);
         const timelineWidth = totalDurationSeconds * pixelsPerSecond;
-        
+
         // Generate time markers (every second)
         const timeMarkers = [];
         for (let i = 0; i <= totalDurationSeconds; i++) {
             timeMarkers.push(i);
         }
-        
+
         return `
             <div class="timeline-series-container" data-series-index="${seriesIndex}">
                 <div class="timeline-series-header">
@@ -2027,24 +2027,24 @@ function renderTimelineEditor() {
                             const durationSeconds = event.duration / 1000;
                             const leftPosition = startSeconds * pixelsPerSecond;
                             const width = durationSeconds * pixelsPerSecond;
-                            
+
                             const eventId = `${seriesIndex}-${eventIndex}`;
                             const isSelected = editorState.selectedEvents.has(eventId);
-                            
+
                             const audioTitles = (event.audio_ids || []).map(id => {
                                 const audio = editorState.audios.find(a => a.id === id);
                                 return audio ? escapeHtml(audio.title) : `ID ${id}`;
                             }).join(', ');
-                            
+
                             let commandClass = 'no-command';
                             if (event.command === 'show') commandClass = 'show-command';
                             else if (event.command === 'hide') commandClass = 'hide-command';
-                            
+
                             const tooltipText = `${event.command ? escapeHtml(event.command.toUpperCase()) : 'NO CHANGE'}: ${durationSeconds.toFixed(1)}s${audioTitles ? '\nAudios: ' + audioTitles : ''}`;
-                            
+
                             return `
-                                <div class="timeline-event ${commandClass} ${isSelected ? 'selected' : ''}" 
-                                     data-series-index="${seriesIndex}" 
+                                <div class="timeline-event ${commandClass} ${isSelected ? 'selected' : ''}"
+                                     data-series-index="${seriesIndex}"
                                      data-event-index="${eventIndex}"
                                      data-event-id="${eventId}"
                                      style="left: ${leftPosition}px; width: ${width}px;"
@@ -2087,17 +2087,17 @@ function renderTimelineEditor() {
             </div>
         `;
     }).join('');
-    
+
     // Update info display
     const infoEl = document.getElementById('timeline-info');
     if (infoEl) {
         const totalEvents = program.series.reduce((sum, series) => sum + series.events.length, 0);
         const selectedCount = editorState.selectedEvents.size;
-        infoEl.textContent = selectedCount > 0 
-            ? `${selectedCount} of ${totalEvents} events selected` 
+        infoEl.textContent = selectedCount > 0
+            ? `${selectedCount} of ${totalEvents} events selected`
             : `${totalEvents} events total`;
     }
-    
+
 }
 
 /**
@@ -2112,11 +2112,11 @@ function attachTimelineEditorListeners() {
     // Only initialize listeners once - they use event delegation on persistent parents
     if (window.timelineEditorListenersInitialized) return;
     window.timelineEditorListenersInitialized = true;
-    
+
     // Get the persistent parent container for event delegation
     const timelineEditorContainer = document.getElementById('editor-tab-timeline');
     if (!timelineEditorContainer) return;
-    
+
     // Use event delegation for series selector changes
     timelineEditorContainer.addEventListener('change', (e) => {
         if (e.target.id === 'timeline-series-select') {
@@ -2125,12 +2125,12 @@ function attachTimelineEditorListeners() {
             renderTimelineEditor();
         }
     });
-    
+
     // Use event delegation for zoom controls
     timelineEditorContainer.addEventListener('click', (e) => {
         const btn = e.target.closest('button');
         if (!btn) return;
-        
+
         if (btn.id === 'timeline-zoom-in') {
             editorState.timelineZoom = Math.min(3, editorState.timelineZoom * 1.2);
             renderTimelineEditor();
@@ -2142,7 +2142,7 @@ function attachTimelineEditorListeners() {
             renderTimelineEditor();
         }
     });
-    
+
     // Event selection via checkboxes - use event delegation on persistent parent
     timelineEditorContainer.addEventListener('change', (e) => {
         if (e.target.classList.contains('timeline-event-checkbox')) {
@@ -2155,7 +2155,7 @@ function attachTimelineEditorListeners() {
             renderTimelineEditor();
         }
     });
-    
+
     // Event actions - use event delegation on persistent parent
     timelineEditorContainer.addEventListener('click', (e) => {
         // Handle action buttons (edit, copy, delete)
@@ -2164,7 +2164,7 @@ function attachTimelineEditorListeners() {
             const action = actionBtn.dataset.action;
             const seriesIndex = parseInt(actionBtn.dataset.seriesIndex);
             const eventIndex = parseInt(actionBtn.dataset.eventIndex);
-            
+
             if (action === 'edit') {
                 openEventEditModal(seriesIndex, eventIndex);
             } else if (action === 'copy') {
@@ -2180,7 +2180,7 @@ function attachTimelineEditorListeners() {
             }
             return; // Don't process event selection if we clicked an action button
         }
-        
+
         // Click on event to select/deselect (only if not clicking checkbox or action button)
         const timelineEvent = e.target.closest('.timeline-event');
         if (timelineEvent && !e.target.closest('.timeline-event-checkbox')) {
@@ -2193,7 +2193,7 @@ function attachTimelineEditorListeners() {
             renderTimelineEditor();
         }
     });
-    
+
     // Drag and drop for event reordering - use event delegation on persistent parent
     timelineEditorContainer.addEventListener('dragstart', (e) => {
         const timelineEvent = e.target.closest('.timeline-event');
@@ -2203,30 +2203,30 @@ function attachTimelineEditorListeners() {
             e.dataTransfer.setData('text/plain', timelineEvent.dataset.eventId);
         }
     });
-    
+
     timelineEditorContainer.addEventListener('dragend', (e) => {
         const timelineEvent = e.target.closest('.timeline-event');
         if (timelineEvent) {
             timelineEvent.classList.remove('dragging');
         }
     });
-    
+
     timelineEditorContainer.addEventListener('dragover', (e) => {
         e.preventDefault();
         const draggingItem = document.querySelector('.timeline-event.dragging');
         const targetItem = e.target.closest('.timeline-event');
-        
+
         if (draggingItem && targetItem && draggingItem !== targetItem) {
             const targetSeriesIndex = parseInt(targetItem.dataset.seriesIndex);
             const draggingSeriesIndex = parseInt(draggingItem.dataset.seriesIndex);
-            
+
             // Only allow reordering within the same series
             if (targetSeriesIndex === draggingSeriesIndex) {
                 const container = targetItem.parentElement;
                 const allItems = Array.from(container.querySelectorAll('.timeline-event'));
                 const draggingIndex = allItems.indexOf(draggingItem);
                 const targetIndex = allItems.indexOf(targetItem);
-                
+
                 if (draggingIndex < targetIndex) {
                     targetItem.after(draggingItem);
                 } else {
@@ -2235,39 +2235,39 @@ function attachTimelineEditorListeners() {
             }
         }
     });
-    
+
     timelineEditorContainer.addEventListener('drop', (e) => {
         e.preventDefault();
         const draggingItem = document.querySelector('.timeline-event.dragging');
-        
+
         if (draggingItem) {
             const seriesIndex = parseInt(draggingItem.dataset.seriesIndex);
             const trackContainer = draggingItem.parentElement;
-            
+
             // Get new order of events
             const eventItems = Array.from(trackContainer.querySelectorAll('.timeline-event'));
             const newEventOrder = eventItems.map(item => {
                 const oldEventIndex = parseInt(item.dataset.eventIndex);
                 return editorState.program.series[seriesIndex].events[oldEventIndex];
             });
-            
+
             // Update the events array with new order
             editorState.program.series[seriesIndex].events = newEventOrder;
-            
+
             // Re-render to update indices and positions
             renderTimelineEditor();
             renderTimelinePreview();
         }
     });
-    
+
     // Keyboard navigation - use event delegation on persistent parent
     timelineEditorContainer.addEventListener('keydown', (e) => {
         const focusedEvent = document.activeElement.closest('.timeline-event');
         if (!focusedEvent) return;
-        
+
         const seriesIndex = parseInt(focusedEvent.dataset.seriesIndex);
         const eventIndex = parseInt(focusedEvent.dataset.eventIndex);
-        
+
         if (e.key === 'ArrowRight') {
             e.preventDefault();
             const nextEvent = focusedEvent.nextElementSibling;
@@ -2307,7 +2307,7 @@ function attachTimelineEditorListeners() {
  */
 function openSeriesEditModal(seriesIndex) {
     const series = editorState.program.series[seriesIndex];
-    
+
     // Create modal
     const modal = document.createElement('div');
     modal.className = 'modal';
@@ -2338,33 +2338,33 @@ function openSeriesEditModal(seriesIndex) {
             </div>
         </div>
     `;
-    
+
     document.body.appendChild(modal);
-    
+
     // Attach event listeners
     const closeBtn = modal.querySelector('#close-series-modal');
     const cancelBtn = modal.querySelector('#cancel-series-modal');
     const saveBtn = modal.querySelector('#save-series-modal');
-    
+
     const closeModal = () => {
         document.body.removeChild(modal);
     };
-    
+
     closeBtn.addEventListener('click', closeModal);
     cancelBtn.addEventListener('click', closeModal);
-    
+
     saveBtn.addEventListener('click', () => {
         const name = modal.querySelector('#series-modal-name').value;
         const optional = modal.querySelector('#series-modal-optional').checked;
-        
+
         editorState.program.series[seriesIndex].name = name;
         editorState.program.series[seriesIndex].optional = optional;
-        
+
         closeModal();
         renderEventsView();
         renderTimelinePreview();
     });
-    
+
     // Focus the name input
     setTimeout(() => {
         modal.querySelector('#series-modal-name').focus();
@@ -2376,7 +2376,7 @@ function openSeriesEditModal(seriesIndex) {
  */
 function openEventEditModal(seriesIndex, eventIndex) {
     const event = editorState.program.series[seriesIndex].events[eventIndex];
-    
+
     // Create modal
     const modal = document.createElement('div');
     modal.className = 'modal';
@@ -2427,40 +2427,40 @@ function openEventEditModal(seriesIndex, eventIndex) {
             </div>
         </div>
     `;
-    
+
     document.body.appendChild(modal);
-    
+
     // Attach event listeners
     const closeBtn = modal.querySelector('#close-event-modal');
     const cancelBtn = modal.querySelector('#cancel-event-modal');
     const saveBtn = modal.querySelector('#save-event-modal');
     const audioSearch = modal.querySelector('#event-modal-audio-search');
-    
+
     const closeModal = () => {
         document.body.removeChild(modal);
     };
-    
+
     closeBtn.addEventListener('click', closeModal);
     cancelBtn.addEventListener('click', closeModal);
-    
+
     saveBtn.addEventListener('click', () => {
         const duration = parseInt(modal.querySelector('#event-modal-duration').value);
         const commandInput = modal.querySelector('input[name="event-modal-command"]:checked');
         const command = commandInput ? (commandInput.value || null) : null;
-        
+
         editorState.program.series[seriesIndex].events[eventIndex].duration = duration;
         editorState.program.series[seriesIndex].events[eventIndex].command = command;
-        
+
         closeModal();
         renderEventsView();
         renderTimelinePreview();
     });
-    
+
     // Audio search functionality
     audioSearch.addEventListener('input', () => {
         handleAudioSearchInModal(audioSearch, event.audio_ids || []);
     });
-    
+
     // Handle audio selection
     modal.addEventListener('click', (e) => {
         if (e.target.classList.contains('audio-suggestion-item-modal')) {
@@ -2473,7 +2473,7 @@ function openEventEditModal(seriesIndex, eventIndex) {
                 modal.querySelector('#event-modal-audio-suggestions').innerHTML = '';
             }
         }
-        
+
         if (e.target.classList.contains('remove-audio-btn-modal')) {
             const audioIndex = parseInt(e.target.dataset.audioIndex);
             event.audio_ids.splice(audioIndex, 1);
@@ -2489,7 +2489,7 @@ function renderSelectedAudiosForModal(audioIds) {
     if (audioIds.length === 0) {
         return '<p class="empty-message small">No audios selected</p>';
     }
-    
+
     return audioIds.map((audioId, audioIndex) => {
         const audio = editorState.audios.find(a => a.id === audioId);
         const title = audio ? audio.title : 'Unknown';
@@ -2510,23 +2510,23 @@ function renderSelectedAudiosForModal(audioIds) {
 function handleAudioSearchInModal(input, selectedIds) {
     const searchTerm = input.value.toLowerCase();
     const suggestionsContainer = document.getElementById('event-modal-audio-suggestions');
-    
+
     if (!searchTerm) {
         suggestionsContainer.innerHTML = '';
         suggestionsContainer.classList.remove('active');
         return;
     }
-    
+
     // Fuzzy search in audios
     const matches = editorState.audios.filter(audio => {
         if (selectedIds.includes(audio.id)) return false;
-        
+
         const idStr = audio.id.toString();
         const titleLower = audio.title.toLowerCase();
-        
+
         return idStr.includes(searchTerm) || titleLower.includes(searchTerm);
     }).slice(0, 10);
-    
+
     if (matches.length === 0) {
         suggestionsContainer.innerHTML = '<div class="no-suggestions">No matches found</div>';
     } else {
@@ -2536,7 +2536,7 @@ function handleAudioSearchInModal(input, selectedIds) {
             </div>
         `).join('');
     }
-    
+
     suggestionsContainer.classList.add('active');
 }
 
@@ -2548,27 +2548,27 @@ function handleAudioSearch(input) {
     const seriesIndex = parseInt(input.dataset.seriesIndex);
     const eventIndex = parseInt(input.dataset.eventIndex);
     const suggestionsContainer = document.querySelector(`.audio-suggestions[data-series-index="${seriesIndex}"][data-event-index="${eventIndex}"]`);
-    
+
     if (!searchTerm) {
         suggestionsContainer.innerHTML = '';
         suggestionsContainer.classList.remove('active');
         return;
     }
-    
+
     // Get currently selected audio IDs for this event
     const selectedIds = editorState.program.series[seriesIndex].events[eventIndex].audio_ids || [];
-    
+
     // Fuzzy search in audios
     const matches = editorState.audios.filter(audio => {
         if (selectedIds.includes(audio.id)) return false; // Don't show already selected
-        
+
         const idStr = audio.id.toString();
         const titleLower = audio.title.toLowerCase();
-        
+
         // Simple fuzzy matching: check if search term characters appear in order
         return idStr.includes(searchTerm) || titleLower.includes(searchTerm);
     }).slice(0, 10); // Limit to 10 suggestions
-    
+
     if (matches.length === 0) {
         suggestionsContainer.innerHTML = '<div class="no-suggestions">No matches found</div>';
     } else {
@@ -2578,7 +2578,7 @@ function handleAudioSearch(input) {
             </div>
         `).join('');
     }
-    
+
     suggestionsContainer.classList.add('active');
 }
 
@@ -2590,7 +2590,7 @@ function addAudioToEvent(seriesIndex, eventIndex, audioId) {
     if (!event.audio_ids) {
         event.audio_ids = [];
     }
-    
+
     if (!event.audio_ids.includes(audioId)) {
         event.audio_ids.push(audioId);
         renderAllSeries();
@@ -2617,20 +2617,20 @@ export function saveProgramFromEditor() {
     if (activeTab && activeTab.dataset.tab === 'json') {
         syncJsonToProgram();
     }
-    
+
     const program = editorState.program;
-    
+
     // Validation
     if (!program.title) {
         alert('Please enter a program title');
         return;
     }
-    
+
     if (program.series.length === 0) {
         alert('Please add at least one series');
         return;
     }
-    
+
     // Check that all series have names
     for (let i = 0; i < program.series.length; i++) {
         if (!program.series[i].name) {
@@ -2642,7 +2642,7 @@ export function saveProgramFromEditor() {
             return;
         }
     }
-    
+
     return {
         program: program,
         originalId: editorState.originalProgramId
@@ -2658,7 +2658,7 @@ export function initializeProgramEditorModal(onSaveCallback) {
     if (document.getElementById('program-editor-modal')) {
         return;
     }
-    
+
     const modal = document.createElement('div');
     modal.id = 'program-editor-modal';
     modal.className = 'modal hidden';
@@ -2674,13 +2674,13 @@ export function initializeProgramEditorModal(onSaveCallback) {
             </div>
         </div>
     `;
-    
+
     document.body.appendChild(modal);
-    
+
     // Attach close and save listeners
     document.getElementById('close-editor-btn').addEventListener('click', closeProgramEditor);
     document.getElementById('cancel-editor-btn').addEventListener('click', closeProgramEditor);
-    
+
     // Attach save listener if callback provided
     if (onSaveCallback) {
         document.getElementById('save-editor-btn').addEventListener('click', onSaveCallback);
