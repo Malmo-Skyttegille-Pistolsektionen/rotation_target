@@ -1,6 +1,6 @@
 import { useSettings } from '../context/SettingsContext';
 
-const DEFAULT_BASE_URL = 'http://localhost:8080';
+import { DEFAULT_BASE_URL } from './base-url';
 
 let dynamicBaseUrl = DEFAULT_BASE_URL;
 

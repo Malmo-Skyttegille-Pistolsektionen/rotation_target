@@ -7,8 +7,12 @@ const STORAGE_KEYS = {
   adminToken: `${STORAGE_PREFIX}admin_token`,
 } as const;
 
+import { DEFAULT_BASE_URL } from '../api/base-url';
+
 const DEFAULT_VALUES = {
-  serverBaseUrl: 'http://localhost:8080',
+  // Same-origin by default - see DEFAULT_BASE_URL. A value in localStorage,
+  // set on the settings page, still wins.
+  serverBaseUrl: DEFAULT_BASE_URL,
   startDelaySeconds: 10,
 } as const;
 

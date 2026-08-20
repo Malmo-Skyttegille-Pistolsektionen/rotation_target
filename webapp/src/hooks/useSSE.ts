@@ -2,20 +2,30 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { SSETypes } from '../api/types';
 import type { StateUpdatePayload } from '../api/types';
-
-const SERVER_BASE_URL = 'http://localhost:8080';
-const SERVER_SSE_URL = `${SERVER_BASE_URL}/sse/v2`;
+import { getSseBaseUrl } from '../api/client';
+import { useSettings } from '../context/SettingsContext';
 
 export function useSSE(): void {
   const queryClient = useQueryClient();
+  // The settings page writes this; the effect below re-subscribes when it
+  // changes. Previously the SSE URL was a module constant, so it ignored the
+  // configured server entirely and always pointed at localhost:8080 - the REST
+  // calls followed the setting and the event stream did not.
+  //
+  // That mattered more in v2 than it would have in v1: v2 removed GET /status,
+  // so stateUpdate is the only channel run state arrives on. A stream pointed
+  // at the wrong host leaves the UI connected-looking but permanently frozen.
+  const { settings } = useSettings();
 
   useEffect(() => {
     let eventSource: EventSource | null = null;
     let reconnectTimer: NodeJS.Timeout | null = null;
 
+    const sseUrl = getSseBaseUrl();
+
     const connect = (): void => {
-      console.log('[SSE] Connecting...');
-      eventSource = new EventSource(SERVER_SSE_URL);
+      console.log('[SSE] Connecting to', sseUrl);
+      eventSource = new EventSource(sseUrl);
 
       eventSource.onopen = (): void => {
         console.log('[SSE] Connected');
@@ -55,5 +65,5 @@ export function useSSE(): void {
         clearTimeout(reconnectTimer);
       }
     };
-  }, [queryClient]);
+  }, [queryClient, settings.serverBaseUrl]);
 }
