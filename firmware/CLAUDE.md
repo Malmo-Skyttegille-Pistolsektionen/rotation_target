@@ -168,7 +168,8 @@ Load-bearing invariants:
 - **SSE sends go through `httpd_queue_work`, i.e. always on the httpd task.**
   That is the only task esp_http_server mutates the client list from, and it
   keeps the blocking send off the run loop. `flush()` serializes *and* enqueues
-  under one lock so snapshot order equals send order.
+  under one lock so snapshot order equals send order. `broadcast_issue()` uses
+  the same path from any task, and is a no-op before the server exists.
 - **`readonly` is a property of the directory a file was loaded from, never of
   the document.** An uploader must not be able to claim its program is shipped.
 - Programs live in a `std::map` for reference stability — `ProgramState` holds a

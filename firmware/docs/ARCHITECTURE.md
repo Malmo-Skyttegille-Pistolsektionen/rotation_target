@@ -13,7 +13,7 @@ of ESP-IDF and hardware, and is covered by the Unity suites in `host_test/`.
 | `main/storage/` | LittleFS mount and directory helpers |
 | `main/repositories/` | `programs`, `audios` — what is on the filesystem |
 | `main/executor/` | The run-loop task and the real clock/effects behind `rt::Executor` |
-| `main/net/` | `wifi_mgr`, `wifi_store` (NVS credentials), `setup_portal` (SoftAP fallback), `web_server` (REST), `sse_hub` (SSE + heartbeat) |
+| `main/net/` | `wifi_mgr`, `wifi_store` (NVS credentials), `setup_portal` (SoftAP fallback), `web_server` (REST), `sse_hub` (SSE: state, heartbeat, issues) |
 | `lib/psychic_http/`, `lib/arduinojson/`, `lib/dns_server/` | Vendored third-party, never reformatted |
 
 `rt::Executor` takes a `rt::Clock` and a `rt::Effects` by reference. The

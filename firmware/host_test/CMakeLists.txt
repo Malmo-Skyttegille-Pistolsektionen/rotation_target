@@ -66,6 +66,14 @@ endif()
 
 enable_testing()
 
+# test_backend_issue parses its own output with ArduinoJson, so that the
+# escaping is checked against a real parser rather than only against
+# hand-written expectations. That makes it the second TU to include the
+# vendored header, and it hits the same -O1 -Wmaybe-uninitialized as
+# program.cpp above.
+set_source_files_properties("${TEST_DIR}/test_backend_issue/test_backend_issue.cpp"
+  PROPERTIES COMPILE_OPTIONS "-Wno-maybe-uninitialized")
+
 file(GLOB test_suites RELATIVE "${TEST_DIR}" "${TEST_DIR}/test_*")
 foreach(suite ${test_suites})
   set(suite_dir "${TEST_DIR}/${suite}")

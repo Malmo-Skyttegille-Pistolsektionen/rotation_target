@@ -54,6 +54,9 @@ void send_on_httpd_task(void *arg) {
 // call with the run-state lock held, which is what keeps snapshot order and
 // send order the same.
 void enqueue(const char *event, std::string payload) {
+  // Also the guard for frames raised before the server exists: `s_server` is
+  // null until attach() runs, and the boot-time program scan reports malformed
+  // files long before that. Nothing to send them to, so they are dropped.
   if (s_server == nullptr || s_server->server == nullptr) return;
 
   auto *work = new Work{event, std::move(payload)};
@@ -160,6 +163,11 @@ void attach(PsychicHttpServer &server, const char *uri) {
 
 void broadcast_state(const std::string &payload) {
   enqueue("stateUpdate", payload);
+}
+
+void broadcast_issue(const char *code, const std::string &message,
+                     const rt::IssueContext &context) {
+  enqueue("backend_issue", rt::backend_issue_json(code, message, context));
 }
 
 }  // namespace sse_hub
