@@ -137,10 +137,17 @@ inline std::string program_json(const Program &p) {
 // `readonly` is imposed by the caller rather than read from the document: it
 // is a property of where the file came from (shipped vs uploaded), not
 // something an uploader gets to assert about itself.
-bool parse_program(const char *json, size_t len, bool readonly, Program &out);
+//
+// `id_present`, when given, reports whether the document carried an `id` field
+// at all. A document without one parses to id 0, and 0 is itself a legal id,
+// so the distinction cannot be recovered from `out` - `PUT /programs/{id}`
+// needs it to tell "no id offered" from "id 0 offered".
+bool parse_program(const char *json, size_t len, bool readonly, Program &out,
+                   bool *id_present = nullptr);
 
-inline bool parse_program(const std::string &json, bool readonly, Program &out) {
-  return parse_program(json.c_str(), json.size(), readonly, out);
+inline bool parse_program(const std::string &json, bool readonly, Program &out,
+                          bool *id_present = nullptr) {
+  return parse_program(json.c_str(), json.size(), readonly, out, id_present);
 }
 
 // A program file is named `<digits>.json` and the filename is the authority on

@@ -109,6 +109,15 @@ void test_a_null_uri_is_refused() {
   TEST_ASSERT_FALSE(rt::path_id(nullptr, kPrefix, "", id));
 }
 
+void test_a_fixed_run_control_path_is_refused_as_an_id() {
+  // PUT /api/v2/programs/{id} is registered as a wildcard, so a client PUTting
+  // /api/v2/programs/start reaches it. It must not read as an id.
+  int32_t id = 0;
+  TEST_ASSERT_FALSE(rt::path_id("/api/v2/programs/start", kPrefix, "", id));
+  TEST_ASSERT_FALSE(rt::path_id("/api/v2/programs/stop", kPrefix, "", id));
+  TEST_ASSERT_FALSE(rt::path_id("/api/v2/programs/reset", kPrefix, "", id));
+}
+
 void test_a_nested_path_is_refused() {
   // /api/v2/programs/series/0/skip_to must not read as an id under the bare
   // programs prefix - the routes are distinguished by exactly this.
@@ -135,6 +144,7 @@ int main() {
   RUN_TEST(test_a_wrong_suffix_is_refused);
   RUN_TEST(test_the_prefix_alone_is_refused);
   RUN_TEST(test_a_null_uri_is_refused);
+  RUN_TEST(test_a_fixed_run_control_path_is_refused_as_an_id);
   RUN_TEST(test_a_nested_path_is_refused);
   return UNITY_END();
 }

@@ -203,6 +203,55 @@ void test_a_filename_id_past_int32_is_refused() {
   TEST_ASSERT_FALSE(rt::parse_program_filename("99999999999.json", id));
 }
 
+void test_a_document_reports_whether_it_declares_an_id() {
+  // PUT /programs/{id} refuses a document that renames the program, so it has
+  // to tell "no id offered" from "id 0 offered" - and a document without an id
+  // parses to 0, which is itself a legal id.
+  rt::Program p;
+  bool id_present = true;
+
+  const char *without_id = "{\"title\":\"No id\"}";
+  TEST_ASSERT_TRUE(rt::parse_program(without_id, strlen(without_id), false, p, &id_present));
+  TEST_ASSERT_FALSE(id_present);
+  TEST_ASSERT_EQUAL_INT32(0, p.id);
+
+  const char *zero_id = "{\"id\":0,\"title\":\"Zero\"}";
+  TEST_ASSERT_TRUE(rt::parse_program(zero_id, strlen(zero_id), false, p, &id_present));
+  TEST_ASSERT_TRUE(id_present);
+  TEST_ASSERT_EQUAL_INT32(0, p.id);
+
+  const char *some_id = "{\"id\":107,\"title\":\"Some\"}";
+  TEST_ASSERT_TRUE(rt::parse_program(some_id, strlen(some_id), false, p, &id_present));
+  TEST_ASSERT_TRUE(id_present);
+  TEST_ASSERT_EQUAL_INT32(107, p.id);
+}
+
+void test_a_null_or_garbage_id_is_not_silently_accepted() {
+  rt::Program p;
+  bool id_present = true;
+
+  // JSON null is indistinguishable from absent, and means "keep the path id".
+  const char *null_id = "{\"id\":null}";
+  TEST_ASSERT_TRUE(rt::parse_program(null_id, strlen(null_id), false, p, &id_present));
+  TEST_ASSERT_FALSE(id_present);
+
+  // A wrong type reads as 0 but still counts as declared, so an update against
+  // any other id refuses it rather than quietly renumbering.
+  const char *string_id = "{\"id\":\"107\"}";
+  TEST_ASSERT_TRUE(rt::parse_program(string_id, strlen(string_id), false, p, &id_present));
+  TEST_ASSERT_TRUE(id_present);
+  TEST_ASSERT_EQUAL_INT32(0, p.id);
+}
+
+void test_the_id_out_parameter_is_optional() {
+  // Every existing caller passes four arguments; the fifth defaults to null
+  // and must not be dereferenced.
+  rt::Program p;
+  const char *doc = "{\"id\":5}";
+  TEST_ASSERT_TRUE(rt::parse_program(doc, strlen(doc), false, p));
+  TEST_ASSERT_EQUAL_INT32(5, p.id);
+}
+
 void test_a_hostile_duration_is_clamped() {
   // duration is attacker-controlled; total_ms() sums into an int32.
   rt::Program p;
@@ -240,5 +289,9 @@ int main() {
   RUN_TEST(test_a_non_numeric_filename_is_refused);
   RUN_TEST(test_a_filename_id_past_int32_is_refused);
   RUN_TEST(test_a_hostile_duration_is_clamped);
+
+  RUN_TEST(test_a_document_reports_whether_it_declares_an_id);
+  RUN_TEST(test_a_null_or_garbage_id_is_not_silently_accepted);
+  RUN_TEST(test_the_id_out_parameter_is_optional);
   return UNITY_END();
 }

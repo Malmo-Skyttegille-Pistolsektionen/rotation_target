@@ -266,6 +266,56 @@ void register_program_routes() {
     return send_json(res, 200, rt::program_json(*program));
   });
 
+  // Currently the only PUT route, so this wildcard shadows nothing; a fixed
+  // PUT path under /api/v2/programs/ would have to be registered above it.
+  s_server.on("/api/v2/programs/*", HTTP_PUT, [](PsychicRequest *req, PsychicResponse *res) {
+    if (!require_admin(req, res)) return ESP_OK;
+
+    int32_t id = 0;
+    if (!path_id(req->uri(), "/api/v2/programs/", "", id)) {
+      return send_error(res, 404, "Program not found");
+    }
+    const rt::Program *existing = programs::get(id);
+    if (existing == nullptr) return send_error(res, 404, "Program not found");
+    // Unlike DELETE, a shipped program is not disguised as a 404: it exists
+    // and is fetchable, it just has no writable file behind it.
+    if (existing->readonly) {
+      return send_error(res, 409, "Program is read-only and cannot be updated");
+    }
+
+    // Refused while loaded rather than handled: ProgramState holds a bare
+    // `const rt::Program *` into the repository map, so replacing the value
+    // under it would swap the series out from beneath a run that is mid-series
+    // and beneath the indices already published over SSE. Making the client
+    // unload first keeps that case out of existence.
+    if (executor::is_loaded(id)) {
+      return send_error(res, 409, "Program is loaded; unload it before updating");
+    }
+
+    const char *body = req->body();
+    const size_t length = static_cast<size_t>(req->contentLength());
+    if (body == nullptr || length == 0) return send_error(res, 400, "Invalid program");
+
+    switch (programs::update_uploaded(id, body, length)) {
+      case programs::UpdateResult::kNotFound:
+        return send_error(res, 404, "Program not found");
+      case programs::UpdateResult::kReadonly:
+        return send_error(res, 409, "Program is read-only and cannot be updated");
+      case programs::UpdateResult::kIdMismatch:
+        return send_error(res, 400, "Program id in the document does not match the path");
+      case programs::UpdateResult::kInvalid:
+        return send_error(res, 400, "Invalid program");
+      case programs::UpdateResult::kWriteFailed:
+        return send_error(res, 500, "Could not store program");
+      case programs::UpdateResult::kOk:
+        break;
+    }
+
+    const rt::Program *stored = programs::get(id);
+    if (stored == nullptr) return send_error(res, 500, "Could not store program");
+    return send_json(res, 200, rt::program_json(*stored));
+  });
+
   s_server.on("/api/v2/programs/*", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
     if (!require_admin(req, res)) return ESP_OK;
 
@@ -611,7 +661,7 @@ bool start() {
           const std::string reflected = origin;
           res->addHeader("Access-Control-Allow-Origin", reflected.c_str());
           res->addHeader("Access-Control-Allow-Credentials", "true");
-          res->addHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+          res->addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
           res->addHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
           res->addHeader("Access-Control-Max-Age", "600");
           res->addHeader("Vary", "Origin");

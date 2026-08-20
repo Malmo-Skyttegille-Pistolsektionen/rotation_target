@@ -23,6 +23,7 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-12 | Webapp package manager: npm | Decided | 2026-08-20 |
 | D-13 | Agent roles & review policy | Decided | 2026-08-20 |
 | D-14 | Webapp guardrails (devtools, src_legacy, size budget) | Decided | Aug 2026 |
+| D-15 | Program update is `PUT /programs/{id}`, refused while loaded | Decided | 2026-08-20 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
 
@@ -190,13 +191,34 @@ discard imported history).
 import); `src_legacy` stays until its Audio and Programs tabs are ported (it
 is the only implementation of both); CI enforces a gzip size budget.
 
+## D-15 — Program update endpoint *(Decided 2026-08-20)*
+
+**Decision:** add `PUT /api/v2/programs/{id}`. The path is the authority on
+the id (as the filename is on flash), so a body declaring a different `id` is
+a `400`, never a rename. Shipped programs are `409`. **A loaded program is
+`409`** — the client unloads first.
+
+**Why:** verification confirmed `POST /programs` has no replace path at all;
+it always assigns a new id. The webapp's legacy program editor needs an update
+path, and `/update` as a verb (v1's shape) is not what a REST client
+generated from the contract expects.
+
+Refusing while loaded is the substantive half. `ProgramState` holds a bare
+`const rt::Program *` into the repository map, and the run loop reads the
+series through it; replacing the value under a running program would swap the
+series out mid-run and desynchronise the indices already published over
+`stateUpdate`. Every alternative needs an invented policy — reset to event 0,
+keep the elapsed time, abort the run — for a situation that has no good answer
+during a range session.
+
+**Rejected:** documenting `POST` with an id as the update path (it does not
+replace); v1's `POST /programs/{id}/update`; silently renumbering a mismatched
+body id; taking the executor lock and hot-swapping the loaded program.
+
 ## Open questions
 
 - **Are `app` / `x86_linux` used by anyone?** (asked — drives D-03's
   archive-or-keep follow-up)
-- **Program update endpoint shape:** does `POST /programs` replace by id, or
-  do we add `PUT /programs/{id}`? (verification task in the plan; the legacy
-  program editor needs one of them)
 - **LICENSE / copyright unification** across the imported repos (org vs
   individual).
 - **Admin mode is off after every boot** — acceptable security posture, or a

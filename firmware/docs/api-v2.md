@@ -142,8 +142,24 @@ is something to go and fetch.
 the device assigns the next free id from 100 and rewrites the file from the
 parsed program, so what is persisted is what will come back on the next boot.
 Unknown fields are dropped in that rewrite, and each `duration` is clamped to
-1…3600000 ms. **There is no update path** — posting a document that carries an
-existing id creates a second program rather than replacing the first.
+1…3600000 ms. Posting a document that carries an existing id creates a second
+program rather than replacing the first — replacing is `PUT`.
+
+`PUT /api/v2/programs/{id}` replaces one, parsed and rewritten by the same
+rules. The path is the authority on the id, exactly as the filename is on
+flash, so a body declaring a different `id` is a `400` rather than a rename; a
+body with no `id` keeps the one in the path. Shipped programs answer `409` —
+`readonly` follows from the directory they live in, and there is no writable
+file behind them.
+
+**A loaded program cannot be updated** (`409`; unload or load another first).
+Run state holds a bare pointer into the stored program, so replacing one
+mid-run would swap the series out from beneath the run loop and beneath the
+series and event indices already published over SSE. Refusing keeps that case
+out of existence rather than inventing a policy — reset to event 0? keep the
+elapsed time? — for a situation nobody wants during a range session. The
+replacement is staged through a temporary file and renamed into place, so a
+write that fails leaves the previous document intact.
 
 `POST /api/v2/audios` takes a multipart body with a file part and a `title`
 field. The clip is streamed to a staging file, validated as PCM 16-bit
@@ -171,9 +187,10 @@ LittleFS has no unlink-while-open, so deleting it would corrupt the read.
 
 ## Endpoints kept beyond what the webapp calls
 
-- **Program and audio CRUD.** `POST`/`DELETE` for programs and audios are more
-  than the webapp needs, and are carried over so uploading programs and audio
-  to the device keeps working. They are treated as protected mutations.
+- **Program and audio CRUD.** `POST`/`PUT`/`DELETE` for programs and
+  `POST`/`DELETE` for audios are more than the webapp needs, and are carried
+  over so uploading programs and audio to the device keeps working. They are
+  treated as protected mutations.
 - **`GET /api/v2/version`** reports the three-part split of the firmware
   version, which is derived from `git describe` at build time rather than a
   hand-maintained constant; a tag that is not three-part semver degrades to
