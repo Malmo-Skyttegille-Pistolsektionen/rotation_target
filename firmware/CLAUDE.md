@@ -188,8 +188,9 @@ Load-bearing invariants:
 - Constants belong in `main/config.h` (firmware) or as `constexpr` in the
   relevant `rt_logic` header — prefer a named constant over a literal in logic.
 - **Vendored code is never reformatted.** `lib/psychic_http/`,
-  `lib/arduinojson/`, `lib/dns_server/` and `resources/` are excluded in
-  `.pre-commit-config.yaml` and must stay byte-identical to upstream. Where they
+  `lib/arduinojson/`, `lib/dns_server/` and the repository's `resources/` tree
+  are excluded in the root `.pre-commit-config.yaml` (paths there are
+  repo-root-relative) and must stay byte-identical to upstream. Where they
   need a fix (an include order, a `-Wmissing-field-initializers` pragma), it goes
   on our side of the boundary.
 - `main/` builds with `-Wall -Wextra` and `host_test/` with `-Werror`. Keep both.
