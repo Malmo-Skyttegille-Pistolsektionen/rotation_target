@@ -15,7 +15,7 @@ over Server-Sent Events, and manages the stored programs and audio.
 | [`firmware/`](firmware/README.md) | The ESP-IDF firmware: target IO, audio, storage, REST + SSE server |
 | [`webapp/`](webapp/README.md) | The React front end, bundled into the firmware's LittleFS image |
 | [`resources/`](resources/README.md) | Shipped programs and audio clips flashed onto the device |
-| [`docs/`](docs/) | Cross-component documentation, including the [decision log](docs/DECISIONS.md) |
+| [`docs/`](docs/) | Cross-component documentation: the [decision log](docs/DECISIONS.md) and [how releases are cut](docs/RELEASING.md) |
 
 `contracts/` — the canonical OpenAPI and AsyncAPI v2 specifications — lands in a
 later change; until then the implemented contract is described in
