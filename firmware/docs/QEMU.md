@@ -122,11 +122,21 @@ reads back as v0.0 and the tuning is skipped.
 
 `run-qemu.sh --headless` is the CI shape: no TTY needed, serial goes to stdout.
 
+The `qemu boot smoke` job in `.github/workflows/firmware-build.yml` is the
+worked example: build, boot, poll, assert `/api/v2/version`, `/api/v2/programs`,
+one SSE `stateUpdate` and the API-only `GET /` 404.
+
 ```sh
-python "$IDF_PATH/tools/idf_tools.py" install qemu-xtensa   # cacheable
-firmware/scripts/run-qemu.sh --headless > qemu.log 2>&1 &
+firmware/scripts/run-qemu.sh --build-only
+firmware/scripts/run-qemu.sh --no-build --headless > qemu.log 2>&1 &
 # poll http://localhost:8080/api/v2/version until it answers, then assert
 ```
+
+`--no-build` is what keeps the boot half honest: without it the backgrounded
+run re-runs a no-op `idf.py build` first, and a boot timeout would be timing
+the build. No `idf_tools.py install qemu-xtensa` either - `espressif/idf:v6.0.2`
+already ships qemu-xtensa 9.2.2 on `PATH`, so there is nothing to cache; the
+runner's install-on-first-use branch is for a bare IDF checkout.
 
 The flag matters: interactive runs get `-serial mon:stdio`, and QEMU quits the
 instant that stdin reports EOF — which is exactly what a CI runner or a
