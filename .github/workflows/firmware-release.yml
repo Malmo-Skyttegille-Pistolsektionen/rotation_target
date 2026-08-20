@@ -59,7 +59,7 @@ jobs:
               ;;
           esac
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -206,7 +206,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -265,7 +265,7 @@ jobs:
     runs-on: ubuntu-latest
     container: espressif/idf:v6.0.2
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
           ref: ${{ needs.prepare.outputs.tag }}
