@@ -84,9 +84,10 @@ QEMU_ARGS=(
     -drive "file=${FLASH_IMAGE},if=mtd,format=raw"
     # No is_octal here, deliberately: the QEMU profile builds for quad PSRAM
     # because the emulator's octal model segfaults. See sdkconfig.defaults.qemu.
+    #
     # Nothing feeds the task watchdog while the emulator is paused under a
     # debugger, and the interrupt watchdog fires on emulated timing artefacts.
-    -global driver=timer.esp32s3.timg,property=wdt_disable,value=true
+    -global "driver=timer.esp32s3.timg,property=wdt_disable,value=true"
     # SLIRP user networking: the guest gets 10.0.2.15 over DHCP and is
     # reachable from the host only through this explicit forward.
     # model=open_eth is the MAC the CONFIG_RT_NET_OPENETH build drives.
