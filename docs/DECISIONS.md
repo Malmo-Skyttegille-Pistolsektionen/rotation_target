@@ -316,6 +316,32 @@ framework for the same device).
 no I2S, so the simulator profile builds with `RT_AUDIO_ENABLED` off and the
 event cannot be provoked from outside the device.
 
+## D-18 — Program validation without ajv; the editor ports later *(Decided 2026-08-20)*
+
+**Decision:** the React Programs tab validates program documents with a
+hand-written validator (`webapp/src/lib/program-document.ts`) kept in lock-step
+with `contracts/program.schema.json`, instead of shipping ajv and Prism in the
+React bundle. The **WYSIWYG program editor stays in the legacy app** until it
+is ported (#73); `src_legacy` is not deleted before that lands.
+
+**Why:** ajv plus Prism costs roughly 45 KB gz for what is, on this device, one
+form. The hand-written validator also does something the schema cannot: it
+reports what the firmware will *silently change* — clamped durations, dropped
+unknown fields, an ignored `readonly` — before the upload rather than after.
+
+The editor is deferred because it is 2688 lines of legacy JS whose Form, Events
+and Timeline views are three renderings of the same edit operations, with the
+reordering, context-menu and selection logic triplicated. A faithful port is
+~1000–1200 lines of TSX after deduplication; folded into the list PR it would
+land as one unreviewable squash commit. What shipped is complete on its own
+terms — every operation the legacy tab performs against the device is present,
+and programs can be created and replaced by file — so there is no half-built
+editor in the new app.
+
+**Rejected:** ajv in standalone (build-time compiled) mode — still a build
+complication for one form; porting the editor partially; deleting `src_legacy`
+before authoring exists in React.
+
 ## Open questions
 
 - **Are `app` / `x86_linux` used by anyone?** (asked — drives D-03's
