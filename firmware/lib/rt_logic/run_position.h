@@ -5,7 +5,7 @@
 //
 //  This is what lets `stop` pause rather than rewind: position is derived from
 //  elapsed series time on every tick instead of being tracked per event, so a
-//  paused run resumes at whatever event `ticker_seconds` lands in.
+//  paused run resumes at whatever event `ticker_ms` lands in.
 // ============================================================================
 #pragma once
 

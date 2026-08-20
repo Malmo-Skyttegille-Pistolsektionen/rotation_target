@@ -104,16 +104,16 @@ describe('simulation on a fake clock', () => {
     const updates = sse.payloads<StateUpdatePayload>('stateUpdate');
     const running = updates.filter((u) => u.programState?.running);
 
-    // A stateUpdate for every whole second of the series (the load and start
-    // frames plus 27 ticks; the 28 s tick completes it instead).
-    expect(running.map((u) => u.programState!.tickerSeconds)).toEqual(Array.from({ length: 28 }, (_, i) => i));
+    // One stateUpdate per whole second of the series - 28 frames, not one per
+    // simulated millisecond. The ticker carries ms; the cadence stays 1 Hz.
+    expect(running.map((u) => u.programState!.tickerMs)).toEqual(Array.from({ length: 28 }, (_, i) => i * 1000));
 
     // Targets follow the events: hidden for 10 s, then alternating 3 s.
-    const shownAt = running.filter((u) => u.targetStatus === 'shown').map((u) => u.programState!.tickerSeconds);
-    expect(shownAt).toEqual([10, 11, 12, 16, 17, 18, 22, 23, 24]);
+    const shownAt = running.filter((u) => u.targetStatus === 'shown').map((u) => u.programState!.tickerMs);
+    expect(shownAt).toEqual([10_000, 11_000, 12_000, 16_000, 17_000, 18_000, 22_000, 23_000, 24_000]);
 
     // Event index is derived, not counted.
-    expect(running.find((u) => u.programState!.tickerSeconds === 17)!.programState!.currentEventIndex).toBe(3);
+    expect(running.find((u) => u.programState!.tickerMs === 17_000)!.programState!.currentEventIndex).toBe(3);
   });
 
   it('pauses at the start of the next series when one completes', async () => {
@@ -127,12 +127,12 @@ describe('simulation on a fake clock', () => {
       running: false,
       currentSeriesIndex: 1,
       currentEventIndex: 0,
-      tickerSeconds: null,
+      tickerMs: null,
     });
     expect(completed.targetStatus).toBe('hidden');
   });
 
-  it('stop pauses and start resumes from the same second', async () => {
+  it('stop pauses and start resumes from the same millisecond', async () => {
     await api('/programs/40/load', { method: 'POST' });
     await api('/programs/start', { method: 'POST' });
     clock.advance(12_000);
@@ -140,18 +140,18 @@ describe('simulation on a fake clock', () => {
     await flushIO();
 
     const paused = last(sse.payloads<StateUpdatePayload>('stateUpdate'));
-    expect(paused.programState).toMatchObject({ running: false, tickerSeconds: 12, currentEventIndex: 1 });
+    expect(paused.programState).toMatchObject({ running: false, tickerMs: 12_000, currentEventIndex: 1 });
 
     // Time passing while paused must not move the run on.
     clock.advance(60_000);
     await flushIO();
-    expect(last(sse.payloads<StateUpdatePayload>('stateUpdate')).programState!.tickerSeconds).toBe(12);
+    expect(last(sse.payloads<StateUpdatePayload>('stateUpdate')).programState!.tickerMs).toBe(12_000);
 
     await api('/programs/start', { method: 'POST' });
     await flushIO();
     expect(last(sse.payloads<StateUpdatePayload>('stateUpdate')).programState).toMatchObject({
       running: true,
-      tickerSeconds: 12,
+      tickerMs: 12_000,
       currentEventIndex: 1,
     });
   });
@@ -168,7 +168,7 @@ describe('simulation on a fake clock', () => {
       running: false,
       currentSeriesIndex: 0,
       currentEventIndex: 0,
-      tickerSeconds: null,
+      tickerMs: null,
     });
   });
 

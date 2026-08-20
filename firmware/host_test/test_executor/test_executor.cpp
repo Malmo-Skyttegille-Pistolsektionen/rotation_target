@@ -40,7 +40,7 @@ std::string state(const char *running, const char *series, const char *event, co
                   const char *target) {
   return std::string("{\"loadedProgramId\":900,\"programState\":{\"running\":") + running +
          ",\"currentSeriesIndex\":" + series + ",\"currentEventIndex\":" + event +
-         ",\"tickerSeconds\":" + ticker + "},\"targetStatus\":\"" + target + "\"}";
+         ",\"tickerMs\":" + ticker + "},\"targetStatus\":\"" + target + "\"}";
 }
 
 rt::Program g_program;
@@ -89,7 +89,7 @@ void test_start_enters_the_first_event() {
 
   TEST_ASSERT_TRUE(h->state.running);
   TEST_ASSERT_EQUAL_INT32(0, h->state.current_event_index.value);
-  TEST_ASSERT_EQUAL_INT32(0, h->state.ticker_seconds.value);
+  TEST_ASSERT_EQUAL_INT32(0, h->state.ticker_ms.value);
   TEST_ASSERT_TRUE(h->state.target_status_shown);
   TEST_ASSERT_EQUAL_size_t(1, h->effects.target_history.size());
   TEST_ASSERT_TRUE(h->effects.target_history[0]);
@@ -115,7 +115,7 @@ void test_events_advance_and_the_series_pauses_at_the_next_one() {
   TEST_ASSERT_FALSE(h->state.running);
   TEST_ASSERT_EQUAL_INT32(1, h->state.current_series_index.value);
   TEST_ASSERT_EQUAL_INT32(0, h->state.current_event_index.value);
-  TEST_ASSERT_FALSE(h->state.ticker_seconds.has_value);
+  TEST_ASSERT_FALSE(h->state.ticker_ms.has_value);
 
   // show (event 0), hide (event 1), hide (series boundary)
   TEST_ASSERT_EQUAL_size_t(3, h->effects.target_history.size());
@@ -133,7 +133,7 @@ void test_program_completion_leaves_the_last_series_selected() {
 
   TEST_ASSERT_FALSE(h->state.running);
   TEST_ASSERT_EQUAL_INT32(1, h->state.current_series_index.value);
-  TEST_ASSERT_FALSE(h->state.ticker_seconds.has_value);
+  TEST_ASSERT_FALSE(h->state.ticker_ms.has_value);
 }
 
 void test_audio_is_played_when_an_event_is_entered() {
@@ -169,13 +169,16 @@ void test_stop_keeps_the_position() {
 
   TEST_ASSERT_FALSE(h->state.running);
   TEST_ASSERT_EQUAL_INT32(1, h->state.current_event_index.value);
-  TEST_ASSERT_EQUAL_INT32(0, h->state.ticker_seconds.value);
+  // The last frame went out at the 200 ms event boundary, and the ticker
+  // carries that exact millisecond - not the whole second it rounded to
+  // before D-16.
+  TEST_ASSERT_EQUAL_INT32(200, h->state.ticker_ms.value);
   TEST_ASSERT_FALSE(h->state.has_series_start);
 }
 
 void test_start_resumes_from_the_paused_ticker() {
   h->executor.load(&g_program);
-  h->state.ticker_seconds.set(1);
+  h->state.ticker_ms.set(1000);
 
   h->executor.start();
 
@@ -195,7 +198,7 @@ void test_resuming_mid_event_does_not_replay_its_audio() {
   p.series.push_back(s);
 
   h->executor.load(&p);
-  h->state.ticker_seconds.set(1);
+  h->state.ticker_ms.set(1000);
   h->effects.clear();
 
   h->executor.start();
@@ -213,13 +216,13 @@ void test_reset_rewinds_the_current_series() {
   h->executor.load(&g_program);
   h->executor.skip_to_series(1);
   h->state.current_event_index.set(3);
-  h->state.ticker_seconds.set(7);
+  h->state.ticker_ms.set(7000);
 
   TEST_ASSERT_TRUE(h->executor.reset());
 
   TEST_ASSERT_EQUAL_INT32(1, h->state.current_series_index.value);
   TEST_ASSERT_EQUAL_INT32(0, h->state.current_event_index.value);
-  TEST_ASSERT_FALSE(h->state.ticker_seconds.has_value);
+  TEST_ASSERT_FALSE(h->state.ticker_ms.has_value);
   TEST_ASSERT_FALSE(h->state.running);
 }
 
@@ -233,7 +236,7 @@ void test_skip_to_a_valid_series() {
 
   TEST_ASSERT_EQUAL_INT32(1, h->state.current_series_index.value);
   TEST_ASSERT_EQUAL_INT32(0, h->state.current_event_index.value);
-  TEST_ASSERT_FALSE(h->state.ticker_seconds.has_value);
+  TEST_ASSERT_FALSE(h->state.ticker_ms.has_value);
   TEST_ASSERT_EQUAL_STRING(state("false", "1", "0", "null", "hidden").c_str(),
                            h->effects.broadcasts.back().c_str());
 }
@@ -272,10 +275,35 @@ void test_a_series_streams_one_state_update_per_transition() {
                            h->effects.broadcasts[0].c_str());
   TEST_ASSERT_EQUAL_STRING(state("true", "0", "0", "0", "shown").c_str(),
                            h->effects.broadcasts[1].c_str());
-  TEST_ASSERT_EQUAL_STRING(state("true", "0", "1", "0", "hidden").c_str(),
+  TEST_ASSERT_EQUAL_STRING(state("true", "0", "1", "200", "hidden").c_str(),
                            h->effects.broadcasts[2].c_str());
   TEST_ASSERT_EQUAL_STRING(state("false", "1", "0", "null", "hidden").c_str(),
                            h->effects.broadcasts[3].c_str());
+}
+
+void test_a_long_event_publishes_once_a_second_not_once_a_tick() {
+  rt::Program p;
+  p.id = 900;
+  rt::Series s;
+  s.events.push_back(rt::Event{5000, "show", {}});
+  p.series.push_back(s);
+
+  h->executor.load(&p);
+  h->executor.start();
+  h->effects.clear();
+
+  h->run_for(2500);
+
+  // The load-bearing half of D-16: the ticker carries milliseconds, but the
+  // frame rate did not change with it. Inside a long event the run loop wakes
+  // every kMaxSleepMs (200 ms), thirteen times over these 2.5 s - and two
+  // frames go out, one per whole second. Publishing on a changed millisecond
+  // instead would put out all thirteen.
+  TEST_ASSERT_EQUAL_size_t(2, h->effects.broadcasts.size());
+  TEST_ASSERT_EQUAL_STRING(state("true", "0", "0", "1000", "shown").c_str(),
+                           h->effects.broadcasts[0].c_str());
+  TEST_ASSERT_EQUAL_STRING(state("true", "0", "0", "2000", "shown").c_str(),
+                           h->effects.broadcasts[1].c_str());
 }
 
 void test_pause_and_resume_keeps_the_position() {
@@ -284,18 +312,17 @@ void test_pause_and_resume_keeps_the_position() {
   h->run_for(250);
   h->executor.stop();
 
-  TEST_ASSERT_EQUAL_STRING(state("false", "0", "1", "0", "hidden").c_str(),
+  TEST_ASSERT_EQUAL_STRING(state("false", "0", "1", "200", "hidden").c_str(),
                            h->effects.broadcasts.back().c_str());
 
   h->executor.start();
 
-  // tickerSeconds is whole seconds, so a pause 250 ms in resumes from 0 -
-  // back at event 0, targets shown again. Sub-second rewind is inherent to
-  // the contract's second-granularity resume point and matches the
-  // MicroPython backend exactly; real programs have multi-second events, so
-  // it is never visible in practice.
+  // This is what D-16 bought. The whole-second ticker resumed a 250 ms pause
+  // from 0 - back at event 0 with the targets shown again, a visible rewind
+  // the MicroPython backend had too. The millisecond ticker resumes from the
+  // last published position, 200 ms, which is still inside event 1.
   TEST_ASSERT_TRUE(h->state.running);
-  TEST_ASSERT_EQUAL_STRING(state("true", "0", "0", "0", "shown").c_str(),
+  TEST_ASSERT_EQUAL_STRING(state("true", "0", "1", "200", "hidden").c_str(),
                            h->effects.broadcasts.back().c_str());
 }
 
@@ -313,13 +340,13 @@ void test_resume_after_a_multi_second_pause_keeps_the_event() {
   h->executor.stop();
 
   TEST_ASSERT_EQUAL_INT32(1, h->state.current_event_index.value);
-  TEST_ASSERT_EQUAL_INT32(2, h->state.ticker_seconds.value);
+  TEST_ASSERT_EQUAL_INT32(2000, h->state.ticker_ms.value);
 
   h->executor.start();
 
   // 2 s lands inside event 1, so the position survives the pause.
   TEST_ASSERT_EQUAL_INT32(1, h->state.current_event_index.value);
-  TEST_ASSERT_EQUAL_INT32(2, h->state.ticker_seconds.value);
+  TEST_ASSERT_EQUAL_INT32(2000, h->state.ticker_ms.value);
 }
 
 void test_reset_returns_to_the_start_of_the_series() {
@@ -402,6 +429,7 @@ int main() {
   RUN_TEST(test_skip_stops_a_running_series);
 
   RUN_TEST(test_a_series_streams_one_state_update_per_transition);
+  RUN_TEST(test_a_long_event_publishes_once_a_second_not_once_a_tick);
   RUN_TEST(test_pause_and_resume_keeps_the_position);
   RUN_TEST(test_resume_after_a_multi_second_pause_keeps_the_event);
   RUN_TEST(test_reset_returns_to_the_start_of_the_series);

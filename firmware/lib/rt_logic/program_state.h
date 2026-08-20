@@ -12,7 +12,7 @@
 
 namespace rt {
 
-// `current_series_index`, `current_event_index` and `ticker_seconds` are
+// `current_series_index`, `current_event_index` and `ticker_ms` are
 // nullable on the wire, so each carries an explicit "unset" alongside its
 // value rather than overloading -1.
 struct Nullable {
@@ -35,9 +35,14 @@ struct Nullable {
   bool operator!=(const Nullable &o) const { return !(*this == o); }
 };
 
-// The run state published to clients. `ticker_seconds` is whole seconds
-// elapsed in the current series and doubles as the resume point: stop() keeps
-// it, reset() clears it.
+// The run state published to clients. `ticker_ms` is milliseconds elapsed in
+// the current series and doubles as the resume point: stop() keeps it, reset()
+// clears it.
+//
+// Milliseconds, not seconds, since D-16: the webapp's playhead is positioned
+// from this value, and whole seconds put it up to a whole event away from the
+// targets. Precision only - the broadcast cadence is unchanged (see
+// Executor::tick).
 struct ProgramState {
   // Not owned. Null when nothing is loaded; points into the program
   // repository, which outlives the state.
@@ -45,7 +50,7 @@ struct ProgramState {
   bool running = false;
   Nullable current_series_index;
   Nullable current_event_index;
-  Nullable ticker_seconds;
+  Nullable ticker_ms;
   bool target_status_shown = false;
 
   // Monotonic ms anchor the current series is measured from while running.
@@ -60,7 +65,7 @@ struct ProgramState {
     running = false;
     current_series_index.clear();
     current_event_index.clear();
-    ticker_seconds.clear();
+    ticker_ms.clear();
     has_series_start = false;
     series_start_ms = 0;
   }
@@ -84,8 +89,8 @@ inline std::string state_update_json(const ProgramState &s) {
     out += nullable_json(s.current_series_index);
     out += ",\"currentEventIndex\":";
     out += nullable_json(s.current_event_index);
-    out += ",\"tickerSeconds\":";
-    out += nullable_json(s.ticker_seconds);
+    out += ",\"tickerMs\":";
+    out += nullable_json(s.ticker_ms);
     out += '}';
   } else {
     out += "null";

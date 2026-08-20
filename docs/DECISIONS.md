@@ -248,6 +248,45 @@ during a range session.
 replace); v1's `POST /programs/{id}/update`; silently renumbering a mismatched
 body id; taking the executor lock and hot-swapping the loaded program.
 
+## D-16 — `tickerMs` replaces `tickerSeconds` *(Decided 2026-08-20)*
+
+**Decision:** `stateUpdate.programState` carries `tickerMs` — milliseconds
+elapsed in the current series — and `tickerSeconds` is **removed**, not kept
+alongside it. Whole seconds become a client-side derivation,
+`Math.floor(tickerMs / 1000)`. The stream stays at `/sse/v2`; `asyncapi.yaml`
+goes to `info.version: 3.0.0`.
+
+**Why:** the time-scaled timeline positions its playhead from the ticker, and
+whole seconds put it up to a second — a whole 3 s event on Fältträning — away
+from where the targets actually are. The firmware already computes the exact
+elapsed millisecond in `Executor::tick` and threw the sub-second part away.
+
+Removing rather than adding is the substantive half. Two fields carrying the
+same quantity is two sources of truth: they can disagree (which one does a
+client trust when `tickerSeconds` is 7 and `tickerMs` is 6998?), every
+mutation has to maintain both, and the redundancy is permanent while the
+migration it exists for is not.
+
+It is safe here because there is no deployed client to break: the webapp is
+built into the LittleFS image and flashed with the firmware, so the two are
+deployed atomically, and no `firmware-vX.Y.Z` tag has ever been cut. This is
+a recorded exception to the contract's own "additive within a major version"
+rule (`contracts/README.md`), and it stops being available the moment a
+firmware is released.
+
+**Note for the record:** the retired MicroPython backend
+(`rotation_target_backend_app`) still emits `tickerSeconds`. It is not
+imported, not maintained, and not a client of this contract; `contracts/history/`
+keeps the v1 documents that describe it.
+
+**Rejected:** publishing both fields through a deprecation window (no client
+to deprecate for); `/sse/v3` (a whole new prefix for one field, and the only
+client is in this tree); a millisecond *cadence* rather than millisecond
+precision — the run loop already wakes at up to 200 ms and a frame per wake
+would be 5× the SSE traffic to move a playhead nobody can see move that
+finely. The frame cadence is unchanged: one per second, plus event
+boundaries.
+
 ## Open questions
 
 - **Are `app` / `x86_linux` used by anyone?** (asked — drives D-03's
@@ -259,5 +298,3 @@ body id; taking the executor lock and hot-swapping the loaded program.
 - **CORS:** firmware allowlist vs MicroPython reflect-any — the contract
   must pick one.
 - **Reinstate `GET /status`** as a v2-shaped snapshot for debugging?
-- **Millisecond-resolution elapsed** in `stateUpdate` (v1's chrono had it;
-  v2 has whole seconds) — decide when the timeline test work lands.

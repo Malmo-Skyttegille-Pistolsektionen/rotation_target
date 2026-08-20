@@ -43,7 +43,7 @@ budget — exactly as the board has it.
 | SSE `/sse/v2` | `stateUpdate` and `heartbeat`, real timing |
 | The webapp | Served from LittleFS at `http://localhost:8080` when `webapp/dist` exists at build time, `.gz` assets included |
 | LittleFS | Mounts the flashed image: 7 shipped programs, 77 audio entries, uploads |
-| Executor timing | Tracks host wall-clock — `tickerSeconds` advances once a second and series boundaries land where the program says |
+| Executor timing | Tracks host wall-clock — `tickerMs` advances once a second and series boundaries land where the program says |
 | Watchdogs | Disabled by the runner (`wdt_disable`); nothing feeds them under emulation |
 
 ## What does not work

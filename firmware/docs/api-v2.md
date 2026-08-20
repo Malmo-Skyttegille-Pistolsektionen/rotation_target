@@ -30,14 +30,14 @@ immediately, and receives it again after every change.
     "running": true,
     "currentSeriesIndex": 0,
     "currentEventIndex": 2,
-    "tickerSeconds": 7         // whole seconds elapsed in the current series
+    "tickerMs": 7480           // milliseconds elapsed in the current series
   },
   "targetStatus": "shown"      // "shown" | "hidden"
 }
 ```
 
 `currentEventIndex` is derived from elapsed series time rather than tracked per
-event, so a paused run resumes at whatever event `tickerSeconds` lands in.
+event, so a paused run resumes at whatever event `tickerMs` lands in.
 
 `heartbeat` (`{"id": n}`) is emitted every 10 seconds.
 
@@ -60,8 +60,8 @@ silently listing one program fewer.
 
 | Call | Effect |
 |------|--------|
-| `load` | Selects the program, series 0, event 0, `tickerSeconds` `null` |
-| `start` | Resumes from `tickerSeconds`, or runs the series from 0 |
+| `load` | Selects the program, series 0, event 0, `tickerMs` `null` |
+| `start` | Resumes from `tickerMs`, or runs the series from 0 |
 | `stop` | Pauses and keeps the position |
 | `reset` | Rewinds to the start of the current series |
 | `skip_to` | Selects a series, paused at its first event |
@@ -73,10 +73,18 @@ stops with the series still selected.
 Audio attached to an event plays when the run loop enters that event. Resuming
 into the middle of an event does not replay its audio.
 
-Because `tickerSeconds` is whole seconds, a pause less than a second into a
-series resumes from 0. Real programs have multi-second events, so this is not
-observable in practice — but it is why `host_test/test_executor` asserts a
-resume 250 ms in returns to event 0.
+`tickerMs` is milliseconds at millisecond *precision*, not millisecond
+*cadence*: a frame still goes out once a second and on every event boundary,
+and the value it carries is the exact elapsed time at that moment. That is
+what lets the webapp's playhead sit where the run is rather than up to a
+second behind it, without multiplying the SSE traffic. Whole seconds, where a
+client wants them, are `Math.floor(tickerMs / 1000)`.
+
+The resume point is the last *published* ticker, so `stop` resumes from the
+last frame rather than from the instant the pause arrived. Before D-16 that
+was rounded down to a whole second as well, and a pause 250 ms into a series
+rewound to event 0 with the targets shown again;
+`host_test/test_executor` now asserts it stays in the event it paused in.
 
 ## Auth
 

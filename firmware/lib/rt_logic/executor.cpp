@@ -34,7 +34,7 @@ bool Executor::load(const Program *program) {
   state_.program = program;
   state_.current_series_index.set(0);
   state_.current_event_index.set(0);
-  state_.ticker_seconds.clear();
+  state_.ticker_ms.clear();
   clear_run_anchor();
 
   effects_.state_changed();
@@ -50,11 +50,14 @@ bool Executor::start() {
   const Series *series = series_at(state_.current_series_index);
   if (series == nullptr) return false;
 
-  const int32_t resume_from_ms = state_.ticker_seconds.value_or(0) * 1000;
+  // Exact, since D-16: the ticker is milliseconds, so a pause half a second
+  // into a series resumes half a second in rather than rewinding to the top of
+  // the second.
+  const int32_t resume_from_ms = state_.ticker_ms.value_or(0);
   state_.running = true;
   state_.series_start_ms = clock_.now_ms() - resume_from_ms;
   state_.has_series_start = true;
-  state_.ticker_seconds.set(resume_from_ms / 1000);
+  state_.ticker_ms.set(resume_from_ms);
 
   const EventLocation loc = locate_event(*series, resume_from_ms);
   if (loc.valid) {
@@ -82,7 +85,7 @@ bool Executor::reset() {
 
   state_.running = false;
   state_.current_event_index.set(0);
-  state_.ticker_seconds.clear();
+  state_.ticker_ms.clear();
   clear_run_anchor();
 
   effects_.state_changed();
@@ -98,7 +101,7 @@ bool Executor::skip_to_series(int32_t series_index) {
   state_.running = false;
   state_.current_series_index.set(series_index);
   state_.current_event_index.set(0);
-  state_.ticker_seconds.clear();
+  state_.ticker_ms.clear();
   clear_run_anchor();
 
   effects_.state_changed();
@@ -124,7 +127,7 @@ void Executor::enter_event(int32_t index, const Event &event, bool play_audio) {
 
 void Executor::complete_series(int32_t series_index) {
   state_.running = false;
-  state_.ticker_seconds.clear();
+  state_.ticker_ms.clear();
   clear_run_anchor();
 
   const int32_t next_index = series_index + 1;
@@ -182,13 +185,23 @@ int32_t Executor::tick() {
     changed = true;
   }
 
+  // Millisecond precision, one-second cadence. The comparison is on whole
+  // seconds on purpose: publishing whenever the millisecond changed would put
+  // out a frame per run-loop wake - up to five a second - to move a playhead
+  // no eye can follow that finely. What a frame carries is the exact elapsed
+  // time, so the playhead lands where the run is instead of up to a second
+  // behind it.
   const int32_t ticker_seconds = elapsed_ms / 1000;
-  if (state_.ticker_seconds != Nullable{true, ticker_seconds}) {
-    state_.ticker_seconds.set(ticker_seconds);
+  if (!state_.ticker_ms.has_value || state_.ticker_ms.value / 1000 != ticker_seconds) {
     changed = true;
   }
 
-  if (changed) effects_.state_changed();
+  // Set here rather than above so an event-boundary frame - which goes out
+  // mid-second - carries the current time too, instead of the second's.
+  if (changed) {
+    state_.ticker_ms.set(elapsed_ms);
+    effects_.state_changed();
+  }
 
   return next_sleep_ms(elapsed_ms, loc.end_ms, total_ms);
 }
