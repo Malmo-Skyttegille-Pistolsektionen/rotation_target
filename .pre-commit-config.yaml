@@ -1,11 +1,18 @@
 # Run before every commit:  pre-commit run --all-files
 #
+# Lives at the repository root because pre-commit resolves paths from the git
+# root - so every pattern below is repo-root-relative, not firmware-relative.
+#
 # The clang-format hook rewrites files in place, so a first run failing and a
 # second passing is the normal path - re-stage what it changed.
+#
+# Excluded: the vendored third-party trees, which must stay byte-identical to
+# upstream, and resources/, which is data.
 exclude: |
   (?x)^(
-    lib/psychic_http/.*|
-    lib/arduinojson/.*|
+    firmware/lib/psychic_http/.*|
+    firmware/lib/arduinojson/.*|
+    firmware/lib/dns_server/.*|
     resources/.*
   )$
 
