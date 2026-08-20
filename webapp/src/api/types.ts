@@ -1,4 +1,21 @@
-// V2 SSE event types
+// REST shapes come from the canonical contract: `contracts/openapi.yaml`,
+// generated into `./generated.d.ts` by `npm run generate:api` (committed,
+// with a CI drift check — see webapp/README.md). Re-exported by name here so
+// call sites don't reach into `components['schemas'][...]` directly, and so
+// a shape this app doesn't actually consume the way the spec defines it
+// becomes a visible type alias rather than a silent divergence.
+import type { components } from './generated';
+
+export type ProgramSummary = components['schemas']['ProgramSummary'];
+export type Program = components['schemas']['Program'];
+export type Series = components['schemas']['Series'];
+export type Event = components['schemas']['Event'];
+export type AudioFile = components['schemas']['Audio'];
+
+// SSE shapes are specified in `contracts/asyncapi.yaml`, which
+// openapi-typescript does not read (it only generates from `openapi.yaml`).
+// Hand-written and kept in lock-step with the AsyncAPI document's
+// `StateUpdate`, `ProgramState` and `Heartbeat` schemas.
 export const SSETypes = {
   StateUpdate: 'stateUpdate',
   Heartbeat: 'heartbeat',
@@ -6,35 +23,6 @@ export const SSETypes = {
 
 export interface HeartbeatPayload {
   id: number;
-}
-
-export interface ProgramSummary {
-  id: number;
-  title: string;
-  description: string;
-  readonly: boolean;
-}
-
-export interface Program extends ProgramSummary {
-  series: Series[];
-}
-
-export interface Series {
-  name: string;
-  events: Event[];
-  optional?: boolean;
-}
-
-export interface Event {
-  duration: number;
-  command: 'show' | 'hide';
-  audioIds?: number[];
-}
-
-export interface AudioFile {
-  id: number;
-  title: string;
-  readonly: boolean;
 }
 
 export interface ProgramState {

@@ -5,6 +5,7 @@ import fs from 'fs';
 import { resolve } from 'path';
 import { mockServerPlugin } from './vite-plugins/mock-server';
 import { mockServerV2Plugin } from './vite-plugins/mock-server-v2';
+import { schemaSyncPlugin } from './vite-plugins/schema-sync';
 
 const packageJson = JSON.parse(fs.readFileSync('./package.json', 'utf-8'));
 const version = packageJson.version;
@@ -26,6 +27,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    schemaSyncPlugin(),
     tanstackRouter(),
     react({
       babel: {

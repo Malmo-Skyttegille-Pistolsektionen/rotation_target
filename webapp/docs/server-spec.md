@@ -1,8 +1,8 @@
 # Mock Server v2 Specification
 
 Canonical machine-readable contract: [`../../contracts/`](../../contracts/README.md).
-`docs/mock-api-v2.openapi.json` is a drifted fork of it that predates this
-document and is on its way out; do not treat it as authoritative.
+This document describes the dev-only mock server (`vite-plugins/mock-server-v2.ts`),
+not the contract itself.
 
 ## Overview
 
