@@ -7,7 +7,7 @@ type TimelineProps = {
   program: Program;
   currentSeriesIndex: number | null;
   currentEventIndex: number | null;
-  tickerSeconds: number | null; // Total seconds elapsed in current series
+  tickerMs: number | null; // Total milliseconds elapsed in current series
   mode?: 'auto' | 'default' | 'field';
 };
 
@@ -17,7 +17,7 @@ export function Timeline({
   program,
   currentSeriesIndex,
   currentEventIndex,
-  tickerSeconds,
+  tickerMs,
   mode = 'auto',
 }: TimelineProps): React.ReactNode {
   // Determine timeline type
@@ -41,13 +41,15 @@ export function Timeline({
 
   if (!program?.series) return null;
 
-  // Calculate elapsed time in ms for cursor positioning
-  // tickerSeconds is already total seconds elapsed in series
+  // Straight from the wire: `tickerMs` is already elapsed milliseconds in the
+  // series. It used to be whole seconds multiplied back up by 1000, which put
+  // the playhead up to a second - a whole event, on a field program - behind
+  // where the targets actually were.
   const calculateElapsedMs = (seriesIdx: number): number => {
-    if (seriesIdx !== currentSeriesIndex || tickerSeconds === null) {
+    if (seriesIdx !== currentSeriesIndex || tickerMs === null) {
       return 0;
     }
-    return tickerSeconds * 1000;
+    return tickerMs;
   };
 
   return (

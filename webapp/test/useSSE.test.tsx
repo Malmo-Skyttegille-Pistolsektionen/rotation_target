@@ -11,7 +11,7 @@ import { FakeEventSource } from './fake-event-source';
 
 const RUNNING_STATE: StateUpdatePayload = {
   loadedProgramId: 40,
-  programState: { running: true, currentSeriesIndex: 0, currentEventIndex: 3, tickerSeconds: 17 },
+  programState: { running: true, currentSeriesIndex: 0, currentEventIndex: 3, tickerMs: 17480 },
   targetStatus: 'shown',
 };
 

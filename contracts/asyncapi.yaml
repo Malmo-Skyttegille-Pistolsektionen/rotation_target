@@ -4,7 +4,7 @@ asyncapi: 3.1.0
 
 info:
   title: Rotation target SSE v2
-  version: 2.1.0
+  version: 3.0.0
   license:
     name: MIT
   description: |
@@ -141,7 +141,7 @@ components:
               running: true
               currentSeriesIndex: 0
               currentEventIndex: 2
-              tickerSeconds: 7
+              tickerMs: 7480
             targetStatus: shown
         - name: loaded-not-started
           summary: >-
@@ -152,7 +152,7 @@ components:
               running: false
               currentSeriesIndex: 0
               currentEventIndex: 0
-              tickerSeconds: null
+              tickerMs: null
             targetStatus: hidden
         - name: nothing-loaded
           summary: The state at boot, and after the loaded program is deleted.
@@ -259,7 +259,7 @@ components:
         - running
         - currentSeriesIndex
         - currentEventIndex
-        - tickerSeconds
+        - tickerMs
       additionalProperties: false
       description: >-
         The three indices are nullable on the wire and are `null` rather than
@@ -282,16 +282,26 @@ components:
           description: >-
             Zero-based index into the current series' `events`. Derived from
             elapsed series time rather than tracked per event, so a paused run
-            resumes at whatever event `tickerSeconds` lands in.
-        tickerSeconds:
+            resumes at whatever event `tickerMs` lands in.
+        tickerMs:
           type: [integer, "null"]
           format: int32
           minimum: 0
-          description: >-
-            Whole seconds elapsed in the current series, and also the resume
+          description: |
+            Milliseconds elapsed in the current series, and also the resume
             point: `stop` keeps it, `reset` and `skip_to` clear it, `load`
-            leaves it unset. Whole seconds means a pause less than a second
-            into a series resumes from 0.
+            leaves it unset.
+
+            **Sent at millisecond precision, not at millisecond cadence.** A
+            frame goes out once a second and on every event boundary, exactly
+            as before; what changed is that the value carries the sub-second
+            part instead of discarding it, so a client's playhead lands where
+            the run actually is rather than up to a second behind.
+
+            Replaced `tickerSeconds` in contract version 3.0.0 — see D-16 in
+            `docs/DECISIONS.md`. Whole seconds are a client-side derivation
+            (`Math.floor(tickerMs / 1000)`); the retired MicroPython backend
+            still emits the old field, and `contracts/history/` records it.
 
     BackendIssue:
       type: object
@@ -301,8 +311,12 @@ components:
         code:
           type: string
           description: |
-            The machine-readable identifier. Treat the enum as open — see the
-            message description.
+            The machine-readable identifier. The list below is **open**: it is
+            what the firmware in this repository emits today, not a closed set
+            for all time, and a client must tolerate a value it has never seen.
+            That is why it is `x-extensible-enum` and not `enum` — a generator
+            reading `enum` would emit a closed union and a later firmware's
+            code would fail validation at the client.
 
             - `audio_playback_failed` — a clip queued by the run loop could
               not be opened, was not a playable WAV, or the I2S output could
@@ -314,7 +328,7 @@ components:
               from `GET /api/v2/programs`. Raised by the boot scan, which runs
               before the HTTP server exists: no client is connected to receive
               it today, and the code is specified for the rescan case.
-          enum:
+          x-extensible-enum:
             - audio_playback_failed
             - program_invalid
         message:

@@ -45,7 +45,14 @@ export interface ProgramState {
   running: boolean;
   currentSeriesIndex: number | null;
   currentEventIndex: number | null;
-  tickerSeconds: number | null;
+  /**
+   * Milliseconds elapsed in the current series. Replaced `tickerSeconds` in
+   * asyncapi 3.0.0 (D-16) — whole seconds are `Math.floor(tickerMs / 1000)`.
+   *
+   * Millisecond precision, not millisecond cadence: a frame still arrives once
+   * a second and on event boundaries.
+   */
+  tickerMs: number | null;
 }
 
 export interface StateUpdatePayload {

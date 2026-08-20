@@ -71,7 +71,7 @@ interface StateUpdatePayload {
     running: boolean;
     currentSeriesIndex: number | null;
     currentEventIndex: number | null;
-    tickerSeconds: number | null;
+    tickerMs: number | null;
   } | null;
   targetStatus: 'shown' | 'hidden';
 }
@@ -81,7 +81,9 @@ Rules:
 
 - `loadedProgramId` is `null` when nothing is loaded.
 - `programState` is `null` when nothing is loaded.
-- `tickerSeconds` is whole seconds elapsed in the current series.
+- `tickerMs` is milliseconds elapsed in the current series — millisecond
+  precision at a one-second frame cadence (D-16). Whole seconds are
+  `Math.floor(tickerMs / 1000)`.
 - `currentEventIndex` is derived from elapsed series time.
 - Program structure is fetched separately with `GET /api/v2/programs/{id}`.
 
@@ -131,6 +133,6 @@ Notes:
 
 - All state mutations broadcast a `stateUpdate` to every connected client.
 - `stop` pauses execution and keeps the current position.
-- `start` resumes from current `tickerSeconds` if paused, otherwise starts from 0.
-- `reset` resets execution to the start of the current series and sets `tickerSeconds` to `null`.
+- `start` resumes from current `tickerMs` if paused, otherwise starts from 0.
+- `reset` resets execution to the start of the current series and sets `tickerMs` to `null`.
 - `skip_to` validates the zero-based index; out-of-range returns `400` and does not change state.
