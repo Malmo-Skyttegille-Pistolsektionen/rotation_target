@@ -33,12 +33,12 @@ jobs:
       run:
         working-directory: firmware/host_test
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: false
 
       - name: Check out ESP-IDF (for Unity only)
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           repository: espressif/esp-idf
           ref: v6.0.2
@@ -70,12 +70,12 @@ jobs:
       run:
         working-directory: firmware/host_test
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: false
 
       - name: Check out ESP-IDF (for Unity only)
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           repository: espressif/esp-idf
           ref: v6.0.2
@@ -100,12 +100,12 @@ jobs:
   firmware:
     name: firmware (esp32s3)
     runs-on: ubuntu-latest
-    container: espressif/idf:v6.0.2
+    container: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
     defaults:
       run:
         working-directory: firmware
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           # resources/ is a sibling directory in the monorepo, not a
           # submodule; a plain checkout already brings it along.
@@ -124,7 +124,7 @@ jobs:
           . "$IDF_PATH/export.sh"
           idf.py size
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4.6.2
         with:
           name: firmware
           path: |
@@ -141,12 +141,12 @@ jobs:
     # already ships qemu-xtensa.
     name: qemu boot smoke
     runs-on: ubuntu-latest
-    container: espressif/idf:v6.0.2
+    container: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
     defaults:
       run:
         working-directory: firmware
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: false
 
@@ -244,7 +244,7 @@ jobs:
           [ -f qemu.pid ] || exit 0
           kill "$(cat qemu.pid)" 2>/dev/null || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4.6.2
         if: failure()
         with:
           name: qemu-serial-log
