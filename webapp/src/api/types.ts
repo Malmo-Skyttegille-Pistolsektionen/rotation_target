@@ -14,15 +14,31 @@ export type AudioFile = components['schemas']['Audio'];
 
 // SSE shapes are specified in `contracts/asyncapi.yaml`, which
 // openapi-typescript does not read (it only generates from `openapi.yaml`).
-// Hand-written and kept in lock-step with the AsyncAPI document's
-// `StateUpdate`, `ProgramState` and `Heartbeat` schemas.
+// Hand-written, and kept in lock-step with that document's `StateUpdate`,
+// `ProgramState`, `Heartbeat` and `BackendIssue` schemas by hand — nothing
+// checks it, so adding a message there means editing here.
 export const SSETypes = {
   StateUpdate: 'stateUpdate',
   Heartbeat: 'heartbeat',
+  BackendIssue: 'backend_issue',
 } as const;
 
 export interface HeartbeatPayload {
   id: number;
+}
+
+/**
+ * A failure the device noticed on its own — a clip that will not play, a
+ * program file that will not parse. Advisory: run state is unaffected.
+ *
+ * `code` is an OPEN enum. Later firmware may report a failure this app has
+ * never heard of, so switch on the codes you know and show `message` for the
+ * rest. `context` keys differ per code.
+ */
+export interface BackendIssuePayload {
+  code: 'audio_playback_failed' | 'program_invalid' | (string & {});
+  message: string;
+  context?: Record<string, string>;
 }
 
 export interface ProgramState {
