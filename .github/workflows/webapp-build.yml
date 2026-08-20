@@ -6,10 +6,12 @@ on:
     branches: [main]
     paths:
       - webapp/**
+      - contracts/**
       - .github/workflows/webapp-build.yml
   pull_request:
     paths:
       - webapp/**
+      - contracts/**
       - .github/workflows/webapp-build.yml
 
 permissions:
@@ -40,6 +42,14 @@ jobs:
 
       - name: Install
         run: npm ci
+
+      - name: Check generated API types are up to date
+        run: |
+          npm run generate:api
+          if ! git diff --exit-code src/api/generated.d.ts; then
+            echo "::error::src/api/generated.d.ts is stale — run 'npm run generate:api' and commit it"
+            exit 1
+          fi
 
       - name: Typecheck
         run: npm run typecheck

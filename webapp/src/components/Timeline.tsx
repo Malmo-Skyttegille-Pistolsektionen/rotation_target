@@ -106,7 +106,7 @@ function DefaultTimelineSeries({ series, activeEventIndex }: DefaultTimelineSeri
               event.command === 'show' && styles.show,
               event.command === 'hide' && styles.hide,
             )}
-            title={`Duration: ${Math.round(event.duration / 1000)}s\nCommand: ${event.command}${event.audioIds ? '\nAudios: ' + event.audioIds.join(', ') : ''}`}
+            title={`Duration: ${Math.round(event.duration / 1000)}s\nCommand: ${event.command ?? '-'}${event.audio_ids ? '\nAudios: ' + event.audio_ids.join(', ') : ''}`}
           >
             <span className={styles.duration}>{Math.round(event.duration / 1000)}</span>
 
@@ -169,7 +169,7 @@ function FieldTimelineSeries({
               left: `${event.leftPercent}%`,
               width: `${event.widthPercent}%`,
             }}
-            title={`Duration: ${event.durationSec}s\nCommand: ${event.command}${event.audioIds ? '\nAudios: ' + event.audioIds.join(', ') : ''}`}
+            title={`Duration: ${event.durationSec}s\nCommand: ${event.command ?? '-'}${event.audio_ids ? '\nAudios: ' + event.audio_ids.join(', ') : ''}`}
           >
             {event.durationSec}s {getEventSymbol(event)}
           </div>
@@ -194,7 +194,7 @@ function FieldTimelineSeries({
 }
 
 function getEventSymbol(event: Event): string {
-  if (event.audioIds && event.audioIds.length > 0) return 'A';
+  if (event.audio_ids && event.audio_ids.length > 0) return 'A';
   if (event.command === 'show') return 'Show';
   if (event.command === 'hide') return 'Hide';
   return '-';
