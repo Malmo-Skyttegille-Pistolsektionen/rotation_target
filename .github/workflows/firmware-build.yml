@@ -45,6 +45,13 @@ jobs:
           path: esp-idf
           submodules: false
 
+      - name: Fetch the Unity submodule
+        # esp-idf vendors Unity's source as a git submodule; a plain
+        # submodules:false checkout leaves components/unity/unity empty.
+        # Fetch only that one submodule rather than all of esp-idf's.
+        working-directory: esp-idf
+        run: git submodule update --init --depth 1 -- components/unity/unity
+
       - name: Build and run
         env:
           IDF_PATH: ${{ github.workspace }}/esp-idf
@@ -74,6 +81,13 @@ jobs:
           ref: v6.0.2
           path: esp-idf
           submodules: false
+
+      - name: Fetch the Unity submodule
+        # esp-idf vendors Unity's source as a git submodule; a plain
+        # submodules:false checkout leaves components/unity/unity empty.
+        # Fetch only that one submodule rather than all of esp-idf's.
+        working-directory: esp-idf
+        run: git submodule update --init --depth 1 -- components/unity/unity
 
       - name: Build and run
         env:
