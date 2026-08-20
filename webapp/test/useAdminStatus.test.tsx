@@ -2,7 +2,7 @@
 // The mock server binds this port so the app is same-origin with it, which is
 // how it runs for real (the firmware serves the webapp). Cross-origin would
 // need the device's CORS allowlist, which the mock does not implement.
-// @vitest-environment-options { "url": "http://127.0.0.1:34567" }
+// @vitest-environment-options { "url": "http://127.0.0.1:18080" }
 import http from 'http';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
@@ -13,7 +13,9 @@ import { useAdminStatus } from '../src/hooks/useAdminStatus';
 import { createFakeClock } from './mock-server/clock';
 import { createMockServer, type MockServer } from './mock-server/server';
 
-const PORT = 34567;
+// Below 32768, out of the Linux ephemeral range: a runner process can
+// legitimately hold a port in 32768-60999, and the bind would lose the race.
+const PORT = 18080;
 
 /**
  * A request from *another* client — Node's http rather than the browser's

@@ -19,7 +19,8 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import type { Program, StateUpdatePayload, ProgramState, AudioFile, ProgramSummary } from '../../src/api/types';
+import type { Program, StateUpdatePayload, ProgramState, AudioFile, ProgramSummary, Series } from '../../src/api/types';
+import type { EventLocation } from '../../src/lib/run-position';
 import { locateEvent, seriesTotalMs } from '../../src/lib/run-position';
 import type { Clock } from './clock';
 import { realClock } from './clock';
@@ -242,18 +243,12 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     return state.loadedProgram?.series[seriesIndex] ?? null;
   }
 
-  /** Apply the event `elapsedMs` lands in. Returns whether one was found. */
-  function applyPosition(seriesIndex: number, elapsedMs: number): boolean {
-    const series = currentSeries(seriesIndex);
-    if (!series || !state.programState) return false;
-
-    const location = locateEvent(series, elapsedMs);
-    if (!location) return false;
+  /** Move the published position onto an already-located event. */
+  function applyLocation(series: Series, location: EventLocation): void {
+    if (!state.programState) return;
 
     state.programState.currentEventIndex = location.index;
-    state.programState.tickerSeconds = Math.floor(elapsedMs / 1000);
     state.targetStatus = series.events[location.index].command === 'show' ? 'shown' : 'hidden';
-    return true;
   }
 
   function runSimulationTick(): void {
@@ -293,7 +288,8 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       state.programState.currentEventIndex !== location.index || state.programState.tickerSeconds !== elapsedSeconds;
 
     if (changed) {
-      applyPosition(currentSeriesIndex, elapsedMs);
+      state.programState.tickerSeconds = elapsedSeconds;
+      applyLocation(series, location);
       broadcastState();
     }
   }
@@ -435,7 +431,13 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       const resumeFromMs = (state.programState.tickerSeconds ?? 0) * 1000;
       state.programState.running = true;
       state.seriesStartTime = clock.now() - resumeFromMs;
-      applyPosition(currentSeriesIndex, resumeFromMs);
+      state.programState.tickerSeconds = Math.floor(resumeFromMs / 1000);
+
+      // Mirrors rt::Executor::start: a resume point past the end of the series
+      // has no event to enter, and the next tick completes the series.
+      const series = currentSeries(currentSeriesIndex);
+      const location = series ? locateEvent(series, resumeFromMs) : null;
+      if (series && location) applyLocation(series, location);
 
       broadcastState();
       jsonResponse(res, 200, { message: 'Program started' });
@@ -615,10 +617,13 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     },
 
     listen(): Promise<number> {
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
         httpServer = http.createServer((req, res) => {
           middleware(req, res, () => jsonResponse(res, 404, { error: 'Endpoint not found' }));
         });
+        // Without this an EADDRINUSE never settles the promise, and the suite
+        // dies to a hook timeout that says nothing about the real cause.
+        httpServer.on('error', reject);
         httpServer.listen(requestedPort, '127.0.0.1', () => {
           const address = httpServer!.address();
           boundPort = typeof address === 'object' && address !== null ? address.port : requestedPort;

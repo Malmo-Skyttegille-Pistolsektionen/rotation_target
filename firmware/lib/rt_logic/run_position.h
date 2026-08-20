@@ -28,6 +28,9 @@ struct EventLocation {
 
 // Locate `elapsed_ms` within `series`. Invalid when elapsed is at or beyond
 // the total duration - the caller treats that as "the series is done".
+//
+// Kept in lock-step with `webapp/src/lib/run-position.ts`, which mirrors this
+// so the timeline agrees with the targets.
 inline EventLocation locate_event(const Series &series, int32_t elapsed_ms) {
   int32_t cumulative_ms = 0;
   for (size_t i = 0; i < series.events.size(); i++) {
