@@ -8,10 +8,12 @@
 #include "sdkconfig.h"
 
 #if CONFIG_RT_AUDIO_ENABLED
+#include "backend_issue.h"
 #include "driver/i2s_std.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include "sse_hub.h"
 #endif
 
 namespace audio {
@@ -79,12 +81,19 @@ void play_one(const std::string &path) {
   FILE *f = fopen(path.c_str(), "rb");
   if (f == nullptr) {
     ESP_LOGE(TAG, "Cannot open %s", path.c_str());
+    // The run carries on silently either way - the point of the frame is that
+    // a shooter at the line otherwise has no way to tell a missing start
+    // signal from one that was never scheduled.
+    sse_hub::broadcast_issue(rt::issue_code::kAudioPlaybackFailed, "Audio clip could not be opened",
+                             {{"clip", path}});
     return;
   }
   FileSource source(f);
   if (!rt::parse_wav_header(source, info) ||
       fseek(f, static_cast<long>(info.data_offset), SEEK_SET) != 0) {
     ESP_LOGE(TAG, "Not a playable WAV: %s", path.c_str());
+    sse_hub::broadcast_issue(rt::issue_code::kAudioPlaybackFailed,
+                             "Audio clip is not a playable WAV", {{"clip", path}});
     fclose(f);
     return;
   }
@@ -97,6 +106,9 @@ void play_one(const std::string &path) {
   i2s_std_clk_config_t clk = I2S_STD_CLK_DEFAULT_CONFIG(info.sample_rate);
   if (i2s_channel_reconfig_std_clock(s_tx, &clk) != ESP_OK || i2s_channel_enable(s_tx) != ESP_OK) {
     ESP_LOGE(TAG, "I2S setup failed for %s", path.c_str());
+    sse_hub::broadcast_issue(rt::issue_code::kAudioPlaybackFailed,
+                             "Audio output could not be configured for this clip",
+                             {{"clip", path}});
     s_playing.clear();
     xSemaphoreGive(s_i2s_lock);
     fclose(f);
