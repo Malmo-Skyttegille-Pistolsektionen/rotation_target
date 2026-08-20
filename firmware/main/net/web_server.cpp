@@ -26,13 +26,13 @@
 #include "esp_random.h"
 #include "esp_timer.h"
 #include "json_util.h"
+#include "net_mgr.h"
 #include "uri_path.h"
 #include "program_executor.h"
 #include "programs.h"
 #include "sse_hub.h"
 #include "storage.h"
 #include "targets.h"
-#include "wifi_mgr.h"
 
 namespace web_server {
 namespace {
@@ -119,7 +119,7 @@ bool origin_allowed(const std::string &origin) {
   const std::string host = std::string(CONFIG_RT_HOSTNAME);
   if (origin == "http://" + host + ".local" || origin == "https://" + host + ".local") return true;
 
-  const std::string ip = wifi_mgr::ip_address();
+  const std::string ip = net_mgr::ip_address();
   if (!ip.empty() && (origin == "http://" + ip || origin == "https://" + ip)) return true;
 
   const std::string dev = CONFIG_RT_DEV_ORIGIN;
@@ -390,7 +390,7 @@ void register_diagnostics_routes() {
     out += ",\"audioCount\":";
     out += std::to_string(audios::all().size());
     out += ",\"ipAddress\":";
-    out += rt::json_quote(wifi_mgr::ip_address());
+    out += rt::json_quote(net_mgr::ip_address());
     // What the target pin is configured as, and what is actually on the pad -
     // the pair that distinguishes "the firmware never drove it" from
     // "something else is holding it".

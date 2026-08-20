@@ -78,6 +78,21 @@ endmenu
 
 menu "Network"
 
+config RT_NET_OPENETH
+    bool "Bring the network up over OpenCores Ethernet instead of WiFi"
+    default n
+    select ETH_USE_OPENETH
+    help
+        For running the firmware under QEMU, which emulates no WiFi radio. The
+        emulator maps an OpenCores Ethernet MAC onto the EMAC register window;
+        the firmware brings that up with a DHCP client instead of esp_wifi, and
+        neither the setup portal nor the NVS credential store is compiled in.
+
+        This MAC does not exist on any real ESP32-S3 - a build with this on
+        will not reach a network on the board. Leave it off unless you are
+        building the simulator profile (sdkconfig.defaults.qemu, see
+        docs/QEMU.md).
+
 config RT_HOSTNAME
     string "Hostname advertised over DHCP and mDNS"
     default "rotation-target"
@@ -90,6 +105,7 @@ config RT_HTTP_PORT
 config RT_WIFI_SSID
     string "WiFi SSID (first-boot seed only)"
     default "changeme"
+    depends on !RT_NET_OPENETH
     help
         Seeds NVS on first boot. The runtime credentials live in NVS via
         wifi_store, so a network change does not need a rebuild - leave this at
@@ -101,10 +117,12 @@ config RT_WIFI_SSID
 config RT_WIFI_PASSWORD
     string "WiFi password (first-boot seed only)"
     default ""
+    depends on !RT_NET_OPENETH
 
 config RT_WIFI_MAX_RETRIES
     int "Initial WiFi association attempts before falling back to the setup portal"
     default 10
+    depends on !RT_NET_OPENETH
     help
         Bounds the *initial* join only. Once associated, reconnection is
         unbounded - a device that gave up mid-session would sit powered on and
@@ -113,6 +131,7 @@ config RT_WIFI_MAX_RETRIES
 config RT_SETUP_AP_PASSWORD
     string "Setup access-point password"
     default "rotationtarget"
+    depends on !RT_NET_OPENETH
     help
         Used only by the setup portal the device falls back to when it cannot
         join a network. WPA2 needs at least 8 characters; shorter than that and

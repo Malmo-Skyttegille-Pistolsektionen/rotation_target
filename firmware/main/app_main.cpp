@@ -10,15 +10,14 @@
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "net_mgr.h"
 #include "nvs_flash.h"
 #include "program_executor.h"
 #include "programs.h"
 #include "rgb_led.h"
-#include "setup_portal.h"
 #include "storage.h"
 #include "targets.h"
 #include "web_server.h"
-#include "wifi_mgr.h"
 
 namespace {
 
@@ -65,11 +64,11 @@ extern "C" void app_main() {
   // is what the first stateUpdate a client receives will say.
   executor::init();
 
-  if (wifi_mgr::connect() == wifi_mgr::Result::kSetupPortal) {
+  if (net_mgr::connect() == net_mgr::Result::kSetupPortal) {
     // No usable network. Serving the setup AP is the useful thing to do -
     // rebooting into the same failure would just loop, and the club would have
     // no way to point the device at a different network without a toolchain.
-    setup_portal::run();  // never returns; reboots once credentials are saved
+    net_mgr::run_setup_portal();  // never returns; reboots once credentials are saved
   }
 
   if (!web_server::start()) {
@@ -79,7 +78,7 @@ extern "C" void app_main() {
   }
   rgb_led::green();
 
-  ESP_LOGI(TAG, "Ready on http://%s", wifi_mgr::ip_address().c_str());
+  ESP_LOGI(TAG, "Ready on http://%s", net_mgr::ip_address().c_str());
 
   // Mark the running image good so the bootloader stops holding the previous
   // one in reserve; reaching here means storage, audio and the server all came
