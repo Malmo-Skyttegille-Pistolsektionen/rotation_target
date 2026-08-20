@@ -10,8 +10,9 @@
  *
  * **The reference is `rt::parse_program` in
  * `firmware/lib/rt_logic/program.cpp`, not the schema** — what the device does
- * with a document is what the user needs told. Three deliberate departures from
- * `contracts/program.schema.json` follow from that:
+ * with a document is what the user needs told. Deliberate departures from
+ * `contracts/program.schema.json` follow from that; the three that shape the
+ * most files:
  *
  * - The schema sets `additionalProperties: false` and rejects an unknown field.
  *   The firmware ignores it and drops it on rewrite, so this warns and drops.
@@ -20,6 +21,11 @@
  *   `series` produce anything runnable, so only those two are required here.
  * - The schema allows `duration: 0` (`minimum: 0`). The firmware clamps to
  *   1…3600000 ms, so this warns and clamps to the value that will be stored.
+ *
+ * The complete list is `DIVERGENCES` in `test/program-document-schema.test.ts`,
+ * each entry naming the `program.cpp` behaviour that justifies it. That test
+ * runs both descriptions over every shipped program and a table of hostile
+ * inputs, and fails on a divergence nobody wrote down (D-18).
  *
  * One place where the schema is followed *against* the firmware, deliberately:
  * `command`. The firmware keeps any non-empty string and re-emits it verbatim
