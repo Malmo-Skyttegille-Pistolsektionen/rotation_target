@@ -1,10 +1,18 @@
 ---
-name: lint
+name: firmware-lint
 
 on:
   push:
     branches: [main]
+    paths:
+      - firmware/**
+      - resources/**
+      - .github/workflows/firmware-lint.yml
   pull_request:
+    paths:
+      - firmware/**
+      - resources/**
+      - .github/workflows/firmware-lint.yml
 
 permissions:
   contents: read
@@ -36,7 +44,9 @@ jobs:
           submodules: false
 
       - name: yamllint
-        run: pipx run yamllint .github .pre-commit-config.yaml .yamllint
+        # .yamllint lives under firmware/, not at the repo root, so point
+        # yamllint at it explicitly rather than relying on upward discovery.
+        run: pipx run yamllint -c firmware/.yamllint .github .pre-commit-config.yaml firmware/.yamllint
 
       - name: actionlint
         uses: raven-actions/actionlint@v2
