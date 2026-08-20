@@ -138,13 +138,27 @@ no program uses them, no consumer anywhere. Adding them is contract design
 first (target endpoints, `stateUpdate` shape, program schema, per-bank GPIO)
 — a separate effort.
 
-## D-09 — `backend_issue` SSE event returns in v2 *(Decided 2026-08-20; planned)*
+## D-09 — `backend_issue` SSE event returns in v2 *(Decided 2026-08-20; implemented)*
 
-**Decision:** v2 SSE gains a second event (`{code, message, context?}`) for
+**Decision:** v2 SSE gains a third event (`{code, message, context?}`) for
 device-side failures — clip failed to play, storage full, malformed program.
 
 **Why:** v1 had it; v2's collapse to `stateUpdate` + `heartbeat` left the
 device no way to report that something went wrong. Additive; breaks nothing.
+
+**As implemented (2026-08-20):** two codes, not three —
+`audio_playback_failed` and `program_invalid`. There is no storage-full code
+because there is no storage failure outside a request: every write goes through
+an upload or update handler and already answers `500`, and a filesystem that
+will not mount reboots the device before the server starts. Inventing an
+emission point for it would have put a code in the contract that nothing
+raises.
+
+The event is **fire-and-forget**: no buffering for late joiners, no replay on
+reconnect, no endpoint listing past issues. The device log stays the record;
+the event is the notification. `sse_hub` drops frames raised before the HTTP
+server exists, which is what makes the boot-time program scan safe to emit
+from.
 
 ## D-10 — Monorepo imports open PR branches, not main *(Decided 2026-08-20)*
 

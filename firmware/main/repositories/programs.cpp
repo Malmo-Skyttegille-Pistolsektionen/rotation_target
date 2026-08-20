@@ -5,8 +5,10 @@
 #include <cstdio>
 #include <cstring>
 
+#include "backend_issue.h"
 #include "config.h"
 #include "esp_log.h"
+#include "sse_hub.h"
 #include "storage.h"
 
 namespace programs {
@@ -88,15 +90,25 @@ void load_dir(const char *dir, bool readonly) {
     int32_t id = 0;
     if (!rt::parse_program_filename(entry->d_name, id)) continue;
 
+    // Only ever reached from load_all() at boot, i.e. before the SSE hub has a
+    // server: the frames below are no-ops today and exist so that a rescan -
+    // whenever one is added - reports a bad file instead of silently listing
+    // one program fewer.
+    const std::string file = std::string(dir) + "/" + entry->d_name;
+
     std::string json;
-    if (!read_file(std::string(dir) + "/" + entry->d_name, json)) {
-      ESP_LOGW(TAG, "Could not read %s/%s", dir, entry->d_name);
+    if (!read_file(file, json)) {
+      ESP_LOGW(TAG, "Could not read %s", file.c_str());
+      sse_hub::broadcast_issue(rt::issue_code::kProgramInvalid, "Program file could not be read",
+                               {{"file", file}});
       continue;
     }
 
     rt::Program program;
     if (!rt::parse_program(json, readonly, program)) {
-      ESP_LOGW(TAG, "Malformed program %s/%s", dir, entry->d_name);
+      ESP_LOGW(TAG, "Malformed program %s", file.c_str());
+      sse_hub::broadcast_issue(rt::issue_code::kProgramInvalid,
+                               "Program file is malformed and was skipped", {{"file", file}});
       continue;
     }
     // The filename is the authority on the id, not the document: that is what

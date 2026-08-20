@@ -4,7 +4,7 @@ asyncapi: 3.1.0
 
 info:
   title: Rotation target SSE v2
-  version: 2.0.0
+  version: 2.1.0
   license:
     name: MIT
   description: |
@@ -21,6 +21,12 @@ info:
     state is published on, and it is the reason no status endpoint is needed:
     a client connects, is sent the full current state immediately, and is sent
     it again after every change.
+
+    `backend_issue` covers the other direction: a failure the device noticed
+    on its own, which no REST response can carry because no client asked for
+    it. A clip that will not play and a program file that will not parse are
+    both invisible to a client otherwise — the run simply carries on, quietly
+    wrong.
 
     ## Connection behaviour
 
@@ -39,6 +45,14 @@ info:
     - A `heartbeat` follows every 10 seconds
       (`kSseHeartbeatSeconds`, `firmware/main/config.h`), whether or not
       anything changed.
+    - `backend_issue` is emitted only when something fails, and is
+      **fire-and-forget**: it is delivered to whoever is connected at that
+      instant and to nobody else. Nothing is buffered for a client that
+      connects later, nothing is replayed on reconnect, and there is no
+      endpoint that lists past issues. A client that was not listening did
+      not hear it — the device log is the record, the event is the
+      notification. Issues raised during boot, before the HTTP server
+      exists, therefore reach nobody at all.
     - The stream is one-way and public: no credential is required, and
       nothing a client sends on it is read.
 
@@ -80,8 +94,8 @@ channels:
     address: /sse/v2
     title: Run-state stream
     description: >-
-      The single SSE channel. Both messages are named by the SSE `event:`
-      field; their payloads are the `data:` line.
+      The single SSE channel. Every message is named by the SSE `event:`
+      field; its payload is the `data:` line.
     servers:
       - $ref: "#/servers/device"
       - $ref: "#/servers/qemu"
@@ -90,6 +104,8 @@ channels:
         $ref: "#/components/messages/stateUpdate"
       heartbeat:
         $ref: "#/components/messages/heartbeat"
+      backend_issue:
+        $ref: "#/components/messages/backendIssue"
 
 operations:
   receiveEvents:
@@ -102,6 +118,7 @@ operations:
     messages:
       - $ref: "#/channels/events/messages/stateUpdate"
       - $ref: "#/channels/events/messages/heartbeat"
+      - $ref: "#/channels/events/messages/backend_issue"
 
 components:
   messages:
@@ -158,6 +175,59 @@ components:
         - name: beat
           payload:
             id: 42
+
+    backendIssue:
+      name: backend_issue
+      title: Device-side failure
+      summary: >-
+        Something failed that no request will report: an audio clip that could
+        not be played, a stored program file that could not be parsed. Emitted
+        only when it happens, and only to clients connected at that moment.
+      description: |
+        The event exists so a failure the device notices on its own reaches
+        the range rather than only the serial log. It is **advisory**: run
+        state is unaffected, `stateUpdate` is not re-sent because of it, and a
+        client that ignores the event behaves exactly as it did before.
+
+        `code` is what a client switches on and is stable; `message` is
+        English prose for a human and may be reworded in any release.
+        `context` carries whatever identifies the thing that failed and its
+        keys differ per `code` — a client reads a key it knows or shows
+        nothing.
+
+        Unknown `code` values must be tolerated: a later firmware may report a
+        failure this document does not list, and the enum below is what the
+        firmware in this repository emits today, not a closed set for all
+        time.
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/BackendIssue"
+      examples:
+        - name: clip-will-not-play
+          summary: >-
+            The WAV attached to the event the run just entered is missing from
+            the filesystem. The run continues; the start signal is silent.
+          payload:
+            code: audio_playback_failed
+            message: Audio clip could not be opened
+            context:
+              clip: /storage/audio/50.wav
+        - name: clip-is-not-a-wav
+          summary: An uploaded file that the WAV header parser rejects.
+          payload:
+            code: audio_playback_failed
+            message: Audio clip is not a playable WAV
+            context:
+              clip: /storage/uploads/audio/103.wav
+        - name: program-will-not-parse
+          summary: >-
+            A stored program file skipped by the boot scan, so the program is
+            absent from `GET /api/v2/programs`.
+          payload:
+            code: program_invalid
+            message: Program file is malformed and was skipped
+            context:
+              file: /storage/uploads/programs/20.json
 
   schemas:
     StateUpdate:
@@ -222,6 +292,56 @@ components:
             point: `stop` keeps it, `reset` and `skip_to` clear it, `load`
             leaves it unset. Whole seconds means a pause less than a second
             into a series resumes from 0.
+
+    BackendIssue:
+      type: object
+      required: [code, message]
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          description: |
+            The machine-readable identifier. Treat the enum as open — see the
+            message description.
+
+            - `audio_playback_failed` — a clip queued by the run loop could
+              not be opened, was not a playable WAV, or the I2S output could
+              not be configured for it. Raised from the playback task, so it
+              can arrive at any point during a run. The run is unaffected;
+              that event is simply silent.
+            - `program_invalid` — a file in a program directory could not be
+              read or did not parse, and was skipped, so the program is absent
+              from `GET /api/v2/programs`. Raised by the boot scan, which runs
+              before the HTTP server exists: no client is connected to receive
+              it today, and the code is specified for the rescan case.
+          enum:
+            - audio_playback_failed
+            - program_invalid
+        message:
+          type: string
+          description: >-
+            English prose describing the failure, suitable for a toast. Not
+            stable across releases and not to be parsed.
+        context:
+          type: object
+          description: >-
+            What failed. Present whenever the emitter has something to name;
+            absent otherwise. Keys depend on `code` and more may be added, so
+            read the ones you know and ignore the rest.
+          additionalProperties:
+            type: string
+          properties:
+            clip:
+              type: string
+              description: >-
+                `audio_playback_failed`: the clip's path on the device
+                filesystem, which is the same value `GET /api/v2/audios`
+                reports as `filename`.
+            file:
+              type: string
+              description: >-
+                `program_invalid`: the program file's path on the device
+                filesystem.
 
     Heartbeat:
       type: object

@@ -904,8 +904,9 @@ paths:
           description: The firmware under QEMU.
       description: |
         Public, and specified in full in `contracts/asyncapi.yaml`: a
-        `stateUpdate` on connect and after every mutation, plus a `heartbeat`
-        every 10 seconds.
+        `stateUpdate` on connect and after every mutation, a `heartbeat`
+        every 10 seconds, and a `backend_issue` whenever the device hits a
+        failure no request can be answered with.
       responses:
         "200":
           description: >-
