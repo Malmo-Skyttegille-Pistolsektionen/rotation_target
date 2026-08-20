@@ -60,15 +60,7 @@ if [ "${SKIP_BUILD}" -eq 0 ]; then
 
     # RT_WEBAPP_DIR defaults to ../webapp/dist, so the build above is what gets
     # baked into the LittleFS image by the build below. Order matters.
-    #
-    # The touch is load-bearing on a warm build tree: firmware/CMakeLists.txt
-    # copies and gzips `dist` at CMake *configure* time, and `idf.py build`
-    # does not reconfigure just because a file outside the project changed. Skip
-    # it and the image keeps whatever webapp it was configured with - the tests
-    # then run against the previous build and fail in ways that look like app
-    # bugs. (Ask for a fix at the CMake level and this can go.)
     echo "==> Building the QEMU firmware profile with that dist baked in"
-    touch "${REPO_ROOT}/firmware/CMakeLists.txt"
     "${REPO_ROOT}/firmware/scripts/run-qemu.sh" --build-only
 fi
 
