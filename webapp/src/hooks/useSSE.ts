@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { SSETypes } from '../api/types';
-import type { StateUpdatePayload } from '../api/types';
+import type { BackendIssuePayload, StateUpdatePayload } from '../api/types';
 import { getSseBaseUrl } from '../api/client';
 import { useSettings } from '../context/SettingsContext';
 
@@ -51,6 +51,21 @@ export function useSSE(): void {
 
       eventSource.addEventListener(SSETypes.Heartbeat, () => {
         queryClient.setQueryData(['sse-status'], 'connected');
+      });
+
+      // Parked in the query cache rather than shown: the toast is a separate
+      // task. Until then this at least stops the event being dropped on the
+      // floor, which is what happened when the firmware started emitting it.
+      // Fire-and-forget by contract - nothing replays it, so a missed issue is
+      // gone.
+      eventSource.addEventListener(SSETypes.BackendIssue, (event) => {
+        try {
+          const data = JSON.parse(event.data) as BackendIssuePayload;
+          console.warn('[SSE] backend issue', data);
+          queryClient.setQueryData(['backend-issue'], data);
+        } catch (error) {
+          console.error('[SSE] Failed to parse backend_issue', error);
+        }
       });
     };
 

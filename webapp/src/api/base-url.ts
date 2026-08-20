@@ -17,5 +17,16 @@
  * it — and `SettingsContext` needs this at module-initialisation time, which
  * is precisely when a cycle yields `undefined`.
  */
-export const DEFAULT_BASE_URL =
-  typeof window === 'undefined' ? 'http://localhost:8080' : window.location.origin;
+export const DEFAULT_BASE_URL = typeof window === 'undefined' ? 'http://localhost:8080' : window.location.origin;
+
+/**
+ * Trims trailing slashes so a base URL concatenates cleanly.
+ *
+ * `getApiBaseUrl()` appends `/api/v2`, and the settings page accepts whatever
+ * the user types — `http://rotation-target.local/` is a natural thing to paste
+ * and produced `http://rotation-target.local//api/v2`. `window.location.origin`
+ * never has one, so this only ever bites the override path.
+ */
+export function normalizeBaseUrl(url: string): string {
+  return url.replace(/\/+$/, '');
+}

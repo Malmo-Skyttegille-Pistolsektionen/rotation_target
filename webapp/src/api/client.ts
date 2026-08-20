@@ -1,8 +1,8 @@
 import { useSettings } from '../context/SettingsContext';
 
-import { DEFAULT_BASE_URL } from './base-url';
+import { DEFAULT_BASE_URL, normalizeBaseUrl } from './base-url';
 
-let dynamicBaseUrl = DEFAULT_BASE_URL;
+let dynamicBaseUrl = normalizeBaseUrl(DEFAULT_BASE_URL);
 
 export function getApiBaseUrl(): string {
   return `${dynamicBaseUrl}/api/v2`;
@@ -13,11 +13,11 @@ export function getSseBaseUrl(): string {
 }
 
 export function updateBaseUrl(url: string): void {
-  dynamicBaseUrl = url;
+  dynamicBaseUrl = normalizeBaseUrl(url);
 }
 
 export function initializeBaseUrl(url: string): void {
-  dynamicBaseUrl = url;
+  dynamicBaseUrl = normalizeBaseUrl(url);
 }
 
 function getErrorMessageFromPayload(payload: unknown): string | null {
