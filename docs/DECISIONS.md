@@ -222,7 +222,12 @@ discard imported history).
 
 **Decision:** devtools never ship in a stable release (dev-only lazy
 import); `src_legacy` stays until its Audio and Programs tabs are ported (it
-is the only implementation of both); CI enforces a gzip size budget.
+is the only implementation of both)
+
+**Amended 2026-08-20:** the Audios tab and the Programs list/management
+views are now ported to React (#71, #72). What still exists only in
+`src_legacy` is the **WYSIWYG program editor** (#73) — so `src_legacy`
+stays until that lands. See [D-18](#d-18--program-validation-without-ajv-the-editor-ports-later); CI enforces a gzip size budget.
 
 ## D-15 — Program update endpoint *(Decided 2026-08-20)*
 
