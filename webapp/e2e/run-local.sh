@@ -64,12 +64,10 @@ if [ "${SKIP_BUILD}" -eq 0 ]; then
     "${REPO_ROOT}/firmware/scripts/run-qemu.sh" --build-only
 fi
 
-# The runner builds before it boots, so this second invocation re-runs a no-op
-# idf.py pass before QEMU starts - which is why the wait below is generous
-# rather than tight. PR #35 adds a `--no-build` flag that skips it; use it here
-# once that has merged.
+# --no-build: the tree was either built above or deliberately reused with
+# --skip-build, so the runner's own build pass would be a no-op either way.
 echo "==> Booting QEMU on port ${HOST_PORT}"
-"${REPO_ROOT}/firmware/scripts/run-qemu.sh" --headless --port "${HOST_PORT}" \
+"${REPO_ROOT}/firmware/scripts/run-qemu.sh" --no-build --headless --port "${HOST_PORT}" \
     > "${QEMU_LOG}" 2>&1 &
 QEMU_PID=$!
 
