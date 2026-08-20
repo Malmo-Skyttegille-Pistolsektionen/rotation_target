@@ -17,6 +17,9 @@ export const Route = createRootRoute({
         <Link to='/run' className={styles.link} activeProps={{ className: styles.active }}>
           Run
         </Link>
+        <Link to='/programs' className={styles.link} activeProps={{ className: styles.active }}>
+          Programs
+        </Link>
         <Link to='/settings' className={styles.link} activeProps={{ className: styles.active }}>
           Settings
         </Link>
