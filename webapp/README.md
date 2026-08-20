@@ -95,6 +95,42 @@ done < <(find dist -type f \( -name '*.js' -o -name '*.css' \) -print0)
 echo "$total * 1.05" | bc | cut -d. -f1 > size-budget
 ```
 
+## End-to-end tests
+
+The E2E suite (`e2e/`, Playwright) runs against the **real firmware** booted in
+QEMU — not the mock server, and not a dev-server proxy. The webapp is built,
+its `dist` is baked into the LittleFS image through `RT_WEBAPP_DIR`, that image
+is booted, and the browser is pointed at the forwarded guest port. The bundle
+under test is the artefact the board actually serves, so the webapp cannot
+drift away from the backend without a red build.
+
+```bash
+. ~/esp/esp-idf-6.0.2/export.sh     # QEMU needs the ESP-IDF toolchain
+npm ci
+npx playwright install chromium     # `.npmrc` sets ignore-scripts; not automatic
+npm run e2e:local                   # build -> boot QEMU -> test -> tear down
+```
+
+`e2e/run-local.sh` takes `--skip-build` (reuse the existing `dist` and
+`build-qemu`) and `--port N`, and passes anything after `--` to
+`playwright test`. It always kills QEMU on the way out, and prints the tail of
+the guest serial log when something fails.
+
+`npm run e2e` runs the tests alone, against whatever is already serving on
+`RT_E2E_BASE_URL` (default `http://localhost:8080`) — a QEMU instance you
+started yourself, or a real board.
+
+Notes for writing tests:
+
+- There is **one device** and its state persists across tests, so the config
+  pins `workers: 1` and every spec calls `resetDevice()` in `beforeEach`.
+- Navigate to `/`, never to `/run` directly: the firmware serves the bundle
+  with a plain static handler and no SPA fallback, so a deep link is a 404.
+- `backend_issue` is not covered — it needs audio hardware, and QEMU emulates
+  no I2S.
+
+CI runs the same thing in `.github/workflows/webapp-e2e.yml`.
+
 ## API types
 
 `src/api/generated.d.ts` is generated from the canonical REST contract

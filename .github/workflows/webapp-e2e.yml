@@ -1,0 +1,155 @@
+---
+name: webapp-e2e
+
+# The webapp driven by a browser against the real firmware, booted in QEMU out
+# of the LittleFS image the board is flashed with. Nothing here is mocked: the
+# bundle under test is the one `RT_WEBAPP_DIR` bakes into that image, and the
+# API and SSE stream come from the firmware binary itself. That is the point -
+# it is what makes webapp/mock drift impossible to ship.
+#
+# A workflow of its own rather than a job in webapp-build.yml or
+# firmware-build.yml: it is the only thing here that needs both toolchains, its
+# paths filter is the union of both (a firmware change can break it just as
+# easily as a webapp change), and it is allowed to take ~10 minutes where those
+# two are kept fast. Failing it should not hold up the signal from either.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - firmware/**
+      - webapp/**
+      - resources/**
+      - contracts/**
+      - .github/workflows/webapp-e2e.yml
+  pull_request:
+    paths:
+      - firmware/**
+      - webapp/**
+      - resources/**
+      - contracts/**
+      - .github/workflows/webapp-e2e.yml
+
+permissions:
+  contents: read
+
+# The slowest workflow in the repo; a superseded push should not keep a whole
+# firmware build plus a browser run going.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: playwright vs. QEMU
+    runs-on: ubuntu-latest
+    # One job, in the IDF container, rather than a firmware job that hands a
+    # flash image to a browser job: the emulator is Espressif's qemu-xtensa
+    # fork, which ships inside this image and nowhere a plain runner can
+    # `apt install` it from. Passing the image between jobs would mean
+    # installing that fork on the runner anyway, so the container is the
+    # cheaper half to add a browser to - espressif/idf:v6.0.2 is Ubuntu 24.04,
+    # which Playwright supports and installs its own deps for.
+    container: espressif/idf:v6.0.2
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Install webapp dependencies
+        working-directory: webapp
+        run: npm ci
+
+      - name: Resolve the Playwright version
+        id: pw
+        working-directory: webapp
+        # The browser build is pinned to the Playwright release, so that is the
+        # only sane cache key.
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install Chromium
+        working-directory: webapp
+        # `.npmrc` sets ignore-scripts, so npm ci never downloads a browser -
+        # this step is not optional. The apt half of `--with-deps` is not
+        # cacheable and runs either way; only the browser download is skipped
+        # on a cache hit.
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
+
+      - name: Build the webapp
+        working-directory: webapp
+        run: npm run build
+
+      - name: Build the QEMU firmware profile with that bundle baked in
+        working-directory: firmware
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          # RT_WEBAPP_DIR defaults to ../webapp/dist, so the build above is
+          # what lands in the LittleFS image.
+          scripts/run-qemu.sh --build-only
+          test -d build-qemu/littlefs_stage/webapp || {
+            echo "::error::the LittleFS image carries no webapp - check RT_WEBAPP_DIR"
+            exit 1
+          }
+
+      - name: Boot QEMU
+        working-directory: firmware
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          # The runner execs qemu after a (no-op, the tree was just built)
+          # idf.py pass, so this PID ends up being the emulator's.
+          scripts/run-qemu.sh --headless > qemu-serial.log 2>&1 &
+          echo "$!" > qemu.pid
+          for _ in $(seq 1 180); do
+            if curl -sf -o /dev/null http://127.0.0.1:8080/api/v2/version; then
+              echo "Serving after ${SECONDS}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::QEMU did not serve /api/v2/version within 180s"
+          tail -40 qemu-serial.log
+          exit 1
+
+      - name: Run the E2E suite
+        working-directory: webapp
+        run: npx playwright test
+
+      - name: Stop QEMU
+        if: always()
+        working-directory: firmware
+        shell: bash
+        run: |
+          [ -f qemu.pid ] || exit 0
+          kill "$(cat qemu.pid)" 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-failure
+          path: |
+            webapp/playwright-report/
+            webapp/test-results/
+            firmware/qemu-serial.log
+          if-no-files-found: warn
+          retention-days: 7

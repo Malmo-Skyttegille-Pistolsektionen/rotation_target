@@ -161,7 +161,9 @@ function RunView(): React.ReactNode {
               <div className={clsx(styles.infoBadge, styles.badgeTime)}>
                 <span className={styles.badgeLabel}>Time:</span>
                 {/* Seconds are the client's derivation now - the wire carries ms. */}
-                <span className={styles.timerValue}>{Math.floor(tickerMs / 1000)}s</span>
+                <span className={styles.timerValue} data-testid='run-ticker'>
+                  {Math.floor(tickerMs / 1000)}s
+                </span>
               </div>
             )}
 
@@ -172,13 +174,13 @@ function RunView(): React.ReactNode {
               })}
             >
               <span className={styles.badgeLabel}>Targets:</span>
-              <strong>{state?.targetStatus ?? '-'}</strong>
+              <strong data-testid='run-target-status'>{state?.targetStatus ?? '-'}</strong>
             </div>
           </div>
 
           <div className={styles.statusDisplay}>
             <span className={styles.statusItem}>
-              Program ID: <strong>{loadedProgramId ?? '-'}</strong>
+              Program ID: <strong data-testid='run-program-id'>{loadedProgramId ?? '-'}</strong>
             </span>
           </div>
         </div>
@@ -189,6 +191,7 @@ function RunView(): React.ReactNode {
               <>
                 <select
                   className={styles.select}
+                  data-testid='run-program-select'
                   value={loadedProgramId ?? ''}
                   onChange={handleProgramChange}
                   disabled={loadMutation.isPending}
@@ -287,7 +290,7 @@ function RunView(): React.ReactNode {
                 </button>
               </>
             ) : (
-              <div className={styles.viewOnlyBadge}>
+              <div className={styles.viewOnlyBadge} data-testid='run-view-only'>
                 <span className={styles.viewOnlyIcon}>👁</span>
                 <span>View Only - Login as admin to control</span>
               </div>

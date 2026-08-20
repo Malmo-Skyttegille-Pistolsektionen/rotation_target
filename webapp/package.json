@@ -16,6 +16,8 @@
     "test:watch": "vitest",
     "generate:api": "openapi-typescript ../contracts/openapi.yaml -o src/api/generated.d.ts",
     "format": "prettier --write .",
+    "e2e": "playwright test",
+    "e2e:local": "e2e/run-local.sh",
     "zip": "ts-node --esm scripts/zip-dist.ts"
   },
   "dependencies": {
@@ -29,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
+    "@playwright/test": "1.62.1",
     "@tanstack/router-devtools": "1.167.1",
     "@tanstack/router-plugin": "1.168.34",
     "@testing-library/dom": "10.4.1",
