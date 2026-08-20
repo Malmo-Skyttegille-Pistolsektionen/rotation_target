@@ -1,23 +1,15 @@
 ---
-name: firmware-lint
+name: lint
 
 on:
   push:
     branches: [main]
-    paths:
-      - firmware/**
-      - resources/**
-      - .github/workflows/firmware-lint.yml
   pull_request:
-    paths:
-      - firmware/**
-      - resources/**
-      - .github/workflows/firmware-lint.yml
 
 permissions:
   contents: read
 
-# A superseded push should not keep a full firmware build running to completion.
+# A superseded push should not keep the repo-wide lint job running to completion.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

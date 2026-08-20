@@ -17,10 +17,10 @@
 
 <!-- Delete this section if the change cannot affect target or audio behaviour. -->
 
-- [ ] Target position semantics unchanged, or [`docs/api-v2.md`](../docs/api-v2.md) updated to match
+- [ ] Target position semantics unchanged, or [`docs/api-v2.md`](../firmware/docs/api-v2.md) updated to match
 - [ ] Run-loop timing guarantees unchanged
 - [ ] Host tests pin down any changed run behaviour
 
 ## Contract
 
-- [ ] No API payload change, or [`docs/api-v2.md`](../docs/api-v2.md) updated and any divergence from the MicroPython backend recorded in its "Deviations" section
+- [ ] No API payload change, or [`docs/api-v2.md`](../firmware/docs/api-v2.md) updated and any divergence from the MicroPython backend recorded in its "Deviations" section
