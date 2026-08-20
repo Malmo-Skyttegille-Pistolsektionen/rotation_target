@@ -1,0 +1,5 @@
+dist
+node_modules
+src_legacy
+*.gen.ts
+.yarn
