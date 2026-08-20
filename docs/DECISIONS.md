@@ -324,9 +324,13 @@ event cannot be provoked from outside the device.
 ## D-18 — Program validation without ajv; the editor ports later *(Decided 2026-08-20)*
 
 **Decision:** the React Programs tab validates program documents with a
-hand-written validator (`webapp/src/lib/program-document.ts`) kept in lock-step
-with `contracts/program.schema.json`, instead of shipping ajv and Prism in the
-React bundle. The **WYSIWYG program editor stays in the legacy app** until it
+hand-written validator (`webapp/src/lib/program-document.ts`) written against
+**`parse_program` in `firmware/lib/rt_logic/program.cpp`** — the firmware's
+actual parsing, not the JSON Schema — instead of shipping ajv and Prism in the
+React bundle. It is deliberately laxer than `contracts/program.schema.json` in
+three places where the schema is stricter than the device: unknown fields are
+warned-and-dropped rather than refused, only `title` and `series` are required,
+and a negative duration is clamped rather than rejected. The **WYSIWYG program editor stays in the legacy app** until it
 is ported (#73); `src_legacy` is not deleted before that lands.
 
 **Why:** ajv plus Prism costs roughly 45 KB gz for what is, on this device, one
@@ -346,6 +350,13 @@ editor in the new app.
 **Rejected:** ajv in standalone (build-time compiled) mode — still a build
 complication for one form; porting the editor partially; deleting `src_legacy`
 before authoring exists in React.
+
+**Known cost:** the validator and the schema are now two hand-maintained
+descriptions of one document, which is the drift shape that produced the 100x
+`duration` bug (D-01). A comment is the only thing holding them together today.
+Close it structurally before the editor lands (#73) — either generate the
+validator from the schema so drift is a build failure, or cross-check the two
+in a test over the shipped programs plus hostile inputs.
 
 ## D-19 — REST errors become RFC 9457 problem details *(Decided 2026-08-20, implementation pending)*
 
