@@ -1,4 +1,4 @@
-#include "wifi_mgr.h"
+#include "net_mgr.h"
 
 #include <cstring>
 
@@ -12,9 +12,10 @@
 #include "freertos/semphr.h"
 #include "mdns.h"
 #include "rgb_led.h"
+#include "setup_portal.h"
 #include "wifi_store.h"
 
-namespace wifi_mgr {
+namespace net_mgr {
 namespace {
 
 const char *TAG = "wifi";
@@ -155,4 +156,8 @@ Result connect() {
   return Result::kConnected;
 }
 
-}  // namespace wifi_mgr
+void run_setup_portal() {
+  setup_portal::run();
+}
+
+}  // namespace net_mgr

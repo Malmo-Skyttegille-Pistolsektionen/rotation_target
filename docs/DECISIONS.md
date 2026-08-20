@@ -91,6 +91,24 @@ is silent (no I2S emulation), no mDNS from the host (use
 from a laptop, an internals-driven TUI, sanitizers over the integration
 layers — are documented as plan Phase 5.2.
 
+**Amended 2026-08-20 (implementation):** two emulator defects found while
+bringing the variant up, both worked around in the repository rather than in
+anyone's shell history. Details and symptoms in `firmware/docs/QEMU.md`;
+remove the workarounds when the emulator is fixed.
+
+- **The QEMU profile builds for quad PSRAM, not the board's octal.**
+  qemu-xtensa 9.2.2 segfaults deterministically inside `psram_transfer()`
+  during the octal driver's init transfer, with no guest output at all. The
+  pool is still 8 MB and nothing above the driver can tell the difference, so
+  the earlier "octal PSRAM emulated" note above holds for the emulator's
+  capability but not for what we build against.
+- **`scripts/run-qemu.sh` invokes `qemu-system-xtensa` directly.**
+  `idf.py qemu` hardcodes `-m 32M`, at which PSRAM claims the whole
+  external-memory virtual address range and every flash mmap after it fails;
+  and it always attaches an eFuse image whose chip revision sends the PSRAM
+  driver through MSPI timing tuning, another faulting path. The build half is
+  still plain `idf.py`.
+
 ## D-06 — E2E runs against the real backend, no mock *(Decided 2026-08-20)*
 
 **Decision:** webapp E2E (Playwright) runs against the QEMU-hosted firmware
