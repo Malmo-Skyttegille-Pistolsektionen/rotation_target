@@ -205,8 +205,22 @@ above every handler, in the vendored HTTP layer, and is the one failure that
 does **not** answer in the `{"error": ...}` shape: it sends `400` with a
 `text/html` body.
 
-`DELETE /api/v2/audios/{id}/delete` answers `409` if the clip is playing:
-LittleFS has no unlink-while-open, so deleting it would corrupt the read.
+`DELETE /api/v2/audios/{id}/delete` refuses to remove a clip that still matters
+to a run — on a range, a spoken command that silently fails mid-exercise is a
+safety problem, not an inconvenience. Existence is checked first, so a bogus id
+is never reported as a conflict; the three `409` reasons then apply in order,
+most specific first:
+
+1. **The loaded program plays it** — `Audio is used by the loaded program -
+   unload the program first`. Refused whether or not a run is in progress:
+   `stop` is a pause, so a clip deleted between two runs would be missing when
+   the program is resumed. The check is `rt::program_uses_audio`
+   (`lib/rt_logic/program.h`, covered by `host_test/test_program_json`), read
+   through the executor so the program pointer stays behind its lock.
+2. **A run is in progress** — `A program is running - stop it before deleting
+   audio`. Blunt on purpose: it holds for every clip, referenced or not.
+3. **The clip is playing right now** — `Audio is currently playing`. LittleFS
+   has no unlink-while-open, so deleting it would corrupt the read.
 
 ## Static assets and the SPA fallback
 

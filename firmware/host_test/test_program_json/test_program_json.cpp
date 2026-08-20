@@ -268,6 +268,88 @@ void test_a_hostile_duration_is_clamped() {
   TEST_ASSERT_EQUAL_INT32(rt::kMaxEventMs + rt::kMinEventMs, p.series[0].total_ms());
 }
 
+// --- audio references ------------------------------------------------------
+
+namespace {
+
+// Two series, so the walk is exercised past the first one; the ids are spread
+// over the first and last event of each.
+const char *kAudioDocument = R"({
+  "id": 9,
+  "series": [
+    {
+      "name": "First",
+      "events": [
+        {"duration": 5000, "audio_ids": [50, 1]},
+        {"duration": 7000},
+        {"duration": 3000, "audio_ids": []}
+      ]
+    },
+    {
+      "name": "Second",
+      "events": [
+        {"duration": 1000, "audio_ids": [12]},
+        {"duration": 2000, "audio_ids": [28, 99]}
+      ]
+    }
+  ]
+})";
+
+rt::Program audio_program() {
+  rt::Program p;
+  TEST_ASSERT_TRUE(rt::parse_program(kAudioDocument, strlen(kAudioDocument), false, p));
+  return p;
+}
+
+}  // namespace
+
+void test_an_id_in_the_first_event_is_used() {
+  const rt::Program p = audio_program();
+  TEST_ASSERT_TRUE(rt::program_uses_audio(p, 50));
+  TEST_ASSERT_TRUE(rt::program_uses_audio(p, 1));
+}
+
+void test_an_id_in_the_last_event_is_used() {
+  const rt::Program p = audio_program();
+  TEST_ASSERT_TRUE(rt::program_uses_audio(p, 28));
+  TEST_ASSERT_TRUE(rt::program_uses_audio(p, 99));
+}
+
+void test_an_id_in_a_later_series_is_used() {
+  // The walk must not stop at the first series.
+  const rt::Program p = audio_program();
+  TEST_ASSERT_TRUE(rt::program_uses_audio(p, 12));
+}
+
+void test_an_unreferenced_id_is_not_used() {
+  const rt::Program p = audio_program();
+  TEST_ASSERT_FALSE(rt::program_uses_audio(p, 7));
+  // 0 is a legal id and must not match the absent-value default anywhere.
+  TEST_ASSERT_FALSE(rt::program_uses_audio(p, 0));
+  TEST_ASSERT_FALSE(rt::program_uses_audio(p, -1));
+}
+
+void test_events_without_audio_do_not_match() {
+  // An event with no `audio_ids` field and one with an empty array both parse
+  // to an empty vector - neither may be walked past its end.
+  rt::Program p;
+  const char *doc = R"({"id":3,"series":[{"events":[{"duration":100},
+                       {"duration":200,"audio_ids":[]}]}]})";
+  TEST_ASSERT_TRUE(rt::parse_program(doc, strlen(doc), false, p));
+  TEST_ASSERT_FALSE(rt::program_uses_audio(p, 1));
+}
+
+void test_an_empty_program_uses_nothing() {
+  // Both a program with no series at all and one whose series carry no events.
+  const rt::Program empty;
+  TEST_ASSERT_FALSE(rt::program_uses_audio(empty, 1));
+
+  rt::Program p;
+  const char *doc = R"({"id":4,"series":[{"name":"Optional","events":[]}]})";
+  TEST_ASSERT_TRUE(rt::parse_program(doc, strlen(doc), false, p));
+  TEST_ASSERT_FALSE(rt::program_uses_audio(p, 1));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_a_program_round_trips_its_fields);
@@ -293,5 +375,12 @@ int main() {
   RUN_TEST(test_a_document_reports_whether_it_declares_an_id);
   RUN_TEST(test_a_null_or_garbage_id_is_not_silently_accepted);
   RUN_TEST(test_the_id_out_parameter_is_optional);
+
+  RUN_TEST(test_an_id_in_the_first_event_is_used);
+  RUN_TEST(test_an_id_in_the_last_event_is_used);
+  RUN_TEST(test_an_id_in_a_later_series_is_used);
+  RUN_TEST(test_an_unreferenced_id_is_not_used);
+  RUN_TEST(test_events_without_audio_do_not_match);
+  RUN_TEST(test_an_empty_program_uses_nothing);
   return UNITY_END();
 }

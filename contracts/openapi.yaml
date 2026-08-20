@@ -860,9 +860,19 @@ paths:
       tags: [audios]
       summary: Delete an uploaded clip
       operationId: deleteAudio
-      description: >-
+      description: |
         Shipped clips are read-only and answer `404`, the same as a clip that
         does not exist.
+
+        A clip that matters to a run cannot be deleted: a spoken command that
+        silently fails mid-exercise is a range-safety problem. Refusal order,
+        most specific reason first, and existence before all of them so a bogus
+        id is never reported as a conflict:
+
+        1. no such clip, or a shipped one — `404`
+        2. the loaded program plays it — `409`
+        3. a run is in progress — `409`
+        4. the audio task is reading it right now — `409`
       security:
         - adminBearer: []
         - adminCookie: []
@@ -885,9 +895,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "409":
-          description: >-
-            The clip is playing (`Audio is currently playing`). LittleFS has
-            no unlink-while-open, so removing it would corrupt the read.
+          description: |
+            The clip still matters to a run, for one of three reasons:
+
+            - `Audio is used by the loaded program - unload the program first`
+              — an event of the loaded program plays it. Refused whether or not
+              a run is in progress: `stop` is a pause, so a clip deleted
+              between two runs would be missing when the program resumes.
+            - `A program is running - stop it before deleting audio` — a run is
+              in progress. Refused for every clip, referenced or not.
+            - `Audio is currently playing` — the audio task is reading the file
+              right now. LittleFS has no unlink-while-open, so removing it
+              would corrupt the read.
           content:
             application/json:
               schema:
