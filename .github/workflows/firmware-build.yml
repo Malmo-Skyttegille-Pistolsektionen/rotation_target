@@ -33,12 +33,12 @@ jobs:
       run:
         working-directory: firmware/host_test
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: false
 
       - name: Check out ESP-IDF (for Unity only)
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: espressif/esp-idf
           ref: v6.0.2
@@ -70,12 +70,12 @@ jobs:
       run:
         working-directory: firmware/host_test
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: false
 
       - name: Check out ESP-IDF (for Unity only)
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: espressif/esp-idf
           ref: v6.0.2
@@ -105,7 +105,7 @@ jobs:
       run:
         working-directory: firmware
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           # resources/ is a sibling directory in the monorepo, not a
           # submodule; a plain checkout already brings it along.
