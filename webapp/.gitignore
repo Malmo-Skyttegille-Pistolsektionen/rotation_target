@@ -31,3 +31,8 @@ npm-debug.log*
 
 *.zip
 wifi_credentials.py
+
+# Playwright (browsers live in ~/.cache/ms-playwright, not here)
+/playwright-report/
+/test-results/
+/blob-report/
