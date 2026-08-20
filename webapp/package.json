@@ -7,12 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "typecheck": "tsc -b",
     "lint": "eslint .",
     "swagger": "node scripts/swagger-ui-server.mts",
     "format": "prettier --write .",
     "zip": "ts-node --esm scripts/zip-dist.ts"
   },
-  "packageManager": "yarn@4.12.0",
   "dependencies": {
     "@tanstack/react-query": "^5.90.12",
     "@tanstack/react-router": "^1.143.11",

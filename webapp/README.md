@@ -9,7 +9,7 @@ This project is a frontend application for controlling rotating targets for Malm
 - **Routing:** TanStack Router
 - **State/Data:** TanStack Query
 - **Build Tool:** Vite
-- **Package Manager:** Yarn 4 (with PnP and strict security)
+- **Package Manager:** npm
 - **Styling:** CSS Modules (CLSX)
 - **Linting/Formatting:** ESLint, Prettier
 
@@ -42,7 +42,7 @@ The web app has the following main features:
 ### Start dev server
 
 ```bash
-yarn dev
+npm run dev
 ```
 
 This starts the Vite server at `http://localhost:8080`.
@@ -51,7 +51,7 @@ A built-in **Mock Server** simulates the hardware API and SSE streams, so you ca
 ### Build for production
 
 ```bash
-yarn build
+npm run build
 ```
 
 This generates an optimized build in the `dist/` folder.
@@ -61,8 +61,8 @@ This generates an optimized build in the `dist/` folder.
 The project uses strict ESLint and Prettier.
 
 ```bash
-yarn lint
-yarn format
+npm run lint
+npm run format
 ```
 
 ## UI/UX
@@ -83,8 +83,7 @@ Primary audience is tablet and mobile, which requires larger, touch-friendly but
 
 The project is configured to minimize supply-chain attack risk:
 
-- Yarn 4 with `enableScripts: false` (no postinstall scripts run automatically).
-- Dependencies are locked via `yarn.lock`.
+- Dependencies are locked via `package-lock.json` (`npm ci` in CI).
 
 ## Contact
 
