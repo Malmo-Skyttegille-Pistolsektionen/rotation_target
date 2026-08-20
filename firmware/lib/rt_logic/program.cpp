@@ -43,7 +43,7 @@ Series parse_series(JsonObjectConst src) {
 
 }  // namespace
 
-bool parse_program(const char *json, size_t len, bool readonly, Program &out) {
+bool parse_program(const char *json, size_t len, bool readonly, Program &out, bool *id_present) {
   // ArduinoJson v7's JsonDocument grows on demand, so there is no capacity to
   // size up front. The ceiling on how much it can grow is the caller's: the
   // HTTP layer caps the request body and the shipped program files are ours.
@@ -55,6 +55,10 @@ bool parse_program(const char *json, size_t len, bool readonly, Program &out) {
 
   out = Program{};
   out.id = root["id"] | 0;
+  // Present means the key exists and is not JSON null - not that it is usable.
+  // A garbage type reads as id 0 here, which `PUT /programs/{id}` then refuses
+  // as a mismatch rather than quietly accepting.
+  if (id_present != nullptr) *id_present = !root["id"].isNull();
   out.title = root["title"] | "";
   out.description = root["description"] | "";
   out.readonly = readonly;
