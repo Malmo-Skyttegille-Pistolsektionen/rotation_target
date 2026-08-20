@@ -1,0 +1,368 @@
+---
+name: firmware-release
+
+# Cuts a firmware release: resolve version -> tag -> build from the tag ->
+# attach the images -> publish. See docs/RELEASING.md.
+#
+# Ported from the reqstool org's common-release-{prepare,tag,promote}
+# reusable workflows rather than called: those tag a bare `X.Y.Z`, and this
+# repository releases three components off one history, so the firmware's tags
+# carry a `firmware-v` prefix that their version validation rejects.
+# common-release-assets.yml has no such assumption and is reused as-is.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 2.0.0 (no prefix). Empty = auto-detect."
+        required: false
+        type: string
+        default: ""
+      force:
+        description: "Allow a version that disagrees with the auto-detected one."
+        required: false
+        type: boolean
+        default: false
+      dry-run:
+        description: "Preview only: resolve the version and the notes, tag nothing."
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  # renovate: datasource=github-releases depName=orhun/git-cliff
+  GIT_CLIFF_VERSION: "2.13.1"
+  # SHA-256 of the x86_64-unknown-linux-gnu tarball. Change it with the version.
+  GIT_CLIFF_SHA256: "9a1263f24e59a2f508c7b3d3283c9dea94a8bf697f96dbc18cc783cac6284546"
+
+jobs:
+  prepare:
+    name: resolve version and notes
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - name: Check the ref may be released from
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          case "$REF" in
+            refs/heads/main | refs/heads/hotfix/* | refs/heads/release/*) ;;
+            *)
+              echo "::error::Releases are cut from main, hotfix/* or release/* only (got '$REF')."
+              exit 1
+              ;;
+          esac
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Install git-cliff
+        run: |
+          set -euo pipefail
+          TARBALL="$(mktemp -d)/git-cliff.tar.gz"
+          curl -fsSL -o "$TARBALL" \
+            "https://github.com/orhun/git-cliff/releases/download/v${GIT_CLIFF_VERSION}/git-cliff-${GIT_CLIFF_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          # Spelled out rather than `sha256sum -c`, so a Renovate version bump
+          # - which cannot compute the new digest - fails saying what to paste.
+          ACTUAL="$(sha256sum "$TARBALL" | cut -d" " -f1)"
+          if [ "$ACTUAL" != "$GIT_CLIFF_SHA256" ]; then
+            echo "::error::git-cliff ${GIT_CLIFF_VERSION} checksum mismatch."
+            echo "::error::  expected: ${GIT_CLIFF_SHA256}"
+            echo "::error::  actual:   ${ACTUAL}"
+            exit 1
+          fi
+          tar -xzf "$TARBALL" --strip-components=1 -C /usr/local/bin \
+            "git-cliff-${GIT_CLIFF_VERSION}/git-cliff"
+          git-cliff --version
+
+      - name: Resolve the version
+        id: resolve
+        env:
+          REQUESTED: ${{ inputs.version }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          # The image is the firmware plus the shipped programs and audio, so
+          # a resources/ change bumps the firmware too.
+          #
+          # git-cliff carries the tag prefix through the bump, so this is
+          # already `firmware-vX.Y.Z`. The globs stay quoted - git-cliff
+          # matches them itself, and the shell would expand them first.
+          AUTO_TAG="$(git-cliff --config .github/cliff-firmware.toml \
+            --include-path 'firmware/**' --include-path 'resources/**' \
+            --bumped-version)"
+          AUTO="${AUTO_TAG#firmware-v}"
+
+          if [ -z "$REQUESTED" ]; then
+            VERSION="$AUTO"
+            SOURCE="auto-detected from Conventional Commits"
+          else
+            VERSION="$REQUESTED"
+            if [ "$VERSION" != "$AUTO" ]; then
+              if [ "$FORCE" != "true" ]; then
+                echo "::error::Version '$VERSION' disagrees with the auto-detected '$AUTO'."
+                echo "::error::Re-run with force enabled if that is deliberate."
+                exit 1
+              fi
+              echo "::warning::Forcing '$VERSION' over the auto-detected '$AUTO'."
+              SOURCE="user-specified (forced over '$AUTO')"
+            else
+              SOURCE="user-specified (matches auto-detected)"
+            fi
+          fi
+
+          # Strict three-part semver: anything else reaches the device as a
+          # version its API parser rejects, and it would report 0.0.0.
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::'$VERSION' is not a three-part semver version."
+            exit 1
+          fi
+
+          TAG="firmware-v$VERSION"
+          if git rev-parse "$TAG" > /dev/null 2>&1; then
+            echo "::error::Tag '$TAG' already exists."
+            exit 1
+          fi
+
+          {
+            echo "version=$VERSION"
+            echo "tag=$TAG"
+            echo "auto=$AUTO"
+            echo "source=$SOURCE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Record the previous tag
+        id: previous
+        run: |
+          set -euo pipefail
+          PREV="$(git tag --list 'firmware-v*' --sort=-version:refname \
+            | grep -E '^firmware-v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)"
+          echo "tag=$PREV" >> "$GITHUB_OUTPUT"
+
+      # Generated here and handed downstream rather than regenerated at tag
+      # time, so the notes previewed by the dry run are the notes that ship.
+      - name: Generate the release notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git-cliff --config .github/cliff-firmware.toml \
+            --include-path 'firmware/**' --include-path 'resources/**' \
+            --latest --unreleased --strip all --output NOTES.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: NOTES.md
+          if-no-files-found: error
+
+      - name: Summary
+        if: always()
+        env:
+          TAG: ${{ steps.resolve.outputs.tag }}
+          AUTO: ${{ steps.resolve.outputs.auto }}
+          SOURCE: ${{ steps.resolve.outputs.source }}
+          PREVIOUS: ${{ steps.previous.outputs.tag }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          set -euo pipefail
+          if [ "$DRY_RUN" = "true" ]; then
+            HEADING="Firmware release (dry run)"
+            MODE="dry run - nothing tagged, nothing published"
+          else
+            HEADING="Firmware release"
+            MODE="tag, build from the tag, attach images, publish"
+          fi
+          {
+            echo "### $HEADING"
+            echo ""
+            echo "| | Value |"
+            echo "|---|---|"
+            echo "| Tag | \`${TAG:-(unresolved)}\` |"
+            echo "| Auto-detected | \`${AUTO:-(none)}\` |"
+            echo "| Source | ${SOURCE:-(none)} |"
+            echo "| Previous tag | \`${PREVIOUS:-(none yet)}\` |"
+            echo "| Mode | $MODE |"
+            echo ""
+            echo "#### Release notes"
+            echo ""
+            cat NOTES.md 2>/dev/null || echo "_(not generated - an earlier step failed)_"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  tag:
+    name: tag and create the prerelease
+    needs: prepare
+    if: ${{ !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+
+      # Re-checked after prepare: a concurrent release of the same version
+      # would otherwise turn into a `gh release create` against someone else's
+      # tag.
+      - name: Check the tag does not already exist
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git rev-parse "$TAG" > /dev/null 2>&1; then
+            echo "::error::Tag '$TAG' already exists."
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+
+      - name: Create and push the tag
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          # persist-credentials: false leaves `origin` unauthenticated; push to
+          # an explicit tokenised URL rather than storing one in .git/config.
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$TAG"
+
+      # A prerelease, not a draft: both are excluded from /releases/latest, but
+      # a draft is invisible to an unauthenticated fetch, so nothing downstream
+      # could verify it. Promotion happens once the images are attached.
+      - name: Create the prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          URL=$(gh release create "$TAG" --title "$TAG" --notes-file NOTES.md --prerelease)
+          {
+            echo "### Prerelease created"
+            echo ""
+            echo "\`$TAG\` - $URL"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: build the firmware from the tag
+    needs: [prepare, tag]
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.0.2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ needs.prepare.outputs.tag }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      # The version is read from git by CMake, not by IDF's own helper, so a
+      # workspace git refuses to describe is the difference between a correct
+      # image and one that reports 0.0.0.
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Build
+        shell: bash
+        working-directory: firmware
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py set-target esp32s3
+          idf.py build
+
+      # The assertion the reqstool flow does on artifact filenames, done against
+      # what is actually baked into the image instead. Catches the whole class
+      # of "the tag says 2.0.0 and the device says something else" - an
+      # unfetched tag, a dirty tree, a stale build directory.
+      - name: Assert the image carries the version
+        shell: bash
+        working-directory: firmware
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          BUILT=$(python3 -c "import json; print(json.load(open('build/project_description.json'))['project_version'])")
+          if [ "$BUILT" != "$VERSION" ]; then
+            echo "::error::Built version '$BUILT' is not the released '$VERSION'."
+            exit 1
+          fi
+          echo "Image reports '$BUILT'."
+
+      - name: Stage the images
+        shell: bash
+        working-directory: firmware
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          # ota_data_initial.bin travels with them: the partition table has no
+          # factory slot, so flashing without it over a device whose otadata
+          # points at ota_1 boots the stale image in ota_1.
+          cp build/rotation_target_backend.bin \
+             build/bootloader/bootloader.bin \
+             build/partition_table/partition-table.bin \
+             build/ota_data_initial.bin \
+             build/storage.bin \
+             release/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: firmware/release
+          if-no-files-found: error
+
+  assets:
+    name: attach the images
+    needs: [prepare, build]
+    permissions:
+      contents: write
+    # Pinned by commit: the reqstool workflows resolve their own composite
+    # actions at the SHA they are called at, so a pin freezes the whole thing.
+    uses: reqstool/.github/.github/workflows/common-release-assets.yml@0c723ab98cfe8c67691bd529433f29592502098e
+    with:
+      version: ${{ needs.prepare.outputs.tag }}
+      artifact: firmware
+      pattern: "*"
+      # That check looks for the version in artifact *filenames*, and these are
+      # the fixed names a flashing script expects. The build job asserts the
+      # version against the image itself, which is the stronger check anyway.
+      assert-version: false
+
+  publish:
+    name: publish the release
+    needs: [prepare, assets]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Not `--latest`: in a monorepo that flag names one release across three
+      # tag lines, so the next webapp release would answer a consumer asking
+      # /releases/latest for firmware. Consumers resolve `firmware-v*` instead.
+      - name: Clear the prerelease flag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" --repo "$REPO" --prerelease=false --latest=false
+          {
+            echo "### Released"
+            echo ""
+            echo "\`$TAG\` is published."
+          } >> "$GITHUB_STEP_SUMMARY"
