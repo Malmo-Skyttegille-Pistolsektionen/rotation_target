@@ -22,16 +22,15 @@ project — please read the safety note before changing run or target behaviour.
 ## Getting set up
 
 ```bash
-git clone --recursive https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target_backend_esp32_espidf.git
-cd rotation_target_backend_esp32_espidf
+git clone https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target.git
+cd rotation_target/firmware
 idf.py set-target esp32s3
 idf.py build
 ```
 
-You need **ESP-IDF >= 6.0** (CI pins v6.0.2). A plain `git clone` without
-`--recursive` fails at CMake configure time with a message telling you to run
-`git submodule update --init --recursive` — the shipped audio and programs live
-in the `resources` submodule.
+You need **ESP-IDF >= 6.0** (CI pins v6.0.2). The shipped audio and programs
+live in the monorepo's sibling `resources/` directory; CMake fails at configure
+time if `RT_RESOURCES_DIR` does not point at one.
 
 See [`README.md`](README.md) for flashing and
 [`docs/HARDWARE.md`](docs/HARDWARE.md) for board configuration and the esptool
@@ -112,8 +111,8 @@ should not be trimmed. What to avoid is volume out of proportion to the code:
 
 ## Vendored code
 
-`lib/psychic_http/`, `lib/arduinojson/`, `lib/dns_server/` and the `resources/`
-submodule are third-party and **must stay byte-identical to upstream**. They are
+`lib/psychic_http/`, `lib/arduinojson/`, `lib/dns_server/` and the repository's
+`resources/` tree are third-party and **must stay byte-identical to upstream**. They are
 excluded from pre-commit; never reformat them. Where they need a fix — an
 include order, a warning pragma — it goes on our side of the boundary, with a
 comment saying why.
