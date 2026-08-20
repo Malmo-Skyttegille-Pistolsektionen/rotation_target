@@ -120,8 +120,8 @@ Result connect() {
   ESP_ERROR_CHECK(esp_eth_driver_install(&eth_cfg, &eth));
   ESP_ERROR_CHECK(esp_netif_attach(netif, esp_eth_new_netif_glue(eth)));
 
-  ESP_ERROR_CHECK(
-      esp_event_handler_instance_register(ETH_EVENT, ESP_EVENT_ANY_ID, &on_event, nullptr, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_instance_register(ETH_EVENT, ESP_EVENT_ANY_ID, &on_event,
+                                                      nullptr, nullptr));
   ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &on_event,
                                                       nullptr, nullptr));
 
