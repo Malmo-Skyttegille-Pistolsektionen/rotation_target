@@ -130,4 +130,3 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 });
-

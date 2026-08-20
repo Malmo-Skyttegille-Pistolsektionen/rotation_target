@@ -60,14 +60,14 @@ let runTabListenersAdded = false;
 function renderTimelineWithMode(program) {
     const mode = timelineModeSelect.value;
     let timelineType = null;
-    
+
     if (mode === "default") {
         timelineType = TimelineType.Default;
     } else if (mode === "field") {
         timelineType = TimelineType.Field;
     }
     // mode === "auto" means timelineType remains null for auto-detection
-    
+
     renderTimeline(timeline, program, timelineType);
 }
 
@@ -289,4 +289,3 @@ if (!window._runTabGlobalListenersAdded) {
 
     window._runTabGlobalListenersAdded = true;
 }
-

@@ -18,7 +18,7 @@ function onAudioContainerClick(e) {
     if (target.tagName === 'IMG') {
         target = target.closest('button');
     }
-    
+
     const tr = target.closest("tr");
     if (!tr) return;
     const id = tr.querySelector(".id-cell")?.textContent;
@@ -186,4 +186,3 @@ if (!window._audiosTabGlobalListenersAdded) {
     document.addEventListener(SSETypes.AudioDeleted, onAudioDeletedAudiosTabEL);
     window._audiosTabGlobalListenersAdded = true;
 }
-
