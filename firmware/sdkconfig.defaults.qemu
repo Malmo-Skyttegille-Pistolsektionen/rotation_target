@@ -1,0 +1,47 @@
+# Rotation target backend - the QEMU simulator profile.
+#
+# Layered *on top of* sdkconfig.defaults, never instead of it:
+#
+#   idf.py -B build-qemu \
+#          -D SDKCONFIG=build-qemu/sdkconfig \
+#          -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.qemu" \
+#          build
+#
+# scripts/run-qemu.sh does exactly that and then boots it. The separate build
+# directory and the separate sdkconfig keep the board build untouched: sharing
+# one `sdkconfig` between the two profiles would mean a full reconfigure every
+# time you switched.
+#
+# See docs/QEMU.md for what the emulator does and does not provide.
+
+# WiFi is not emulated. The network comes up over the OpenCores Ethernet MAC
+# QEMU maps onto the EMAC register window, and SLIRP serves an address over
+# DHCP. RT_NET_OPENETH selects ETH_USE_OPENETH by itself; it is repeated here
+# because the profile should say plainly what it turns on.
+CONFIG_RT_NET_OPENETH=y
+CONFIG_ETH_USE_OPENETH=y
+
+# Neither I2S nor the RMT peripheral behind the WS2812 exists in the emulator.
+# Off, the firmware takes the no-op paths it already has for a board without
+# that hardware - programs run, the API still reports audio, nothing plays -
+# instead of logging a driver failure on every boot.
+CONFIG_RT_AUDIO_ENABLED=n
+CONFIG_RT_RGB_LED_ENABLED=n
+
+# PSRAM: 8 MB as on the board, but addressed as quad rather than the board's
+# octal, and clocked at 40 MHz rather than 80.
+#
+# Not a preference - qemu-xtensa 9.2.2's octal PSRAM model segfaults the
+# emulator during the driver's init transfer, deterministically, right after
+# "Loaded app from partition" and with no guest output at all (the fault is in
+# psram_transfer(), hw/misc/ssi_psram.c). The quad model boots reliably. Above
+# the driver nothing can tell the difference: the pool is the same 8 MB and the
+# audio buffers and SSE payloads land in it exactly as they do on the board.
+# Revisit when the emulator's octal model is fixed; docs/QEMU.md has the
+# detail.
+CONFIG_SPIRAM_MODE_QUAD=y
+CONFIG_SPIRAM_SPEED_40M=y
+
+# Flash size, the partition table, the socket budget and everything else are
+# inherited from sdkconfig.defaults unchanged. Keeping them in one place is
+# what makes the simulator a fair stand-in for the board.

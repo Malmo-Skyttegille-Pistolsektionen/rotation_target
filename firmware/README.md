@@ -135,6 +135,7 @@ locking rules and the storage layout.
 | [`docs/api-v2.md`](docs/api-v2.md) | The REST + SSE contract, shared with the MicroPython backend |
 | [`docs/HARDWARE.md`](docs/HARDWARE.md) | Boards, pin configuration, flashing, partitions |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Task model, locking, storage layout |
+| [`docs/QEMU.md`](docs/QEMU.md) | Running the firmware in the emulator, and what it does not emulate |
 | [`docs/adr/0001-esp-idf-port.md`](docs/adr/0001-esp-idf-port.md) | Why this port exists |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Workflow, tests, commit conventions |
 | [`SECURITY.md`](SECURITY.md) | Threat model and reporting |
