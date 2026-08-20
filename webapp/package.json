@@ -30,22 +30,14 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
-<<<<<<< HEAD
     "@eslint/js": "9.39.5",
+    "@playwright/test": "1.62.1",
     "@tanstack/router-devtools": "1.167.1",
     "@tanstack/router-plugin": "1.168.34",
     "@testing-library/dom": "10.4.1",
     "@testing-library/react": "16.3.2",
     "@types/node": "25.9.5",
     "@types/prismjs": "1.26.6",
-=======
-    "@eslint/js": "^9.39.2",
-    "@playwright/test": "^1.62.1",
-    "@tanstack/router-devtools": "^1.167.1",
-    "@tanstack/router-plugin": "^1.143.11",
-    "@types/node": "^25.0.3",
-    "@types/prismjs": "^1.26.5",
->>>>>>> 9fa0303 (test(webapp): Playwright E2E against the firmware running in QEMU)
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "5.2.0",
