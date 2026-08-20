@@ -287,6 +287,35 @@ would be 5× the SSE traffic to move a playhead nobody can see move that
 finely. The frame cadence is unchanged: one per second, plus event
 boundaries.
 
+## D-17 — E2E runs against the firmware, in one CI job *(Decided 2026-08-20)*
+
+**Decision:** the Playwright suite (`webapp/e2e/`) drives the webapp out of the
+**LittleFS image**, served by the real firmware in QEMU — the bundle
+`RT_WEBAPP_DIR` bakes in, not a dev-server proxy. It runs as its own workflow
+(`webapp-e2e.yml`) in a **single job** inside `espressif/idf:v6.0.2`, with
+Chromium installed into that container.
+
+**Why:** testing the deployment artefact is the whole point — a proxy would
+exercise a bundle nobody ships and would keep the mock in the loop. One job
+because the emulator is Espressif's `qemu-xtensa` fork, which ships in the IDF
+image and is not `apt`-installable on a bare runner: splitting the work would
+mean installing that fork on the runner anyway, so adding a browser to the
+container is the cheaper half. The image is Ubuntu 24.04, which Playwright
+supports and installs its own deps for.
+
+Own workflow rather than a job in `webapp-build` or `firmware-build`: its
+`paths` filter is the union of both, it is allowed to take ~10 minutes where
+those are kept fast, and its failures should not muddy either signal.
+
+**Rejected:** a Vite dev server proxying to the emulator (tests a bundle that
+is never shipped); two jobs passing `qemu_flash.bin` as an artefact (needs
+qemu-xtensa on the runner regardless); `pytest-embedded-qemu` (a second test
+framework for the same device).
+
+**Not covered:** `backend_issue`, which needs audio hardware — QEMU emulates
+no I2S, so the simulator profile builds with `RT_AUDIO_ENABLED` off and the
+event cannot be provoked from outside the device.
+
 ## Open questions
 
 - **Are `app` / `x86_linux` used by anyone?** (asked — drives D-03's
