@@ -508,6 +508,29 @@ void register_audio_routes() {
     if (!path_id(req->uri(), "/api/v2/audios/", "/delete", id)) {
       return send_error(res, 404, "Not found");
     }
+
+    // A clip that matters to a run must not disappear from under it: a spoken
+    // command that silently fails mid-exercise is a range-safety problem.
+    // Refusal order, most specific reason first, and existence before any of
+    // them so a bogus id is never reported as a conflict:
+    //   1. no such clip, or a shipped one            -> 404
+    //   2. the loaded program plays it               -> 409  (about this clip)
+    //   3. a run is in progress                      -> 409  (about any clip)
+    //   4. the audio task is reading it right now    -> 409  (audios::remove)
+    // 2 before 3 because it names the clip's own role: it survives a stop and
+    // tells the user deleting it needs the program unloaded, not just paused.
+    const audios::Audio *clip = audios::get(id);
+    if (clip == nullptr || clip->readonly) return send_error(res, 404, "Audio not found");
+
+    // Not only while running: stop() is a pause, so a clip removed between two
+    // runs would be missing when the loaded program is resumed.
+    if (executor::loaded_program_uses_audio(id)) {
+      return send_error(res, 409, "Audio is used by the loaded program - unload the program first");
+    }
+    if (executor::is_running()) {
+      return send_error(res, 409, "A program is running - stop it before deleting audio");
+    }
+
     switch (audios::remove(id)) {
       case audios::RemoveResult::kNotFound:
         return send_error(res, 404, "Audio not found");

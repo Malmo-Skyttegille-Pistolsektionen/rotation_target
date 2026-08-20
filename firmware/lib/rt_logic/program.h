@@ -54,6 +54,21 @@ struct Program {
   std::vector<Series> series;
 };
 
+// Whether any event of any series plays `audio_id`. Backs the range-safety
+// rule that a clip the loaded program needs cannot be deleted out from under
+// it - a spoken command that silently fails mid-exercise is a safety problem,
+// not a UX one.
+inline bool program_uses_audio(const Program &p, int32_t audio_id) {
+  for (const Series &s : p.series) {
+    for (const Event &e : s.events) {
+      for (const int32_t id : e.audio_ids) {
+        if (id == audio_id) return true;
+      }
+    }
+  }
+  return false;
+}
+
 // --- Serialization ---------------------------------------------------------
 //
 // Hand-rolled rather than delegated to ArduinoJson so the wire format is

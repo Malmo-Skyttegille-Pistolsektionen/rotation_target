@@ -34,6 +34,15 @@ bool unload_if_loaded(int32_t program_id);
 // a mutation that would replace a program the run loop holds a pointer into.
 bool is_loaded(int32_t program_id);
 
+// Whether a run is in progress. `stop()` is a pause, so this is false between
+// runs of a program that is still loaded.
+bool is_running();
+
+// Whether the loaded program plays `audio_id` in any event of any series.
+// False when nothing is loaded. The program pointer stays behind the lock -
+// handing it out would let a caller read it after a delete unloaded it.
+bool loaded_program_uses_audio(int32_t audio_id);
+
 // The current stateUpdate payload.
 std::string state_json();
 
