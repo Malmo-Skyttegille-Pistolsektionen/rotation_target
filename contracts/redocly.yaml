@@ -1,0 +1,15 @@
+# Redocly configuration for `contracts/openapi.yaml`.
+#
+# Two rules are off because the spec is written from the implementation and
+# following them would mean documenting responses the firmware never sends.
+---
+extends:
+  - recommended
+
+rules:
+  # The QEMU server really is on localhost - that is where CI reaches the
+  # firmware.
+  no-server-example.com: off
+  # Several endpoints have no failure mode: they take no input, read no id and
+  # are not admin-gated. Inventing a 4xx for them would be fiction.
+  operation-4xx-response: off

@@ -23,7 +23,7 @@ interchangeable from the webapp's point of view.
 | Read before touching | Document |
 |---|---|
 | the executor, locking, storage | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
-| any route or payload | [`docs/api-v2.md`](docs/api-v2.md) |
+| any route or payload | [`../contracts/`](../contracts/README.md) — canonical; [`docs/api-v2.md`](docs/api-v2.md) for the prose |
 | why this port exists at all | [`docs/adr/0001-esp-idf-port.md`](docs/adr/0001-esp-idf-port.md) |
 
 ## Hardware
@@ -196,6 +196,7 @@ Load-bearing invariants:
   need a fix (an include order, a `-Wmissing-field-initializers` pragma), it goes
   on our side of the boundary.
 - `main/` builds with `-Wall -Wextra` and `host_test/` with `-Werror`. Keep both.
-- `docs/api-v2.md` is the contract shared with the MicroPython backend and the
-  webapp. Changing a payload shape means changing it there too, and recording any
-  divergence in its "Deviations" section.
+- **`../contracts/` is the canonical API contract** — `openapi.yaml`,
+  `asyncapi.yaml`, `program.schema.json`. A route, payload or status code that
+  changes here changes there **in the same PR**; the webapp generates its types
+  from those files. `docs/api-v2.md` is the prose companion.

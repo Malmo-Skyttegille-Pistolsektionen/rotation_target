@@ -1,19 +1,15 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema#",
-  "$id": "program.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target/contracts/program.schema.json",
   "title": "Program",
+  "description": "A rotation target program document, as stored in resources/programs/files/<id>.json and as returned by GET /api/v2/programs/{id}. Canonical: written from firmware/lib/rt_logic/program.cpp. Three fields are not the uploader's to assert. `id` is ignored on upload (the device assigns the next free id from 100) and, for a shipped program, comes from the filename rather than the document. `readonly` follows from the directory the file was loaded from - shipped programs are read-only, uploaded ones are not - and is overwritten on parse. Unknown fields are ignored by the firmware and dropped when it rewrites the document, so a program uploaded with extra keys does not come back with them; this schema rejects them outright instead, to catch typos while authoring.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "id",
-    "title",
-    "description",
-    "readonly",
-    "series"
-  ],
+  "required": ["id", "title", "description", "readonly", "series"],
   "properties": {
     "id": {
-      "type": "integer"
+      "type": "integer",
+      "description": "Ignored on upload; assigned by the device from 100 upwards. For a shipped program the filename is the authority."
     },
     "title": {
       "type": "string"
@@ -22,7 +18,8 @@
       "type": "string"
     },
     "readonly": {
-      "type": "boolean"
+      "type": "boolean",
+      "description": "Imposed by the device from where the file came, not read from the document. True for programs flashed with the firmware; only non-read-only programs can be deleted."
     },
     "series": {
       "type": "array",
@@ -35,18 +32,15 @@
     "Series": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "name",
-        "optional",
-        "events"
-      ],
+      "required": ["name", "optional", "events"],
       "properties": {
         "name": {
           "type": "string"
         },
         "optional": {
           "type": "boolean",
-          "default": false
+          "default": false,
+          "description": "Carried through the API but not acted on by the run loop: the executor runs one series at a time and never skips one by itself."
         },
         "events": {
           "type": "array",
@@ -59,35 +53,35 @@
     "Event": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "duration"
-      ],
+      "required": ["duration"],
       "properties": {
         "duration": {
           "type": "integer",
-          "description": "Duration of the event in milliseconds. For example: 1000 = 1.0s, 5000 = 5.0s, 60000 = 60s.",
+          "description": "Duration of the event in milliseconds. For example: 1000 = 1.0s, 5000 = 5.0s, 60000 = 60s. Clamped to 1..3600000 on parse: a 0 or negative value becomes 1 ms (a zero-length event would never be entered, silently skipping its command and audio) and anything larger is capped, so a series total cannot overflow.",
           "minimum": 0
         },
         "command": {
-          "type": "string"
+          "type": "string",
+          "description": "What to do with the targets on entering this event. Only \"show\" and \"hide\" do anything; any other value, or none, leaves them where they are.",
+          "enum": ["show", "hide"]
         },
         "audio_ids": {
           "type": "array",
           "items": {
             "type": "integer"
           },
-          "description": "List of audio IDs associated with the event."
+          "description": "List of audio IDs to start on entering this event. Ids that no longer exist are skipped."
         },
         "target_system": {
           "type": "array",
           "items": {
             "type": "integer"
           },
-          "description": "List of target system IDs associated with the event. If not specified, all target systems are affected."
+          "description": "API v1 only. List of target system IDs associated with the event; if not specified, all target systems are affected. The v2 firmware does not parse this field and drops it when it rewrites an uploaded document. Kept here so v1-era program files still validate."
         },
         "start": {
           "type": "boolean",
-          "description": "Marks this event as the starting event in the series. Only one event per series may have start=true."
+          "description": "API v1 only. Marked this event as the starting event in the series. The v2 firmware does not parse this field and drops it when it rewrites an uploaded document. Kept here so v1-era program files still validate."
         }
       }
     }
