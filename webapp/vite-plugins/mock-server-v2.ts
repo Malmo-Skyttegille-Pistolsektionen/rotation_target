@@ -3,7 +3,7 @@
  *
  * Key differences from v1:
  * - Single `stateUpdate` SSE event (no per-event SSE)
- * - camelCase payload fields
+ * - REST program payloads use snake_case `audio_ids`, matching the firmware
  * - `stop` pauses execution (keeps position), `reset` is explicit
  * - `tickerSeconds` = whole seconds elapsed in current SERIES (not event)
  * - `currentEventIndex` derived from tickerSeconds + cumulative durations
@@ -15,7 +15,7 @@ import type { Plugin, ViteDevServer } from 'vite';
 import type { ServerResponse, IncomingMessage } from 'http';
 import fs from 'fs';
 import path from 'path';
-import type { Program, StateUpdatePayload, ProgramState, AudioFile, ProgramSummary } from '../src/api/types';
+import type { Program, StateUpdatePayload, ProgramState, AudioFile, ProgramSummary, Event } from '../src/api/types';
 
 // --- Constants ---
 const API_PREFIX = '/api/v2';
@@ -83,6 +83,7 @@ function loadData(): void {
   audios = Object.entries(audiosData).map(([id, audio]: [string, unknown]) => ({
     id: Number(id),
     title: (audio as { title: string }).title,
+    filename: `/storage/shipped/audio/${(audio as { filename: string }).filename}`,
     readonly: true,
   }));
 
@@ -92,6 +93,7 @@ function loadData(): void {
     audios.push({
       id: Number(id) + 1000,
       title: (audio as { title: string }).title,
+      filename: `/storage/uploaded/audio/${(audio as { filename: string }).filename}`,
       readonly: false,
     });
   });
@@ -231,7 +233,7 @@ function deriveEventFromElapsedMs(
   elapsedMs: number,
 ): {
   eventIndex: number;
-  event: { duration: number; command: 'show' | 'hide'; audioIds?: number[] };
+  event: Event;
   offsetMs: number;
 } | null {
   if (!state.loadedProgram) return null;

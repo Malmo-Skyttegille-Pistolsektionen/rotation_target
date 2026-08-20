@@ -7,7 +7,7 @@ import reactCompiler from 'eslint-plugin-react-compiler';
 import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default tseslint.config(
-  { ignores: ['dist', 'src_legacy'] },
+  { ignores: ['dist', 'src_legacy', 'src/api/generated.d.ts'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],

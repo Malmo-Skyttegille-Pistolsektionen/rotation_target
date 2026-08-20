@@ -81,6 +81,27 @@ done < <(find dist -type f \( -name '*.js' -o -name '*.css' \) -print0)
 echo "$total * 1.05" | bc | cut -d. -f1 > size-budget
 ```
 
+## API types
+
+`src/api/generated.d.ts` is generated from the canonical REST contract
+(`../contracts/openapi.yaml`) by `openapi-typescript`:
+
+```bash
+npm run generate:api
+```
+
+The output is committed, and CI re-runs the generator and fails the build on
+`git diff` — so a merged contract change that the webapp hasn't caught up
+with is a red build, not a silent runtime mismatch. `src/api/types.ts`
+re-exports the shapes it actually uses from `components['schemas'][...]` in
+the generated file; SSE payload types (`contracts/asyncapi.yaml` is not fed
+to the generator) stay hand-written there.
+
+`public/program.schema.json` (the JSON Schema the legacy program editor
+validates against with ajv) is likewise never hand-edited: it is gitignored
+and copied fresh from `../contracts/program.schema.json` by
+`vite-plugins/schema-sync.ts` on every `npm run dev` / `npm run build`.
+
 ## UI/UX
 
 Primary audience is tablet and mobile, which requires larger, touch-friendly buttons and controls.
