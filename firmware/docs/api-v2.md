@@ -208,6 +208,27 @@ does **not** answer in the `{"error": ...}` shape: it sends `400` with a
 `DELETE /api/v2/audios/{id}/delete` answers `409` if the clip is playing:
 LittleFS has no unlink-while-open, so deleting it would corrupt the read.
 
+## Static assets and the SPA fallback
+
+Everything that is not `/api/v2` or `/sse/v2` is the bundled webapp, served
+from `/storage/webapp/` — pre-compressed at build time, so the handler answers
+with the `.gz` and `Content-Encoding: gzip`.
+
+The webapp routes client-side, so `/run` and `/settings` are pages it owns and
+files the image does not have. A `GET` that finds no file is answered with
+`index.html` and `200` instead of a 404, which is what makes a reload or a
+shared link land where it should. Three things are deliberately outside that:
+
+- anything under `/api` or `/sse` — a miss there is a client error and keeps
+  the `{"error": ...}` 404, or a browser gets HTML where it asked for JSON;
+- a path whose last segment has a file extension — a missing bundle chunk must
+  stay a 404, not become a script that will not parse;
+- any method other than `GET`, and any build with no webapp in the image (an
+  API-only build has no `index.html` to answer with).
+
+The eligibility rule is `rt::spa_fallback_eligible` in `lib/rt_logic/uri_path.h`,
+covered by `host_test/test_uri_path`.
+
 ## Endpoints kept beyond what the webapp calls
 
 - **Program and audio CRUD.** `POST`/`PUT`/`DELETE` for programs and
