@@ -1,3 +1,0 @@
-{
-  extends: ["github>Malmo-Skyttegille-Pistolsektionen/.github//.github/renovate.json5"],
-}

@@ -1,10 +1,18 @@
 ---
-name: build
+name: firmware-build
 
 on:
   push:
     branches: [main]
+    paths:
+      - firmware/**
+      - resources/**
+      - .github/workflows/firmware-build.yml
   pull_request:
+    paths:
+      - firmware/**
+      - resources/**
+      - .github/workflows/firmware-build.yml
 
 permissions:
   contents: read
@@ -21,6 +29,9 @@ jobs:
     # firmware build's toolchain download.
     name: host tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware/host_test
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,7 +49,6 @@ jobs:
         env:
           IDF_PATH: ${{ github.workspace }}/esp-idf
         run: |
-          cd host_test
           cmake -B build -DCMAKE_BUILD_TYPE=Debug
           cmake --build build -j"$(nproc)"
           cd build && ctest --output-on-failure
@@ -49,6 +59,9 @@ jobs:
     # clean sanitized run is not evidence the -O0 build is clean, or vice versa.
     name: host tests (asan+ubsan)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware/host_test
     steps:
       - uses: actions/checkout@v4
         with:
@@ -66,7 +79,6 @@ jobs:
         env:
           IDF_PATH: ${{ github.workspace }}/esp-idf
         run: |
-          cd host_test
           cmake -B build-san -DRT_SANITIZE=ON
           cmake --build build-san -j"$(nproc)"
           cd build-san && ctest --output-on-failure
@@ -75,12 +87,15 @@ jobs:
     name: firmware (esp32s3)
     runs-on: ubuntu-latest
     container: espressif/idf:v6.0.2
+    defaults:
+      run:
+        working-directory: firmware
     steps:
       - uses: actions/checkout@v4
         with:
-          # The LittleFS image is built from the resources submodule, so the
-          # build fails outright without it.
-          submodules: recursive
+          # resources/ is a sibling directory in the monorepo, not a
+          # submodule; a plain checkout already brings it along.
+          submodules: false
 
       - name: Build
         shell: bash
@@ -99,8 +114,8 @@ jobs:
         with:
           name: firmware
           path: |
-            build/rotation_target_backend.bin
-            build/bootloader/bootloader.bin
-            build/partition_table/partition-table.bin
-            build/storage.bin
+            firmware/build/rotation_target_backend.bin
+            firmware/build/bootloader/bootloader.bin
+            firmware/build/partition_table/partition-table.bin
+            firmware/build/storage.bin
           if-no-files-found: error
