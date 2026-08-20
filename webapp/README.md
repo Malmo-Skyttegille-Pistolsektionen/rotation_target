@@ -46,7 +46,21 @@ npm run dev
 ```
 
 This starts the Vite server at `http://localhost:8080`.
-A built-in **Mock Server** simulates the hardware API and SSE streams, so you can develop without physical hardware.
+A built-in **Mock Server** simulates the hardware API and SSE streams, so you can develop without physical hardware. It lives in `test/mock-server/`;
+`vite-plugins/mock-server-v2.ts` only mounts it on the dev server. Interim —
+E2E is moving to the real firmware under QEMU.
+
+### Tests
+
+```bash
+npm run test        # once, as CI runs it
+npm run test:watch
+```
+
+Vitest, with happy-dom for the suites that touch the DOM (opted into per file
+with `@vitest-environment happy-dom`). Suites that need an API construct the
+mock server with a **fake clock**, so a 28-second series is simulated in
+microseconds instead of 28 seconds of wall clock.
 
 ### Build for production
 
@@ -113,7 +127,10 @@ Primary audience is tablet and mobile, which requires larger, touch-friendly but
   - `components/`: Reusable components
   - `hooks/`: Custom hooks (e.g. useSSE)
   - `api/`: API clients and types
-- `vite-plugins/`: Mock server and other Vite plugins
+  - `lib/`: Pure logic shared with the mock server (e.g. run-position, which
+    mirrors `firmware/lib/rt_logic/run_position.h`)
+- `vite-plugins/`: Dev-server plugins (mock server adapter, schema sync)
+- `test/`: Unit tests, fixtures and the mock server implementation
 - `src_legacy/`: Legacy codebase (reference)
 
 ## Security

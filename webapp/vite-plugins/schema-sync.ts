@@ -28,8 +28,10 @@ export function schemaSyncPlugin(): Plugin {
   return {
     name: 'schema-sync',
     buildStart() {
+      // Once per dev-server start and once per build. Editing the canonical
+      // schema while `vite` is running needs a restart to take effect - it is
+      // outside the project root, so no watcher reaches it.
       syncSchema();
-      this.addWatchFile(source);
     },
   };
 }

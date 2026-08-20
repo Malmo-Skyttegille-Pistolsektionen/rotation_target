@@ -3,3 +3,4 @@ node_modules
 src_legacy
 *.gen.ts
 src/api/generated.d.ts
+public/program.schema.json

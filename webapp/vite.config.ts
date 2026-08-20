@@ -35,6 +35,6 @@ export default defineConfig({
       },
     }),
     mockServerPlugin(),
-    ...mockServerV2Plugin(),
+    mockServerV2Plugin(),
   ],
 });

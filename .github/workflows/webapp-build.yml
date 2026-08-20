@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   webapp:
-    name: typecheck, lint, build
+    name: typecheck, lint, test, build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -56,6 +56,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Test
+        run: npm run test
 
       - name: Build
         run: npm run build

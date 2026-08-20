@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import type { Program, Series, Event } from '../api/types';
+import { seriesTotalMs } from '../lib/run-position';
 import styles from './Timeline.module.css';
 
 type TimelineProps = {
@@ -133,7 +134,7 @@ function FieldTimelineSeries({
   showCursor,
 }: FieldTimelineSeriesProps): React.ReactNode {
   // Calculate total duration for percentage-based positioning
-  const totalDurationMs = series.events.reduce((sum, e) => sum + e.duration, 0);
+  const totalDurationMs = seriesTotalMs(series);
 
   const eventsWithPosition = series.events.reduce(
     (acc, event) => {
