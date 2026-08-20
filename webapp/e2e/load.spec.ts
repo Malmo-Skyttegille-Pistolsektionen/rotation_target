@@ -12,9 +12,7 @@ test('the app is served out of the LittleFS image, pre-compressed', async ({ pag
   const index = await page.goto('/');
   expect(index?.status()).toBe(200);
 
-  // `/` is index.html and the router takes it to /run from there. It has to be
-  // `/` and not a deep link: the firmware serves the bundle with a plain static
-  // handler and no SPA fallback, so GET /run is a 404 out of LittleFS.
+  // `/` is index.html and the router takes it to /run from there.
   await expect(page).toHaveURL(/\/run$/);
   await expect(page.getByRole('heading', { name: 'Run Program' })).toBeVisible();
 
@@ -26,11 +24,30 @@ test('the app is served out of the LittleFS image, pre-compressed', async ({ pag
   expect(headers['content-encoding']).toBe('gzip');
 });
 
-test('a deep link is a 404 - the bundle has no SPA fallback', async ({ request }) => {
-  // Pinning the known limitation rather than papering over it: if a rewrite is
-  // ever added to `register_static_routes`, this test is where it surfaces.
+test('a deep link is served the app, and the router boots on it', async ({ page, request }) => {
+  // There is no file at /run in the image - the router owns that path. The
+  // firmware answers the miss with index.html (web_server.cpp's onNotFound), so
+  // reloading the page an operator is on keeps them there.
   const deepLink = await request.get('/run');
-  expect(deepLink.status()).toBe(404);
+  expect(deepLink.status()).toBe(200);
+  expect(deepLink.headers()['content-type']).toContain('text/html');
+
+  await page.goto('/run');
+  await expect(page).toHaveURL(/\/run$/);
+  await expect(page.getByRole('heading', { name: 'Run Program' })).toBeVisible();
+});
+
+test('a miss that is not navigation keeps its own 404', async ({ request }) => {
+  // The fallback must not swallow these: an API typo answered with HTML is a
+  // client that cannot read the error, and a missing bundle chunk answered with
+  // HTML is a script parse error instead of a 404.
+  const api = await request.get('/api/v2/nope');
+  expect(api.status()).toBe(404);
+  expect(api.headers()['content-type']).toContain('application/json');
+
+  const asset = await request.get('/assets/definitely-not-here.js');
+  expect(asset.status()).toBe(404);
+  expect(asset.headers()['content-type']).toContain('application/json');
 });
 
 test('the program list is the seven shipped programs', async ({ page, request }) => {

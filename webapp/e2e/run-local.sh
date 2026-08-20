@@ -60,24 +60,14 @@ if [ "${SKIP_BUILD}" -eq 0 ]; then
 
     # RT_WEBAPP_DIR defaults to ../webapp/dist, so the build above is what gets
     # baked into the LittleFS image by the build below. Order matters.
-    #
-    # The touch is load-bearing on a warm build tree: firmware/CMakeLists.txt
-    # copies and gzips `dist` at CMake *configure* time, and `idf.py build`
-    # does not reconfigure just because a file outside the project changed. Skip
-    # it and the image keeps whatever webapp it was configured with - the tests
-    # then run against the previous build and fail in ways that look like app
-    # bugs. (Ask for a fix at the CMake level and this can go.)
     echo "==> Building the QEMU firmware profile with that dist baked in"
-    touch "${REPO_ROOT}/firmware/CMakeLists.txt"
     "${REPO_ROOT}/firmware/scripts/run-qemu.sh" --build-only
 fi
 
-# The runner builds before it boots, so this second invocation re-runs a no-op
-# idf.py pass before QEMU starts - which is why the wait below is generous
-# rather than tight. PR #35 adds a `--no-build` flag that skips it; use it here
-# once that has merged.
+# --no-build: the tree was either built above or deliberately reused with
+# --skip-build, so the runner's own build pass would be a no-op either way.
 echo "==> Booting QEMU on port ${HOST_PORT}"
-"${REPO_ROOT}/firmware/scripts/run-qemu.sh" --headless --port "${HOST_PORT}" \
+"${REPO_ROOT}/firmware/scripts/run-qemu.sh" --no-build --headless --port "${HOST_PORT}" \
     > "${QEMU_LOG}" 2>&1 &
 QEMU_PID=$!
 
