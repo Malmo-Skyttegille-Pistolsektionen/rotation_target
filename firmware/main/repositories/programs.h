@@ -25,6 +25,26 @@ const std::map<int32_t, rt::Program> &all();
 // could not be written.
 int32_t add_uploaded(const char *json, size_t len);
 
+enum class UpdateResult {
+  kOk,
+  kNotFound,
+  kReadonly,
+  kInvalid,
+  // The document declares an `id` other than the one being written.
+  kIdMismatch,
+  kWriteFailed,
+};
+
+// Replace the stored document for an existing uploaded program, rewritten from
+// the parsed model exactly as add_uploaded() writes a new one. The id stays
+// the one the caller asked for: a document declaring a different one is
+// refused rather than renumbered, because the filename - not the document - is
+// the authority on the id.
+//
+// The caller must ensure the program is not loaded in the executor; this
+// replaces the map value a `const rt::Program *` may point into.
+UpdateResult update_uploaded(int32_t id, const char *json, size_t len);
+
 // Deletes an uploaded program. Read-only (shipped) programs are refused, which
 // is also what an unknown id gets.
 bool remove(int32_t id);

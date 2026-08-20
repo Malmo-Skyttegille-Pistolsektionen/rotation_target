@@ -199,6 +199,11 @@ bool unload_if_loaded(int32_t program_id) {
   return unloaded;
 }
 
+bool is_loaded(int32_t program_id) {
+  Lock lock;
+  return s_state.program != nullptr && s_state.program->id == program_id;
+}
+
 std::string state_json() {
   Lock lock;
   return rt::state_update_json(s_state);
