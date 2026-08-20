@@ -1,3 +1,7 @@
+> **Superseded:** the canonical API contract lives in
+> [`../../contracts/`](../../contracts/) (`openapi.yaml`, `asyncapi.yaml`).
+> This document remains as prose background only.
+
 # Mock Server v2 Specification
 
 Canonical machine-readable contract: [`../../contracts/`](../../contracts/README.md).
