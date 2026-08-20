@@ -40,6 +40,10 @@ The shipped audio and programs live in the monorepo's sibling `resources/`
 directory. The build reads them from there by default; point `RT_RESOURCES_DIR`
 elsewhere to override.
 
+The webapp is bundled into the same image when `../webapp/dist` exists — run
+`npm run build` in `webapp/` first, or point `RT_WEBAPP_DIR` at a `dist` built
+elsewhere. Without one the device serves the API only.
+
 `idf.py flash` writes the LittleFS image too, which **replaces anything
 uploaded to the device**. Use `idf.py app-flash` to update only the firmware.
 
