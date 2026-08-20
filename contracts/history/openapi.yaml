@@ -420,11 +420,11 @@ components:
           type: boolean
 
     Program:
-      $ref: "./program.schema.json"
+      $ref: "../program.schema.json"
     Series:
-      $ref: "./program.schema.json#/$defs/Series"
+      $ref: "../program.schema.json#/$defs/Series"
     Event:
-      $ref: "./program.schema.json#/$defs/Event"
+      $ref: "../program.schema.json#/$defs/Event"
 
     ProgramStatus:
       type: object

@@ -1,6 +1,8 @@
 # Mock Server v2 Specification
 
-Canonical machine-readable contract: `docs/mock-api-v2.openapi.json`.
+Canonical machine-readable contract: [`../../contracts/`](../../contracts/README.md).
+`docs/mock-api-v2.openapi.json` is a drifted fork of it that predates this
+document and is on its way out; do not treat it as authoritative.
 
 ## Overview
 

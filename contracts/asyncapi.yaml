@@ -1,0 +1,237 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/asyncapi/spec-json-schemas/refs/heads/master/schemas/3.1.0.json
+---
+asyncapi: 3.1.0
+
+info:
+  title: Rotation target SSE v2
+  version: 2.0.0
+  license:
+    name: MIT
+  description: |
+    The Server-Sent Events stream the rotation target firmware serves at
+    `/sse/v2`, alongside the REST API specified in `contracts/openapi.yaml`.
+
+    This document is **canonical** and is written from the implementation
+    (`firmware/main/net/sse_hub.cpp` and
+    `firmware/lib/rt_logic/program_state.h`). See `contracts/README.md`.
+
+    ## Why the stream exists
+
+    There is no `GET /status` in API v2. `stateUpdate` is the only channel run
+    state is published on, and it is the reason no status endpoint is needed:
+    a client connects, is sent the full current state immediately, and is sent
+    it again after every change.
+
+    ## Connection behaviour
+
+    - `GET /sse/v2` answers `200` with `Content-Type: text/event-stream`,
+      `Cache-Control: no-cache` and `Connection: keep-alive`. The CORS
+      headers described in the OpenAPI document apply here too.
+    - On connect, before anything else, the server sends one `stateUpdate`
+      carrying the full current state, with `retry: 500` — so a browser
+      `EventSource` reconnects half a second after a drop. Later frames carry
+      no `retry`.
+    - Every frame carries an `id:` field: the device's uptime in
+      milliseconds. It is a monotonic ordering hint, not a resumption cursor
+      — a client's `Last-Event-ID` is read on reconnect but nothing is
+      replayed from it, and the fresh `stateUpdate` on connect makes replay
+      unnecessary.
+    - A `heartbeat` follows every 10 seconds
+      (`kSseHeartbeatSeconds`, `firmware/main/config.h`), whether or not
+      anything changed.
+    - The stream is one-way and public: no credential is required, and
+      nothing a client sends on it is read.
+
+    ## Delivery guarantees
+
+    State is serialized *and* queued under a single lock, and the frames are
+    then written from the HTTP task, so the order clients see is the order the
+    state actually took. If the HTTP work queue is full — the task wedged or
+    badly behind — a frame is **dropped** rather than blocking the run loop,
+    so a client may miss an intermediate state. It will not miss the final
+    one for long: the next mutation or the next connect republishes.
+
+    Dead clients are reaped on the heartbeat cadence: a peer that closed
+    cleanly is detected by a non-destructive peek, and TCP keepalive
+    (30 s idle, 10 s interval, 3 probes) catches a peer that vanished without
+    a FIN.
+
+    ## Sockets
+
+    The server keeps at most 12 sockets open, and every connected client holds
+    one of them for this stream on top of its REST traffic.
+
+servers:
+  device:
+    host: rotation-target.local
+    protocol: http
+    description: >-
+      The device on the range network, by mDNS name. Hostname from
+      `CONFIG_RT_HOSTNAME`, port from `CONFIG_RT_HTTP_PORT` (default 80).
+  qemu:
+    host: localhost:8080
+    protocol: http
+    description: The firmware under QEMU, through the host-forwarded port.
+
+defaultContentType: application/json
+
+channels:
+  events:
+    address: /sse/v2
+    title: Run-state stream
+    description: >-
+      The single SSE channel. Both messages are named by the SSE `event:`
+      field; their payloads are the `data:` line.
+    servers:
+      - $ref: "#/servers/device"
+      - $ref: "#/servers/qemu"
+    messages:
+      stateUpdate:
+        $ref: "#/components/messages/stateUpdate"
+      heartbeat:
+        $ref: "#/components/messages/heartbeat"
+
+operations:
+  receiveEvents:
+    action: receive
+    channel:
+      $ref: "#/channels/events"
+    title: Receive run-state events
+    summary: >-
+      Subscribe with an `EventSource` (or any SSE client) and follow the run.
+    messages:
+      - $ref: "#/channels/events/messages/stateUpdate"
+      - $ref: "#/channels/events/messages/heartbeat"
+
+components:
+  messages:
+    stateUpdate:
+      name: stateUpdate
+      title: Full run state
+      summary: >-
+        Sent once on connect and again after every change: load, start, stop,
+        reset, skip, a target move, an event boundary during a run, and the
+        deletion of the loaded program.
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/StateUpdate"
+      examples:
+        - name: running
+          summary: A program part-way through its first series.
+          payload:
+            loadedProgramId: 1
+            programState:
+              running: true
+              currentSeriesIndex: 0
+              currentEventIndex: 2
+              tickerSeconds: 7
+            targetStatus: shown
+        - name: loaded-not-started
+          summary: >-
+            Just after `load`: series and event selected, ticker still unset.
+          payload:
+            loadedProgramId: 20
+            programState:
+              running: false
+              currentSeriesIndex: 0
+              currentEventIndex: 0
+              tickerSeconds: null
+            targetStatus: hidden
+        - name: nothing-loaded
+          summary: The state at boot, and after the loaded program is deleted.
+          payload:
+            loadedProgramId: null
+            programState: null
+            targetStatus: hidden
+
+    heartbeat:
+      name: heartbeat
+      title: Keepalive
+      summary: >-
+        Emitted every 10 seconds regardless of activity. A client can watch
+        `id` for a gap to spot a missed beat, and treat a missing heartbeat as
+        a dead connection.
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/Heartbeat"
+      examples:
+        - name: beat
+          payload:
+            id: 42
+
+  schemas:
+    StateUpdate:
+      type: object
+      required: [loadedProgramId, programState, targetStatus]
+      additionalProperties: false
+      properties:
+        loadedProgramId:
+          type: [integer, "null"]
+          format: int32
+          description: The selected program's id, or `null` when nothing is loaded.
+        programState:
+          description: >-
+            `null` exactly when `loadedProgramId` is `null` — the two are
+            emitted from the same condition, so a client may test either.
+          oneOf:
+            - $ref: "#/components/schemas/ProgramState"
+            - type: "null"
+        targetStatus:
+          type: string
+          enum: [shown, hidden]
+          description: >-
+            Where the targets are. Always present, including when nothing is
+            loaded: the targets can be moved outside a program run.
+
+    ProgramState:
+      type: object
+      required:
+        - running
+        - currentSeriesIndex
+        - currentEventIndex
+        - tickerSeconds
+      additionalProperties: false
+      description: >-
+        The three indices are nullable on the wire and are `null` rather than
+        `-1` when unset. All three keys are always present.
+      properties:
+        running:
+          type: boolean
+        currentSeriesIndex:
+          type: [integer, "null"]
+          format: int32
+          minimum: 0
+          description: >-
+            Zero-based index into the loaded program's `series`. Set by
+            `load` (to 0) and by `skip_to`; `null` only in states where no
+            series is selected.
+        currentEventIndex:
+          type: [integer, "null"]
+          format: int32
+          minimum: 0
+          description: >-
+            Zero-based index into the current series' `events`. Derived from
+            elapsed series time rather than tracked per event, so a paused run
+            resumes at whatever event `tickerSeconds` lands in.
+        tickerSeconds:
+          type: [integer, "null"]
+          format: int32
+          minimum: 0
+          description: >-
+            Whole seconds elapsed in the current series, and also the resume
+            point: `stop` keeps it, `reset` and `skip_to` clear it, `load`
+            leaves it unset. Whole seconds means a pause less than a second
+            into a series resumes from 0.
+
+    Heartbeat:
+      type: object
+      required: [id]
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          description: >-
+            A counter incremented per beat, starting at 1 and reset by a
+            reboot. Unrelated to the SSE `id:` field, which carries uptime in
+            milliseconds.

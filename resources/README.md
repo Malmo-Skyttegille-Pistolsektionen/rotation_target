@@ -6,16 +6,16 @@ This repository contains resources and documentation for Malmö Skyttegille Pist
 
 This repository provides:
 
-- **OpenAPI Specification** for the REST API
-- **AsyncAPI Documentation** for Server-Sent Events (SSE) endpoints
 - **Program files** for shooting sequences
 - **Audio files** for use with the target system
 
+The API specifications used to live here. They are now in
+[`../contracts/`](../contracts/README.md), which is canonical, alongside the
+program document schema these files are validated against.
+
 ## Contents
 
-- `openapi/openapi.yaml` — OpenAPI 3.1 specification for the REST API
-- `see/asyncapi.yaml` — AsyncAPI documentation for SSE events
-- `programs/` — Template program series files
+- `programs/` — Template program series files, plus `validate_programs.sh`
 - `audios/` — Audio files for use with the system
 
 ## Related Projects
