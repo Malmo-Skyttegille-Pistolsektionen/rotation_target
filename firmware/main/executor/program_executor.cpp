@@ -204,6 +204,16 @@ bool is_loaded(int32_t program_id) {
   return s_state.program != nullptr && s_state.program->id == program_id;
 }
 
+bool is_running() {
+  Lock lock;
+  return s_state.running;
+}
+
+bool loaded_program_uses_audio(int32_t audio_id) {
+  Lock lock;
+  return s_state.program != nullptr && rt::program_uses_audio(*s_state.program, audio_id);
+}
+
 std::string state_json() {
   Lock lock;
   return rt::state_update_json(s_state);
