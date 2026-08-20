@@ -54,18 +54,17 @@ them:
 ```jsonc
 // webapp/package.json
 "scripts": {
-  "generate:api": "openapi-typescript ../contracts/openapi.yaml -o src/api/types.ts"
+  "generate:api": "openapi-typescript ../contracts/openapi.yaml -o src/api/generated.d.ts"
 }
 ```
 
-`src/api/types.ts` is generated at build time and carries **zero runtime
-bytes** — it is types only. The point is that spec drift becomes a `tsc`
-failure: if the firmware and this document change a shape and the webapp still
-uses the old one, the build breaks rather than the range does.
-
-Wiring that up is task 3.4 of the implementation plan, which also deletes
-`webapp/docs/mock-api-v2.openapi.json` — a drifted fork of this contract that
-predates it.
+`src/api/generated.d.ts` is committed, and CI re-runs the generator and fails
+on `git diff` — so a merged contract change the webapp has not caught up with
+is a red build, not a silent runtime mismatch. `src/api/types.ts` is
+hand-written and re-exports the shapes the app actually uses by name; SSE
+payloads live there too, since `asyncapi.yaml` is not fed to the generator.
+Either way the types carry **zero runtime bytes**, and spec drift becomes a
+`tsc` failure rather than a broken range.
 
 ## Validating
 
