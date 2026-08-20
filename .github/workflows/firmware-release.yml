@@ -59,7 +59,7 @@ jobs:
               ;;
           esac
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -159,7 +159,7 @@ jobs:
             --include-path 'firmware/**' --include-path 'resources/**' \
             --latest --unreleased --strip all --output NOTES.md
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4.6.2
         with:
           name: release-notes
           path: NOTES.md
@@ -206,7 +206,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -225,7 +225,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v8.0.1
         with:
           name: release-notes
 
@@ -263,9 +263,9 @@ jobs:
     name: build the firmware from the tag
     needs: [prepare, tag]
     runs-on: ubuntu-latest
-    container: espressif/idf:v6.0.2
+    container: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
           ref: ${{ needs.prepare.outputs.tag }}
@@ -320,7 +320,7 @@ jobs:
              build/storage.bin \
              release/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4.6.2
         with:
           name: firmware
           path: firmware/release
