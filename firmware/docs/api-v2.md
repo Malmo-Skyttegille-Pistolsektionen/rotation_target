@@ -41,6 +41,21 @@ event, so a paused run resumes at whatever event `tickerSeconds` lands in.
 
 `heartbeat` (`{"id": n}`) is emitted every 10 seconds.
 
+`backend_issue` (`{"code", "message", "context"?}`) is the third event, and the
+only one that is not about run state: it reports a failure the device noticed
+on its own, where no request exists to answer with an error. Today that is a
+clip that would not play (`audio_playback_failed`, raised from the playback
+task) and a stored program file that would not parse (`program_invalid`, raised
+by the boot scan).
+
+It is fire-and-forget by design. Nothing is buffered for a client that connects
+later and nothing is replayed on reconnect, so the event is a notification and
+the device log remains the record. That also means the boot-scan emissions
+reach nobody: `load_all()` runs before the HTTP server exists, and `sse_hub`
+drops frames raised before it has a server to send them through. The code is
+specified anyway, so that a rescan added later reports a bad file rather than
+silently listing one program fewer.
+
 ## Execution semantics
 
 | Call | Effect |
