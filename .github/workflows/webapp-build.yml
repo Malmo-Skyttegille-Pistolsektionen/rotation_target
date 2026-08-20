@@ -1,0 +1,71 @@
+---
+name: webapp-build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - webapp/**
+      - .github/workflows/webapp-build.yml
+  pull_request:
+    paths:
+      - webapp/**
+      - .github/workflows/webapp-build.yml
+
+permissions:
+  contents: read
+
+# A superseded push should not keep a full webapp build running to completion.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  webapp:
+    name: typecheck, lint, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webapp
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Check gzip size budget
+        run: |
+          budget=$(cat size-budget)
+          total=0
+          count=0
+          while IFS= read -r -d '' f; do
+            size=$(gzip -nc "$f" | wc -c)
+            total=$((total + size))
+            count=$((count + 1))
+          done < <(find dist -type f \( -name '*.js' -o -name '*.css' \) -print0)
+          if [ "$count" -eq 0 ]; then
+            echo "::error::no dist/**/*.{js,css} files found — build produced nothing to measure"
+            exit 1
+          fi
+          echo "Total gzipped dist/**/*.{js,css}: ${total} bytes across ${count} files (budget: ${budget} bytes)"
+          if [ "$total" -gt "$budget" ]; then
+            echo "::error::gzip size budget exceeded: ${total} > ${budget} bytes (see webapp/size-budget)"
+            exit 1
+          fi

@@ -181,9 +181,10 @@ See `docs/RELEASING.md`.
 `npm ci` in CI.
 
 **Why:** the monorepo has exactly one JS package, so pnpm's workspace
-strengths don't apply; the existing lockfile is Yarn 1 (maintenance mode) and
-Yarn Berry adds Corepack friction; npm ships with Node and keeps CI and the
-firmware's webapp-bundling step free of extra toolchain.
+strengths don't apply; the existing lockfile was Yarn 4 (Berry,
+`packageManager: yarn@4.12.0`), which needs Corepack to reproduce the pinned
+version; npm ships with Node and keeps CI and the firmware's
+webapp-bundling step free of extra toolchain.
 
 **Rejected:** yarn; pnpm (revisit if the monorepo ever grows multiple JS
 packages).

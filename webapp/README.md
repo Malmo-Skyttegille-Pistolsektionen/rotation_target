@@ -9,7 +9,7 @@ This project is a frontend application for controlling rotating targets for Malm
 - **Routing:** TanStack Router
 - **State/Data:** TanStack Query
 - **Build Tool:** Vite
-- **Package Manager:** Yarn 4 (with PnP and strict security)
+- **Package Manager:** npm
 - **Styling:** CSS Modules (CLSX)
 - **Linting/Formatting:** ESLint, Prettier
 
@@ -42,7 +42,7 @@ The web app has the following main features:
 ### Start dev server
 
 ```bash
-yarn dev
+npm run dev
 ```
 
 This starts the Vite server at `http://localhost:8080`.
@@ -51,7 +51,7 @@ A built-in **Mock Server** simulates the hardware API and SSE streams, so you ca
 ### Build for production
 
 ```bash
-yarn build
+npm run build
 ```
 
 This generates an optimized build in the `dist/` folder.
@@ -61,8 +61,24 @@ This generates an optimized build in the `dist/` folder.
 The project uses strict ESLint and Prettier.
 
 ```bash
-yarn lint
-yarn format
+npm run lint
+npm run format
+```
+
+### Size budget
+
+CI fails the build if the gzipped total of `dist/**/*.{js,css}` exceeds the
+ceiling in `webapp/size-budget` (the same check as
+`.github/workflows/webapp-build.yml`). To regenerate it after a deliberate
+size change (current total + 5%):
+
+```bash
+npm run build
+total=0
+while IFS= read -r -d '' f; do
+  total=$((total + $(gzip -nc "$f" | wc -c)))
+done < <(find dist -type f \( -name '*.js' -o -name '*.css' \) -print0)
+echo "$total * 1.05" | bc | cut -d. -f1 > size-budget
 ```
 
 ## UI/UX
@@ -83,8 +99,13 @@ Primary audience is tablet and mobile, which requires larger, touch-friendly but
 
 The project is configured to minimize supply-chain attack risk:
 
-- Yarn 4 with `enableScripts: false` (no postinstall scripts run automatically).
-- Dependencies are locked via `yarn.lock`.
+- Dependencies are locked via `package-lock.json` (`npm ci` in CI).
+- Install scripts are disabled via `.npmrc` (`ignore-scripts=true`); no
+  package's `postinstall`/`preinstall` runs on `npm install` or `npm ci`.
+- Yarn's `npmMinimalAgeGate` (a per-install minimum package age) has no npm
+  equivalent; the managed path is instead covered by the org's shared
+  Renovate config, `minimumReleaseAge` (3 days for minor/patch updates, 7
+  days for major).
 
 ## Contact
 
