@@ -90,7 +90,9 @@ export function AdminModeSection(): React.ReactNode {
         <h2 className={styles.sectionTitle}>Admin Mode</h2>
         <div className={styles.adminForm}>
           <div className={styles.statusRow}>
-            <span className={clsx(styles.statusBadge, styles.statusOff)}>OFF</span>
+            <span className={clsx(styles.statusBadge, styles.statusOff)} data-testid='admin-status'>
+              OFF
+            </span>
             <span className={styles.statusDescription}>Full public access - anyone can control</span>
           </div>
           <div className={styles.inputRow}>
@@ -100,6 +102,7 @@ export function AdminModeSection(): React.ReactNode {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder='Enter admin password to enable'
+              data-testid='admin-password'
             />
             <button
               className={clsx(styles.button, styles.buttonPrimary)}
@@ -122,7 +125,9 @@ export function AdminModeSection(): React.ReactNode {
         <h2 className={styles.sectionTitle}>Admin Mode</h2>
         <div className={styles.adminForm}>
           <div className={styles.statusRow}>
-            <span className={clsx(styles.statusBadge, styles.statusLocked)}>ON 🔒</span>
+            <span className={clsx(styles.statusBadge, styles.statusLocked)} data-testid='admin-status'>
+              ON 🔒
+            </span>
             <span className={styles.statusDescription}>View only - login required to control</span>
           </div>
           <div className={styles.inputRow}>
@@ -132,6 +137,7 @@ export function AdminModeSection(): React.ReactNode {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder='Enter admin password'
+              data-testid='admin-password'
             />
             <button
               className={clsx(styles.button, styles.buttonPrimary)}
@@ -154,7 +160,9 @@ export function AdminModeSection(): React.ReactNode {
       <h2 className={styles.sectionTitle}>Admin Mode</h2>
       <div className={styles.adminForm}>
         <div className={styles.statusRow}>
-          <span className={clsx(styles.statusBadge, styles.statusActive)}>ON ✓</span>
+          <span className={clsx(styles.statusBadge, styles.statusActive)} data-testid='admin-status'>
+            ON ✓
+          </span>
           <span className={styles.statusDescription}>You have full admin access</span>
         </div>
         <div className={styles.buttonRow}>

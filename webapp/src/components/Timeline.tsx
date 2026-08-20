@@ -53,13 +53,17 @@ export function Timeline({
   };
 
   return (
-    <div className={styles.timelineWrapper}>
+    <div className={styles.timelineWrapper} data-testid='timeline'>
       {program.series.map((series, sIdx) => {
         const isCurrentSeries = sIdx === currentSeriesIndex;
         const elapsedMs = calculateElapsedMs(sIdx);
 
         return (
-          <div key={sIdx} className={clsx(styles.series, isCurrentSeries && styles.active)}>
+          <div
+            key={sIdx}
+            className={clsx(styles.series, isCurrentSeries && styles.active)}
+            data-testid='timeline-series'
+          >
             <div className={styles.seriesTitle}>
               {series.name} {series.optional ? '(optional)' : ''}
             </div>
@@ -180,7 +184,7 @@ function FieldTimelineSeries({
       })}
       {/* Cursor */}
       {showCursor && (
-        <div className={styles.cursor} style={{ left: `${cursorPercent}%` }}>
+        <div className={styles.cursor} style={{ left: `${cursorPercent}%` }} data-testid='timeline-cursor'>
           <div className={styles.cursorHead} />
         </div>
       )}
