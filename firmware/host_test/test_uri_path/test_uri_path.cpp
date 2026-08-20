@@ -1,5 +1,6 @@
 // ============================================================================
-//  URI path-segment parsing - the security boundary for every {id} route.
+//  URI path parsing - the security boundary for every {id} route, and the
+//  classifier deciding which GET miss gets the webapp's index.html.
 //  Could not be tested while this lived in an anonymous namespace in
 //  main/net/web_server.cpp.
 // ============================================================================
@@ -125,6 +126,57 @@ void test_a_nested_path_is_refused() {
   TEST_ASSERT_FALSE(rt::path_id("/api/v2/programs/series/0/skip_to", kPrefix, "", id));
 }
 
+// --- SPA fallback eligibility ----------------------------------------------
+
+void test_a_client_side_route_is_eligible() {
+  TEST_ASSERT_TRUE(rt::spa_fallback_eligible("/run"));
+  TEST_ASSERT_TRUE(rt::spa_fallback_eligible("/settings"));
+  TEST_ASSERT_TRUE(rt::spa_fallback_eligible("/legacy"));
+  TEST_ASSERT_TRUE(rt::spa_fallback_eligible("/"));
+}
+
+void test_a_nested_route_and_a_trailing_slash_are_eligible() {
+  TEST_ASSERT_TRUE(rt::spa_fallback_eligible("/programs/12/edit"));
+  TEST_ASSERT_TRUE(rt::spa_fallback_eligible("/run/"));
+}
+
+void test_a_query_string_does_not_read_as_an_extension() {
+  TEST_ASSERT_TRUE(rt::spa_fallback_eligible("/run?program=1.2"));
+}
+
+void test_the_api_keeps_its_own_404() {
+  // A missing endpoint has to stay a JSON 404, or every client typo becomes
+  // an HTML page the caller cannot parse.
+  TEST_ASSERT_FALSE(rt::spa_fallback_eligible("/api"));
+  TEST_ASSERT_FALSE(rt::spa_fallback_eligible("/api/v2/nope"));
+  TEST_ASSERT_FALSE(rt::spa_fallback_eligible("/sse"));
+  TEST_ASSERT_FALSE(rt::spa_fallback_eligible("/sse/v3"));
+}
+
+void test_a_prefix_only_matches_at_a_segment_boundary() {
+  TEST_ASSERT_TRUE(rt::spa_fallback_eligible("/apiary"));
+  TEST_ASSERT_TRUE(rt::spa_fallback_eligible("/sses"));
+}
+
+void test_a_missing_asset_stays_a_404() {
+  TEST_ASSERT_FALSE(rt::spa_fallback_eligible("/assets/main-abc123.js"));
+  TEST_ASSERT_FALSE(rt::spa_fallback_eligible("/favicon.ico"));
+  TEST_ASSERT_FALSE(rt::spa_fallback_eligible("/legacy.html"));
+  TEST_ASSERT_FALSE(rt::spa_fallback_eligible("/icons/play_24_regular.svg"));
+}
+
+void test_a_traversal_attempt_is_not_navigation() {
+  TEST_ASSERT_FALSE(rt::spa_fallback_eligible("/../etc/passwd"));
+  TEST_ASSERT_FALSE(rt::spa_fallback_eligible("/run/../../secret"));
+}
+
+void test_a_malformed_uri_is_refused() {
+  TEST_ASSERT_FALSE(rt::spa_fallback_eligible(nullptr));
+  TEST_ASSERT_FALSE(rt::spa_fallback_eligible(""));
+  TEST_ASSERT_FALSE(rt::spa_fallback_eligible("run"));
+  TEST_ASSERT_FALSE(rt::spa_fallback_eligible("?x=1"));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_a_bare_id_parses);
@@ -146,5 +198,14 @@ int main() {
   RUN_TEST(test_a_null_uri_is_refused);
   RUN_TEST(test_a_fixed_run_control_path_is_refused_as_an_id);
   RUN_TEST(test_a_nested_path_is_refused);
+
+  RUN_TEST(test_a_client_side_route_is_eligible);
+  RUN_TEST(test_a_nested_route_and_a_trailing_slash_are_eligible);
+  RUN_TEST(test_a_query_string_does_not_read_as_an_extension);
+  RUN_TEST(test_the_api_keeps_its_own_404);
+  RUN_TEST(test_a_prefix_only_matches_at_a_segment_boundary);
+  RUN_TEST(test_a_missing_asset_stays_a_404);
+  RUN_TEST(test_a_traversal_attempt_is_not_navigation);
+  RUN_TEST(test_a_malformed_uri_is_refused);
   return UNITY_END();
 }
