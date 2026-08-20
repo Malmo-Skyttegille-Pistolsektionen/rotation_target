@@ -395,6 +395,67 @@ every future contributor must be taught); `instance` (no request ids);
 converting piecemeal (would leave a half-and-half API — one focused PR changes
 the helper, all 39 sites, the contract, the webapp and the mock together).
 
+## D-20 — `Event.command` is a closed vocabulary *(Decided 2026-08-20)*
+
+**Decision:** `command` stays optional, but a value the device does not
+recognise is now a **parse error**, not a no-op. `parse_program` accepts an
+absent key, JSON `null` and `""` as "leave the targets where they are", accepts
+`"show"` and `"hide"`, and refuses anything else — a non-string, a misspelling,
+a different case — failing the whole program the way malformed JSON does.
+`POST /programs` and `PUT /programs/{id}` therefore answer `400 Invalid
+program`. The contract loses the sentence that blessed the old behaviour
+("Omitted, or **any other string**, leaves them where they are"), which
+contradicted the `enum: [show, hide]` three lines above it.
+
+`null` and `""` are accepted rather than refused because both are in-tree
+spellings of absence: the legacy program editor writes `command: null` for its
+"no change" radio button (`program_editor.js:1263`), and `""` was the parser's
+own default for a missing key. Neither is ever emitted — `event_json` omits the
+key — so nothing round-trips either back out, and refusing them would break the
+editor for no gain in safety. Neither is in the schema.
+
+**Why:** a typo made the target silently not turn. `{"command": "shwo"}`
+uploaded happily, and the failure surfaced mid-exercise as a target that just
+did not move — the same class of quiet failure as a clip that fails to play,
+which D-09 and #79 already treated as a range-safety problem rather than a UX
+one. **Both clients were already strict** (the React validator in
+`webapp/src/lib/program-document.ts`, the legacy editor's ajv schema); only the
+device was lax, so the enum was already the de-facto contract and nothing
+depended on the laxness. Across all seven shipped programs the only values are
+`show` (300), `hide` (186) and absent (125) — no empty strings and no other
+values — so strictness breaks nothing shipped.
+
+**Migration:** a stored upload with a bad command stops loading at boot.
+`programs::load_dir` skips the file, logs `W programs: Malformed program
+<path>`, and raises the `program_invalid` `backend_issue` naming it — but that
+frame is **dropped**: `load_all()` runs at `app_main.cpp:58`, `web_server::start()`
+at `:76`, and `sse_hub::enqueue` returns early while there is no server, exactly
+as its comment says. So today a bad stored program is visible on the serial log
+and by its absence from `GET /programs`, and *not* to a browser. Verified in
+QEMU with a hand-planted `uploads/programs/200.json`.
+
+That is a pre-existing gap in the `program_invalid` path, not one this change
+introduces — it just gives it its first likely trigger. Closing it wants a
+boot-issue buffer replayed to the first SSE client, or a rescan on connect;
+either is its own change. In the meantime the club-visible symptom of a typo is
+a program that fails to upload (`400`, at the moment of the typo), which is the
+case this decision is actually about.
+
+**Rejected:** *deleting the enum* and blessing the lax behaviour — it makes the
+contract self-consistent by writing the hazard into it, and forces both clients
+to loosen. *Accept but warn* (parse it, emit a `backend_issue`) — the program
+still runs wrong, and the warning arrives on a channel nobody is watching at
+upload time; a `400` at the moment of upload is the only feedback that reaches
+the person who made the typo. *Normalising unknown values to "no command"* —
+same silent-no-op outcome, just spelled deliberately.
+
+**Follow-up (webapp, required):** #72 (React Programs tab) is unmerged and its
+mock server and one E2E test deliberately assert that `command: 'sideways'`
+survives a round trip. That assertion is false after this change and must be
+inverted once #72 lands; `program-document.ts`'s header note, which records
+that it is deliberately stricter than the firmware on `command`, must say that
+the two now agree.
+
 ## Open questions
 
 - **Are `app` / `x86_linux` used by anyone?** (asked — drives D-03's
