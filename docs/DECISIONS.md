@@ -32,6 +32,8 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-21 | An npm `override` must be truthful | Decided | 2026-08-20 |
 | D-22 | `POST /programs/unload` | Decided | 2026-08-21 |
 | D-23 | A refused delete is `409`, not `404` | Decided | 2026-08-21 |
+| D-24 | One `libraryChanged` SSE event | Decided | 2026-08-21 |
+| D-25 | Boot-time issues are served, not streamed | Decided | 2026-08-21 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
 
@@ -510,6 +512,38 @@ inverted once #72 lands; `program-document.ts`'s header note, which records
 that it is deliberately stricter than the firmware on `command`, must say that
 the two now agree.
 
+## D-21 — An npm `override` must be truthful *(Decided 2026-08-20)*
+
+**Decision:** `overrides` in `webapp/package.json` are allowed **only** to assert
+that a declared peer range is *conservative* — i.e. the package genuinely works
+with the overridden version, and we can show it. An override that papers over a
+real incompatibility is not allowed, and **`--legacy-peer-deps` and `--force`
+are rejected outright** (they relax every peer check in the tree, not the one
+under discussion). Each override carries a comment naming the evidence.
+
+**Why:** a green check over a knowingly broken dependency tree is worse than a
+red one, because it removes the signal without removing the problem. Two
+worked examples decided this rule:
+
+- **Positive — TypeScript 6 (PR #67).** `openapi-typescript@7.13.0` peers
+  `typescript@^5.x`, blocking the upgrade. The generator uses only TypeScript's
+  stable AST factory and printer surface, never the program or checker APIs,
+  and under TS 6 it regenerates `src/api/generated.d.ts` **byte-identically**.
+  The peer range is merely conservative, so
+  `"overrides": {"openapi-typescript": {"typescript": "$typescript"}}` states
+  something true, scoped to that one package.
+- **Negative — ESLint 10 (PR #69).** `eslint-plugin-react@7.37.5` peers
+  `eslint ... || ^9.7`. Forcing it installs and then dies on the first file
+  (`context.getFilename()` was removed in ESLint 10). The range is accurate;
+  an override there would be a lie, so the dependency was dealt with instead.
+
+The test is therefore not "does CI go green" but **"is the assertion the
+override makes actually true, and what is the evidence?"**
+
+**Rejected:** `--legacy-peer-deps` in `.npmrc` or CI; broad
+`overrides` that retarget a package everywhere rather than under one parent;
+pinning a dependency back to dodge the question without saying so.
+
 ## D-22 — `POST /programs/unload` *(Decided 2026-08-21)*
 
 **Decision:** add `POST /api/v2/programs/unload`, admin-gated like every other
@@ -713,7 +747,6 @@ deliver, which is worse than not specifying it. *A dedicated
 `GET /diagnostics/startup-issues`* — a second endpoint for a field, when the
 client fetching diagnostics wants both. *Emitting them on SSE connect* — see
 option 1 above.
-
 ## Open questions
 
 - **Are `app` / `x86_linux` used by anyone?** (asked — drives D-03's
