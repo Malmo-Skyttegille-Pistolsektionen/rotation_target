@@ -222,7 +222,12 @@ discard imported history).
 
 **Decision:** devtools never ship in a stable release (dev-only lazy
 import); `src_legacy` stays until its Audio and Programs tabs are ported (it
-is the only implementation of both); CI enforces a gzip size budget.
+is the only implementation of both)
+
+**Amended 2026-08-20:** the Audios tab and the Programs list/management
+views are now ported to React (#71, #72). What still exists only in
+`src_legacy` is the **WYSIWYG program editor** (#73) — so `src_legacy`
+stays until that lands. See [D-18](#d-18--program-validation-without-ajv-the-editor-ports-later); CI enforces a gzip size budget.
 
 ## D-15 — Program update endpoint *(Decided 2026-08-20)*
 
@@ -315,6 +320,80 @@ framework for the same device).
 **Not covered:** `backend_issue`, which needs audio hardware — QEMU emulates
 no I2S, so the simulator profile builds with `RT_AUDIO_ENABLED` off and the
 event cannot be provoked from outside the device.
+
+## D-18 — Program validation without ajv; the editor ports later *(Decided 2026-08-20)*
+
+**Decision:** the React Programs tab validates program documents with a
+hand-written validator (`webapp/src/lib/program-document.ts`) written against
+**`parse_program` in `firmware/lib/rt_logic/program.cpp`** — the firmware's
+actual parsing, not the JSON Schema — instead of shipping ajv and Prism in the
+React bundle. It is deliberately laxer than `contracts/program.schema.json` in
+three places where the schema is stricter than the device: unknown fields are
+warned-and-dropped rather than refused, only `title` and `series` are required,
+and a negative duration is clamped rather than rejected. The **WYSIWYG program editor stays in the legacy app** until it
+is ported (#73); `src_legacy` is not deleted before that lands.
+
+**Why:** ajv plus Prism costs roughly 45 KB gz for what is, on this device, one
+form. The hand-written validator also does something the schema cannot: it
+reports what the firmware will *silently change* — clamped durations, dropped
+unknown fields, an ignored `readonly` — before the upload rather than after.
+
+The editor is deferred because it is 2688 lines of legacy JS whose Form, Events
+and Timeline views are three renderings of the same edit operations, with the
+reordering, context-menu and selection logic triplicated. A faithful port is
+~1000–1200 lines of TSX after deduplication; folded into the list PR it would
+land as one unreviewable squash commit. What shipped is complete on its own
+terms — every operation the legacy tab performs against the device is present,
+and programs can be created and replaced by file — so there is no half-built
+editor in the new app.
+
+**Rejected:** ajv in standalone (build-time compiled) mode — still a build
+complication for one form; porting the editor partially; deleting `src_legacy`
+before authoring exists in React.
+
+**Known cost:** the validator and the schema are now two hand-maintained
+descriptions of one document, which is the drift shape that produced the 100x
+`duration` bug (D-01). A comment is the only thing holding them together today.
+Close it structurally before the editor lands (#73) — either generate the
+validator from the schema so drift is a build failure, or cross-check the two
+in a test over the shipped programs plus hostile inputs.
+
+## D-19 — REST errors become RFC 9457 problem details *(Decided 2026-08-20, implementation pending)*
+
+**Decision:** every REST error response becomes an RFC 9457 problem detail
+served as `application/problem+json`, carrying `type`, `title`, `status` and
+`detail`. `instance` is omitted — it identifies a single occurrence, which
+means nothing on a device with no request ids. `type` is a stable relative URI
+(`/problems/<slug>`) that is never dereferenced.
+
+**The slug vocabulary is shared with the SSE `backend_issue` codes**, so the
+system speaks one error language on both channels rather than two.
+
+**Why:** the API has 39 error sites and the shape is `{"error": "prose"}`.
+Four distinct reasons already answer `409` — admin not enabled, audio playing,
+program loaded, program read-only — and the audio-deletion guard adds three
+more. A client that must react differently to them (the Programs tab does:
+"loaded" means offer to load another, "read-only" means offer upload-as-new)
+can only tell them apart by **string-matching English prose**. That breaks on
+any rewording and cannot be localised for a Swedish club. The SSE side already
+solved this with `backend_issue`'s `{code, message, context}`; REST never got
+the same treatment.
+
+RFC 9457 over a home-grown `code` field: the discriminator is where the value
+is, but the standard costs little more, ends the field-naming argument, and the
+existing tooling understands it — Redocly lints `application/problem+json`, and
+`openapi-typescript` gives the webapp a discriminated union to switch on.
+
+**Why now:** the same window that made D-16 safe is still open. No `firmware-v*`
+tag has been cut, and the webapp ships inside the firmware image, so producer
+and consumer deploy atomically — there is no skew period where an old client
+meets a new error shape. After the first release this becomes a breaking change
+with deprecation cost, and the error surface grows every week.
+
+**Rejected:** a bespoke `{"error", "code"}` pair (cheaper, but a convention
+every future contributor must be taught); `instance` (no request ids);
+converting piecemeal (would leave a half-and-half API — one focused PR changes
+the helper, all 39 sites, the contract, the webapp and the mock together).
 
 ## Open questions
 
