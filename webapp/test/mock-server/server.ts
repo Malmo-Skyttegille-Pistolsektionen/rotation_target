@@ -5,8 +5,8 @@
  * - Single `stateUpdate` SSE event (no per-event SSE)
  * - REST program payloads use snake_case `audio_ids`, matching the firmware
  * - `stop` pauses execution (keeps position), `reset` is explicit
- * - `tickerSeconds` = whole seconds elapsed in current SERIES (not event)
- * - `currentEventIndex` derived from tickerSeconds + cumulative durations
+ * - `tickerMs` = milliseconds elapsed in current SERIES (not event)
+ * - `currentEventIndex` derived from tickerMs + cumulative durations
  *
  * See webapp/docs/server-spec.md and contracts/ for details.
  *
@@ -273,7 +273,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       }
 
       state.programState.running = false;
-      state.programState.tickerSeconds = null;
+      state.programState.tickerMs = null;
       state.seriesStartTime = null;
 
       broadcastState();
@@ -283,12 +283,14 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     const location = locateEvent(series, elapsedMs);
     if (!location) return;
 
+    // Whole seconds decide *whether* to publish; milliseconds are what gets
+    // published. Same split as rt::Executor::tick - see D-16.
     const elapsedSeconds = Math.floor(elapsedMs / 1000);
-    const changed =
-      state.programState.currentEventIndex !== location.index || state.programState.tickerSeconds !== elapsedSeconds;
+    const publishedSeconds = state.programState.tickerMs === null ? null : Math.floor(state.programState.tickerMs / 1000);
+    const changed = state.programState.currentEventIndex !== location.index || publishedSeconds !== elapsedSeconds;
 
     if (changed) {
-      state.programState.tickerSeconds = elapsedSeconds;
+      state.programState.tickerMs = elapsedMs;
       applyLocation(series, location);
       broadcastState();
     }
@@ -404,7 +406,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         running: false,
         currentSeriesIndex: 0,
         currentEventIndex: 0,
-        tickerSeconds: null,
+        tickerMs: null,
       };
       state.seriesStartTime = null;
 
@@ -428,10 +430,10 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       }
 
       // Resume from where a pause left the ticker, otherwise from the top.
-      const resumeFromMs = (state.programState.tickerSeconds ?? 0) * 1000;
+      const resumeFromMs = state.programState.tickerMs ?? 0;
       state.programState.running = true;
       state.seriesStartTime = clock.now() - resumeFromMs;
-      state.programState.tickerSeconds = Math.floor(resumeFromMs / 1000);
+      state.programState.tickerMs = resumeFromMs;
 
       // Mirrors rt::Executor::start: a resume point past the end of the series
       // has no event to enter, and the next tick completes the series.
@@ -452,7 +454,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         return;
       }
 
-      // Pause: keep current position and tickerSeconds
+      // Pause: keep current position and tickerMs
       state.programState.running = false;
       state.seriesStartTime = null;
 
@@ -472,7 +474,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       // Reset to start of current series
       state.programState.running = false;
       state.programState.currentEventIndex = 0;
-      state.programState.tickerSeconds = null;
+      state.programState.tickerMs = null;
       state.seriesStartTime = null;
 
       broadcastState();
@@ -499,7 +501,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       state.programState.currentSeriesIndex = idx;
       state.programState.currentEventIndex = 0;
       state.programState.running = false;
-      state.programState.tickerSeconds = null;
+      state.programState.tickerMs = null;
       state.seriesStartTime = null;
 
       broadcastState();

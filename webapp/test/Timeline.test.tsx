@@ -11,7 +11,7 @@ afterEach(cleanup);
 type Position = {
   currentSeriesIndex?: number | null;
   currentEventIndex?: number | null;
-  tickerSeconds?: number | null;
+  tickerMs?: number | null;
   mode?: 'auto' | 'default' | 'field';
 };
 
@@ -21,7 +21,7 @@ function renderTimeline(program: Program, position: Position = {}) {
       program={program}
       currentSeriesIndex={position.currentSeriesIndex ?? null}
       currentEventIndex={position.currentEventIndex ?? null}
-      tickerSeconds={position.tickerSeconds ?? null}
+      tickerMs={position.tickerMs ?? null}
       mode={position.mode}
     />,
   );
@@ -158,13 +158,21 @@ describe('the run position', () => {
     expect(document.querySelectorAll('.series')[1].classList.contains('active')).toBe(true);
   });
 
-  it('maps tickerSeconds onto the cursor position', () => {
+  it('maps tickerMs onto the cursor position', () => {
     // 7 s into a 28 s series is a quarter of the way along.
-    renderTimeline(PROGRAM_FALT_TRANING, { currentSeriesIndex: 0, currentEventIndex: 0, tickerSeconds: 7 });
+    renderTimeline(PROGRAM_FALT_TRANING, { currentSeriesIndex: 0, currentEventIndex: 0, tickerMs: 7000 });
 
     const cursors = document.querySelectorAll<HTMLElement>('.cursor');
     expect(cursors).toHaveLength(1);
     expect(cursors[0].style.left).toBe('25%');
+  });
+
+  it('positions the cursor from the sub-second part too', () => {
+    // The point of D-16. With a whole-second ticker this landed on 25 % as
+    // well - a second, and a whole event, behind the targets.
+    renderTimeline(PROGRAM_FALT_TRANING, { currentSeriesIndex: 0, currentEventIndex: 0, tickerMs: 7480 });
+
+    expect(document.querySelector<HTMLElement>('.cursor')!.style.left).toBe(`${(7480 / 28000) * 100}%`);
   });
 
   it('draws no cursor when nothing is running', () => {
@@ -173,8 +181,8 @@ describe('the run position', () => {
   });
 
   it('parks the cursor at the start of the series while the ticker is null', () => {
-    // Loaded but not started: `tickerSeconds` is null until the first tick.
-    renderTimeline(PROGRAM_FALT_TRANING, { currentSeriesIndex: 0, currentEventIndex: 0, tickerSeconds: null });
+    // Loaded but not started: `tickerMs` is null until the first tick.
+    renderTimeline(PROGRAM_FALT_TRANING, { currentSeriesIndex: 0, currentEventIndex: 0, tickerMs: null });
     expect(document.querySelector<HTMLElement>('.cursor')!.style.left).toBe('0%');
   });
 });

@@ -244,7 +244,7 @@ export interface paths {
         put?: never;
         /**
          * Select a program to run
-         * @description Selects the program at series 0, event 0, with `tickerSeconds` unset. Does not start it.
+         * @description Selects the program at series 0, event 0, with `tickerMs` unset. Does not start it.
          */
         post: operations["loadProgram"];
         delete?: never;
@@ -291,7 +291,7 @@ export interface paths {
         put?: never;
         /**
          * Start or resume the loaded program
-         * @description Resumes the current series from `tickerSeconds`, or runs it from zero when the ticker is unset. Starting an already-running program is a no-op and still answers `200`. Audio only replays when the resume point lands exactly on an event boundary.
+         * @description Resumes the current series from `tickerMs`, or runs it from zero when the ticker is unset. Starting an already-running program is a no-op and still answers `200`. Audio only replays when the resume point lands exactly on an event boundary.
          */
         post: operations["startProgram"];
         delete?: never;
@@ -311,7 +311,7 @@ export interface paths {
         put?: never;
         /**
          * Pause the running program
-         * @description Pauses and keeps the position, so `start` resumes from it. Because `tickerSeconds` is whole seconds, a pause less than a second into a series resumes from 0.
+         * @description Pauses and keeps the last published position, so `start` resumes from it. That is the ticker the last `stateUpdate` carried, not the instant the pause arrived. Since `asyncapi.yaml` 3.0.0 replaced the whole-second `tickerSeconds` with `tickerMs`, a pause a few hundred milliseconds into a series no longer rewinds to the start of it.
          */
         post: operations["stopProgram"];
         delete?: never;
@@ -331,7 +331,7 @@ export interface paths {
         put?: never;
         /**
          * Rewind to the start of the current series
-         * @description Stops the run, selects event 0 of the current series and clears `tickerSeconds`. The selected series is kept.
+         * @description Stops the run, selects event 0 of the current series and clears `tickerMs`. The selected series is kept.
          */
         post: operations["resetProgram"];
         delete?: never;
@@ -354,7 +354,7 @@ export interface paths {
         put?: never;
         /**
          * Jump to a series
-         * @description Stops the run and selects the series, paused at its first event with `tickerSeconds` cleared.
+         * @description Stops the run and selects the series, paused at its first event with `tickerMs` cleared.
          */
         post: operations["skipToSeries"];
         delete?: never;

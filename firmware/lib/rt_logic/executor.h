@@ -52,7 +52,7 @@ class Executor {
   // Select `program`, series 0, event 0, ticker unset. Null is refused, which
   // is how "program not found" reaches the caller.
   bool load(const Program *program);
-  // Resume from ticker_seconds, or run the current series from zero.
+  // Resume from ticker_ms, or run the current series from zero.
   bool start();
   // Pause, keeping the position so start() can resume from it.
   bool stop();

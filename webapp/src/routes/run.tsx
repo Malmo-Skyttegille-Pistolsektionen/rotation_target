@@ -44,7 +44,7 @@ function RunView(): React.ReactNode {
   const loadedProgramId = state?.loadedProgramId ?? null;
   const currentSeriesIndex = state?.programState?.currentSeriesIndex;
   const currentEventIndex = state?.programState?.currentEventIndex;
-  const tickerSeconds = state?.programState?.tickerSeconds;
+  const tickerMs = state?.programState?.tickerMs;
   const isRunning = state?.programState?.running ?? false;
 
   const { data: loadedProgram } = useQuery({
@@ -157,10 +157,11 @@ function RunView(): React.ReactNode {
           <div className={styles.headerLeft}>
             <h2 className={styles.title}>Run Program</h2>
 
-            {tickerSeconds != null && (
+            {tickerMs != null && (
               <div className={clsx(styles.infoBadge, styles.badgeTime)}>
                 <span className={styles.badgeLabel}>Time:</span>
-                <span className={styles.timerValue}>{tickerSeconds}s</span>
+                {/* Seconds are the client's derivation now - the wire carries ms. */}
+                <span className={styles.timerValue}>{Math.floor(tickerMs / 1000)}s</span>
               </div>
             )}
 
@@ -300,7 +301,7 @@ function RunView(): React.ReactNode {
           program={activeProgram}
           currentSeriesIndex={currentSeriesIndex ?? null}
           currentEventIndex={currentEventIndex ?? null}
-          tickerSeconds={tickerSeconds ?? null}
+          tickerMs={tickerMs ?? null}
           mode={timelineMode}
         />
       )}

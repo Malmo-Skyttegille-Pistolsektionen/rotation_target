@@ -9,7 +9,7 @@
  *
  * Deriving position from elapsed series time, rather than tracking it per
  * event, is what lets `stop` pause instead of rewind: a paused run resumes at
- * whatever event its `tickerSeconds` lands in.
+ * whatever event its `tickerMs` lands in.
  */
 import type { Series } from '../api/types';
 

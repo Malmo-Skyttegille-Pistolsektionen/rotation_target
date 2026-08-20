@@ -29,12 +29,12 @@ void test_a_loaded_program_serializes_its_position() {
   s.running = true;
   s.current_series_index.set(0);
   s.current_event_index.set(2);
-  s.ticker_seconds.set(7);
+  s.ticker_ms.set(7480);
   s.target_status_shown = true;
 
   TEST_ASSERT_EQUAL_STRING(
       "{\"loadedProgramId\":42,\"programState\":{\"running\":true,\"currentSeriesIndex\":0,"
-      "\"currentEventIndex\":2,\"tickerSeconds\":7},\"targetStatus\":\"shown\"}",
+      "\"currentEventIndex\":2,\"tickerMs\":7480},\"targetStatus\":\"shown\"}",
       rt::state_update_json(s).c_str());
 }
 
@@ -46,7 +46,7 @@ void test_an_unset_ticker_serializes_as_null() {
 
   TEST_ASSERT_EQUAL_STRING(
       "{\"loadedProgramId\":42,\"programState\":{\"running\":false,\"currentSeriesIndex\":1,"
-      "\"currentEventIndex\":0,\"tickerSeconds\":null},\"targetStatus\":\"hidden\"}",
+      "\"currentEventIndex\":0,\"tickerMs\":null},\"targetStatus\":\"hidden\"}",
       rt::state_update_json(s).c_str());
 }
 
@@ -54,7 +54,7 @@ void test_unload_clears_everything_but_the_target_status() {
   rt::ProgramState s;
   s.program = &g_program;
   s.running = true;
-  s.ticker_seconds.set(3);
+  s.ticker_ms.set(3000);
   // The targets do not move just because the program was unloaded, so the
   // published status must survive it.
   s.target_status_shown = true;
@@ -63,7 +63,7 @@ void test_unload_clears_everything_but_the_target_status() {
 
   TEST_ASSERT_FALSE(s.is_loaded());
   TEST_ASSERT_FALSE(s.running);
-  TEST_ASSERT_FALSE(s.ticker_seconds.has_value);
+  TEST_ASSERT_FALSE(s.ticker_ms.has_value);
   TEST_ASSERT_TRUE(s.target_status_shown);
   TEST_ASSERT_EQUAL_STRING(
       "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"shown\"}",

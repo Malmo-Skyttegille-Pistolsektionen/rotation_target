@@ -42,6 +42,14 @@ client could break on — a removed field, a narrowed type, a changed status cod
 — is a new `/api/v3` prefix, which means a deliberate migration for the webapp
 and every other client, not a quiet edit here.
 
+**One recorded exception, D-16:** `tickerSeconds` was replaced by `tickerMs` in
+the `stateUpdate` payload without moving to `/sse/v3`. The webapp ships inside
+the firmware image, so client and server are deployed atomically and there is
+no deployed client to break; no `firmware-vX.Y.Z` tag has ever been cut. See
+`docs/DECISIONS.md`. The rule stands for everything after this — the exception
+exists because the only client is in this repository, and it stops being true
+the moment a firmware is released.
+
 `GET /api/v2/version` reports the *firmware* version, not this one. A client
 that needs to know whether a firmware is new enough for a particular endpoint
 uses that.

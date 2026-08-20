@@ -4,7 +4,7 @@ openapi: 3.1.0
 
 info:
   title: Rotation target REST API v2
-  version: 2.1.0
+  version: 2.2.0
   license:
     name: MIT
     identifier: MIT
@@ -461,7 +461,7 @@ paths:
       summary: Select a program to run
       operationId: loadProgram
       description: >-
-        Selects the program at series 0, event 0, with `tickerSeconds` unset.
+        Selects the program at series 0, event 0, with `tickerMs` unset.
         Does not start it.
       security:
         - adminBearer: []
@@ -526,7 +526,7 @@ paths:
       summary: Start or resume the loaded program
       operationId: startProgram
       description: >-
-        Resumes the current series from `tickerSeconds`, or runs it from zero
+        Resumes the current series from `tickerMs`, or runs it from zero
         when the ticker is unset. Starting an already-running program is a
         no-op and still answers `200`. Audio only replays when the resume
         point lands exactly on an event boundary.
@@ -558,9 +558,11 @@ paths:
       summary: Pause the running program
       operationId: stopProgram
       description: >-
-        Pauses and keeps the position, so `start` resumes from it. Because
-        `tickerSeconds` is whole seconds, a pause less than a second into a
-        series resumes from 0.
+        Pauses and keeps the last published position, so `start` resumes
+        from it. That is the ticker the last `stateUpdate` carried, not the
+        instant the pause arrived. Since `asyncapi.yaml` 3.0.0 replaced the
+        whole-second `tickerSeconds` with `tickerMs`, a pause a few hundred
+        milliseconds into a series no longer rewinds to the start of it.
       security:
         - adminBearer: []
         - adminCookie: []
@@ -588,7 +590,7 @@ paths:
       operationId: resetProgram
       description: >-
         Stops the run, selects event 0 of the current series and clears
-        `tickerSeconds`. The selected series is kept.
+        `tickerMs`. The selected series is kept.
       security:
         - adminBearer: []
         - adminCookie: []
@@ -627,7 +629,7 @@ paths:
       operationId: skipToSeries
       description: >-
         Stops the run and selects the series, paused at its first event with
-        `tickerSeconds` cleared.
+        `tickerMs` cleared.
       security:
         - adminBearer: []
         - adminCookie: []
