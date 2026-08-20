@@ -84,7 +84,7 @@ test('load, start, watch the timeline advance off real SSE, stop', async ({ page
   console.log('SSE-driven samples:', JSON.stringify(samples));
 
   const tickerValues = samples.map((s) => s.ticker).filter((t): t is number => t !== null);
-  // The device publishes tickerSeconds: 0 with `running: true`, so the run
+  // The device publishes tickerMs: 0 with `running: true`, so the run
   // starts from the beginning rather than from wherever the last one stopped.
   expect(tickerValues[0]).toBeLessThanOrEqual(1);
   // Strictly increasing - not oscillating, not repeated, not a stale replay.
