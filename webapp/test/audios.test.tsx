@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MAX_UPLOAD_BYTES } from '../src/api/audios';
+import { MAX_FILE_BYTES, MAX_UPLOAD_BYTES } from '../src/api/audios';
 import type { AudioFile, BackendIssuePayload } from '../src/api/types';
 import { SettingsProvider } from '../src/context/SettingsContext';
 import { Route } from '../src/routes/audios';
@@ -24,7 +24,7 @@ const AudiosView = Route.options.component!;
 const SEED_AUDIOS: AudioFile[] = [
   { id: 3, title: 'Eld upphör', filename: '/storage/shipped/audio/3.wav', readonly: true },
   { id: 1, title: 'Färdiga', filename: '/storage/shipped/audio/1.wav', readonly: true },
-  { id: 1001, title: 'Klubbmästerskap 2026', filename: '/storage/uploads/audio/1001.wav', readonly: false },
+  { id: 100, title: 'Klubbmästerskap 2026', filename: '/storage/uploads/audio/100.wav', readonly: false },
 ];
 
 /** A minimal RIFF/WAVE header — enough for the mock's format check. */
@@ -72,6 +72,13 @@ function renderAudios() {
   );
 }
 
+/** POST /audios calls seen by a `fetch` spy. */
+function uploadCalls(spy: { mock: { calls: unknown[][] } }): unknown[][] {
+  return spy.mock.calls.filter(
+    (call) => String(call[0]).endsWith('/audios') && (call[1] as RequestInit | undefined)?.method === 'POST',
+  );
+}
+
 /** No jest-dom in this suite — assert on the text directly. */
 function text(element: HTMLElement): string {
   return element.textContent ?? '';
@@ -116,13 +123,13 @@ describe('the audio library', () => {
     await waitForClips();
 
     const ids = screen.getAllByTestId(/^audios-row-/).map((row) => row.getAttribute('data-testid'));
-    expect(ids).toEqual(['audios-row-1', 'audios-row-3', 'audios-row-1001']);
+    expect(ids).toEqual(['audios-row-1', 'audios-row-3', 'audios-row-100']);
 
     expect(text(screen.getByTestId('audios-source-1'))).toBe('Shipped');
     expect(text(screen.getByTestId('audios-source-3'))).toBe('Shipped');
-    expect(text(screen.getByTestId('audios-source-1001'))).toBe('Uploaded');
+    expect(text(screen.getByTestId('audios-source-100'))).toBe('Uploaded');
 
-    expect(within(screen.getByTestId('audios-row-1001')).getByText('Klubbmästerskap 2026')).toBeTruthy();
+    expect(within(screen.getByTestId('audios-row-100')).getByText('Klubbmästerskap 2026')).toBeTruthy();
   });
 
   it('offers Delete on uploaded clips only — a shipped one answers 404', async () => {
@@ -131,11 +138,11 @@ describe('the audio library', () => {
 
     expect(screen.queryByTestId('audios-delete-1')).toBeNull();
     expect(screen.queryByTestId('audios-delete-3')).toBeNull();
-    expect(screen.getByTestId('audios-delete-1001')).toBeTruthy();
+    expect(screen.getByTestId('audios-delete-100')).toBeTruthy();
 
     // Play is offered for both.
     expect(screen.getByTestId('audios-play-1')).toBeTruthy();
-    expect(screen.getByTestId('audios-play-1001')).toBeTruthy();
+    expect(screen.getByTestId('audios-play-100')).toBeTruthy();
   });
 });
 
@@ -149,7 +156,7 @@ describe('admin mode gates the mutating controls', () => {
     await screen.findByTestId('audios-view-only');
     expect(screen.queryByTestId('audios-upload-form')).toBeNull();
     expect(screen.queryByTestId('audios-play-1')).toBeNull();
-    expect(screen.queryByTestId('audios-delete-1001')).toBeNull();
+    expect(screen.queryByTestId('audios-delete-100')).toBeNull();
   });
 
   it('admin ON with a token: the controls come back', async () => {
@@ -162,6 +169,24 @@ describe('admin mode gates the mutating controls', () => {
     expect(screen.getByTestId('audios-upload-form')).toBeTruthy();
     expect(screen.getByTestId('audios-play-1')).toBeTruthy();
     expect(screen.queryByTestId('audios-view-only')).toBeNull();
+  });
+
+  it('a 401 drops the stale token, and the controls go away with it', async () => {
+    // The password-changed case: admin mode was cycled elsewhere, so this
+    // client's token is no longer one the device knows.
+    await enableAdminElsewhere('competition-2026');
+    localStorage.setItem('rt_settings_admin_token', 'a-token-from-a-previous-session');
+
+    renderAudios();
+    await waitForClips();
+    fireEvent.click(await screen.findByTestId('audios-play-1'));
+
+    // `client.ts` calls `logoutAdmin` on the 401, which is what takes the
+    // controls away — the user is told, not left with buttons that do nothing.
+    await screen.findByTestId('audios-view-only');
+    expect(localStorage.getItem('rt_settings_admin_token')).toBeNull();
+    expect(screen.queryByTestId('audios-play-1')).toBeNull();
+    expect(text(screen.getByTestId('audios-feedback'))).toMatch(/Could not play "Färdiga"/);
   });
 
   it('admin OFF: everyone controls, as the device allows', async () => {
@@ -185,22 +210,51 @@ describe('upload', () => {
     );
   });
 
-  it('refuses a file over the 1 MiB ceiling without troubling the device', async () => {
+  it('refuses an oversized file on selection, without troubling the device', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     renderAudios();
     await waitForClips();
 
     selectFile(wavFile('too-big.wav', MAX_UPLOAD_BYTES + 1));
-    fireEvent.click(screen.getByTestId('audios-upload-submit'));
 
     const feedback = await screen.findByTestId('audios-feedback');
-    expect(text(feedback)).toMatch(/larger than the 1 MiB/);
+    expect(text(feedback)).toMatch(/"too-big.wav" is \d+ bytes/);
+    expect(feedback.getAttribute('role')).toBe('alert');
+    // Nothing to submit: the file was never accepted.
+    expect((screen.getByTestId('audios-upload-submit') as HTMLButtonElement).disabled).toBe(true);
+    expect(uploadCalls(fetchSpy)).toHaveLength(0);
+  });
 
-    const uploads = fetchSpy.mock.calls.filter(
-      (call) => String(call[0]).endsWith('/audios') && (call[1] as RequestInit | undefined)?.method === 'POST',
+  it('refuses a file of exactly 1 MiB — the multipart envelope pushes it over', async () => {
+    // The device checks Content-Length, not the file's length, so a file at
+    // the nominal ceiling is always refused on the wire. Caught here instead.
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    renderAudios();
+    await waitForClips();
+
+    selectFile(wavFile('exactly-one-mib.wav', MAX_UPLOAD_BYTES));
+
+    expect(text(await screen.findByTestId('audios-feedback'))).toMatch(
+      new RegExp(`at most ${MAX_FILE_BYTES} bytes per clip`),
     );
-    expect(uploads).toHaveLength(0);
+    expect(uploadCalls(fetchSpy)).toHaveLength(0);
+  });
+
+  it('refuses a file that is not a .wav, naming it', async () => {
+    // `accept='.wav'` is only a picker hint. Left to the device this surfaces
+    // as `No file uploaded`, because the extension check fails inside the
+    // streaming callback and MultipartProcessor drops the reason.
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    renderAudios();
+    await waitForClips();
+
+    selectFile(new File([new Uint8Array(32)], 'fanfar.mp3', { type: 'audio/mpeg' }));
+
+    expect(text(await screen.findByTestId('audios-feedback'))).toMatch(/"fanfar.mp3" is not a .wav file/);
+    expect(uploadCalls(fetchSpy)).toHaveLength(0);
   });
 
   it("surfaces the device's own rejection of an unplayable file", async () => {
@@ -216,20 +270,42 @@ describe('upload', () => {
     expect(text(feedback)).toMatch(/Upload failed: Unsupported audio format/);
 
     // The form keeps what was typed, so the user can retry with another file.
-    expect(screen.queryByTestId('audios-row-1002')).toBeNull();
+    expect(screen.queryByTestId('audios-row-101')).toBeNull();
   });
 
-  it('adds the accepted clip to the list', async () => {
+  it('adds the accepted clip to the list, id and title intact', async () => {
     renderAudios();
     await waitForClips();
 
-    selectFile(wavFile('nedslag.wav'));
+    // Non-ASCII on purpose: the title crosses the wire as a multipart text
+    // field, and decoding it as anything but UTF-8 mojibakes half the club's
+    // clip names.
+    selectFile(wavFile('Färdiga-två.wav'));
     fireEvent.click(screen.getByTestId('audios-upload-submit'));
 
-    const row = await screen.findByTestId('audios-row-1002');
-    expect(within(row).getByText('nedslag')).toBeTruthy();
-    expect(text(screen.getByTestId('audios-source-1002'))).toBe('Uploaded');
-    expect(text(await screen.findByTestId('audios-feedback'))).toMatch(/Uploaded "nedslag" as clip 1002/);
+    // 100 is taken by the seed, so the first free slot at or above
+    // `kFirstUploadId` is 101 — the id the firmware would assign.
+    const row = await screen.findByTestId('audios-row-101');
+    expect(within(row).getByText('Färdiga-två')).toBeTruthy();
+    expect(text(screen.getByTestId('audios-source-101'))).toBe('Uploaded');
+    expect(text(await screen.findByTestId('audios-feedback'))).toMatch(/Uploaded "Färdiga-två" as clip 101/);
+  });
+
+  it('reuses the id of a deleted clip, as the device does', async () => {
+    renderAudios();
+    await waitForClips();
+
+    fireEvent.click(screen.getByTestId('audios-delete-100'));
+    fireEvent.click(screen.getByTestId('audios-delete-confirm-100'));
+    await waitFor(() => expect(screen.queryByTestId('audios-row-100')).toBeNull());
+
+    selectFile(wavFile('ersattning.wav'));
+    fireEvent.click(screen.getByTestId('audios-upload-submit'));
+
+    // `audios::add_uploaded` walks up from `kFirstUploadId` to the first free
+    // slot, so 100 comes back rather than the count going up.
+    await screen.findByTestId('audios-row-100');
+    expect(screen.queryByTestId('audios-row-101')).toBeNull();
   });
 });
 
@@ -238,13 +314,23 @@ describe('play and delete', () => {
     renderAudios();
     await waitForClips();
 
-    fireEvent.click(screen.getByTestId('audios-delete-1001'));
+    fireEvent.click(screen.getByTestId('audios-delete-100'));
     // Nothing has left yet — the row is still there, now asking.
-    expect(screen.getByTestId('audios-row-1001')).toBeTruthy();
+    expect(screen.getByTestId('audios-row-100')).toBeTruthy();
 
-    fireEvent.click(screen.getByTestId('audios-delete-confirm-1001'));
+    // Cancel comes first, so a second tap on Delete's coordinates hits it and
+    // not Confirm. The row is left-aligned below 768px and right-aligned above
+    // it, and Confirm is the wider of the two.
+    const actions = within(screen.getByTestId('audios-row-100')).getAllByRole('button');
+    expect(actions.map((button) => button.getAttribute('data-testid'))).toEqual([
+      'audios-play-100',
+      'audios-delete-cancel-100',
+      'audios-delete-confirm-100',
+    ]);
 
-    await waitFor(() => expect(screen.queryByTestId('audios-row-1001')).toBeNull());
+    fireEvent.click(screen.getByTestId('audios-delete-confirm-100'));
+
+    await waitFor(() => expect(screen.queryByTestId('audios-row-100')).toBeNull());
     expect(text(screen.getByTestId('audios-feedback'))).toMatch(/Deleted "Klubbmästerskap 2026"/);
   });
 
@@ -252,40 +338,40 @@ describe('play and delete', () => {
     renderAudios();
     await waitForClips();
 
-    fireEvent.click(screen.getByTestId('audios-delete-1001'));
-    fireEvent.click(screen.getByTestId('audios-delete-cancel-1001'));
+    fireEvent.click(screen.getByTestId('audios-delete-100'));
+    fireEvent.click(screen.getByTestId('audios-delete-cancel-100'));
 
-    expect(screen.getByTestId('audios-delete-1001')).toBeTruthy();
-    expect(screen.getByTestId('audios-row-1001')).toBeTruthy();
+    expect(screen.getByTestId('audios-delete-100')).toBeTruthy();
+    expect(screen.getByTestId('audios-row-100')).toBeTruthy();
   });
 
   it('relays the 409 when the clip is playing, rather than swallowing it', async () => {
     renderAudios();
     await waitForClips();
 
-    fireEvent.click(screen.getByTestId('audios-play-1001'));
+    fireEvent.click(screen.getByTestId('audios-play-100'));
     await waitFor(() => expect(text(screen.getByTestId('audios-feedback'))).toMatch(/Playing "Klubbmästerskap/));
 
-    fireEvent.click(screen.getByTestId('audios-delete-1001'));
-    fireEvent.click(screen.getByTestId('audios-delete-confirm-1001'));
+    fireEvent.click(screen.getByTestId('audios-delete-100'));
+    fireEvent.click(screen.getByTestId('audios-delete-confirm-100'));
 
     await waitFor(() =>
       expect(text(screen.getByTestId('audios-feedback'))).toMatch(
         /Could not delete "Klubbmästerskap 2026": Audio is currently playing/,
       ),
     );
-    expect(screen.getByTestId('audios-row-1001')).toBeTruthy();
+    expect(screen.getByTestId('audios-row-100')).toBeTruthy();
   });
 });
 
 describe('backend_issue', () => {
   const playbackFailed: BackendIssuePayload = {
     code: 'audio_playback_failed',
-    message: 'Could not open /storage/uploads/audio/1001.wav',
-    context: { clip: '/storage/uploads/audio/1001.wav' },
+    message: 'Could not open /storage/uploads/audio/100.wav',
+    context: { clip: '/storage/uploads/audio/100.wav' },
   };
 
-  it('shows what useSSE parked in the cache, and dismisses it for good', async () => {
+  it('shows what useSSE parked in the cache, and a dismissal outlives the mount', async () => {
     renderAudios();
     await waitForClips();
     expect(screen.queryByTestId('backend-issue-banner')).toBeNull();
@@ -294,12 +380,34 @@ describe('backend_issue', () => {
     queryClient.setQueryData(['backend-issue'], playbackFailed);
 
     const banner = await screen.findByTestId('backend-issue-banner');
-    expect(text(banner)).toContain('Could not open /storage/uploads/audio/1001.wav');
-    expect(text(banner)).toContain('clip: /storage/uploads/audio/1001.wav');
+    expect(text(banner)).toContain('Could not open /storage/uploads/audio/100.wav');
+    expect(text(banner)).toContain('clip: /storage/uploads/audio/100.wav');
 
     fireEvent.click(within(banner).getByLabelText('Dismiss'));
-
     await waitFor(() => expect(screen.queryByTestId('backend-issue-banner')).toBeNull());
+
+    // Leaving the page and coming back must not resurrect it: the dismissal
+    // clears the cache entry rather than hiding it in component state.
+    cleanup();
+    renderAudios();
+    await waitForClips();
+    expect(screen.queryByTestId('backend-issue-banner')).toBeNull();
+
+    // A later issue is a fresh object, so it shows again.
+    queryClient.setQueryData(['backend-issue'], { ...playbackFailed, message: 'Could not configure I2S' });
+    expect(text(await screen.findByTestId('backend-issue-banner'))).toContain('Could not configure I2S');
+  });
+
+  it('shows a code it has never heard of — the enum is open', async () => {
+    renderAudios();
+    await waitForClips();
+
+    queryClient.setQueryData(['backend-issue'], {
+      code: 'storage_full',
+      message: 'The uploads partition is full',
+    } satisfies BackendIssuePayload);
+
+    expect(text(await screen.findByTestId('backend-issue-banner'))).toContain('The uploads partition is full');
   });
 
   it('ignores an issue that is not about audio', async () => {

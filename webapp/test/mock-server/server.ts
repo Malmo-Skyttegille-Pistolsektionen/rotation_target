@@ -32,6 +32,8 @@ const HEARTBEAT_INTERVAL = 10000; // 10 seconds
 const TICK_INTERVAL = 1000; // 1 second
 /** `kMaxUploadBytes` in firmware/main/config.h. */
 const MAX_UPLOAD_BYTES = 1024 * 1024;
+/** `kFirstUploadId` in firmware/main/config.h. */
+const FIRST_UPLOAD_ID = 100;
 /**
  * How long a clip counts as playing, so `DELETE` can answer 409 the way the
  * device does. Under a fake clock nothing expires until a test advances it.
@@ -249,10 +251,14 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   }
 
   function parseBodyBuffer(req: IncomingMessage): Promise<Buffer> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
       req.on('data', (chunk: Buffer) => chunks.push(chunk));
       req.on('end', () => resolve(Buffer.concat(chunks)));
+      // Without these a client that hangs up mid-body never settles the
+      // promise, and the request handler is stuck for the life of the server.
+      req.on('error', reject);
+      req.on('aborted', () => reject(new Error('request aborted')));
     });
   }
 
@@ -293,16 +299,21 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         filename = filenameMatch[1];
         content = Buffer.from(value, 'latin1');
       } else if (nameMatch?.[1] === 'title') {
-        title = value;
+        // Split latin1 so byte offsets survive binary parts; a text field has
+        // to be decoded back out of those bytes as UTF-8, or "Klubbmasterskap"
+        // arrives mojibaked.
+        title = Buffer.from(value, 'latin1').toString('utf8');
       }
     }
 
     return filename === null ? null : { filename, title, content };
   }
 
+  /** `audios::add_uploaded`: the first free slot at or above `kFirstUploadId`, so a deleted id is reused. */
   function nextUploadedId(): number {
-    // Ids are never reused, so count up from the highest one ever issued.
-    return audios.reduce((highest, audio) => Math.max(highest, audio.id), 0) + 1;
+    let id = FIRST_UPLOAD_ID;
+    while (audios.some((audio) => audio.id === id)) id++;
+    return id;
   }
 
   function isPlaying(id: number): boolean {
@@ -643,10 +654,11 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       const body = await parseBodyBuffer(req);
 
       if (body.byteLength > MAX_UPLOAD_BYTES) {
-        // The device's HTTP layer refuses an oversized body above the
-        // handler, with an HTML page rather than the JSON error shape.
+        // Refused above the handler, so not the JSON error shape:
+        // `httpd_resp_send_err` labels it `text/html` but sends
+        // PsychicUploadHandler's sentence verbatim, markup and all absent.
         res.writeHead(400, { 'Content-Type': 'text/html' });
-        res.end('<html><body>400 Bad Request</body></html>');
+        res.end(`File size must be less than ${MAX_UPLOAD_BYTES} bytes!`);
         return;
       }
 

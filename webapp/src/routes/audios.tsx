@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import clsx from 'clsx';
-import { useAudiosApi } from '../api/audios';
+import { fileRejectionReason, MAX_FILE_BYTES, useAudiosApi } from '../api/audios';
 import type { AudioFile, BackendIssuePayload } from '../api/types';
 import { BackendIssueBanner } from '../components/BackendIssueBanner';
 import { useSettings } from '../context/SettingsContext';
@@ -17,6 +17,9 @@ interface Feedback {
   kind: 'error' | 'info';
   text: string;
 }
+
+/** `program_invalid` is about the program library, not this page. */
+const CODES_HANDLED_ELSEWHERE: string[] = ['program_invalid'];
 
 function titleFromFilename(name: string): string {
   const lastDot = name.lastIndexOf('.');
@@ -33,7 +36,6 @@ function AudiosView(): React.ReactNode {
   const [file, setFile] = useState<File | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
-  const [dismissedIssue, setDismissedIssue] = useState<BackendIssuePayload | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Same rule as the run view: admin mode ON without a token means spectator.
@@ -57,10 +59,11 @@ function AudiosView(): React.ReactNode {
     enabled: false,
   });
 
+  // `code` is an open enum, and this view is the only consumer there is, so
+  // the filter names what belongs to somebody else rather than what belongs
+  // here - an unrecognised code is shown rather than lost.
   const audioIssue =
-    backendIssue !== null && backendIssue.code === 'audio_playback_failed' && backendIssue !== dismissedIssue
-      ? backendIssue
-      : null;
+    backendIssue !== null && !CODES_HANDLED_ELSEWHERE.includes(backendIssue.code) ? backendIssue : null;
 
   function resetForm(): void {
     setTitle('');
@@ -104,6 +107,18 @@ function AudiosView(): React.ReactNode {
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>): void {
     const selected = event.target.files?.[0] ?? null;
+
+    // `accept='.wav'` is a hint to the file picker and nothing more. Checked
+    // on selection so the answer is immediate and names the file, rather than
+    // arriving as the device's `No file uploaded` after a round trip.
+    const rejection = selected ? fileRejectionReason(selected) : null;
+    if (rejection !== null) {
+      setFile(null);
+      setFeedback({ kind: 'error', text: rejection });
+      return;
+    }
+
+    setFeedback(null);
     setFile(selected);
     if (selected) {
       setTitle(titleFromFilename(selected.name));
@@ -125,12 +140,20 @@ function AudiosView(): React.ReactNode {
     <div className={styles.container}>
       <h1 className={styles.title}>Audios</h1>
 
-      {audioIssue && <BackendIssueBanner issue={audioIssue} onDismiss={() => setDismissedIssue(audioIssue)} />}
+      {audioIssue && (
+        <BackendIssueBanner
+          issue={audioIssue}
+          // Cleared in the cache, not hidden locally: the event is
+          // fire-and-forget, so a dismissal has to outlive this mount. A later
+          // issue writes a fresh object and shows again.
+          onDismiss={() => queryClient.setQueryData(['backend-issue'], null)}
+        />
+      )}
 
       {feedback && (
         <div
           className={clsx(styles.feedback, feedback.kind === 'error' ? styles.feedbackError : styles.feedbackInfo)}
-          role='status'
+          role={feedback.kind === 'error' ? 'alert' : 'status'}
           data-testid='audios-feedback'
         >
           <span>{feedback.text}</span>
@@ -179,7 +202,7 @@ function AudiosView(): React.ReactNode {
             >
               {uploadMutation.isPending ? 'Uploading…' : 'Upload'}
             </button>
-            <p className={styles.hint}>16-bit PCM WAV, mono or stereo, up to 1 MiB.</p>
+            <p className={styles.hint}>16-bit PCM WAV, mono or stereo, up to {MAX_FILE_BYTES} bytes.</p>
           </form>
         ) : (
           <div className={styles.viewOnlyBadge} data-testid='audios-view-only'>
@@ -238,15 +261,12 @@ function AudiosView(): React.ReactNode {
                             device answers 404 to a delete, so no button. */}
                         {!clip.readonly &&
                           (pendingDeleteId === clip.id ? (
+                            // Cancel first, so the harmless control - not
+                            // Confirm - lands where Delete just was. The row
+                            // is left-aligned under 768px and right-aligned
+                            // above it, and a second tap on a phone would
+                            // otherwise delete the clip outright.
                             <>
-                              <button
-                                className={clsx(styles.button, styles.buttonDestructive)}
-                                type='button'
-                                onClick={() => deleteMutation.mutate(clip)}
-                                data-testid={`audios-delete-confirm-${clip.id}`}
-                              >
-                                Confirm
-                              </button>
                               <button
                                 className={clsx(styles.button, styles.buttonSecondary)}
                                 type='button'
@@ -254,6 +274,14 @@ function AudiosView(): React.ReactNode {
                                 data-testid={`audios-delete-cancel-${clip.id}`}
                               >
                                 Cancel
+                              </button>
+                              <button
+                                className={clsx(styles.button, styles.buttonDestructive)}
+                                type='button'
+                                onClick={() => deleteMutation.mutate(clip)}
+                                data-testid={`audios-delete-confirm-${clip.id}`}
+                              >
+                                Confirm
                               </button>
                             </>
                           ) : (
