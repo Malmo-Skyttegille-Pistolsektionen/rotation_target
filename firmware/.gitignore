@@ -8,7 +8,7 @@ managed_components/
 # (littlefs, led_strip, mdns) so a clone builds the same tree.
 
 # Host tests
-host_test/build/
+host_test/build*/
 
 # Editors
 .vscode/
