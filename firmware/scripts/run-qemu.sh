@@ -12,6 +12,7 @@
 #
 # Options:
 #   --build-only     build, do not boot
+#   --no-build       boot the existing build-qemu/ tree, do not build
 #   --headless       boot with no terminal attached (CI); serial goes to stdout
 #   --port <n>       host port to forward from (default 8080)
 #
@@ -24,11 +25,13 @@ FIRMWARE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${FIRMWARE_DIR}/build-qemu"
 HOST_PORT=8080
 BUILD_ONLY=0
+NO_BUILD=0
 HEADLESS=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --build-only) BUILD_ONLY=1; shift ;;
+        --no-build) NO_BUILD=1; shift ;;
         --headless) HEADLESS=1; shift ;;
         --port) HOST_PORT="$2"; shift 2 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
@@ -40,13 +43,20 @@ if [ -z "${IDF_PATH:-}" ]; then
     exit 1
 fi
 
-echo "==> Building the QEMU profile into ${BUILD_DIR}"
-idf.py -C "${FIRMWARE_DIR}" -B "${BUILD_DIR}" \
-    -D SDKCONFIG="${BUILD_DIR}/sdkconfig" \
-    -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.qemu" \
-    build
+if [ "${NO_BUILD}" -eq 1 ]; then
+    # CI builds once in a step of its own, then boots here; a second no-op
+    # idf.py run would be a minute of the boot timeout spent on nothing.
+    [ "${BUILD_ONLY}" -eq 1 ] && { echo "--build-only and --no-build are mutually exclusive" >&2; exit 2; }
+    [ -f "${BUILD_DIR}/flash_args" ] || { echo "--no-build, but ${BUILD_DIR} holds no build" >&2; exit 1; }
+else
+    echo "==> Building the QEMU profile into ${BUILD_DIR}"
+    idf.py -C "${FIRMWARE_DIR}" -B "${BUILD_DIR}" \
+        -D SDKCONFIG="${BUILD_DIR}/sdkconfig" \
+        -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.qemu" \
+        build
 
-[ "${BUILD_ONLY}" -eq 1 ] && exit 0
+    [ "${BUILD_ONLY}" -eq 1 ] && exit 0
+fi
 
 SDKCONFIG="${BUILD_DIR}/sdkconfig"
 sdkconfig_value() { sed -n "s/^$1=\(.*\)$/\1/p" "${SDKCONFIG}" | tr -d '"'; }
