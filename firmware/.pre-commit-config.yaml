@@ -1,0 +1,26 @@
+# Run before every commit:  pre-commit run --all-files
+#
+# The clang-format hook rewrites files in place, so a first run failing and a
+# second passing is the normal path - re-stage what it changed.
+exclude: |
+  (?x)^(
+    lib/psychic_http/.*|
+    lib/arduinojson/.*|
+    resources/.*
+  )$
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v19.1.7
+    hooks:
+      - id: clang-format
+        types_or: [c, c++]

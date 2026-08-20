@@ -1,0 +1,60 @@
+# Rotation target backend - ESP-IDF defaults.
+#
+# Editing this file does nothing on its own: ESP-IDF seeds `sdkconfig` from it
+# only when `sdkconfig` does not exist, and `sdkconfig` is gitignored. In a
+# clone that has already been built, delete `sdkconfig` (or run
+# `idf.py fullclean`) and rebuild, then grep the generated `sdkconfig` to
+# confirm the value actually landed.
+
+CONFIG_IDF_TARGET="esp32s3"
+
+# ESP32-S3-DevKitC-1 N16R8: 16 MB quad flash, 8 MB octal PSRAM.
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# PSRAM. The N16R8's PSRAM is octal, not quad - selecting the wrong mode leaves
+# it undetected at boot rather than failing loudly. It is what makes it safe for
+# the audio task to hold a whole decoded buffer and for SSE payloads to be built
+# as std::string without pressure on internal RAM.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+# Anything above this threshold goes to PSRAM automatically, so the audio
+# buffers and the program repository land there without explicit heap caps.
+CONFIG_SPIRAM_USE_MALLOC=y
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=4096
+
+# esp_http_server: PsychicHttp compiles its WebSocket support unconditionally
+# even though this firmware only uses SSE and REST, and httpd_ws_frame_t is
+# only declared with this on.
+CONFIG_HTTPD_WS_SUPPORT=y
+# The webapp sends `Authorization: Bearer <32-hex-char token>` plus a cookie on
+# every call, on top of a browser's own User-Agent/Accept/Sec-Fetch-* headers.
+# IDF's 512-byte default is not enough for that and rejects the request with a
+# raw HTTP 431 before any handler runs.
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=2048
+# Program uploads are JSON bodies; the URI itself stays short.
+CONFIG_HTTPD_MAX_URI_LEN=512
+
+# Socket budget. httpd requires max_open_sockets <= CONFIG_LWIP_MAX_SOCKETS - 3,
+# and every connected client holds one socket open indefinitely for /sse/v2 on
+# top of its ordinary REST traffic. 16 here is what lets web_server.cpp ask for
+# 12 - raise the two together or httpd_start() fails with ESP_ERR_INVALID_ARG.
+CONFIG_LWIP_MAX_SOCKETS=16
+
+# Safety
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+CONFIG_ESP_TASK_WDT_EN=y
+CONFIG_ESP_TASK_WDT_PANIC=y
+CONFIG_ESP_INT_WDT=y
+CONFIG_ESP_INT_WDT_PANIC=y
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y
+CONFIG_ESP_BROWNOUT_DET=y
+
+# The run loop wakes every 200 ms at most and the I2S write path is latency
+# sensitive; the default 100 Hz tick makes vTaskDelay granularity 10 ms, which
+# is coarse relative to the event boundaries the executor aims at.
+CONFIG_FREERTOS_HZ=1000
