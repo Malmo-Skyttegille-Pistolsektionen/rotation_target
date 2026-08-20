@@ -46,6 +46,8 @@ set(RT_RESOURCES_DIR "${CMAKE_CURRENT_LIST_DIR}/../resources" CACHE PATH
     "Directory holding the shipped audio and programs (audios/, programs/)")
 
 set(LITTLEFS_STAGE "${CMAKE_BINARY_DIR}/littlefs_stage")
+set(LITTLEFS_STAGE_STAMP "${CMAKE_BINARY_DIR}/littlefs_stage.stamp")
+set(LITTLEFS_STAGE_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/cmake/stage_littlefs.cmake")
 
 if(NOT EXISTS "${RT_RESOURCES_DIR}/audios/audios.json")
     message(FATAL_ERROR
@@ -54,14 +56,13 @@ if(NOT EXISTS "${RT_RESOURCES_DIR}/audios/audios.json")
         "  idf.py build -D RT_RESOURCES_DIR=/path/to/resources")
 endif()
 
-file(REMOVE_RECURSE "${LITTLEFS_STAGE}")
-file(MAKE_DIRECTORY "${LITTLEFS_STAGE}/shipped/audio" "${LITTLEFS_STAGE}/shipped/programs")
-file(COPY "${RT_RESOURCES_DIR}/audios/audios.json"
-     DESTINATION "${LITTLEFS_STAGE}/shipped/audio")
-file(GLOB SHIPPED_WAVS CONFIGURE_DEPENDS "${RT_RESOURCES_DIR}/audios/files/*.wav")
-file(COPY ${SHIPPED_WAVS} DESTINATION "${LITTLEFS_STAGE}/shipped/audio")
-file(GLOB SHIPPED_PROGRAMS CONFIGURE_DEPENDS "${RT_RESOURCES_DIR}/programs/files/*.json")
-file(COPY ${SHIPPED_PROGRAMS} DESTINATION "${LITTLEFS_STAGE}/shipped/programs")
+# What the staging step reads. CONFIGURE_DEPENDS so a file added to or removed
+# from either tree re-runs CMake and lands in the list; the list itself is what
+# makes an edited file re-stage on a warm tree.
+file(GLOB RT_STAGE_INPUTS CONFIGURE_DEPENDS
+     "${RT_RESOURCES_DIR}/audios/files/*.wav"
+     "${RT_RESOURCES_DIR}/programs/files/*.json")
+list(APPEND RT_STAGE_INPUTS "${RT_RESOURCES_DIR}/audios/audios.json")
 
 # The built frontend, if one is supplied. Not staged from source: `webapp/dist`
 # is a build product that needs npm/Vite to produce, so it exists only after
@@ -86,45 +87,37 @@ if(RT_WEBAPP_STAGE_DIR)
         message(FATAL_ERROR "RT_WEBAPP_DIR=${RT_WEBAPP_DIR} has no index.html - "
                             "point it at the frontend's built `dist` directory")
     endif()
-    file(MAKE_DIRECTORY "${LITTLEFS_STAGE}/webapp")
-    file(COPY "${RT_WEBAPP_DIR}/" DESTINATION "${LITTLEFS_STAGE}/webapp")
-    message(STATUS "Bundling webapp from ${RT_WEBAPP_DIR}")
-
-    # Pre-compress the text assets and ship only the .gz.
-    #
-    # The device has no CPU to spare compressing on the fly, and the vendored
-    # static handler already falls back to `<path>.gz` and sets
-    # Content-Encoding: gzip (lib/psychic_http/src/PsychicStaticFileHander.cpp).
-    # The bundle is the whole cost of a page load over 2.4 GHz WiFi - measured
-    # at roughly 400 KB on the critical path, which took double-digit seconds on
-    # a phone - and it compresses about four-fold. It also frees flash.
-    #
-    # Images are skipped: PNG/ICO/WOFF are already compressed, so gzip would
-    # add a few percent and cost CPU to undo.
+    file(GLOB_RECURSE RT_WEBAPP_INPUTS CONFIGURE_DEPENDS "${RT_WEBAPP_STAGE_DIR}/*")
+    list(APPEND RT_STAGE_INPUTS ${RT_WEBAPP_INPUTS})
+    # Not fatal - the device still serves the uncompressed files correctly, just
+    # slowly. See cmake/stage_littlefs.cmake for what the compression buys.
     find_program(GZIP_EXECUTABLE gzip)
-    if(GZIP_EXECUTABLE)
-        file(GLOB_RECURSE WEBAPP_TEXT_FILES
-             "${LITTLEFS_STAGE}/webapp/*.js"  "${LITTLEFS_STAGE}/webapp/*.css"
-             "${LITTLEFS_STAGE}/webapp/*.html" "${LITTLEFS_STAGE}/webapp/*.json"
-             "${LITTLEFS_STAGE}/webapp/*.svg" "${LITTLEFS_STAGE}/webapp/*.map")
-        foreach(TEXT_FILE ${WEBAPP_TEXT_FILES})
-            # -9 because this runs once at build time and the device pays the
-            # transfer cost on every single page load.
-            execute_process(COMMAND "${GZIP_EXECUTABLE}" -9 -f "${TEXT_FILE}"
-                            RESULT_VARIABLE GZIP_RESULT)
-            if(NOT GZIP_RESULT EQUAL 0)
-                message(FATAL_ERROR "Failed to gzip ${TEXT_FILE}")
-            endif()
-        endforeach()
-        list(LENGTH WEBAPP_TEXT_FILES WEBAPP_TEXT_COUNT)
-        message(STATUS "Pre-compressed ${WEBAPP_TEXT_COUNT} webapp asset(s) to .gz")
-    else()
-        # Not fatal - the device still serves the uncompressed files correctly,
-        # just slowly.
+    if(NOT GZIP_EXECUTABLE)
         message(WARNING "gzip not found - webapp assets will be served uncompressed")
     endif()
 else()
     message(STATUS "No webapp at ${RT_WEBAPP_DIR} - building without one (API only)")
 endif()
 
-littlefs_create_partition_image(storage "${LITTLEFS_STAGE}" FLASH_IN_PROJECT)
+# Staging is a build-time step, not a configure-time one: `idf.py build` on a
+# warm tree does not reconfigure because `webapp/dist` was rebuilt, so copying
+# here at configure time shipped the *previous* bundle (issue #39).
+add_custom_command(
+    OUTPUT "${LITTLEFS_STAGE_STAMP}"
+    COMMAND "${CMAKE_COMMAND}"
+            -D "RT_RESOURCES_DIR=${RT_RESOURCES_DIR}"
+            -D "RT_WEBAPP_DIR=${RT_WEBAPP_STAGE_DIR}"
+            -D "LITTLEFS_STAGE=${LITTLEFS_STAGE}"
+            -D "GZIP_EXECUTABLE=${GZIP_EXECUTABLE}"
+            -P "${LITTLEFS_STAGE_SCRIPT}"
+    COMMAND "${CMAKE_COMMAND}" -E touch "${LITTLEFS_STAGE_STAMP}"
+    DEPENDS ${RT_STAGE_INPUTS} "${LITTLEFS_STAGE_SCRIPT}"
+    COMMENT "Staging the LittleFS image contents"
+    VERBATIM)
+
+add_custom_target(rt_littlefs_stage DEPENDS "${LITTLEFS_STAGE_STAMP}")
+
+# The image target always re-runs (the component cannot watch the base dir), so
+# the stamp is only ordering: stage first, then pack what staging produced.
+littlefs_create_partition_image(storage "${LITTLEFS_STAGE}" FLASH_IN_PROJECT
+                               DEPENDS "${LITTLEFS_STAGE_STAMP}")
