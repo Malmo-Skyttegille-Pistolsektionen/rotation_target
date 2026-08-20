@@ -127,8 +127,15 @@ function normalizeProgram(raw: Record<string, unknown>, id: number): Program {
       const duration = typeof rawEvent.duration === 'number' ? Math.trunc(rawEvent.duration) : MIN_DURATION_MS;
       const event: Event = { duration: Math.min(Math.max(duration, MIN_DURATION_MS), MAX_DURATION_MS) };
 
-      if (rawEvent.command === 'show' || rawEvent.command === 'hide') {
-        event.command = rawEvent.command;
+      // Any non-empty string survives and is re-emitted verbatim: `parse_event`
+      // does `e.command = src["command"] | ""` and `Event::to_json` writes back
+      // whatever that held. Only "show" and "hide" move the targets. The cast
+      // is the contract's fault, not this file's - `openapi.yaml` contradicts
+      // itself here, declaring an enum in `Event.command` while its prose says
+      // any other string is kept. Left faithful to the firmware so a client
+      // that mangles the field has something that can catch it.
+      if (typeof rawEvent.command === 'string' && rawEvent.command !== '') {
+        event.command = rawEvent.command as Event['command'];
       }
       if (Array.isArray(rawEvent.audio_ids)) {
         event.audio_ids = (rawEvent.audio_ids as unknown[]).filter((v): v is number => typeof v === 'number');
@@ -554,8 +561,13 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         return;
       }
 
-      const ids = Object.keys(programs).map(Number);
-      const id = Math.max(FIRST_UPLOAD_ID - 1, ...ids) + 1;
+      // Lowest free id from 100 up, not highest+1: `firmware/main/repositories/
+      // programs.cpp` walks `id = kFirstUploadId; while (count(id)) id++`, so a
+      // deleted program's id is handed straight back out. Shipped programs
+      // occupy some of that range on the real device (100 and 101 today), and
+      // the two allocators disagree the moment anything is deleted.
+      let id = FIRST_UPLOAD_ID;
+      while (programs[id] !== undefined) id++;
       programs[id] = normalizeProgram(raw, id);
       jsonResponse(res, 201, { id });
       return;

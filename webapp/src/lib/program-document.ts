@@ -1,20 +1,36 @@
 /**
  * Reading a program document out of a file the user picked.
  *
- * The canonical schema is `contracts/program.schema.json` (synced to
- * `public/program.schema.json` at build time). The legacy editor validated
- * against it with ajv and rendered ajv's raw errors; this does the same job by
- * hand, for two reasons. Ajv plus its schema fetch is ~30 KB gz of runtime for
- * a check on a file a club member picks once in a while, and ajv's messages
- * ("must have required property 'name'", instancePath `/series/2/events/0`)
- * say nothing about what the device will do with the file.
+ * The legacy editor checked the file with ajv against
+ * `contracts/program.schema.json`; this does the job by hand, for two reasons.
+ * Ajv plus its schema fetch is ~30 KB gz of runtime for a check a club member
+ * runs once in a while, and ajv's messages ("must have required property
+ * 'name'", instancePath `/series/2/events/0`) say nothing about what the device
+ * will do with the file.
  *
- * Kept in lock-step with `contracts/program.schema.json` and the `Program`,
- * `Series` and `Event` schemas in `contracts/openapi.yaml`.
+ * **The reference is `rt::parse_program` in
+ * `firmware/lib/rt_logic/program.cpp`, not the schema** — what the device does
+ * with a document is what the user needs told. Three deliberate departures from
+ * `contracts/program.schema.json` follow from that:
+ *
+ * - The schema sets `additionalProperties: false` and rejects an unknown field.
+ *   The firmware ignores it and drops it on rewrite, so this warns and drops.
+ * - The schema requires all of `id`, `title`, `description`, `readonly`,
+ *   `series`. The firmware defaults every one of them, and only `title` and
+ *   `series` produce anything runnable, so only those two are required here.
+ * - The schema allows `duration: 0` (`minimum: 0`). The firmware clamps to
+ *   1…3600000 ms, so this warns and clamps to the value that will be stored.
+ *
+ * One place where the schema is followed *against* the firmware, deliberately:
+ * `command`. The firmware keeps any non-empty string and re-emits it verbatim
+ * (only `show` and `hide` move the targets); the schema and `openapi.yaml`
+ * declare an enum. Authoring-time strictness is the point of this file, so an
+ * unrecognised command is refused here. `contracts/openapi.yaml` contradicts
+ * itself on that point and needs a decision — see the PR that added this.
  */
 import type { Event, Program, Series } from '../api/types';
 
-/** Per-event clamp the firmware applies on parse (`openapi.yaml`, `Event.duration`). */
+/** Per-event clamp `rt::parse_event` applies (`kMinEventMs` / `kMaxEventMs`). */
 export const MIN_EVENT_DURATION_MS = 1;
 export const MAX_EVENT_DURATION_MS = 3_600_000;
 
@@ -42,9 +58,22 @@ export type ProgramDocumentResult =
 
 const KNOWN_PROGRAM_KEYS = ['id', 'title', 'description', 'readonly', 'series'];
 const KNOWN_SERIES_KEYS = ['name', 'optional', 'events'];
-// `target_system` and `start` are API v1 fields the schema still accepts so
-// v1-era files validate; the v2 firmware drops them.
-const KNOWN_EVENT_KEYS = ['duration', 'command', 'audio_ids', 'target_system', 'start'];
+const KNOWN_EVENT_KEYS = ['duration', 'command', 'audio_ids'];
+
+/**
+ * API v1 fields `program.schema.json` still accepts so v1-era files validate.
+ * The v2 firmware does not parse either, and silently dropping them changes
+ * what the program does — which is the whole reason to say so.
+ */
+const V1_EVENT_KEYS: Record<string, string> = {
+  target_system:
+    'API v1 only, and not parsed by this firmware: the event will affect every target system, not the listed ones.',
+  start: 'API v1 only, and not parsed by this firmware: a series always starts at its first event.',
+};
+
+/** ArduinoJson keeps an audio id only if it fits `int32_t`; the rest go silently. */
+const INT32_MIN = -2_147_483_648;
+const INT32_MAX = 2_147_483_647;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -65,11 +94,19 @@ interface Collector {
   warnings: DocumentIssue[];
 }
 
-function unknownKeys(collector: Collector, path: string, value: Record<string, unknown>, known: string[]): void {
+function unknownKeys(
+  collector: Collector,
+  path: string,
+  value: Record<string, unknown>,
+  known: string[],
+  named: Record<string, string> = {},
+): void {
   for (const key of Object.keys(value)) {
-    if (!known.includes(key)) {
-      collector.warnings.push({ path: `${path}/${key}`, message: 'Not part of a program; the device will drop it.' });
-    }
+    if (known.includes(key)) continue;
+    collector.warnings.push({
+      path: `${path}/${key}`,
+      message: named[key] ?? 'Not part of a program; the device will drop it.',
+    });
   }
 }
 
@@ -79,7 +116,7 @@ function parseEvent(collector: Collector, path: string, raw: unknown): Event | n
     return null;
   }
 
-  unknownKeys(collector, path, raw, KNOWN_EVENT_KEYS);
+  unknownKeys(collector, path, raw, KNOWN_EVENT_KEYS, V1_EVENT_KEYS);
 
   if (!isInteger(raw.duration)) {
     collector.errors.push({
@@ -123,7 +160,19 @@ function parseEvent(collector: Collector, path: string, raw: unknown): Event | n
       });
       return null;
     }
-    event.audio_ids = [...raw.audio_ids];
+
+    const ids: number[] = [];
+    (raw.audio_ids as number[]).forEach((id, index) => {
+      if (id < INT32_MIN || id > INT32_MAX) {
+        collector.warnings.push({
+          path: `${path}/audio_ids/${index}`,
+          message: `${id} does not fit a 32-bit id; the device will drop it and the clip will not play.`,
+        });
+        return;
+      }
+      ids.push(id);
+    });
+    event.audio_ids = ids;
   }
 
   return event;
@@ -216,11 +265,15 @@ export function parseProgramDocument(text: string): ProgramDocumentResult {
   }
 
   // `readonly` follows from where the device stores the file, so a document
-  // asserting it is not wrong, just ignored.
-  if (raw.readonly === true) {
+  // asserting it is not wrong, just ignored. A non-boolean is ignored just the
+  // same, and saying so beats letting a typo look like it took effect.
+  if (raw.readonly !== undefined && raw.readonly !== false) {
     collector.warnings.push({
       path: '/readonly',
-      message: 'Read-only is decided by the device, not the file; an uploaded program is never read-only.',
+      message:
+        typeof raw.readonly === 'boolean'
+          ? 'Read-only is decided by the device, not the file; an uploaded program is never read-only.'
+          : `Read-only must be true or false, and is decided by the device anyway; ${describe(raw.readonly)} is ignored.`,
     });
   }
 

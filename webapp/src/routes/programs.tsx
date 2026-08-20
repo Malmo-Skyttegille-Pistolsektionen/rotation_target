@@ -27,6 +27,14 @@ interface Notice {
 /** What the picked file is for: a new program, or a replacement for this id. */
 type UploadTarget = { kind: 'create' } | { kind: 'replace'; id: number; title: string };
 
+/** A validated document waiting to be sent, once its warnings have been seen. */
+interface PendingUpload {
+  target: UploadTarget;
+  program: Program;
+  warnings: DocumentIssue[];
+  fileName: string;
+}
+
 function issueLines(issues: DocumentIssue[]): string[] {
   return issues.map((issue) => `${issue.path || '/'} — ${issue.message}`);
 }
@@ -40,6 +48,10 @@ export function ProgramsView(): React.ReactNode {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ProgramSummary | null>(null);
+  // An upload the device would store differently from the file. Held here until
+  // the user has seen what will change — for a replace that write is an
+  // irreversible overwrite, so telling them afterwards is telling them too late.
+  const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   // A ref, not state: the picker opens in the same tick as the click that sets
@@ -91,34 +103,34 @@ export function ProgramsView(): React.ReactNode {
   });
 
   const createMutation = useMutation({
-    mutationFn: (upload: { program: Program; warnings: DocumentIssue[] }) => programsApi.create(upload.program),
-    onSuccess: (created, upload) => {
+    mutationFn: (program: Program) => programsApi.create(program),
+    onSuccess: (created, program) => {
       invalidatePrograms(created.id);
       setSelectedId(created.id);
-      setNotice({
-        // The device assigns the id and ignores the document's, so say which
-        // one it picked rather than letting the user assume the file's.
-        kind: upload.warnings.length > 0 ? 'warning' : 'success',
-        message: `Uploaded "${upload.program.title}" as program ${created.id}.`,
-        details: issueLines(upload.warnings),
-      });
+      // The device assigns the id and ignores the document's, so say which one
+      // it picked rather than letting the user assume the file's.
+      setNotice({ kind: 'success', message: `Uploaded "${program.title}" as program ${created.id}.` });
     },
-    onError: (err, upload) => setNotice(failureNotice(err, `Could not upload "${upload.program.title}".`)),
+    onError: (err, program) => setNotice(failureNotice(err, `Could not upload "${program.title}".`)),
   });
 
   const updateMutation = useMutation({
-    mutationFn: (upload: { id: number; program: Program; warnings: DocumentIssue[] }) =>
-      programsApi.update(upload.id, upload.program),
+    mutationFn: (upload: { id: number; program: Program }) => programsApi.update(upload.id, upload.program),
     onSuccess: (_stored, upload) => {
       invalidatePrograms(upload.id);
-      setNotice({
-        kind: upload.warnings.length > 0 ? 'warning' : 'success',
-        message: `Replaced program ${upload.id} with "${upload.program.title}".`,
-        details: issueLines(upload.warnings),
-      });
+      setNotice({ kind: 'success', message: `Replaced program ${upload.id} with "${upload.program.title}".` });
     },
     onError: (err, upload) => setNotice(updateFailureNotice(err, upload.id)),
   });
+
+  /** Send an upload the user has either nothing to be warned about, or has accepted. */
+  function send(upload: PendingUpload): void {
+    if (upload.target.kind === 'create') {
+      createMutation.mutate(upload.program);
+    } else {
+      updateMutation.mutate({ id: upload.target.id, program: upload.program });
+    }
+  }
 
   /**
    * Turn a rejected call into something a club member can act on. The device's
@@ -136,20 +148,26 @@ export function ProgramsView(): React.ReactNode {
 
   function updateFailureNotice(err: unknown, id: number): Notice {
     if (err instanceof ApiError && err.status === 409) {
-      if (/loaded/i.test(err.message)) {
-        // D-15: run state holds a pointer into the stored program, so the
-        // device refuses. There is no unload endpoint in v2 — loading another
-        // program is how a client gets out of this.
+      // Shipped is the branch that has to prove itself: the UI never offers
+      // Replace on a shipped program, so a 409 that reaches here is the loaded
+      // one. Defaulting the other way would answer a reworded message with the
+      // wrong explanation entirely.
+      if (/read-only|readonly|shipped/i.test(err.message)) {
         return {
           kind: 'error',
-          message:
-            `Program ${id} is the one currently loaded on the device, and a loaded program cannot be replaced — ` +
-            'the run position points into it. Load a different program first, then replace this one.',
+          message: `Program ${id} is shipped with the firmware and cannot be replaced. Upload the file as a new program instead.`,
         };
       }
+      // D-15: run state holds a pointer into the stored program, so the device
+      // refuses. There is no unload endpoint in v2, so the only ways out are
+      // loading a different program or deleting this one.
       return {
         kind: 'error',
-        message: `Program ${id} is shipped with the firmware and cannot be replaced. Upload the file as a new program instead.`,
+        message:
+          `Program ${id} is the one currently loaded on the device, and a loaded program cannot be replaced — ` +
+          'the run position points into it. Load a different program first, then replace this one. ' +
+          'If a series is running, loading another program stops it; and if this is the only program on the ' +
+          'device, delete it and upload the file as a new one instead.',
       };
     }
     if (err instanceof ApiError && err.status === 404) {
@@ -182,29 +200,47 @@ export function ProgramsView(): React.ReactNode {
       return;
     }
 
-    if (target.kind === 'create') {
-      createMutation.mutate({ program: result.program, warnings: result.warnings });
-      return;
-    }
+    const upload: PendingUpload = {
+      target,
+      program: result.program,
+      warnings: result.warnings,
+      fileName: file.name,
+    };
 
-    // The path owns the id (D-15), so a document declaring a different one is a
-    // 400 from the device. Refused here instead, where the alternative can be
-    // offered rather than guessed at.
-    if (result.declaredId !== null && result.declaredId !== target.id) {
+    // A file picked to replace one program but declaring another's id is a
+    // mistake worth stopping on. `withoutId()` strips the id before sending, so
+    // the device would in fact accept this — which is exactly why it is caught
+    // here: silently writing "Fältträning" over program 140 because the picker
+    // was pointed at the wrong row is not a recovery, it is the accident.
+    if (target.kind === 'replace' && result.declaredId !== null && result.declaredId !== target.id) {
       setNotice({
         kind: 'error',
         message:
           `"${file.name}" declares id ${result.declaredId}, but it was picked to replace program ${target.id} ` +
-          `("${target.title}"). The device will not renumber a program.`,
+          `("${target.title}"). The device does not renumber a program, so this is either the wrong file or the ` +
+          'wrong row.',
         action: {
           label: 'Upload as a new program instead',
-          run: () => createMutation.mutate({ program: result.program, warnings: result.warnings }),
+          run: () => confirmOrSend({ ...upload, target: { kind: 'create' } }),
         },
       });
       return;
     }
 
-    updateMutation.mutate({ id: target.id, program: result.program, warnings: result.warnings });
+    confirmOrSend(upload);
+  }
+
+  /**
+   * Nothing to warn about goes straight out; anything the device would store
+   * differently is shown first. Both directions matter for a replace, where the
+   * write cannot be undone.
+   */
+  function confirmOrSend(upload: PendingUpload): void {
+    if (upload.warnings.length === 0) {
+      send(upload);
+      return;
+    }
+    setPendingUpload(upload);
   }
 
   const sorted = [...(programs ?? [])].sort((a, b) => a.id - b.id);
@@ -354,6 +390,36 @@ export function ProgramsView(): React.ReactNode {
       {programs?.length === 0 && <p className={styles.message}>The device holds no programs.</p>}
 
       {selectedId !== null && <ProgramDetails id={selectedId} onClose={() => setSelectedId(null)} />}
+
+      {pendingUpload && (
+        <ConfirmDialog
+          title='The device will not store this file as written'
+          body={
+            <>
+              <p>
+                {pendingUpload.target.kind === 'replace'
+                  ? `Replacing program ${pendingUpload.target.id} with "${pendingUpload.fileName}" cannot be undone. It will be stored as:`
+                  : `"${pendingUpload.fileName}" will be stored as:`}
+              </p>
+              <ul data-testid='upload-warnings'>
+                {pendingUpload.warnings.map((warning) => (
+                  <li key={`${warning.path}:${warning.message}`}>
+                    <code>{warning.path || '/'}</code> — {warning.message}
+                  </li>
+                ))}
+              </ul>
+            </>
+          }
+          confirmLabel={pendingUpload.target.kind === 'replace' ? 'Replace anyway' : 'Upload anyway'}
+          destructive={pendingUpload.target.kind === 'replace'}
+          onConfirm={() => {
+            const upload = pendingUpload;
+            setPendingUpload(null);
+            send(upload);
+          }}
+          onCancel={() => setPendingUpload(null)}
+        />
+      )}
 
       {pendingDelete && (
         <ConfirmDialog

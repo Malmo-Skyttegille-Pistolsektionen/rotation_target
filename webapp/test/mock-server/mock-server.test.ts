@@ -100,11 +100,17 @@ describe('program storage', () => {
     return api('/programs', { method: 'POST', body: JSON.stringify(body) });
   }
 
-  it("assigns an id from 100 up and ignores the document's", async () => {
+  it("assigns the lowest free id from 100 up and ignores the document's", async () => {
     const res = await upload();
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ id: 100 });
 
+    expect(await (await upload()).json()).toEqual({ id: 101 });
+    expect(await (await upload()).json()).toEqual({ id: 102 });
+
+    // A freed id is handed straight back out - the firmware scans up from 100
+    // rather than counting from the highest in use.
+    await api('/programs/101/delete', { method: 'DELETE' });
     expect(await (await upload()).json()).toEqual({ id: 101 });
   });
 
@@ -120,7 +126,11 @@ describe('program storage', () => {
         {
           name: 'Serie 1',
           optional: true,
-          events: [{ duration: 1, command: 'show', audio_ids: [26] }, { duration: 3600000 }],
+          events: [
+            { duration: 1, command: 'show', audio_ids: [26] },
+            // Kept verbatim, as the firmware keeps it: only show/hide act.
+            { duration: 3600000, command: 'sideways' },
+          ],
         },
       ],
     });

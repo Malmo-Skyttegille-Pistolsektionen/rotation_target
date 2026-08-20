@@ -11,6 +11,7 @@ export type Program = components['schemas']['Program'];
 export type Series = components['schemas']['Series'];
 export type Event = components['schemas']['Event'];
 export type AudioFile = components['schemas']['Audio'];
+export type ProgramUpdate = components['schemas']['ProgramUpdate'];
 export type CreatedId = components['schemas']['CreatedId'];
 
 // SSE shapes are specified in `contracts/asyncapi.yaml`, which

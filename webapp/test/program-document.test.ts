@@ -77,14 +77,40 @@ describe('what the device will change, reported as warnings', () => {
     expect(result.program.series[0].events[0]).toEqual({ duration: 1000 });
   });
 
-  it('keeps the v1 fields the schema still allows, without storing them', () => {
+  it('names what a dropped v1 field changes, rather than dropping it quietly', () => {
     const result = accepted({
       title: 'From v1',
       series: [{ name: 'Serie 1', events: [{ duration: 1000, start: true, target_system: [1, 2] }] }],
     });
 
-    expect(result.warnings).toEqual([]);
     expect(result.program.series[0].events[0]).toEqual({ duration: 1000 });
+    // Reported in the order the file writes them.
+    expect(result.warnings.map((w) => w.path)).toEqual([
+      '/series/0/events/0/start',
+      '/series/0/events/0/target_system',
+    ]);
+    // The consequence, not just the fact: v1 aimed an event at some targets,
+    // and this firmware aims every event at all of them.
+    expect(result.warnings[0].message).toContain('first event');
+    expect(result.warnings[1].message).toContain('every target system');
+  });
+
+  it('drops an audio id that does not fit a 32-bit int, as ArduinoJson does', () => {
+    const result = accepted({
+      title: 'Big id',
+      series: [{ name: 'Serie 1', events: [{ duration: 1000, audio_ids: [26, 4_000_000_000] }] }],
+    });
+
+    expect(result.program.series[0].events[0].audio_ids).toEqual([26]);
+    expect(result.warnings[0].path).toBe('/series/0/events/0/audio_ids/1');
+    expect(result.warnings[0].message).toContain('will not play');
+  });
+
+  it('warns that a non-boolean readonly is ignored twice over', () => {
+    const result = accepted({ ...PROGRAM_MILITARY_SNABBMATCH, readonly: 'yes' });
+
+    expect(result.program.readonly).toBe(false);
+    expect(result.warnings.map((w) => w.path)).toContain('/readonly');
   });
 
   it('warns that a document cannot make itself read-only', () => {

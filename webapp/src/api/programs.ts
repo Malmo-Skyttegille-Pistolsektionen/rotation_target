@@ -1,8 +1,12 @@
 import { useSettings } from '../context/SettingsContext';
 import { createAuthenticatedClient } from './client';
-import type { CreatedId, Program, ProgramSummary } from './types';
+import type { CreatedId, Program, ProgramSummary, ProgramUpdate } from './types';
 
-function withoutId({ title, description, readonly, series }: Program): Omit<Program, 'id'> {
+/**
+ * The `PUT` body: the document with no `id` at all. The path is the authority
+ * (D-15), so sending one can only mismatch — never rename.
+ */
+function withoutId({ title, description, readonly, series }: Program): ProgramUpdate {
   return { title, description, readonly, series };
 }
 
@@ -18,8 +22,6 @@ export function useProgramsApi() {
     // caller learns it from the response rather than from what it sent.
     create: (program: Program) =>
       client.request<CreatedId>('/programs', { method: 'POST', body: JSON.stringify(program) }),
-    // The path owns the id: a body declaring a different one is a 400, never a
-    // rename (D-15). `id` is therefore omitted from the body entirely.
     update: (id: number, program: Program) =>
       client.request<Program>(`/programs/${id}`, {
         method: 'PUT',

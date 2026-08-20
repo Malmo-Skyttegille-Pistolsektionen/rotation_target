@@ -582,6 +582,19 @@ export interface components {
             readonly: boolean;
             series: components["schemas"]["Series"][];
         };
+        /** @description The body of `PUT /programs/{id}`. `Program` with `id` made optional: the path is the authority on the id, so a body may leave it out entirely, and one declaring anything other than `{id}` is a `400`. Spelled out rather than referenced because a JSON Schema `allOf` cannot relax a `required` its base declares. */
+        ProgramUpdate: {
+            /**
+             * Format: int32
+             * @description Optional. If present it must equal `{id}` in the path.
+             */
+            id?: number;
+            title: string;
+            description: string;
+            /** @description Ignored; it follows from where the device stores the file. */
+            readonly: boolean;
+            series: components["schemas"]["Series"][];
+        };
         Series: {
             name: string;
             /** @description Carried through the API but not acted on by the run loop: the executor runs one series at a time and never skips one by itself. */
@@ -956,7 +969,7 @@ export interface operations {
         /** @description A program document; see `contracts/program.schema.json`. `id` may be omitted, and `readonly` is ignored. */
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Program"];
+                "application/json": components["schemas"]["ProgramUpdate"];
             };
         };
         responses: {

@@ -198,12 +198,13 @@ describe('uploading a new program', () => {
     fireEvent.click(screen.getByTestId('programs-upload'));
     await pickFile({ ...UPLOADED, id: 7, title: 'Nyuppladdad' });
 
-    // POST always assigns; 141 is the next free id above the seeded 140.
-    await waitFor(() => expect(notice().textContent).toContain('Uploaded "Nyuppladdad" as program 141.'));
-    expect((await programsOnDevice()).map((p) => p.id)).toEqual([SHIPPED.id, UPLOADED.id, 141]);
+    // POST always assigns, and it assigns the lowest free id from 100 up - so
+    // the seeded 140 does not push the new one to 141.
+    await waitFor(() => expect(notice().textContent).toContain('Uploaded "Nyuppladdad" as program 100.'));
+    expect((await programsOnDevice()).map((p) => p.id)).toEqual([SHIPPED.id, 100, UPLOADED.id]);
   });
 
-  it('says what the device will change before it changes it', async () => {
+  it('says what the device will change before it changes it, and only then writes', async () => {
     renderPrograms();
     await ready();
 
@@ -214,9 +215,44 @@ describe('uploading a new program', () => {
       series: [{ name: 'Serie 1', events: [{ duration: 0 }] }],
     });
 
-    await waitFor(() => expect(notice().textContent).toContain('as program 141'));
-    expect(notice().textContent).toContain('/nickname');
-    expect(notice().textContent).toContain('store it as 1 ms');
+    const dialog = await screen.findByTestId('confirm-dialog');
+    const warnings = within(dialog).getByTestId('upload-warnings').textContent ?? '';
+    expect(warnings).toContain('/nickname');
+    expect(warnings).toContain('store it as 1 ms');
+    // Nothing has been written yet - the point of showing this first.
+    expect((await programsOnDevice()).map((p) => p.id)).toEqual([SHIPPED.id, UPLOADED.id]);
+
+    fireEvent.click(within(dialog).getByText('Upload anyway'));
+    await waitFor(() => expect(notice().textContent).toContain('as program 100'));
+  });
+
+  it('sends nothing when the warnings are declined', async () => {
+    renderPrograms();
+    await ready();
+
+    fireEvent.click(screen.getByTestId('programs-upload'));
+    await pickFile({ title: 'Med skräp', nickname: 'dropped', series: [{ name: 'S', events: [{ duration: 1000 }] }] });
+
+    fireEvent.click(within(await screen.findByTestId('confirm-dialog')).getByText('Cancel'));
+
+    await waitFor(() => expect(screen.queryByTestId('confirm-dialog')).toBeNull());
+    expect((await programsOnDevice()).map((p) => p.id)).toEqual([SHIPPED.id, UPLOADED.id]);
+  });
+
+  it('warns before an irreversible replace, not after it', async () => {
+    renderPrograms();
+    await ready();
+
+    fireEvent.click(screen.getByTestId(`program-replace-${UPLOADED.id}`));
+    await pickFile({ ...UPLOADED, title: 'Klubbserie 2026', series: [{ name: 'S', events: [{ duration: 0 }] }] });
+
+    const dialog = await screen.findByTestId('confirm-dialog');
+    expect(dialog.textContent).toContain('cannot be undone');
+    // The stored document is still the old one while the dialog is up.
+    expect(await programsOnDevice()).toContainEqual(expect.objectContaining({ id: UPLOADED.id, title: 'Klubbserie' }));
+
+    fireEvent.click(within(dialog).getByText('Replace anyway'));
+    await waitFor(() => expect(notice().textContent).toContain(`Replaced program ${UPLOADED.id}`));
   });
 
   it('refuses a file the device would not accept, naming what is wrong', async () => {
@@ -280,11 +316,11 @@ describe('replacing a program', () => {
     await pickFile({ ...UPLOADED, id: 999, title: 'Fel id' }, 'fel-id.json');
 
     await waitFor(() => expect(notice().textContent).toContain('declares id 999'));
-    expect(notice().textContent).toContain('will not renumber');
+    expect(notice().textContent).toContain('either the wrong file or the wrong row');
     // Refused before the request: the device still holds the old document.
     expect(await programsOnDevice()).toContainEqual(expect.objectContaining({ id: UPLOADED.id, title: 'Klubbserie' }));
 
     fireEvent.click(screen.getByTestId('programs-notice-action'));
-    await waitFor(() => expect(notice().textContent).toContain('Uploaded "Fel id" as program 141.'));
+    await waitFor(() => expect(notice().textContent).toContain('Uploaded "Fel id" as program 100.'));
   });
 });
