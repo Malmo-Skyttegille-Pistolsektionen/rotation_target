@@ -1,0 +1,512 @@
+{
+  "id": 50,
+  "title": "Snabbskjutning",
+  "description": "Serie 2, 5 x tävlingsserie",
+  "readonly": true,
+  "series": [
+    {
+      "name": "Serie 2",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            50,
+            1,
+            28
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+     {
+      "name": "Serie 1",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            51,
+            1,
+            28
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Serie 2",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            52,
+            1,
+            28
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Serie 3",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            53,
+            1,
+            28
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Serie 4",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            54,
+            1,
+            28
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Serie 5",
+      "optional": false,
+      "events": [
+        {
+          "duration": 5000,
+          "audio_ids": [
+            55,
+            1,
+            28
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 60000,
+          "audio_ids": [
+            26
+          ],
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 7000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    }
+  ]
+}

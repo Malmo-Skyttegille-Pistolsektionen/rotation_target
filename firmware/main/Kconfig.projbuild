@@ -1,0 +1,131 @@
+menu "Rotation target backend"
+
+menu "Hardware"
+
+comment "Pins and polarity - the defaults are the ESP32-S3-DevKitC-1 prototype"
+
+config RT_TARGET_GPIO
+    int "Target control GPIO"
+    default 5
+    range 0 48
+    help
+        Drives the transistor on DB9 pin 2 that turns the targets. On the
+        prototype this is GPIO5 via a 1k resistor into a BC547B.
+
+config RT_TARGET_ACTIVE_LOW
+    bool "Target GPIO is active low (low = targets shown)"
+    default y
+    help
+        Whether driving the pin LOW shows the targets. True for the prototype's
+        transistor stage, where low opens the connection. A board that buffers
+        or inverts the signal - or drives a relay directly - needs this off, or
+        the targets face the wrong way for the whole program.
+
+        Getting this wrong is not subtle on a range: the boot-time "hidden"
+        drive in targets::init() would present the targets instead of hiding
+        them.
+
+config RT_RGB_LED_ENABLED
+    bool "Board has an addressable RGB LED"
+    default y
+    help
+        A WS2812 used as a boot/health indicator: red while joining, yellow in
+        the setup portal, green once serving. Turn off for a board without one;
+        the firmware then skips the driver entirely rather than logging a
+        failure on every boot.
+
+config RT_RGB_LED_GPIO
+    int "RGB LED GPIO"
+    default 48
+    range 0 48
+    depends on RT_RGB_LED_ENABLED
+    help
+        GPIO48 on the ESP32-S3-DevKitC-1.
+
+config RT_AUDIO_ENABLED
+    bool "Board has an I2S audio DAC"
+    default y
+    help
+        Turn off for a board with no audio hardware. Programs still run and the
+        API still reports audio, but nothing is played - which is a legitimate
+        configuration for a target that only turns.
+
+config RT_I2S_PORT
+    int "I2S port number"
+    default 0
+    range 0 1
+    depends on RT_AUDIO_ENABLED
+
+config RT_I2S_BCK_GPIO
+    int "I2S bit clock (BCK) GPIO"
+    default 10
+    range 0 48
+    depends on RT_AUDIO_ENABLED
+
+config RT_I2S_WS_GPIO
+    int "I2S word select (LRCK/WS) GPIO"
+    default 12
+    range 0 48
+    depends on RT_AUDIO_ENABLED
+
+config RT_I2S_DOUT_GPIO
+    int "I2S data out (DIN on the DAC) GPIO"
+    default 11
+    range 0 48
+    depends on RT_AUDIO_ENABLED
+
+endmenu
+
+menu "Network"
+
+config RT_HOSTNAME
+    string "Hostname advertised over DHCP and mDNS"
+    default "rotation-target"
+
+config RT_HTTP_PORT
+    int "HTTP port"
+    default 80
+    range 1 65535
+
+config RT_WIFI_SSID
+    string "WiFi SSID (first-boot seed only)"
+    default "changeme"
+    help
+        Seeds NVS on first boot. The runtime credentials live in NVS via
+        wifi_store, so a network change does not need a rebuild - leave this at
+        the default and use the setup portal instead.
+
+        Credentials belong in sdkconfig, which is gitignored. Never put a real
+        SSID or password in sdkconfig.defaults, which is committed.
+
+config RT_WIFI_PASSWORD
+    string "WiFi password (first-boot seed only)"
+    default ""
+
+config RT_WIFI_MAX_RETRIES
+    int "Initial WiFi association attempts before falling back to the setup portal"
+    default 10
+    help
+        Bounds the *initial* join only. Once associated, reconnection is
+        unbounded - a device that gave up mid-session would sit powered on and
+        unreachable.
+
+config RT_SETUP_AP_PASSWORD
+    string "Setup access-point password"
+    default "rotationtarget"
+    help
+        Used only by the setup portal the device falls back to when it cannot
+        join a network. WPA2 needs at least 8 characters; shorter than that and
+        the AP comes up OPEN, which is logged loudly at boot.
+
+config RT_DEV_ORIGIN
+    string "Additional allowed CORS origin"
+    default ""
+    help
+        An extra origin the webapp may be served from, e.g.
+        "http://localhost:5173" while developing the frontend. Empty in a normal
+        build - the device's own mDNS name and IP are always allowed.
+
+endmenu
+
+endmenu
