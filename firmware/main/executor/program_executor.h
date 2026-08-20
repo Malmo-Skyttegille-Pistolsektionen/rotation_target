@@ -30,6 +30,10 @@ bool toggle_targets();
 // deleted out from under a run. Returns whether anything was unloaded.
 bool unload_if_loaded(int32_t program_id);
 
+// Whether `program_id` is the program currently loaded. Lets a handler refuse
+// a mutation that would replace a program the run loop holds a pointer into.
+bool is_loaded(int32_t program_id);
+
 // The current stateUpdate payload.
 std::string state_json();
 

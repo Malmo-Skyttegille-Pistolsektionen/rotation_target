@@ -4,7 +4,7 @@ openapi: 3.1.0
 
 info:
   title: Rotation target REST API v2
-  version: 2.0.0
+  version: 2.1.0
   license:
     name: MIT
     identifier: MIT
@@ -56,7 +56,7 @@ info:
     allowlist rather than with `*` (a browser refuses a wildcard on a
     credentialed request). An `Origin` header is echoed back in
     `Access-Control-Allow-Origin`, with `Access-Control-Allow-Credentials:
-    true`, `Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS`,
+    true`, `Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS`,
     `Access-Control-Allow-Headers: Authorization, Content-Type`,
     `Access-Control-Max-Age: 600` and `Vary: Origin`, only when it is one of:
 
@@ -320,8 +320,8 @@ paths:
         the directory the program lives in, and an upload is never read-only.
 
         Unknown fields are dropped, and `duration` is clamped to
-        1…3600000 ms per event. There is no update path in this API version:
-        posting a document carrying an existing id creates a *new* program.
+        1…3600000 ms per event. Posting a document carrying an existing id
+        creates a *new* program; replacing one is `PUT /programs/{id}`.
       security:
         - adminBearer: []
         - adminCookie: []
@@ -369,6 +369,85 @@ paths:
           description: >-
             No such program, or a path segment that is not a plain decimal
             integer (`Program not found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      tags: [programs]
+      summary: Replace an uploaded program
+      operationId: updateProgram
+      description: |
+        Replaces the stored document for `{id}` with the body, parsed and
+        validated exactly as `POST /programs` parses an upload and rewritten
+        from the parsed model — so unknown fields are dropped, `duration` is
+        clamped to 1…3600000 ms per event, and `readonly` in the body is
+        ignored. The response is the stored form, identical to what
+        `GET /programs/{id}` returns afterwards.
+
+        The id never moves: `{id}` in the path is the authority, matching the
+        filename the program is stored under. A body carrying an `id` other
+        than `{id}` is a `400` rather than a rename or a renumbering; a body
+        with no `id` (or `id: null`) is accepted and keeps `{id}`.
+
+        **The program must not be loaded.** Run state holds a pointer into the
+        stored program, so replacing a loaded one would swap the series out
+        from beneath a run in progress and beneath the indices already
+        published over `stateUpdate`. The client unloads (or loads something
+        else) first; there is no forced-update flag.
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      requestBody:
+        required: true
+        description: >-
+          A program document; see `contracts/program.schema.json`. `id` may be
+          omitted, and `readonly` is ignored.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Program"
+      responses:
+        "200":
+          description: Replaced. The body is the program as stored.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Program"
+        "400":
+          description: >-
+            Empty body, malformed JSON, a non-object root (`Invalid program`),
+            or a body declaring a different id (`Program id in the document
+            does not match the path`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: >-
+            No such program, or a path segment that is not a plain decimal
+            integer (`Program not found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: >-
+            The program is shipped with the firmware and has no writable file
+            behind it (`Program is read-only and cannot be updated`), or it is
+            the loaded program (`Program is loaded; unload it before
+            updating`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: >-
+            The replacement could not be written to flash
+            (`Could not store program`). The previous document is left intact.
           content:
             application/json:
               schema:
@@ -983,7 +1062,7 @@ components:
           type: boolean
           description: >-
             True for programs flashed with the firmware. Read-only programs
-            cannot be deleted.
+            cannot be deleted or updated.
       additionalProperties: false
 
     Program:
