@@ -1,0 +1,1190 @@
+# yaml-language-server: $schema=https://spec.openapis.org/oas/3.1/schema/2022-10-07
+---
+openapi: 3.1.0
+
+info:
+  title: Rotation target REST API v2
+  version: 2.0.0
+  license:
+    name: MIT
+    identifier: MIT
+  description: |
+    The REST API the rotation target firmware serves under `/api/v2`, together
+    with the SSE stream at `/sse/v2` (specified separately in
+    `contracts/asyncapi.yaml`).
+
+    This document is **canonical** and is written from the implementation
+    (`firmware/main/net/web_server.cpp` and `firmware/lib/rt_logic/`), not the
+    other way round. Where prose documentation and the firmware disagree, the
+    firmware wins and this file follows it. See `contracts/README.md`.
+
+    ## State model
+
+    There is no `GET /status`. Run state is published only over `/sse/v2`: a
+    client connects, immediately receives a full `stateUpdate`, and receives
+    another after every mutation. The mutating endpoints here answer with a
+    short confirmation message, not with state.
+
+    ## Authentication
+
+    Admin mode is off after every boot and lives in RAM only. While it is off,
+    **every endpoint is unauthenticated**, including the ones marked as
+    requiring an admin session below. A client turns protection on with
+    `POST /api/v2/admin-mode/enable`, choosing the password in that call.
+
+    While admin mode is on, the protected endpoints accept either credential:
+
+    - `Authorization: Bearer <token>`
+    - `Cookie: admin=<token>`
+
+    The header is checked first; the cookie is the fallback. Tokens are 16
+    random bytes, hex-encoded, valid for 12 hours from issue, and at most 8
+    are held at once (oldest evicted first). `enable` and `login` return the
+    token in the body *and* set it as
+    `Set-Cookie: admin=<token>; Path=/; SameSite=Lax` — deliberately not
+    `HttpOnly`, because the webapp reads it back. `SameSite=Lax` means the
+    cookie only rides along when the webapp is served from the device itself;
+    a webapp on another origin authenticates with the bearer token.
+
+    Because of the "off means open" rule, each protected operation lists an
+    empty security requirement alongside the two credentials: with admin mode
+    disabled, a call with no credentials succeeds.
+
+    ## CORS
+
+    The firmware answers credentialed cross-origin requests against an
+    allowlist rather than with `*` (a browser refuses a wildcard on a
+    credentialed request). An `Origin` header is echoed back in
+    `Access-Control-Allow-Origin`, with `Access-Control-Allow-Credentials:
+    true`, `Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS`,
+    `Access-Control-Allow-Headers: Authorization, Content-Type`,
+    `Access-Control-Max-Age: 600` and `Vary: Origin`, only when it is one of:
+
+    - `http(s)://<CONFIG_RT_HOSTNAME>.local` (default `rotation-target.local`)
+    - `http(s)://<the device's current IP>`
+    - `CONFIG_RT_DEV_ORIGIN`, when that Kconfig value is non-empty
+
+    Any other origin gets no CORS headers at all, so the browser blocks the
+    response.
+
+    ## Routes that exist but are not modelled as paths here
+
+    Both are catch-alls that would have to be attached to every path to be
+    modelled honestly, so they are recorded here instead:
+
+    - `OPTIONS /*` — a single catch-all preflight handler answering `204` with
+      no body (with the CORS headers above when the origin is allowed).
+      Registered because nothing else answers `OPTIONS`, and a preflight that
+      404s fails the real request behind it.
+    - `GET /*` — the built webapp, served from the LittleFS path
+      `/storage/webapp/` with `index.html` as the default file. Registered
+      last so it can never shadow an API route.
+
+    An unmatched URI answers `404` with the standard `{"error": ...}` body.
+
+    Provisioning (the SoftAP setup portal at `/` and `/save`) runs on a
+    *separate* HTTP server that is only up when the device has no WiFi
+    credentials. It is not part of this API.
+
+    ## Limits
+
+    - Request bodies and uploads are capped at 1 MiB (`kMaxUploadBytes`,
+      `firmware/main/config.h`). Exceeding it is answered `400` with a
+      **`text/html`** body, not the JSON error shape — that check lives in the
+      vendored HTTP layer, above every handler.
+    - At most 12 sockets are open at once, and each connected client holds one
+      of them for `/sse/v2` on top of its REST traffic.
+
+servers:
+  - url: http://rotation-target.local/api/v2
+    description: >-
+      The device on the range network, by mDNS name. The hostname is
+      `CONFIG_RT_HOSTNAME` and the port `CONFIG_RT_HTTP_PORT` (default 80).
+  - url: http://localhost:8080/api/v2
+    description: >-
+      The firmware under QEMU, reached through the host-forwarded port.
+
+security:
+  - {}
+
+tags:
+  - name: version
+    description: Firmware identity.
+  - name: diagnostics
+    description: Post-incident triage without a USB cable.
+  - name: admin-mode
+    description: Turning write protection on and off, and session handling.
+  - name: programs
+    description: The stored programs and the run control that drives them.
+  - name: targets
+    description: Direct target control, outside a program run.
+  - name: audios
+    description: The stored audio clips.
+  - name: sse
+    description: The event stream carrying run state.
+
+paths:
+  /version:
+    get:
+      tags: [version]
+      summary: Firmware version
+      operationId: getVersion
+      description: |
+        The three-part split of the firmware version, which is derived from
+        `git describe` at build time. A describe output that is not a
+        three-part semver — an untagged build, for instance — reports
+        `0.0.0` rather than inventing a version from the hash.
+      responses:
+        "200":
+          description: The running firmware version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Version"
+
+  /diagnostics/info:
+    get:
+      tags: [diagnostics]
+      summary: Firmware identity and health
+      operationId: getDiagnosticsInfo
+      description: |
+        Public, like every other `GET`: it carries no credential and no
+        program data, only the firmware's own identity and health.
+
+        The coredump itself is deliberately **not** exposed — it is a raw RAM
+        snapshot and can contain the WiFi password, so retrieving one stays an
+        out-of-band job needing physical access. `coredumpPresent` only says
+        whether there is something to go and fetch.
+      responses:
+        "200":
+          description: A health snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiagnosticsInfo"
+
+  /admin-mode/status:
+    get:
+      tags: [admin-mode]
+      summary: Whether admin mode is on
+      operationId: getAdminModeStatus
+      responses:
+        "200":
+          description: Whether write protection is currently enabled.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enabled]
+                properties:
+                  enabled:
+                    type: boolean
+                additionalProperties: false
+
+  /admin-mode/enable:
+    post:
+      tags: [admin-mode]
+      summary: Turn admin mode on and open a session
+      operationId: enableAdminMode
+      description: |
+        Sets the password — any non-empty string, chosen by this call — and
+        returns the first session token. Refused while admin mode is already
+        on: log in or disable it first.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/AdminSession"
+        "401":
+          description: >-
+            The password was empty or the body carried none
+            (`Invalid password`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Admin mode is already enabled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /admin-mode/login:
+    post:
+      tags: [admin-mode]
+      summary: Open another session with the active password
+      operationId: loginAdminMode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/AdminSession"
+        "401":
+          description: Wrong password (`Invalid password`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Admin mode is not enabled, so there is nothing to log in to.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /admin-mode/logout:
+    post:
+      tags: [admin-mode]
+      summary: Invalidate the presenting session
+      operationId: logoutAdminMode
+      description: |
+        Ends this session only, leaving admin mode on — which is what a client
+        walking away from a shared range laptop wants, and the opposite of
+        `disable`.
+
+        The token is taken from the `Authorization` header, falling back to
+        the `admin` cookie. **This endpoint is not itself protected**: it
+        always answers `200` and always clears the cookie, whether or not the
+        presented token was a live session (or was presented at all).
+      responses:
+        "200":
+          description: >-
+            Logged out. `Set-Cookie: admin=; Path=/; SameSite=Lax; Max-Age=0`
+            clears the cookie.
+          headers:
+            Set-Cookie:
+              description: Clears the `admin` cookie.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /admin-mode/disable:
+    post:
+      tags: [admin-mode]
+      summary: Turn admin mode off
+      operationId: disableAdminMode
+      description: |
+        Clears the password and invalidates every issued token. Note this
+        turns protection *off* — every endpoint becomes writable by anyone on
+        the network again. It is not "log out"; see `/admin-mode/logout`.
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      responses:
+        "200":
+          description: Admin mode disabled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /programs:
+    get:
+      tags: [programs]
+      summary: List the stored programs
+      operationId: listPrograms
+      description: Summaries only — the series are omitted. Ordered by id ascending.
+      responses:
+        "200":
+          description: Every program the device holds, shipped and uploaded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProgramSummary"
+    post:
+      tags: [programs]
+      summary: Upload a program
+      operationId: createProgram
+      description: |
+        The `id` in the uploaded document is **ignored**: the device assigns
+        the next free id from 100 upwards and rewrites the file from the
+        parsed program, so what is persisted is what will come back on the
+        next boot. `readonly` in the document is ignored too — it follows from
+        the directory the program lives in, and an upload is never read-only.
+
+        Unknown fields are dropped, and `duration` is clamped to
+        1…3600000 ms per event. There is no update path in this API version:
+        posting a document carrying an existing id creates a *new* program.
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      requestBody:
+        required: true
+        description: A program document; see `contracts/program.schema.json`.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Program"
+      responses:
+        "201":
+          description: Stored. The body carries the assigned id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedId"
+        "400":
+          description: >-
+            Empty body, malformed JSON, or a non-object root
+            (`Invalid program`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /programs/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ProgramId"
+    get:
+      tags: [programs]
+      summary: Fetch one program in full
+      operationId: getProgram
+      responses:
+        "200":
+          description: The program, series and events included.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Program"
+        "404":
+          description: >-
+            No such program, or a path segment that is not a plain decimal
+            integer (`Program not found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /programs/{id}/load:
+    parameters:
+      - $ref: "#/components/parameters/ProgramId"
+    post:
+      tags: [programs]
+      summary: Select a program to run
+      operationId: loadProgram
+      description: >-
+        Selects the program at series 0, event 0, with `tickerSeconds` unset.
+        Does not start it.
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      responses:
+        "200":
+          description: Program loaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: >-
+            No such program (`Program not found`), or a malformed path
+            (`Not found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /programs/{id}/delete:
+    parameters:
+      - $ref: "#/components/parameters/ProgramId"
+    delete:
+      tags: [programs]
+      summary: Delete an uploaded program
+      operationId: deleteProgram
+      description: |
+        Shipped programs are read-only and answer `404`, the same as a program
+        that does not exist — deletability is checked before anything is
+        unloaded, so a refused delete never disturbs a run in progress. If the
+        program being deleted is the loaded one, it is unloaded first and a
+        `stateUpdate` follows.
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      responses:
+        "200":
+          description: Program deleted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: >-
+            No such program, a read-only (shipped) program
+            (`Program not found`), or a malformed path (`Not found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /programs/start:
+    post:
+      tags: [programs]
+      summary: Start or resume the loaded program
+      operationId: startProgram
+      description: >-
+        Resumes the current series from `tickerSeconds`, or runs it from zero
+        when the ticker is unset. Starting an already-running program is a
+        no-op and still answers `200`. Audio only replays when the resume
+        point lands exactly on an event boundary.
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      responses:
+        "200":
+          description: Program started.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: >-
+            Nothing is loaded, or the loaded program has no series at the
+            current index (`No program loaded`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /programs/stop:
+    post:
+      tags: [programs]
+      summary: Pause the running program
+      operationId: stopProgram
+      description: >-
+        Pauses and keeps the position, so `start` resumes from it. Because
+        `tickerSeconds` is whole seconds, a pause less than a second into a
+        series resumes from 0.
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      responses:
+        "200":
+          description: Program paused.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: Nothing is running (`Program not running`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /programs/reset:
+    post:
+      tags: [programs]
+      summary: Rewind to the start of the current series
+      operationId: resetProgram
+      description: >-
+        Stops the run, selects event 0 of the current series and clears
+        `tickerSeconds`. The selected series is kept.
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      responses:
+        "200":
+          description: Program reset.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: Nothing is loaded (`No program loaded`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /programs/series/{seriesIndex}/skip_to:
+    parameters:
+      - name: seriesIndex
+        in: path
+        required: true
+        description: >-
+          Zero-based index into the loaded program's `series`. Must be a plain
+          decimal integer; anything else is a `404`.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+    post:
+      tags: [programs]
+      summary: Jump to a series
+      operationId: skipToSeries
+      description: >-
+        Stops the run and selects the series, paused at its first event with
+        `tickerSeconds` cleared.
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      responses:
+        "200":
+          description: "Skipped to series <index>."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: >-
+            Nothing is loaded, or the index is outside the loaded program
+            (`No program loaded or series index out of bounds`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: The path segment is not a plain decimal integer (`Not found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /targets/show:
+    post:
+      tags: [targets]
+      summary: Turn the targets face-on
+      operationId: showTargets
+      description: >-
+        Drives the target hardware directly. It does not stop a running
+        program, which will move the targets again at its next event
+        boundary.
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      responses:
+        "200":
+          description: Targets shown.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /targets/hide:
+    post:
+      tags: [targets]
+      summary: Turn the targets edge-on
+      operationId: hideTargets
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      responses:
+        "200":
+          description: Targets hidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /targets/toggle:
+    post:
+      tags: [targets]
+      summary: Flip the targets
+      operationId: toggleTargets
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      responses:
+        "200":
+          description: >-
+            The resulting state, as `Targets shown` or `Targets hidden`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /audios:
+    get:
+      tags: [audios]
+      summary: List the stored audio clips
+      operationId: listAudios
+      responses:
+        "200":
+          description: Every clip the device holds, shipped and uploaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AudioList"
+    post:
+      tags: [audios]
+      summary: Upload an audio clip
+      operationId: createAudio
+      description: |
+        A `multipart/form-data` body with one file part and a `title` field.
+
+        The client's filename is never used on disk: only its `.wav`
+        extension is checked, as an early reject, and the clip is streamed to
+        a fixed staging file, validated, and renamed to `<id>.wav` once an id
+        is assigned. Every failure path removes the staging file, so a
+        repeated failed upload cannot fill the partition.
+
+        Accepted audio is RIFF/WAVE, PCM (format tag 1), 16-bit, mono or
+        stereo, with a non-zero sample rate and a non-empty `data` chunk.
+        Chunks are walked rather than assumed, so a `LIST`/`INFO` chunk before
+        `data` is fine.
+
+        One upload at a time: there is a single staging slot, and a second
+        concurrent upload is refused.
+
+        Two details of the vendored HTTP layer, recorded because clients rely
+        on them in practice: the part name of the file is not inspected (any
+        name works), and `title` is matched as a non-`POST` parameter, so it
+        may equally be supplied as a `?title=` query parameter.
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, title]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The clip. The filename must end in `.wav`.
+                title:
+                  type: string
+                  minLength: 1
+                  description: Display title. May also be given in the query string.
+            encoding:
+              file:
+                contentType: audio/wav
+      responses:
+        "201":
+          description: Stored. The body carries the assigned id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedId"
+        "400":
+          description: |
+            One of:
+
+            - `No file uploaded` — no file part arrived
+            - `Missing title` — the `title` field is absent or empty
+            - `Unsupported audio format` — not a playable PCM 16-bit WAV
+
+            A body over the 1 MiB ceiling is also answered `400`, but with a
+            `text/html` body rather than this shape.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          description: >-
+            The clip could not be moved into place or indexed
+            (`Failed to add audio`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /audios/{id}/play:
+    parameters:
+      - $ref: "#/components/parameters/AudioId"
+    post:
+      tags: [audios]
+      summary: Play a clip now
+      operationId: playAudio
+      description: >-
+        Acknowledged immediately and played on the audio task — the response
+        is not held open for the length of the clip.
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      responses:
+        "200":
+          description: Playback started.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message, audioId]
+                properties:
+                  message:
+                    type: string
+                    const: Playback started
+                  audioId:
+                    type: integer
+                    format: int32
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: >-
+            No such clip (`Audio not found`), or a malformed path
+            (`Not found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /audios/{id}/delete:
+    parameters:
+      - $ref: "#/components/parameters/AudioId"
+    delete:
+      tags: [audios]
+      summary: Delete an uploaded clip
+      operationId: deleteAudio
+      description: >-
+        Shipped clips are read-only and answer `404`, the same as a clip that
+        does not exist.
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      responses:
+        "200":
+          description: Audio deleted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: >-
+            No such clip or a read-only one (`Audio not found`), or a
+            malformed path (`Not found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: >-
+            The clip is playing (`Audio is currently playing`). LittleFS has
+            no unlink-while-open, so removing it would corrupt the read.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /sse/v2:
+    get:
+      tags: [sse]
+      summary: The run-state event stream
+      operationId: streamEvents
+      servers:
+        - url: http://rotation-target.local
+          description: >-
+            The stream is at the server root, not under `/api/v2`.
+        - url: http://localhost:8080
+          description: The firmware under QEMU.
+      description: |
+        Public, and specified in full in `contracts/asyncapi.yaml`: a
+        `stateUpdate` on connect and after every mutation, plus a `heartbeat`
+        every 10 seconds.
+      responses:
+        "200":
+          description: >-
+            An open `text/event-stream`, with `Cache-Control: no-cache` and
+            `Connection: keep-alive`.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+components:
+  securitySchemes:
+    adminBearer:
+      type: http
+      scheme: bearer
+      description: >-
+        `Authorization: Bearer <token>`, where the token came from
+        `/admin-mode/enable` or `/admin-mode/login`. Checked before the
+        cookie.
+    adminCookie:
+      type: apiKey
+      in: cookie
+      name: admin
+      description: >-
+        The `admin` cookie set by `/admin-mode/enable` and
+        `/admin-mode/login`. Only sent same-site, because the cookie is
+        `SameSite=Lax`.
+
+  parameters:
+    ProgramId:
+      name: id
+      in: path
+      required: true
+      description: >-
+        Program id. Must be a plain decimal integer within `int32`; anything
+        else is a `404` rather than being read as id 0.
+      schema:
+        type: integer
+        format: int32
+        minimum: 0
+    AudioId:
+      name: id
+      in: path
+      required: true
+      description: >-
+        Audio clip id. Must be a plain decimal integer within `int32`.
+      schema:
+        type: integer
+        format: int32
+        minimum: 0
+
+  responses:
+    Unauthorized:
+      description: >-
+        Admin mode is on and no valid token was presented
+        (`Invalid or missing admin credentials`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    AdminSession:
+      description: >-
+        A session token, also set as a cookie.
+      headers:
+        Set-Cookie:
+          description: "`admin=<token>; Path=/; SameSite=Lax`"
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [token]
+            properties:
+              token:
+                type: string
+                description: 32 hex characters (16 random bytes).
+                pattern: "^[0-9a-f]{32}$"
+            additionalProperties: false
+
+  schemas:
+    Error:
+      type: object
+      description: >-
+        The shape every handler uses for a failure. The one exception is a
+        request body over the size ceiling, rejected by the HTTP layer with a
+        `text/html` body.
+      required: [error]
+      properties:
+        error:
+          type: string
+      additionalProperties: false
+
+    Message:
+      type: object
+      description: The shape every handler uses for a plain success.
+      required: [message]
+      properties:
+        message:
+          type: string
+      additionalProperties: false
+
+    CreatedId:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: integer
+          format: int32
+          description: >-
+            The id the device assigned. Uploaded programs and clips are
+            numbered from 100 upwards, keeping them clear of the shipped ids.
+      additionalProperties: false
+
+    PasswordBody:
+      type: object
+      description: >-
+        A missing, unparseable or non-string `password` is treated as an empty
+        password, which is refused with `401`.
+      required: [password]
+      properties:
+        password:
+          type: string
+          minLength: 1
+      additionalProperties: false
+
+    Version:
+      type: object
+      required: [major, minor, patch]
+      properties:
+        major:
+          type: integer
+          minimum: 0
+        minor:
+          type: integer
+          minimum: 0
+        patch:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+
+    ProgramSummary:
+      type: object
+      required: [id, title, description, readonly]
+      properties:
+        id:
+          type: integer
+          format: int32
+        title:
+          type: string
+        description:
+          type: string
+        readonly:
+          type: boolean
+          description: >-
+            True for programs flashed with the firmware. Read-only programs
+            cannot be deleted.
+      additionalProperties: false
+
+    Program:
+      type: object
+      description: >-
+        The full program document. Kept in lock-step with
+        `contracts/program.schema.json`, which is the authoring schema for the
+        files in `resources/programs/files/`.
+      required: [id, title, description, readonly, series]
+      properties:
+        id:
+          type: integer
+          format: int32
+        title:
+          type: string
+        description:
+          type: string
+        readonly:
+          type: boolean
+        series:
+          type: array
+          items:
+            $ref: "#/components/schemas/Series"
+      additionalProperties: false
+
+    Series:
+      type: object
+      required: [name, optional, events]
+      properties:
+        name:
+          type: string
+        optional:
+          type: boolean
+          description: >-
+            Carried through the API but not acted on by the run loop: the
+            executor runs one series at a time and never skips one by itself.
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+      additionalProperties: false
+
+    Event:
+      type: object
+      description: >-
+        One step: hold for `duration`, moving the targets and playing audio on
+        entry. On the wire, `command` and `audio_ids` are omitted when empty.
+      required: [duration]
+      properties:
+        duration:
+          type: integer
+          format: int32
+          description: >-
+            Milliseconds. Clamped to 1…3600000 on parse, so a `0` or negative
+            value becomes 1 ms and an absurd one is capped rather than
+            overflowing the series total.
+          minimum: 0
+        command:
+          type: string
+          enum: [show, hide]
+          description: >-
+            What to do with the targets on entering this event. Omitted, or
+            any other string, leaves them where they are.
+        audio_ids:
+          type: array
+          description: >-
+            Clips to start on entering this event. Ids that no longer exist
+            are skipped.
+          items:
+            type: integer
+            format: int32
+      additionalProperties: false
+
+    AudioList:
+      type: object
+      required: [audios]
+      properties:
+        audios:
+          type: array
+          items:
+            $ref: "#/components/schemas/Audio"
+      additionalProperties: false
+
+    Audio:
+      type: object
+      required: [id, title, filename, readonly]
+      properties:
+        id:
+          type: integer
+          format: int32
+        title:
+          type: string
+        filename:
+          type: string
+          description: >-
+            The absolute path on the device's LittleFS mount, e.g.
+            `/storage/shipped/audio/26.wav`. Named `filename` for
+            compatibility with the MicroPython backend, which joined the
+            directory into it the same way.
+        readonly:
+          type: boolean
+          description: True for clips flashed with the firmware.
+      additionalProperties: false
+
+    DiagnosticsInfo:
+      type: object
+      required:
+        - version
+        - idfVersion
+        - buildDate
+        - resetReason
+        - uptimeSeconds
+        - freeHeapBytes
+        - minFreeHeapBytes
+        - freePsramBytes
+        - runningPartition
+        - coredumpPresent
+        - storageTotalBytes
+        - storageUsedBytes
+        - programCount
+        - audioCount
+        - ipAddress
+        - targetGpio
+        - targetGpioLevel
+        - adminModeEnabled
+      properties:
+        version:
+          type: string
+          description: "`git describe` output, e.g. `2.0.0-3-gab12cde`."
+        idfVersion:
+          type: string
+          description: The ESP-IDF version the firmware was built against.
+        buildDate:
+          type: string
+          description: "Compiler date and time, e.g. `Aug 19 2026 11:42:03`."
+        resetReason:
+          type: string
+          enum:
+            - poweron
+            - external
+            - software
+            - panic
+            - interrupt_watchdog
+            - task_watchdog
+            - other_watchdog
+            - deepsleep
+            - brownout
+            - sdio
+            - usb
+            - jtag
+            - efuse
+            - power_glitch
+            - cpu_lockup
+            - unknown
+        uptimeSeconds:
+          type: integer
+          minimum: 0
+        freeHeapBytes:
+          type: integer
+          minimum: 0
+        minFreeHeapBytes:
+          type: integer
+          minimum: 0
+          description: >-
+            The low-water mark since boot, not the current figure: a leak that
+            has already been reclaimed is invisible in the latter.
+        freePsramBytes:
+          type: integer
+          minimum: 0
+        runningPartition:
+          type: string
+          description: "The OTA partition label, e.g. `ota_0`, or `unknown`."
+        coredumpPresent:
+          type: boolean
+          description: >-
+            Whether a coredump image is waiting to be pulled out of band. The
+            dump itself is never served.
+        storageTotalBytes:
+          type: integer
+          minimum: 0
+        storageUsedBytes:
+          type: integer
+          minimum: 0
+        programCount:
+          type: integer
+          minimum: 0
+        audioCount:
+          type: integer
+          minimum: 0
+        ipAddress:
+          type: string
+          description: The device's current address, or empty when it has none.
+        targetGpio:
+          type: integer
+          description: The GPIO number the target hardware is wired to.
+        targetGpioLevel:
+          type: integer
+          description: >-
+            The level actually on the pad, read back rather than remembered —
+            the pair with `targetGpio` distinguishes "the firmware never drove
+            it" from "something else is holding it".
+        adminModeEnabled:
+          type: boolean
+      additionalProperties: false

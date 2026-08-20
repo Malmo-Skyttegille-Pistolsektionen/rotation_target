@@ -111,9 +111,11 @@ them.
 
 [`docs/api-v2.md`](docs/api-v2.md) — REST under `/api/v2`, SSE at `/sse/v2`,
 plus `GET /api/v2/diagnostics/info` for post-incident triage without a cable.
-The canonical machine-readable contract lives with the webapp, in
-`docs/mock-api-v2.openapi.json` in the
-[frontend repository](https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target_frontend_webapp).
+The canonical machine-readable contract is
+[`../contracts/`](../contracts/README.md) — `openapi.yaml` for REST,
+`asyncapi.yaml` for SSE, `program.schema.json` for the program document. A
+change to any of them lands in the same PR as the firmware change it
+describes.
 
 ## Layout
 

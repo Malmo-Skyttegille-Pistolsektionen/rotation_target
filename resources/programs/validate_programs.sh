@@ -1,8 +1,9 @@
 #!/bin/bash
 
-SCHEMA="../openapi/program.schema.json"
+# The canonical schema lives in contracts/; see contracts/README.md.
+SCHEMA="$(dirname "$0")/../../contracts/program.schema.json"
 
-for file in files/*.json; do
+for file in "$(dirname "$0")"/files/*.json; do
     echo "Validating $file..."
     check-jsonschema --schemafile "$SCHEMA" "$file"
     if [ $? -eq 0 ]; then

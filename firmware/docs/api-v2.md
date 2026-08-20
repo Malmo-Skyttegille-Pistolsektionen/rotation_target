@@ -1,17 +1,21 @@
 # API v2
 
-The device serves the SSE-first contract the React webapp
-(`rotation_target_frontend_webapp`) speaks:
+The device serves the SSE-first contract the React webapp speaks:
 
 - REST base: `/api/v2`
 - SSE endpoint: `/sse/v2`
 
-There is no v1 on this firmware. The canonical machine-readable contract is
-`docs/mock-api-v2.openapi.json` in the frontend repository; this document
-records the device's implementation of it and where it deliberately goes
-further. It is the ESP-IDF port of the same contract the MicroPython backend
-serves, and the two are intended to stay interchangeable from a client's point
-of view.
+There is no v1 on this firmware.
+
+**The canonical machine-readable contract is [`../../contracts/`](../../contracts/README.md)**
+— `openapi.yaml` for REST, `asyncapi.yaml` for SSE, `program.schema.json` for
+the program document. Those files are authoritative on routes, shapes and
+status codes, and a change to any of them lands in the same PR as the firmware
+change it describes.
+
+This document is the prose companion: the *why* behind the contract, and the
+execution semantics no schema can express. It deliberately does not repeat the
+route list.
 
 ## State model
 
@@ -62,11 +66,13 @@ resume 250 ms in returns to event 0.
 ## Auth
 
 Admin mode is off until a client enables it, and it lives in RAM only — a
-reboot returns the device to the unprotected state. `GET` endpoints stay public
-either way; the mutating endpoints below require credentials only while admin
-mode is on.
+reboot returns the device to the unprotected state. The rule is simple enough
+to state once: **every `GET` is public; every mutating endpoint is protected
+while admin mode is on, except the three that have to work without a session —
+`admin-mode/enable`, `admin-mode/login` and `admin-mode/logout`.**
 
-- `Authorization: Bearer <token>`, or `Cookie: admin=<token>`
+- `Authorization: Bearer <token>`, or `Cookie: admin=<token>`. The header is
+  checked first; the cookie is the fallback
 - `POST /api/v2/admin-mode/enable` sets the password (any non-empty string) and
   returns a token; `409` if admin mode is already on
 - `POST /api/v2/admin-mode/login` exchanges the active password for another
@@ -76,67 +82,21 @@ mode is on.
   issued token — note this turns protection *off*, it is not "log out"
 - `POST /api/v2/admin-mode/logout` invalidates only the presenting token and
   clears the cookie, leaving admin mode on. This is what a client leaving a
-  shared range laptop wants
+  shared range laptop wants. It is itself unprotected, and answers `200`
+  whether or not the token it was given was live: there is nothing to protect,
+  since all it can do is invalidate a credential the caller already holds
 - Tokens expire 12 hours after they are issued, and at most 8 sessions are
   held at once (oldest evicted first)
 
 Tokens are 16 bytes from `esp_fill_random()`, hex-encoded.
 
-## Endpoints
-
-### Public
-
-| Method | Path |
-|--------|------|
-| `GET` | `/sse/v2` |
-| `GET` | `/api/v2/version` |
-| `GET` | `/api/v2/diagnostics/info` |
-| `GET` | `/api/v2/admin-mode/status` |
-| `POST` | `/api/v2/admin-mode/enable` |
-| `POST` | `/api/v2/admin-mode/login` |
-| `GET` | `/api/v2/programs` |
-| `GET` | `/api/v2/programs/{id}` |
-| `GET` | `/api/v2/audios` |
-
-### Protected while admin mode is enabled
-
-| Method | Path |
-|--------|------|
-| `POST` | `/api/v2/admin-mode/disable` |
-| `POST` | `/api/v2/admin-mode/logout` |
-| `POST` | `/api/v2/programs/{id}/load` |
-| `POST` | `/api/v2/programs/start` |
-| `POST` | `/api/v2/programs/stop` |
-| `POST` | `/api/v2/programs/reset` |
-| `POST` | `/api/v2/programs/series/{index}/skip_to` |
-| `POST` | `/api/v2/targets/show` |
-| `POST` | `/api/v2/targets/hide` |
-| `POST` | `/api/v2/targets/toggle` |
-| `POST` | `/api/v2/audios/{id}/play` |
-| `POST` | `/api/v2/programs` |
-| `DELETE` | `/api/v2/programs/{id}/delete` |
-| `POST` | `/api/v2/audios` |
-| `DELETE` | `/api/v2/audios/{id}/delete` |
-
-## Deviations from the mock contract
-
-- **Program and audio CRUD is kept.** `POST`/`DELETE` for programs and audios
-  are not in the mock spec, which describes only what the webapp calls. They are
-  carried over so uploading programs and audio to the device keeps working, and
-  they are treated as protected mutations.
-- **`GET /api/v2/version` is kept** for the same reason. It reports the
-  three-part split of the firmware version, which is derived from
-  `git describe` at build time rather than a hand-maintained constant; a tag
-  that is not three-part semver degrades to zeroes rather than failing.
-- **`POST /api/v2/audios/{id}/play` returns immediately** and plays on the
-  audio task, rather than holding the response open for the length of the clip.
-- **CORS allows credentials, against an allowlist.** The webapp sends the admin
-  cookie and bearer token with every call, and a browser refuses
-  `Access-Control-Allow-Origin: *` on a credentialed request — so the origin is
-  echoed rather than wildcarded. It is echoed only if it matches the device's
-  own mDNS name or current IP, or `CONFIG_RT_DEV_ORIGIN`. Any other origin gets
-  no CORS headers, so a page the operator happens to be visiting cannot script
-  the device or read its responses.
+**CORS allows credentials, against an allowlist.** The webapp sends the admin
+cookie and bearer token with every call, and a browser refuses
+`Access-Control-Allow-Origin: *` on a credentialed request — so the origin is
+echoed rather than wildcarded. It is echoed only if it matches the device's own
+mDNS name or current IP, or `CONFIG_RT_DEV_ORIGIN`. Any other origin gets no
+CORS headers, so a page the operator happens to be visiting cannot script the
+device or read its responses.
 
 Note that `SameSite=Lax` means the cookie is only sent when the webapp is served
 from the device itself. A webapp on another origin authenticates with the bearer
@@ -160,13 +120,16 @@ incident is diagnosable without a USB cable:
   "storageTotalBytes": 10223616, "storageUsedBytes": 7812096,
   "programCount": 7, "audioCount": 77,
   "ipAddress": "192.168.1.42",
+  "targetGpio": 5, "targetGpioLevel": 1,
   "adminModeEnabled": false
 }
 ```
 
 It is public, like every other `GET`: it carries no credential and no program
 data. `minFreeHeapBytes` is the low-water mark since boot — a leak that has
-already been reclaimed is invisible in the current figure.
+already been reclaimed is invisible in the current figure. `targetGpioLevel` is
+read back off the pad rather than remembered, so the pair with `targetGpio`
+distinguishes "the firmware never drove it" from "something else is holding it".
 
 **The coredump itself is deliberately not exposed.** It is a raw RAM snapshot
 and can contain the WiFi password in plaintext, so retrieving one stays an
@@ -178,20 +141,42 @@ is something to go and fetch.
 `POST /api/v2/programs` takes a JSON body. The id in the document is ignored:
 the device assigns the next free id from 100 and rewrites the file from the
 parsed program, so what is persisted is what will come back on the next boot.
+Unknown fields are dropped in that rewrite, and each `duration` is clamped to
+1…3600000 ms. **There is no update path** — posting a document that carries an
+existing id creates a second program rather than replacing the first.
 
-`POST /api/v2/audios` takes a multipart body with a `file` part and a `title`
+`POST /api/v2/audios` takes a multipart body with a file part and a `title`
 field. The clip is streamed to a staging file, validated as PCM 16-bit
-mono/stereo WAV, and only then renamed to `<id>.wav`.
+mono/stereo WAV, and only then renamed to `<id>.wav`. Two details fall out of
+the vendored HTTP layer rather than being designed: the name of the file part
+is not inspected, and `title` is looked up as a non-`POST` parameter, so a
+`?title=` query parameter works just as well as the form field.
 
 **The client's filename is never used on disk** — only its `.wav` extension is
 checked, as an early reject. A client-chosen name could collide with the
 repository's own `audios.json` index (destroying it) or with an existing clip
 (leaving two ids sharing one file, so deleting either broke the other). Every
 failure path removes the staging file, so a repeated failed upload cannot fill
-the partition.
+the partition. There is one staging slot, so a second concurrent upload is
+refused.
 
-Uploads are bounded by `kMaxUploadBytes` (1 MB), applied to the HTTP layer —
-not just when reading files back.
+Uploads and request bodies alike are bounded by `kMaxUploadBytes` (1 MB),
+applied to the HTTP layer — not just when reading files back. That check lives
+above every handler, in the vendored HTTP layer, and is the one failure that
+does **not** answer in the `{"error": ...}` shape: it sends `400` with a
+`text/html` body.
 
 `DELETE /api/v2/audios/{id}/delete` answers `409` if the clip is playing:
 LittleFS has no unlink-while-open, so deleting it would corrupt the read.
+
+## Endpoints kept beyond what the webapp calls
+
+- **Program and audio CRUD.** `POST`/`DELETE` for programs and audios are more
+  than the webapp needs, and are carried over so uploading programs and audio
+  to the device keeps working. They are treated as protected mutations.
+- **`GET /api/v2/version`** reports the three-part split of the firmware
+  version, which is derived from `git describe` at build time rather than a
+  hand-maintained constant; a tag that is not three-part semver degrades to
+  zeroes rather than failing.
+- **`POST /api/v2/audios/{id}/play` returns immediately** and plays on the
+  audio task, rather than holding the response open for the length of the clip.
