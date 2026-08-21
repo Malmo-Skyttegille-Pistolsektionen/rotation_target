@@ -188,13 +188,21 @@ function FieldTimelineSeries({
           <div className={styles.cursorHead} />
         </div>
       )}
-      {/* Axis */}
+      {/* Axis. The unit is stated once, on the final tick, rather than on every
+          label - "0 1 2 … 28 s" reads as cleanly as "0s 1s 2s … 28s" without
+          repeating "s" 29 times. */}
       <div className={styles.axis}>
-        {Array.from({ length: Math.ceil(totalDurationSec) + 1 }).map((_, i) => (
-          <div key={i} className={styles.tick} style={{ left: `${(i / totalDurationSec) * 100}%` }}>
-            <span className={styles.tickLabel}>{i}s</span>
-          </div>
-        ))}
+        {Array.from({ length: Math.ceil(totalDurationSec) + 1 }).map((_, i, ticks) => {
+          const isLast = i === ticks.length - 1;
+          return (
+            <div key={i} className={styles.tick} style={{ left: `${(i / totalDurationSec) * 100}%` }}>
+              <span className={styles.tickLabel}>
+                {i}
+                {isLast && <span className={styles.tickUnit}> s</span>}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
