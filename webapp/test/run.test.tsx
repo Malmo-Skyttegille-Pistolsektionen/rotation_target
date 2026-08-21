@@ -502,7 +502,7 @@ describe('#70: the window between picking a program and the device confirming it
 });
 
 describe('D-22: unloading from the run controls', () => {
-  /** The device's own answer to "what is loaded", read off the badge. */
+  /** The control D-22 added: clears the device's loaded program without loading another. */
   function unloadButton(): HTMLButtonElement {
     return screen.getByTestId('run-unload') as HTMLButtonElement;
   }
@@ -531,6 +531,33 @@ describe('D-22: unloading from the run controls', () => {
     expect(startNotice()).toContain('Nothing is loaded');
   });
 
+  it('cancels a start-delay countdown, since unloading is what it was armed against', async () => {
+    await ready();
+    await selectProgram(FALT.id);
+
+    fakeCountdownTimer();
+    await pressStart();
+    expect(screen.getByText('Starting in...')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(unloadButton());
+    });
+    await until(() => shownProgramId() === '-', 'the device to report nothing loaded');
+
+    // The render-phase guard above already covered a *device-side* unload
+    // (deleting the loaded program); D-22's button is the first way from
+    // inside this page, and it must not leave a countdown running towards a
+    // start for a program that is no longer there.
+    expect(screen.queryByText('Starting in...')).toBeNull();
+    await runCountdownOut();
+    await quiesce();
+
+    expect(startedProgramId()).toBeNull();
+    // The unload's own 200 does not talk over this: a cancelled countdown is
+    // the half the operator cannot see for themselves.
+    expect(startNotice()).toContain('the device unloaded the program during the countdown');
+  });
+
   it('refuses mid-run, says to stop first, and leaves the run alone', async () => {
     await ready();
     await selectProgram(FALT.id);
@@ -547,7 +574,7 @@ describe('D-22: unloading from the run controls', () => {
     await act(async () => {
       fireEvent.click(unloadButton());
     });
-    await waitFor(() => expect(startNotice()).toContain('Stop the program first'));
+    await waitFor(() => expect(startNotice()).toContain('Pause the run first'));
 
     // The series is still going: unloading is bookkeeping and must not end it.
     expect(shownProgramId()).toBe(String(FALT.id));

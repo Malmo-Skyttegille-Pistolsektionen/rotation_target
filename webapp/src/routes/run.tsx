@@ -177,7 +177,14 @@ export function RunView(): React.ReactNode {
   const unloadMutation = useMutation({
     mutationFn: programsApi.unload,
     // A 200 says what is true now - not that this call is what made it true.
-    onSuccess: () => setNotice('Nothing is loaded on the device now.'),
+    //
+    // Only when there is nothing better to say: unloading during a start-delay
+    // countdown cancels it, and which of the two lands last is a race between
+    // this response and the stateUpdate the render-phase cancel reads. The
+    // cancellation is the half the operator cannot see for themselves.
+    // `handleUnload` clears the notice first, so the ordinary unload still
+    // reports itself.
+    onSuccess: () => setNotice((current) => current ?? 'Nothing is loaded on the device now.'),
     onError: (error: Error) => setNotice(unloadFailureNotice(error).message),
   });
 

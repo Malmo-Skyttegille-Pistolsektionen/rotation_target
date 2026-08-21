@@ -51,7 +51,7 @@ const FIRST_UPLOAD_ID = 100;
  */
 const PLAYBACK_DURATION = 3000;
 
-/** `kMaxStartupIssues` in firmware/main/net/sse_hub.cpp: the ring is bounded, oldest dropped. */
+/** `kMaxStartupIssues` in firmware/main/config.h: the ring is bounded, oldest dropped. */
 const MAX_STARTUP_ISSUES = 8;
 
 /** Per-event clamp the firmware applies on parse. */
@@ -738,7 +738,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       // Both events, for their two different reasons: the state changed because
       // nothing is loaded, the library changed because a program is gone.
       broadcastLibraryChanged('program');
-      jsonResponse(res, 200, { message: 'Program deleted' });
+      jsonResponse(res, 200, { message: 'Program deleted successfully' });
       return;
     }
 

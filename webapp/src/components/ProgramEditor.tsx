@@ -25,7 +25,14 @@ import {
   type DraftSeries,
   type EditorAction,
 } from '../lib/program-editor';
-import { failureNotice, issueLines, updateFailureNotice, type Notice } from '../lib/program-notices';
+import {
+  failureNotice,
+  isGoneFromDevice,
+  issueLines,
+  sourceReloadNotice,
+  updateFailureNotice,
+  type Notice,
+} from '../lib/program-notices';
 import { ConfirmDialog } from './ConfirmDialog';
 import { NoticeBanner } from './NoticeBanner';
 import { Timeline } from './Timeline';
@@ -80,7 +87,15 @@ export function ProgramEditor({ target, onClose, onCreated }: ProgramEditorProps
     );
   }
 
-  if (error) {
+  // `source === undefined` is what separates the two failures. Only the first
+  // load has nothing to show, and only it may replace the form: react-query
+  // keeps `data` through a *background* failure and still reports
+  // `status: 'error'`, so unmounting on `error` alone threw an open draft away
+  // the moment a refetch failed - past both the discard confirm and the
+  // navigation blocker, in silence. D-24 is what made that reachable:
+  // `libraryChanged` invalidates `['program', id]` under an open editor, and
+  // its ordinary cause is another client deleting the program being edited.
+  if (error && source === undefined) {
     return (
       <section className={styles.editor} data-testid='program-editor'>
         <p className={styles.message}>
@@ -100,6 +115,7 @@ export function ProgramEditor({ target, onClose, onCreated }: ProgramEditorProps
       key={`${target.kind}-${sourceId ?? 'new'}`}
       target={target}
       source={source ?? null}
+      sourceError={source === undefined ? null : error}
       onClose={onClose}
       onCreated={onCreated}
     />
@@ -108,6 +124,8 @@ export function ProgramEditor({ target, onClose, onCreated }: ProgramEditorProps
 
 interface FormProps extends ProgramEditorProps {
   source: Program | null;
+  /** A refetch of `source` that failed with the loaded document still in hand. */
+  sourceError: Error | null;
 }
 
 type Tab = 'editor' | 'json';
@@ -124,7 +142,7 @@ interface PendingSave {
   carried: AuthoringIssue[];
 }
 
-function ProgramEditorForm({ target, source, onClose, onCreated }: FormProps): React.ReactNode {
+function ProgramEditorForm({ target, source, sourceError, onClose, onCreated }: FormProps): React.ReactNode {
   const queryClient = useQueryClient();
   const programsApi = useProgramsApi();
   const audiosApi = useAudiosApi();
@@ -187,6 +205,16 @@ function ProgramEditorForm({ target, source, onClose, onCreated }: FormProps): R
 
   const busy = createMutation.isPending || updateMutation.isPending;
 
+  // A `copy` seeds a new program either way, so a failed re-read of its source
+  // changes nothing; only an `edit` has a target that can stop existing.
+  const staleSource =
+    target.kind === 'edit' && sourceError !== null ? sourceReloadNotice(sourceError, target.id) : null;
+  // Save has to become a create: `PUT` on an id the device does not hold is a
+  // 404, so the alternative is an editor whose only button is guaranteed to
+  // fail. The banner above says this is what will happen; the button says
+  // "Create" so it is not read as a replace.
+  const sourceGone = target.kind === 'edit' && isGoneFromDevice(sourceError);
+
   /** The JSON view's text: the draft, unless the user has typed over it. */
   const jsonText = json ?? toJson(state.draft);
   // Once per keystroke rather than once per render: the textarea re-renders the
@@ -235,7 +263,7 @@ function ProgramEditorForm({ target, source, onClose, onCreated }: FormProps): R
   }
 
   function send(program: Program): void {
-    if (target.kind === 'edit') {
+    if (target.kind === 'edit' && !sourceGone) {
       updateMutation.mutate({ id: target.id, program });
     } else {
       createMutation.mutate(program);
@@ -359,10 +387,14 @@ function ProgramEditorForm({ target, source, onClose, onCreated }: FormProps): R
             onClick={handleSave}
             disabled={busy}
           >
-            {target.kind === 'edit' ? 'Save' : 'Create'}
+            {target.kind === 'edit' && !sourceGone ? 'Save' : 'Create'}
           </button>
         </div>
       </header>
+
+      {/* No Dismiss: it is the state of the world, not the result of a write,
+          and it is the only thing explaining why Save says Create. */}
+      {staleSource && <NoticeBanner notice={staleSource} testId='editor-source-notice' />}
 
       {notice && <NoticeBanner notice={notice} testId='editor-notice' onDismiss={() => setNotice(null)} />}
 

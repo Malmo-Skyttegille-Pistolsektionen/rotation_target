@@ -13,7 +13,7 @@ import {
   createRouter,
 } from '@tanstack/react-router';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SettingsProvider } from '../src/context/SettingsContext';
 import type { AudioFile, Program } from '../src/api/types';
@@ -297,6 +297,130 @@ describe('saving an edit', () => {
     // the work the device just declined to store.
     expect(screen.getByTestId('editor-title')).toHaveProperty('value', 'Klubbserie 2026');
     expect(await storedProgram(UPLOADED.id)).toMatchObject({ title: UPLOADED.title });
+  });
+});
+
+describe('D-24: the program being edited changes on the device', () => {
+  /**
+   * What `useSSE` does with a `libraryChanged` of kind `program`: the two keys
+   * in its `LIBRARY_QUERY_KEYS`. Before D-24 nothing but this client's own
+   * mutations invalidated `['program', id]`, and those close the editor —
+   * which is why a refetch under an open editor is new ground.
+   */
+  async function libraryChanged(): Promise<void> {
+    await act(async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['programs'] }),
+        queryClient.invalidateQueries({ queryKey: ['program'] }),
+      ]);
+    });
+  }
+
+  /**
+   * The trap: `status: 'error'` on the query the open form was built from.
+   * react-query keeps `data` through a background failure, so this state is
+   * reached with the document still in the cache — and the editor used to
+   * answer it by replacing the form.
+   */
+  async function sourceRefetchFailed(): Promise<void> {
+    await waitFor(() => expect(queryClient.getQueryState(['program', UPLOADED.id])?.status).toBe('error'));
+  }
+
+  it('keeps the draft when the refetch 404s because another client deleted the program', async () => {
+    renderApp();
+    await ready();
+    await openEditor(UPLOADED.id);
+    type('editor-title', 'Inte sparad');
+
+    await requestElsewhere(PORT, 'DELETE', `/api/v2/programs/${UPLOADED.id}/delete`);
+    await libraryChanged();
+    await sourceRefetchFailed();
+
+    // react-query keeps `data` through a background failure and still reports
+    // `status: 'error'`; unmounting the form on that took the draft with it,
+    // past the discard confirm and the navigation blocker both.
+    expect(screen.getByTestId('editor-title')).toHaveProperty('value', 'Inte sparad');
+    expect(screen.getByTestId('editor-dirty')).toBeTruthy();
+    expect(screen.getByTestId('editor-series-0-name')).toHaveProperty('value', UPLOADED.series[0].name);
+  });
+
+  it('says the program is gone, and turns Save into a create rather than a 404', async () => {
+    renderApp();
+    await ready();
+    await openEditor(UPLOADED.id);
+    type('editor-title', 'Inte sparad');
+
+    await requestElsewhere(PORT, 'DELETE', `/api/v2/programs/${UPLOADED.id}/delete`);
+    await libraryChanged();
+    await sourceRefetchFailed();
+
+    const banner = screen.getByTestId('editor-source-notice');
+    expect(banner.textContent).toContain(`Program ${UPLOADED.id} is no longer on the device`);
+    // Standing condition, not the result of a write: nothing to dismiss.
+    expect(within(banner).queryByText('Dismiss')).toBeNull();
+    // `PUT` on a deleted id answers 404 — the device does not re-create — so
+    // the button says what pressing it will actually do.
+    expect(screen.getByTestId('editor-save').textContent).toBe('Create');
+
+    fireEvent.click(screen.getByTestId('editor-save'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('programs-notice').textContent).toContain('Saved "Inte sparad" as program 100.'),
+    );
+    expect(await storedProgram(100)).toMatchObject({ title: 'Inte sparad' });
+    // And it landed as a new program: 140 is still gone.
+    expect(await programIds()).not.toContain(UPLOADED.id);
+  });
+
+  it('keeps Save a replace when the refetch fails for a reason that is not a deletion', async () => {
+    renderApp();
+    await ready();
+    await openEditor(UPLOADED.id);
+    type('editor-title', 'Inte sparad');
+
+    // The device is still there and still holds the program; this browser just
+    // could not reach it. Answering that with "it was deleted" would be a lie,
+    // and creating a second copy on the next Save would be the damage.
+    const realFetch = globalThis.fetch;
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes(`/programs/${UPLOADED.id}`) && (init?.method ?? 'GET') === 'GET') {
+        return Promise.reject(new TypeError('Failed to fetch'));
+      }
+      return realFetch(input, init);
+    });
+
+    try {
+      await libraryChanged();
+      await sourceRefetchFailed();
+
+      expect(screen.getByTestId('editor-title')).toHaveProperty('value', 'Inte sparad');
+      expect(screen.getByTestId('editor-source-notice').textContent).toContain(
+        `Could not re-read program ${UPLOADED.id} from the device`,
+      );
+      expect(screen.getByTestId('editor-save').textContent).toBe('Save');
+    } finally {
+      vi.restoreAllMocks();
+    }
+
+    fireEvent.click(screen.getByTestId('editor-save'));
+    await waitFor(() => expect(editorNotice().textContent).toContain(`Saved program ${UPLOADED.id}`));
+    expect(await storedProgram(UPLOADED.id)).toMatchObject({ id: UPLOADED.id, title: 'Inte sparad' });
+  });
+
+  it('still refuses to open a program whose very first load fails', async () => {
+    renderApp();
+    await ready();
+
+    // Nothing was ever loaded, so there is no draft to protect and the form
+    // has nothing to render: this is the screen the `error` branch is for.
+    await requestElsewhere(PORT, 'DELETE', `/api/v2/programs/${UPLOADED.id}/delete`);
+    fireEvent.click(screen.getByTestId(`program-edit-${UPLOADED.id}`));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('program-editor').textContent).toContain(`Could not open program ${UPLOADED.id}`),
+    );
+    expect(screen.queryByTestId('editor-title')).toBeNull();
   });
 });
 

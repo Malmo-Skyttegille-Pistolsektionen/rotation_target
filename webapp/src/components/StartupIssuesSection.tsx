@@ -4,7 +4,7 @@ import { useDiagnosticsApi } from '../api/diagnostics';
 import styles from './StartupIssuesSection.module.css';
 
 /**
- * `kMaxStartupIssues` in `firmware/main/net/sse_hub.cpp`, and `maxItems` on
+ * `kMaxStartupIssues` in `firmware/main/config.h`, and `maxItems` on
  * `DiagnosticsInfo.startupIssues` in the contract. A full array is therefore
  * ambiguous — see the note this drives below.
  */
@@ -35,6 +35,9 @@ export function StartupIssuesSection(): React.ReactNode {
     refetch,
     isFetching,
   } = useQuery({
+    // Also holds `programCount`/`audioCount`, which a `libraryChanged` makes
+    // stale and nothing invalidates — harmless only because this section
+    // renders neither. Render one and it needs the key in `LIBRARY_QUERY_KEYS`.
     queryKey: ['diagnostics'],
     queryFn: diagnosticsApi.info,
   });
