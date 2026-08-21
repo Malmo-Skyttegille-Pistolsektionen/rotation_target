@@ -184,10 +184,11 @@ Load-bearing invariants:
 
 - **Version is derived from git, never hand-maintained.** The root
   `CMakeLists.txt` sets `PROJECT_VER` from `git describe --tags --match
-  'firmware-v*'` with the prefix stripped, which lands in
-  `esp_app_desc_t.version`; `GET /api/v2/version` splits that. Never add a
-  version constant to the source. Tags are `firmware-vX.Y.Z` - the monorepo
-  also carries `webapp-v*` and `resources-v*`. See `docs/RELEASING.md`.
+  '[0-9]*.[0-9]*.[0-9]*'`, which lands in `esp_app_desc_t.version`;
+  `GET /api/v2/version` splits that. Never add a version constant to the
+  source. Tags are bare semver - `2.0.0`, one tag line for the whole product,
+  because the webapp and the resources ship inside the firmware image (D-29).
+  See `docs/RELEASING.md`.
 - Constants belong in `main/config.h` (firmware) or as `constexpr` in the
   relevant `rt_logic` header — prefer a named constant over a literal in logic.
 - **Vendored code is never reformatted.** `lib/psychic_http/`,

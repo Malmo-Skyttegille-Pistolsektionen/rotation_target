@@ -4,13 +4,15 @@ set(EXTRA_COMPONENT_DIRS "${CMAKE_CURRENT_LIST_DIR}/lib")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
-# The reported version is the git tag and nothing else - see docs/RELEASING.md.
-# IDF would otherwise derive PROJECT_VER from a bare `git describe`, which in
-# this monorepo would happily name the firmware after a `webapp-v*` tag. Setting
-# PROJECT_VER before project() takes precedence over that.
-set(RT_VERSION_TAG_PREFIX "firmware-v")
+# The reported version is the git release tag and nothing else - see
+# docs/RELEASING.md. Release tags are bare semver (`2.0.0`), so there is nothing
+# to strip; the `--match` glob is still load-bearing, because IDF's default is a
+# bare `git describe` that would happily name the firmware after an unrelated
+# tag such as `pre-copilot`. Setting PROJECT_VER before project() takes
+# precedence over IDF's own derivation.
+set(RT_VERSION_TAG_GLOB "[0-9]*.[0-9]*.[0-9]*")
 execute_process(
-    COMMAND git describe --tags --match "${RT_VERSION_TAG_PREFIX}*" --always --dirty
+    COMMAND git describe --tags --match "${RT_VERSION_TAG_GLOB}" --always --dirty
     WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
     OUTPUT_VARIABLE RT_GIT_DESCRIBE
     OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -21,16 +23,16 @@ if(NOT RT_GIT_DESCRIBE_RESULT EQUAL 0 OR "${RT_GIT_DESCRIBE}" STREQUAL "")
     # No git at all (a tarball, or a build container without the repository).
     set(PROJECT_VER "unknown")
     message(STATUS "Firmware version: no git metadata - the device will report 0.0.0")
-elseif("${RT_GIT_DESCRIBE}" MATCHES "^${RT_VERSION_TAG_PREFIX}")
-    string(REGEX REPLACE "^${RT_VERSION_TAG_PREFIX}" "" PROJECT_VER "${RT_GIT_DESCRIBE}")
-    message(STATUS "Firmware version: ${PROJECT_VER} (${RT_GIT_DESCRIBE})")
+elseif("${RT_GIT_DESCRIBE}" MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+")
+    set(PROJECT_VER "${RT_GIT_DESCRIBE}")
+    message(STATUS "Firmware version: ${PROJECT_VER}")
 else()
-    # `--always` fell back to a bare commit hash, so no ${RT_VERSION_TAG_PREFIX}*
-    # tag is reachable. Kept as-is rather than faked into a number: the API's
-    # parser rejects it and answers 0.0.0, which is the honest answer.
+    # `--always` fell back to a bare commit hash, so no release tag is
+    # reachable. Kept as-is rather than faked into a number: the API's parser
+    # rejects it and answers 0.0.0, which is the honest answer.
     set(PROJECT_VER "${RT_GIT_DESCRIBE}")
     message(STATUS
-        "Firmware version: no ${RT_VERSION_TAG_PREFIX}* tag reachable from HEAD "
+        "Firmware version: no release tag reachable from HEAD "
         "(${RT_GIT_DESCRIBE}) - the device will report 0.0.0. Fetch tags, or cut "
         "a release, to get a real version.")
 endif()

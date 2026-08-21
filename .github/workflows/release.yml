@@ -1,0 +1,617 @@
+---
+name: release
+
+# The whole release, start to finish, in one self-contained workflow.
+#
+#   prepare -> checks -> [approval] -> build + prerelease + assets
+#                                        -> verify the published assets
+#                                        -> promote to latest
+#
+# One release, one version. The webapp bundle and the shipped resources are
+# baked into the same LittleFS image the firmware boots from, so they are one
+# artifact and they carry one bare-semver tag - see docs/DECISIONS.md D-29.
+#
+# A prerelease is the load-bearing part of the shape. It is publicly readable by
+# exact tag, so `verify` can download the assets over the same path a user
+# takes, but `/releases/latest` excludes it - so if verification fails, nobody
+# was ever served a broken release. Not a draft: a draft's assets need an
+# authenticated token, so verification could not exercise the real path.
+#
+# Nothing here calls a workflow from another repository. The two helpers it
+# needs live in .github/actions/.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: >-
+          Version to release - bare, full three-part semver: 2.0.0, never 2.0,
+          v2.0.0 or firmware-2.0.0. Empty = auto-detect from the Conventional
+          Commits since the last tag.
+        required: false
+        type: string
+        default: ""
+      force:
+        description: "Allow a version that disagrees with the auto-detected one."
+        required: false
+        type: boolean
+        default: false
+      dry-run:
+        description: "Preview only: resolve the version and the notes, tag nothing, publish nothing."
+        required: false
+        type: boolean
+        default: true
+
+# There is deliberately no `ref` input. The release is cut from the ref this
+# workflow is dispatched on (pick it in the "Run workflow" dropdown), because
+# that is the only way the reusable check workflows below can be guaranteed to
+# test the same commit that gets tagged: `uses: ./.github/workflows/*.yml`
+# always resolves to the caller's ref, never to an arbitrary input. `prepare`
+# asserts that commit is on main.
+
+permissions:
+  contents: read
+
+# One release at a time. Two concurrent runs would race on the tag push and
+# could leave the second having built artifacts for a tag it cannot create.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # Resolves and validates what would be released, and writes the summary
+  # including the notes. Deliberately does nothing durable: a dry run is exactly
+  # this job and nothing else, so previewing a release costs one cheap job
+  # rather than a full ESP-IDF build.
+  prepare:
+    name: resolve version and notes
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      auto: ${{ steps.resolve.outputs.auto }}
+      source: ${{ steps.resolve.outputs.source }}
+      previous: ${{ steps.previous.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          # Full history and every tag: git-cliff needs the commits back to the
+          # last tag to compute the bump and the notes, and the checks below
+          # need to see the existing tags and to resolve origin/main.
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: ./.github/actions/setup-git-cliff
+
+      # Shape-checks the input before anything else looks at it. Empty passes -
+      # that is the "auto-detect" case, resolved below.
+      - uses: ./.github/actions/check-version
+        with:
+          version: ${{ inputs.version }}
+
+      - name: Check the ref may be released from
+        env:
+          REF: ${{ github.ref }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          case "$REF" in
+            refs/heads/main)
+              # Reachability, not equality, so an older commit on main can still
+              # be released - and since the checks run at this same SHA, what is
+              # verified is what is tagged.
+              if ! git merge-base --is-ancestor "$SHA" origin/main; then
+                echo "::error::$SHA is not reachable from origin/main. Merge to main first."
+                exit 1
+              fi
+              ;;
+            refs/heads/hotfix/* | refs/heads/release/*)
+              # Deliberately exempt from the ancestry check: a hotfix cut for a
+              # board in the field is released before it lands on main.
+              ;;
+            *)
+              echo "::error::Releases are cut from main, hotfix/* or release/* only (got '$REF')."
+              exit 1
+              ;;
+          esac
+
+      # Captured before the release job creates the new tag - a `git describe`
+      # run after that would find the tag it just made.
+      - name: Record the previous tag
+        id: previous
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          PREV="$(git tag --list --merged "$SHA" --sort=-version:refname \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)"
+          echo "tag=$PREV" >> "$GITHUB_OUTPUT"
+
+      # Before anything looks at versions: a commit gets exactly one release,
+      # and no input - `force` included - overrides that. Tagging an
+      # already-tagged commit bakes the *wrong* version into the image, because
+      # `git describe` picks arbitrarily between two tags at distance 0.
+      - name: Check the ref is not already released
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          EXISTING="$(git tag --points-at "$SHA" \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | paste -sd' ' - || true)"
+          if [ -n "$EXISTING" ]; then
+            echo "::error::${SHA:0:12} is already released as '$EXISTING'. Merge new commits first."
+            exit 1
+          fi
+
+      - name: Resolve the version
+        id: resolve
+        env:
+          REQUESTED: ${{ inputs.version }}
+          FORCE: ${{ inputs.force }}
+          PREVIOUS: ${{ steps.previous.outputs.tag }}
+          # cliff.toml's template reads commit.remote.* (the "by @user in #N"
+          # attribution), which makes git-cliff call the GitHub API even for
+          # --bumped-version; unauthenticated it rate-limits and panics.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PREVIOUS" ]; then
+            # No release tag yet, so there is no baseline to bump from.
+            # git-cliff would answer 0.1.0; say so here rather than letting it,
+            # because the first release of this product is a deliberate number
+            # passed with `force`, not an inferred one.
+            AUTO="0.1.0"
+          else
+            AUTO="$(git-cliff --config cliff.toml --bumped-version)"
+          fi
+
+          if [ -z "$REQUESTED" ]; then
+            VERSION="$AUTO"
+            SOURCE="auto-detected from Conventional Commits"
+            # git-cliff answers with the tag that already exists when nothing in
+            # the range earns a bump - only skipped ci: commits, or nothing
+            # conventional at all. The "tag already exists" error below would
+            # describe the symptom and invite the wrong fix, so name the cause.
+            if [ "$VERSION" = "$PREVIOUS" ]; then
+              echo "::error::Nothing to release: no commit since '$PREVIOUS' earns a version bump."
+              echo "::error::Pass a version explicitly with force if you really do want to ship them."
+              exit 1
+            fi
+          else
+            # Already shape-checked by check-version above.
+            VERSION="$REQUESTED"
+            if [ "$VERSION" != "$AUTO" ]; then
+              if [ "$FORCE" != "true" ]; then
+                echo "::error::Version '$VERSION' disagrees with the auto-detected '$AUTO'."
+                echo "::error::Re-run with force enabled if that is deliberate."
+                exit 1
+              fi
+              echo "::warning::Forcing '$VERSION' over the auto-detected '$AUTO'."
+              SOURCE="user-specified (forced over '$AUTO')"
+            else
+              SOURCE="user-specified (matches auto-detected)"
+            fi
+          fi
+
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not determine a version to release. Pass one explicitly."
+            exit 1
+          fi
+
+          {
+            echo "version=$VERSION"
+            echo "auto=$AUTO"
+            echo "source=$SOURCE"
+          } >> "$GITHUB_OUTPUT"
+
+      # The auto-detected value comes from git-cliff, not from the input, so it
+      # has not been through check-version. cliff.toml's tag_pattern makes a
+      # non-semver result unlikely, but this string becomes the version the
+      # device reports - cheap to re-assert, expensive to get wrong.
+      - uses: ./.github/actions/check-version
+        with:
+          version: ${{ steps.resolve.outputs.version }}
+
+      - name: Check the tag is free
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/$VERSION" > /dev/null; then
+            echo "::error::Tag '$VERSION' already exists. Releases are immutable; pick the next version."
+            exit 1
+          fi
+
+      # --strip all: no header, no footer, no version heading - the release page
+      # already shows the version. GITHUB_TOKEN lets git-cliff resolve each
+      # squashed commit to its PR number and author; without it the notes still
+      # render, just barer.
+      #
+      # Generated here and handed downstream rather than regenerated at release
+      # time, so the notes the reviewer approves at the gate are provably the
+      # notes that ship.
+      - name: Generate the release notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: git-cliff --config cliff.toml --latest --unreleased --strip all --output NOTES.md
+
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: release-notes
+          path: NOTES.md
+          if-no-files-found: error
+
+      - name: Summary
+        if: always()
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+          AUTO: ${{ steps.resolve.outputs.auto }}
+          SOURCE: ${{ steps.resolve.outputs.source }}
+          PREVIOUS: ${{ steps.previous.outputs.tag }}
+          DRY_RUN: ${{ inputs.dry-run }}
+          SHA: ${{ github.sha }}
+          REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Test the value: "false" is non-empty, so ${DRY_RUN:+...} would
+          # expand for both.
+          if [ "$DRY_RUN" = "true" ]; then
+            HEADING="Release (dry run)"
+            MODE="dry run - nothing tagged, nothing published"
+          else
+            HEADING="Release"
+            MODE="checks, then approval, then tag + prerelease + verify + promote"
+          fi
+          {
+            echo "### $HEADING ${VERSION:-(unresolved)}"
+            echo ""
+            echo "| | Value |"
+            echo "|---|---|"
+            echo "| Version | \`${VERSION:-(unresolved)}\` |"
+            echo "| Auto-detected | \`${AUTO:-(none)}\` |"
+            echo "| Source | ${SOURCE:-(unresolved)} |"
+            echo "| Previous tag | \`${PREVIOUS:-(none yet)}\` |"
+            echo "| Ref | \`$REF\` @ \`${SHA:0:12}\` |"
+            echo "| Mode | $MODE |"
+            echo ""
+            echo "#### Release notes"
+            echo ""
+            cat NOTES.md 2>/dev/null || echo "_(not generated - an earlier step failed)_"
+            echo ""
+            # Anything listed here but missing above was dropped as
+            # unconventional, or as a skipped ci: commit.
+            echo "<details><summary>Commits since \`${PREVIOUS:-the beginning}\`</summary>"
+            echo ""
+            if [ -n "$PREVIOUS" ]; then
+              git log "${PREVIOUS}..${SHA}" --format="- %h %s"
+            else
+              git log "$SHA" --format="- %h %s" | head -40
+            fi
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # The same checks that guard main, called rather than reimplemented, and run
+  # *before* the approval gate - so the reviewer approves something already
+  # green rather than a version string. All four, because one image carries all
+  # three components: the E2E suite is the only check that proves the webapp
+  # bundle that is about to be baked in actually drives the firmware it is baked
+  # into.
+  firmware-checks:
+    name: checks
+    needs: prepare
+    if: ${{ !inputs.dry-run }}
+    uses: ./.github/workflows/firmware-build.yml
+    permissions:
+      contents: read
+
+  webapp-checks:
+    name: checks
+    needs: prepare
+    if: ${{ !inputs.dry-run }}
+    uses: ./.github/workflows/webapp-build.yml
+    permissions:
+      contents: read
+
+  e2e-checks:
+    name: checks
+    needs: prepare
+    if: ${{ !inputs.dry-run }}
+    uses: ./.github/workflows/webapp-e2e.yml
+    permissions:
+      contents: read
+
+  lint-checks:
+    name: checks
+    needs: prepare
+    if: ${{ !inputs.dry-run }}
+    uses: ./.github/workflows/lint.yml
+    permissions:
+      contents: read
+
+  # THE APPROVAL GATE, and the only job that builds what ships. `environment:
+  # release` is what makes it sit pending until a required reviewer approves.
+  #
+  # !! The `release` environment must exist WITH a required reviewer. GitHub
+  # auto-creates a named environment on first use with NO protection rules at
+  # all, so until it is configured by hand this job runs straight through and
+  # the gate silently does nothing. See docs/RELEASING.md.
+  #
+  # Nothing here is durable: the tag is created locally so the build can read it
+  # back, and it is pushed only by `publish`, once the images built from it have
+  # been checked.
+  build:
+    name: build the release image
+    needs: [prepare, firmware-checks, webapp-checks, e2e-checks, lint-checks]
+    if: ${{ !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    environment: release
+    # Node inside the IDF container rather than two jobs handing a `dist` over:
+    # espressif/idf:v6.0.2 is Ubuntu 24.04 and setup-node installs into it
+    # happily, which is exactly what webapp-e2e.yml already does.
+    container: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
+    outputs:
+      sha256: ${{ steps.package.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+
+      # PROJECT_VER is read from git by CMake, not by IDF's own helper, so a
+      # workspace git refuses to describe is the difference between a correct
+      # image and one that reports 0.0.0.
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # Created here, pushed later. The version is baked in from `git describe`
+      # at CMake-configure time, so the tag has to exist before the build - but
+      # nothing is published to the world until the assertions below pass.
+      #
+      # Annotated, not lightweight: `git describe` prefers annotated tags and
+      # orders them by tagger date, so a commit that somehow ends up carrying
+      # two still resolves to the newer one.
+      - name: Create the tag locally
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a -m "$VERSION" "$VERSION"
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24.19.0
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+
+      # The image the board boots serves this bundle; a release built without it
+      # would answer 404 on `GET /`.
+      - name: Build the webapp
+        working-directory: webapp
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build the firmware
+        shell: bash
+        working-directory: firmware
+        run: |
+          . "$IDF_PATH/export.sh"
+          # RT_WEBAPP_DIR defaults to ../webapp/dist, so the bundle built above
+          # is what lands in the LittleFS image.
+          idf.py set-target esp32s3
+          idf.py build
+          test -d build/littlefs_stage/webapp || {
+            echo "::error::the LittleFS image carries no webapp - check RT_WEBAPP_DIR"
+            exit 1
+          }
+
+      # The real assertion, and the reason the tag exists before the build: the
+      # version on the release page comes from the tag, while the version inside
+      # the image comes from `git describe` at configure time. Read it back out
+      # of the image rather than trusting that they agree.
+      - name: Assert the image carries the version
+        shell: bash
+        working-directory: firmware
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          BUILT="$(python3 scripts/app_desc.py build/rotation_target_backend.bin --field version)"
+          if [ "$BUILT" != "$VERSION" ]; then
+            echo "::error::The image reports version '$BUILT', not '$VERSION' - refusing to release."
+            exit 1
+          fi
+          echo "Image reports $BUILT"
+
+      - name: Stage and checksum the images
+        id: package
+        shell: bash
+        working-directory: firmware
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          # ota_data_initial.bin travels with them: the partition table has no
+          # factory slot, so flashing without it over a device whose otadata
+          # points at ota_1 boots the stale image in ota_1.
+          cp build/rotation_target_backend.bin \
+             build/bootloader/bootloader.bin \
+             build/partition_table/partition-table.bin \
+             build/ota_data_initial.bin \
+             build/storage.bin \
+             release/
+          cd release
+          sha256sum ./*.bin > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          echo "sha256=$(sha256sum rotation_target_backend.bin | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: release-assets
+          path: firmware/release
+          if-no-files-found: error
+
+  # The first durable step, on a plain runner because the gh CLI lives there and
+  # not in the IDF container.
+  publish:
+    name: push the tag and create the prerelease
+    needs: [prepare, build]
+    if: ${{ !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: release-notes
+
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: release-assets
+          path: release
+
+      # Re-checked after prepare: a concurrent release of the same version would
+      # otherwise turn into a `gh release create` against someone else's tag.
+      - name: Check the tag is still free
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/$VERSION" > /dev/null; then
+            echo "::error::Tag '$VERSION' already exists."
+            exit 1
+          fi
+
+      # persist-credentials: false leaves `origin` unauthenticated; push to an
+      # explicit tokenised URL rather than storing one in .git/config.
+      - name: Create and push the tag
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a -m "$VERSION" "$VERSION" "$SHA"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$VERSION"
+
+      # --prerelease keeps this invisible until verified: publicly readable by
+      # exact tag, so `verify` can download it exactly as a user would, but
+      # excluded from /releases/latest.
+      #
+      # Assets are passed to `create` rather than uploaded afterwards, so the
+      # release never exists in a state where its images are missing.
+      #
+      # --notes-file, not --generate-notes: these are the git-cliff notes from
+      # `prepare`, shown at the approval gate, so what ships is what was
+      # approved.
+      - name: Create the prerelease with its assets
+        id: create
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          URL=$(gh release create "$VERSION" \
+            --title "$VERSION" \
+            --notes-file NOTES.md \
+            --prerelease \
+            release/rotation_target_backend.bin \
+            release/bootloader.bin \
+            release/partition-table.bin \
+            release/ota_data_initial.bin \
+            release/storage.bin \
+            release/SHA256SUMS.txt)
+          {
+            echo "### Prerelease created"
+            echo ""
+            echo "\`$VERSION\` - $URL"
+            echo ""
+            echo "Not the latest release yet: \`/releases/latest\` excludes prereleases."
+            echo "It is promoted only if the verification below passes."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Downloads the published assets over the same public path a user takes, and
+  # re-derives everything from the bytes that actually landed. A different claim
+  # from the build job's: that one proved the *build* was correct, this proves
+  # the *upload* was - a truncated or clobbered asset is invisible to the build
+  # and fatal to whoever flashes it.
+  verify:
+    name: verify the published assets
+    needs: [prepare, build, publish]
+    if: ${{ !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download the release assets
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p dl
+          gh release download "$VERSION" --dir dl
+          ls -l dl
+
+      - name: Verify the checksums and the embedded version
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          APP_SHA256: ${{ needs.build.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          cd dl
+
+          # Self-consistency of the published manifest...
+          sha256sum -c SHA256SUMS.txt
+
+          # ...and that the manifest itself describes what was built, not
+          # whatever happened to be uploaded alongside it.
+          echo "${APP_SHA256}  ./rotation_target_backend.bin" | sha256sum -c -
+
+          GOT="$(python3 ../firmware/scripts/app_desc.py rotation_target_backend.bin --field version)"
+          if [ "$GOT" != "$VERSION" ]; then
+            echo "::error::The published image reports version '$GOT', not '$VERSION'."
+            exit 1
+          fi
+          echo "The published image reports $GOT"
+
+  # The moment the release becomes real. One flag flip, with the assets already
+  # in place and checked - so there is no window in which the latest release
+  # points at an image that has not landed.
+  promote:
+    name: promote to latest
+    needs: [prepare, verify]
+    if: ${{ !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Promote the prerelease
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release edit "$VERSION" --repo "$REPO" --prerelease=false --latest
+          {
+            echo "### Released"
+            echo ""
+            echo "\`$VERSION\` is now the latest release."
+          } >> "$GITHUB_STEP_SUMMARY"

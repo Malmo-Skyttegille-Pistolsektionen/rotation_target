@@ -1,90 +1,121 @@
 # Releasing
 
-Three components share one history, so they share one tag namespace and are
-released independently:
+**One product, one version, one tag.** The webapp bundle and the shipped
+programs and audio are baked into the same LittleFS image the firmware boots
+from, so a build of this repository is a single artifact — there is no such
+thing as a webapp release or a resources release. Tags are bare semver:
 
-| Component | Tag | Release workflow |
-|---|---|---|
-| `firmware/` | `firmware-vX.Y.Z` | `.github/workflows/firmware-release.yml` |
-| `webapp/` | `webapp-vX.Y.Z` | lands with the webapp CI |
-| `resources/` | `resources-vX.Y.Z` | lands with the webapp CI |
+```
+2.0.0
+```
 
-**The tag is the version.** Nothing in the tree holds a version string: there
-are no version files, no version-bump commits, and no manifest of shipped asset
-versions. A release is a tag and the artifacts built from it — so reverting one
-means deleting a tag, and asking "what version is this?" always means asking
-git.
+No `v`, no component prefix, no `X.Y` shorthand. The tag string *is* the version
+the device reports and the version the webapp displays, so it has to be a semver
+value with nothing to strip. See `docs/DECISIONS.md` D-29.
 
-## Where the firmware version comes from
+**The tag is the version.** Nothing in the tree holds one: no version files, no
+version-bump commits, no manifest of shipped asset versions. A release is a tag
+and the artifacts built from it — so reverting one means deleting a tag, and asking
+"what version is this?" always means asking git.
+
+## Where the version comes from
 
 `firmware/CMakeLists.txt` sets `PROJECT_VER` before `project()` from:
 
 ```
-git describe --tags --match 'firmware-v*' --always --dirty
+git describe --tags --match '[0-9]*.[0-9]*.[0-9]*' --always --dirty
 ```
 
-with the `firmware-v` prefix stripped. The `--match` is the load-bearing part:
-ESP-IDF's own default is a bare `git describe`, which in this repository would
-name the firmware after whichever `webapp-v*` or `resources-v*` tag happened to
-be nearest.
-
-From there the value flows into `esp_app_desc_t.version` (visible in
-`esptool image-info`, in the boot log, and to OTA), and
-`GET /api/v2/version` splits it into `{major, minor, patch}`.
+The `--match` is load-bearing: ESP-IDF's own default is a bare `git describe`,
+which would name the firmware after whatever unrelated tag happened to be
+nearest (`pre-copilot`, say). From there the value flows into
+`esp_app_desc_t.version` — visible in `esptool image-info`, in the boot log and
+to OTA — and `GET /api/v2/version` splits it into `{major, minor, patch}`.
 
 | Build | `esp_app_desc_t.version` | `GET /api/v2/version` |
 |---|---|---|
-| At tag `firmware-v2.0.0` | `2.0.0` | `2.0.0` |
+| At tag `2.0.0` | `2.0.0` | `2.0.0` |
 | Same, dirty tree | `2.0.0-dirty` | `2.0.0` |
 | Three commits past it | `2.0.0-3-g09a3691` | `2.0.0` |
-| No `firmware-v*` tag reachable | `09a3691` | `0.0.0` |
+| No release tag reachable | `09a3691` | `0.0.0` |
 
 The API parser deliberately accepts only a full three-part number followed by
-end-of-string, `-` or `+`, so the `-N-ghash` and `-dirty` suffixes report the
-tag they descend from, while an untagged build reports `0.0.0` rather than
-inventing a version out of a commit hash. That last row is announced at
-configure time as a `-- Firmware version: no firmware-v* tag reachable ...`
-status line — a CI checkout without `fetch-tags: true` is the usual cause.
+end-of-string, `-` or `+`, so the `-N-ghash` and `-dirty` suffixes report the tag
+they descend from, while an untagged build reports `0.0.0` rather than inventing
+a version out of a commit hash. That last row is announced at configure time as
+a `-- Firmware version: no release tag reachable ...` status line — a CI checkout
+without `fetch-tags: true` is the usual cause.
 
-`PROJECT_VER` is resolved at CMake **configure** time, so a tag created after
-the last configure is not picked up by an incremental `idf.py build`. Run
+`PROJECT_VER` is resolved at CMake **configure** time, so a tag created after the
+last configure is not picked up by an incremental `idf.py build`. Run
 `idf.py reconfigure` first.
 
-## Cutting a firmware release
+## Cutting a release
 
-Run the **firmware-release** workflow from `main` (or a `hotfix/*` /
-`release/*` branch — anything else is rejected before a tag exists).
+Run the **release** workflow from `main` (or a `hotfix/*` / `release/*` branch —
+anything else is rejected before a tag exists). There is no `ref` input: the
+release is cut from the ref the workflow is dispatched on, which is the only way
+the checks below can be guaranteed to run on the commit that gets tagged.
 
-1. **Preview it.** `dry-run` is on by default. The job resolves the version and
-   generates the release notes into the job summary without tagging anything.
-   Check the notes against the commit list: anything missing was dropped as
+1. **Preview it.** `dry-run` is on by default. The run resolves the version and
+   writes the release notes into the job summary without tagging anything, and
+   costs one cheap job rather than a full ESP-IDF build. Check the notes against
+   the commit list the summary also prints: anything missing was dropped as
    unconventional or as a skipped `ci:` commit, which is how a mistyped commit
    type gets caught before it becomes a wrong version bump.
 
 2. **Run it again with `dry-run` off.**
-   - `version` — leave empty to auto-detect. git-cliff computes the next
-     version from the Conventional Commits touching `firmware/` or
-     `resources/` since the last `firmware-v*` tag: `feat:` bumps the minor,
+   - `version` — leave empty to auto-detect. git-cliff computes the next version
+     from the Conventional Commits since the last tag: `feat:` bumps the minor,
      `fix:` the patch, `!`/`BREAKING CHANGE:` the major (below 1.0, the minor).
    - `force` — only needed when the `version` you pass disagrees with the
      auto-detected one. Without it the mismatch is a hard error naming both,
      which is the guard against "meant 2.1.0, typed 2.0.1". The **first**
-     release needs it: with no `firmware-v*` tag to count from, auto-detect
-     proposes `0.1.0`.
+     release needs it: with no tag to count from there is nothing to bump.
 
-The run then tags `firmware-vX.Y.Z`, creates the GitHub release as a
-**prerelease**, builds the firmware **from the tag** — which is what gives the
-image its version — asserts that the built image reports exactly `X.Y.Z`,
-attaches the images, and finally clears the prerelease flag.
+## What the run does
 
-Nothing before that last step is irreversible: a tag can be deleted and a
-prerelease is excluded from `/releases/latest`. So a failed build leaves a tag
-and an empty prerelease behind — delete both, or fix forward with a patch
-release.
+```
+prepare  ->  checks  ->  [approval]  ->  build + prerelease + assets
+                                           ->  verify the published assets
+                                           ->  promote to latest
+```
 
-Releases are **not** marked "latest". In a repository with three tag lines that
-flag names one release for all of them, so a webapp release would answer a
-consumer asking `/releases/latest` for firmware. Resolve `firmware-v*` instead.
+- **prepare** resolves the version, refuses a ref that is not on main, refuses a
+  commit that already carries a release tag, refuses a tag that exists, and
+  generates the notes. Nothing durable happens; a dry run stops here.
+- **checks** calls `firmware-build`, `webapp-build`, `webapp-e2e` and `lint` as
+  reusable workflows at the same commit — so the reviewer at the gate approves
+  something already green rather than a version string. All four, because one
+  image carries all three components: the E2E suite is the only check that
+  proves the bundle about to be baked in drives the firmware it is baked into.
+- **build** sits behind the `release` environment (see below), creates the tag
+  **locally**, builds the webapp, builds the firmware with that bundle inside
+  the LittleFS image, and reads `esp_app_desc_t.version` back out of the image
+  to assert it is exactly the version being released. Still nothing durable.
+- **publish** pushes the tag and creates the GitHub release as a **prerelease**
+  with the assets attached in the same call — so the release never exists in a
+  state where its images are missing.
+- **verify** downloads the published assets over the same public path a user
+  takes and re-derives the checksums and the embedded version from the bytes
+  that actually landed. This is a different claim from the build's: that one
+  proved the build was correct, this proves the upload was.
+- **promote** clears the prerelease flag and marks the release latest.
+
+The prerelease is the load-bearing part. It is publicly readable by exact tag,
+so verification exercises the real download path, but `/releases/latest`
+excludes it — so a failed verification never serves anyone a broken release. Not
+a draft: a draft's assets need an authenticated token, so nothing could verify
+them. If a run fails after the tag is pushed, the tag and the prerelease stay
+for a human to delete or supersede; nothing is advertised as the latest release.
+
+### The `release` environment
+
+The approval gate is `environment: release` on the build job. **GitHub
+auto-creates a named environment on first use with no protection rules at all**,
+so until someone configures it by hand with a required reviewer, that job runs
+straight through and the gate silently does nothing. Configure it under
+*Settings → Environments → release → Required reviewers*.
 
 ### Release assets
 
@@ -96,19 +127,14 @@ consumer asking `/releases/latest` for firmware. Resolve `firmware-v*` instead.
 | `rotation_target_backend.bin` | `0x20000` |
 | `storage.bin` | `0x620000` |
 
-> **`storage.bin` currently ships without the web app.** The release build has
-> no `webapp/dist` to bundle, so the released image serves the API only and
-> `GET /` answers 404. Building the webapp into the release image lands with
-> the webapp CI.
+`SHA256SUMS.txt` covers all five. `storage.bin` carries the webapp bundle and
+the shipped programs and audio.
 
 ## The workflows
 
-The reqstool org's reusable release workflows are the model, and
-[`common-release-assets.yml`](https://github.com/reqstool/.github/blob/main/.github/workflows/common-release-assets.yml)
-is called directly (pinned by commit). `common-release-prepare`,
-`common-release-tag` and `common-release-promote` are ported into
-`firmware-release.yml` instead of called: they validate the version as bare
-semver and tag it unprefixed, which a shared tag namespace cannot use.
-
-`.github/cliff-firmware.toml` is a near-copy of the org's default git-cliff
-config with the firmware's `tag_pattern`; keep the two in step.
+`.github/workflows/release.yml` is self-contained: it calls no workflow from any
+other repository. The two helpers it needs are local composite actions —
+`.github/actions/setup-git-cliff` (a pinned, checksum-verified binary) and
+`.github/actions/check-version` (bare-semver shape check, with a named error for
+the `v` and component-prefix mistakes). `cliff.toml` at the repository root is the
+single git-cliff config: one product, one tag line, one config.
