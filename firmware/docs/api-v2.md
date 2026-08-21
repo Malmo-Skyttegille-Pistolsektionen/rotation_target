@@ -56,6 +56,23 @@ drops frames raised before it has a server to send them through. The code is
 specified anyway, so that a rescan added later reports a bad file rather than
 silently listing one program fewer.
 
+`libraryChanged` (`{"kind": "audio" | "program"}`) is the fourth, and says the
+stored library is no longer what the client last fetched: refetch the list
+`kind` names. It is emitted after a program is created, replaced or deleted and
+after a clip is uploaded or deleted — that is, from the REST handlers, once the
+change is on flash and the response is decided.
+
+It is a cache-invalidation signal, not a delta: no id, no operation. The client
+re-issues the GET it would have made anyway, which is the same reason
+`stateUpdate` carries the whole state. Without it a laptop and a phone open at
+the same range only saw their own uploads, and the other list stayed stale
+until somebody reloaded the page.
+
+**Loading, starting, stopping, resetting and skipping emit nothing here.** They
+change what the device is doing, not what it stores, and `stateUpdate` already
+covers them. Deleting the *loaded* program emits both events, for the two
+different reasons.
+
 ## Execution semantics
 
 | Call | Effect |

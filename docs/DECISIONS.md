@@ -594,6 +594,58 @@ the comment at `webapp/e2e/audios.spec.ts:35` says shipped clips answer `404`
 to a delete. All three must follow the firmware. Not done here: the React
 Programs and Audios work owns those files in parallel.
 
+## D-24 — One `libraryChanged` SSE event *(Decided 2026-08-21)*
+
+**Decision:** v2 SSE gains a fourth event, `libraryChanged`, with the payload
+`{"kind": "audio" | "program"}`. It is emitted from the REST handlers after a
+program is created, replaced or deleted and after an audio clip is uploaded or
+deleted; the client refetches the list `kind` names. No id, no operation, no
+per-item delta. `kind` is a **closed** enum, unlike `backend_issue`'s `code`.
+
+**Why:** the library is fetched over REST and published nowhere, so a client
+only ever learned about its own mutations. With a laptop and a phone both open
+at the range — the normal case — the second one shows a program that has been
+uploaded but cannot be found, or offers a clip that is already deleted, until
+somebody reloads the page. #71 shipped the ported Audios tab with exactly that
+limitation written down.
+
+One event rather than v1's four (`audio_added`, `audio_deleted`,
+`program_added`, `program_deleted`): four events name an *operation*, which is
+only worth knowing if the client applies a delta, and a delta needs the changed
+document in the payload. The client already has a list endpoint that is cheap
+and authoritative, and a refetch cannot drift from the device the way an
+applied delta can — the same argument that makes `stateUpdate` a full snapshot
+rather than a diff. Four events would also mean four contract entries, four
+emission vocabularies and four chances for a client to handle three of them.
+
+`{kind}` rather than an empty payload: the two lists are independent and audio
+is the expensive one (77 clips shipped). An empty payload makes every program
+upload refetch the clip list too, on a device with one HTTP task and twelve
+sockets. One field removes that for free.
+
+Closed `enum` rather than `x-extensible-enum`: D-09 argued the issue *codes*
+are open because any future failure can raise one. Library kinds are not — the
+set is exactly the collections this API exposes, so a third one arrives with
+its own REST endpoints and a version bump of the document. A client should
+still ignore a `kind` it does not know rather than refetch everything.
+
+**Emitted from the handlers, not the repositories.** `programs::load_dir` is
+also the boot scan, and `update_uploaded` has failure paths that leave the
+store untouched; the handler is the one place that knows the change reached
+flash and the response is a success. It also keeps "a client changed the
+library" in the file that serves clients.
+
+**Not emitted on `load`, `start`, `stop`, `reset`, `skip_to` or `unload`** —
+those change what the device is doing, not what it stores, and `stateUpdate`
+has always covered them. Deleting the loaded program emits both events, for
+its two different reasons.
+
+**Rejected:** *doing nothing* and documenting manual refresh (option 1 in #74)
+— the staleness is silent and the person who needs to know is the one who did
+not touch the device. *Reinstating the four v1 events* (option 3) — see above.
+*Per-item deltas* — a second serialization of the program document to keep in
+step with `GET /programs`, for a list that is seven entries long.
+
 ## Open questions
 
 - **Are `app` / `x86_linux` used by anyone?** (asked — drives D-03's

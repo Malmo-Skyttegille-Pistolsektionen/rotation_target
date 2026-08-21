@@ -268,6 +268,7 @@ void register_program_routes() {
     const int32_t id = programs::add_uploaded(body, length);
     if (id < 0) return send_error(res, 400, "Invalid program");
 
+    sse_hub::broadcast_library_changed(rt::library_kind::kProgram);
     return send_json(res, 201, "{\"id\":" + std::to_string(id) + "}");
   });
 
@@ -329,6 +330,8 @@ void register_program_routes() {
 
     const rt::Program *stored = programs::get(id);
     if (stored == nullptr) return send_error(res, 500, "Could not store program");
+
+    sse_hub::broadcast_library_changed(rt::library_kind::kProgram);
     return send_json(res, 200, rt::program_json(*stored));
   });
 
@@ -371,6 +374,7 @@ void register_program_routes() {
     executor::unload_if_loaded(id);
     if (!programs::remove(id)) return send_error(res, 404, "Program not found");
 
+    sse_hub::broadcast_library_changed(rt::library_kind::kProgram);
     return send_message(res, "Program deleted successfully");
   });
 }
@@ -565,6 +569,8 @@ void register_audio_routes() {
       case audios::RemoveResult::kOk:
         break;
     }
+
+    sse_hub::broadcast_library_changed(rt::library_kind::kAudio);
     return send_message(res, "Audio deleted successfully");
   });
 
@@ -660,6 +666,8 @@ void register_audio_routes() {
 
     // add_uploaded renamed the staged file into place; nothing left to clean.
     staged.armed = false;
+
+    sse_hub::broadcast_library_changed(rt::library_kind::kAudio);
     return send_json(res, 201, "{\"id\":" + std::to_string(id) + "}");
   });
 
