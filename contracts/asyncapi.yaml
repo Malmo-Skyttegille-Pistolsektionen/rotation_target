@@ -4,7 +4,7 @@ asyncapi: 3.1.0
 
 info:
   title: Rotation target SSE v2
-  version: 3.1.0
+  version: 3.1.1
   license:
     name: MIT
   description: |
@@ -63,7 +63,9 @@ info:
       endpoint that lists past issues. A client that was not listening did
       not hear it — the device log is the record, the event is the
       notification. Issues raised during boot, before the HTTP server
-      exists, therefore reach nobody at all.
+      exists, reach no client on this stream at all; those are kept instead
+      and served by `GET /api/v2/diagnostics/info` as `startupIssues`, the
+      one exception to "no endpoint lists past issues".
     - The stream is one-way and public: no credential is required, and
       nothing a client sends on it is read.
 
@@ -385,8 +387,10 @@ components:
             - `program_invalid` — a file in a program directory could not be
               read or did not parse, and was skipped, so the program is absent
               from `GET /api/v2/programs`. Raised by the boot scan, which runs
-              before the HTTP server exists: no client is connected to receive
-              it today, and the code is specified for the rescan case.
+              before the HTTP server exists, so no client ever receives it on
+              this stream: it is served by `GET /api/v2/diagnostics/info` as
+              `startupIssues` instead. The code is specified here because the
+              payload is the same and a rescan added later would emit it.
           x-extensible-enum:
             - audio_playback_failed
             - program_invalid
