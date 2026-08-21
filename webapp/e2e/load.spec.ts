@@ -7,7 +7,9 @@ test.beforeEach(async ({ request }) => {
 
 test('the app is served out of the LittleFS image, pre-compressed', async ({ page }) => {
   // Recorded before the navigation so the module script's response is caught.
-  const bundle = page.waitForResponse((r) => /\/assets\/main-.*\.js$/.test(new URL(r.url()).pathname));
+  // `index-*` because `index.html` is the only entry: it was `main-*` while the
+  // build named its inputs to keep `legacy.html` alongside it.
+  const bundle = page.waitForResponse((r) => /\/assets\/index-.*\.js$/.test(new URL(r.url()).pathname));
 
   const index = await page.goto('/');
   expect(index?.status()).toBe(200);

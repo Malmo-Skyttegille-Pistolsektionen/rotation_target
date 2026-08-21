@@ -13,10 +13,11 @@
  * A new one fails the run until someone writes down why it exists; a removed
  * one fails until the stale entry goes.
  *
- * **ajv is used here on purpose and costs nothing shipped.** It is already a
- * devDependency (`src_legacy` uses it), this file is a test, and nothing here
- * is reachable from `src/` — so D-18's ~45 KB gz win is intact. Do not
- * "clean up" the dependency.
+ * **ajv is used here on purpose and costs nothing shipped.** This file is the
+ * only thing left in the repository that imports it — it is a test, and nothing
+ * here is reachable from `src/`, so D-18's ~45 KB gz win is intact. That makes
+ * it look like an unused dependency to anyone pruning `package.json`: it is
+ * not. Do not "clean up" the dependency.
  */
 import { readFileSync } from 'node:fs';
 
