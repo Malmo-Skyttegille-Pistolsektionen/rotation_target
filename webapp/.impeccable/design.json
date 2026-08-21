@@ -1,0 +1,204 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-22T00:00:00Z",
+  "title": "Design System: Rotation Target",
+  "extensions": {
+    "colorMeta": {
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#111827",
+        "purpose": "The countdown readout, and nothing else.",
+        "tonalRamp": ["#030712", "#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#e5e7eb"]
+      },
+      "text-muted": {
+        "role": "neutral",
+        "displayName": "Muted Grey",
+        "canonical": "#6b7280",
+        "purpose": "Secondary and supporting text; the most used colour in the app.",
+        "tonalRamp": ["#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#f3f4f6"]
+      },
+      "action": {
+        "role": "primary",
+        "displayName": "Signal Blue",
+        "canonical": "#2563eb",
+        "purpose": "The ordinary confirming action. Never carries state meaning.",
+        "tonalRamp": ["#172554", "#1e3a8a", "#1e40af", "#1d4ed8", "#2563eb", "#3b82f6", "#93c5fd", "#eff6ff"]
+      },
+      "accent": {
+        "role": "secondary",
+        "displayName": "Indigo",
+        "canonical": "#6366f1",
+        "purpose": "Marks the series or event currently running.",
+        "tonalRamp": ["#1e1b4b", "#312e81", "#3730a3", "#4338ca", "#4f46e5", "#6366f1", "#a5b4fc", "#eef2ff"]
+      },
+      "shown": {
+        "role": "tertiary",
+        "displayName": "Target Shown Green",
+        "canonical": "#16a34a",
+        "purpose": "Signal: the target is shown. Fixed meaning, never decorative.",
+        "tonalRamp": ["#052e16", "#14532d", "#166534", "#15803d", "#16a34a", "#4ade80", "#bbf7d0", "#dcfce7"]
+      },
+      "stop": {
+        "role": "tertiary",
+        "displayName": "Target Hidden Red",
+        "canonical": "#dc2626",
+        "purpose": "Signal: the target is hidden, and the colour of Cancel.",
+        "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#f87171", "#fca5a5", "#fee2e2"]
+      },
+      "warn": {
+        "role": "tertiary",
+        "displayName": "Advisory Amber",
+        "canonical": "#92400e",
+        "purpose": "Signal: no delay armed, and startup advisories.",
+        "tonalRamp": ["#451a03", "#78350f", "#92400e", "#b45309", "#d97706", "#fcd34d", "#fef3c7", "#fffbeb"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Countdown Readout",
+        "purpose": "The countdown digits alone. Scales up with the viewport, never down."
+      },
+      "label": {
+        "displayName": "Badge Label",
+        "purpose": "Uppercase caption above or beside a value. The tell that something is a label, not content."
+      }
+    },
+    "shadows": [
+      { "name": "overlay", "value": "0 25px 50px -12px rgba(0, 0, 0, 0.25)", "purpose": "Modal dialogs only. Things that genuinely float above the page." },
+      { "name": "response", "value": "0 2px 8px rgba(0, 0, 0, 0.1)", "purpose": "Hover and active feedback on an interactive card." },
+      { "name": "lift", "value": "0 4px 12px rgba(0, 0, 0, 0.08)", "purpose": "The running series. Neutral, never tinted to match the accent." },
+      { "name": "focus-action", "value": "0 0 0 3px rgba(37, 99, 235, 0.1)", "purpose": "Focus ring on a blue control." },
+      { "name": "focus-stop", "value": "0 0 0 3px rgba(220, 38, 38, 0.3)", "purpose": "Focus ring on the Cancel button." }
+    ],
+    "motion": [
+      { "name": "state", "value": "0.2s ease", "purpose": "Default transition for hover, background and border changes." },
+      { "name": "pulse", "value": "1s ease-in-out", "purpose": "The countdown tick. Suppressed under prefers-reduced-motion." }
+    ],
+    "breakpoints": [
+      { "name": "phone-and-tablet", "value": "768px" },
+      { "name": "coarse-pointer", "value": "(pointer: coarse)" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The confirming action: Save, Add, Create. One per view at most.",
+      "html": "<button class=\"ds-btn-primary\">Save program</button>",
+      "css": ".ds-btn-primary { background: #2563eb; border: 1px solid #2563eb; color: #fff; padding: 0.4rem 0.75rem; min-height: 40px; border-radius: 4px; font-size: 0.9rem; white-space: nowrap; cursor: pointer; transition: background 0.2s ease; } .ds-btn-primary:hover { background: #1d4ed8; } .ds-btn-primary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }"
+    },
+    {
+      "name": "Default Button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "The neutral majority. Every non-confirming, non-destructive action.",
+      "html": "<button class=\"ds-btn-default\">Duplicate</button>",
+      "css": ".ds-btn-default { background: #fff; border: 1px solid #ccc; color: #213547; padding: 0.4rem 0.75rem; min-height: 40px; border-radius: 4px; font-size: 0.9rem; white-space: nowrap; cursor: pointer; transition: background 0.2s ease; } .ds-btn-default:hover { background: #f3f4f6; } .ds-btn-default:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Delete and remove. Outlined rather than filled, so it is hard to hit by accident on a touch screen.",
+      "html": "<button class=\"ds-btn-destructive\">Delete</button>",
+      "css": ".ds-btn-destructive { background: #fff; border: 1px solid #dc2626; color: #dc2626; padding: 0.4rem 0.75rem; min-height: 40px; border-radius: 4px; font-size: 0.9rem; white-space: nowrap; cursor: pointer; transition: background 0.2s ease; } .ds-btn-destructive:hover { background: #fee2e2; } .ds-btn-destructive:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }"
+    },
+    {
+      "name": "Countdown Go Button",
+      "kind": "button",
+      "refersTo": "button-go",
+      "description": "Start Now, in the countdown dialog. Green-700 because white on green-600 is 3.3:1.",
+      "html": "<button class=\"ds-btn-go\">Start Now</button>",
+      "css": ".ds-btn-go { background: #15803d; color: #fff; border: none; padding: 0.75rem 1.5rem; min-height: 48px; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; } .ds-btn-go:hover { background: #166534; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3); } .ds-btn-go:active { transform: translateY(0); } .ds-btn-go:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.3); }"
+    },
+    {
+      "name": "State Badge",
+      "kind": "chip",
+      "refersTo": "badge-shown",
+      "description": "Reports one piece of device state on the run board. Tinted ground, 2px signal border, uppercase caption.",
+      "html": "<div class=\"ds-badge ds-badge-shown\"><span class=\"ds-badge-label\">Target</span><strong>Shown</strong></div>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem; min-height: 36px; border-radius: 6px; font-size: 0.9rem; box-sizing: border-box; } .ds-badge-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; opacity: 0.8; line-height: 1; } .ds-badge-shown { background: #dcfce7; color: #14532d; border: 2px solid #16a34a; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Every field in the program editor and settings. Inherits the body face so it never drifts.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Duration</span><input class=\"ds-input\" value=\"2.5\" /></label>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 0.2rem; } .ds-field-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; color: #6b7280; } .ds-input { padding: 0.35rem 0.5rem; border: 1px solid #ccc; border-radius: 4px; font: inherit; font-size: 0.9rem; background: #fff; min-height: 40px; box-sizing: border-box; } .ds-input:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }"
+    },
+    {
+      "name": "Navigation Tab",
+      "kind": "nav",
+      "refersTo": null,
+      "description": "Sticky top navigation. Stretches to fill the bar on a phone, sits at natural width above 768px.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-link ds-link-active\" href=\"#\">Run</a><a class=\"ds-link\" href=\"#\">Programs</a><a class=\"ds-link\" href=\"#\">Audios</a></nav>",
+      "css": ".ds-nav { display: flex; gap: 0.25rem; padding: 0.5rem 1rem; background: #fff; border-bottom: 1px solid #eee; } .ds-link { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0.5rem 0.75rem; border-radius: 4px; color: inherit; text-decoration: none; white-space: nowrap; flex: 1 1 auto; transition: background-color 0.2s; } .ds-link:hover { background: #f0f0f0; } .ds-link-active { font-weight: bold; background: #e0e0e0; }"
+    },
+    {
+      "name": "Control Board",
+      "kind": "card",
+      "refersTo": null,
+      "description": "The page's primary container. Flat at rest: a border and a tone change, no resting shadow.",
+      "html": "<section class=\"ds-board\"><header class=\"ds-board-header\"><h2 class=\"ds-board-title\">Program 3</h2></header><p>Board content.</p></section>",
+      "css": ".ds-board { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; gap: 1rem; } .ds-board-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid #eee; padding-bottom: 0.75rem; } .ds-board-title { margin: 0; font-size: 1.25rem; color: #333; }"
+    },
+    {
+      "name": "Countdown Readout",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "The one number read at arm's length. Near-black at 17.4:1, tabular, scaling up with the viewport.",
+      "html": "<div class=\"ds-countdown-wrap\"><span class=\"ds-countdown-label\">Starting in</span><span class=\"ds-countdown\">10</span></div>",
+      "css": ".ds-countdown-wrap { display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 2rem; background: #fff; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); } .ds-countdown-label { font-size: 1rem; color: #4b5563; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; } .ds-countdown { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: clamp(4.5rem, 24vw, 7rem); font-weight: 700; color: #111827; line-height: 1; font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Timeline Event Chip",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "One event in a series: duration, command and cumulative time on a line. Reflows four to five per row on a phone.",
+      "html": "<div class=\"ds-series\"><span class=\"ds-chip ds-chip-show\">2.5s · show · 00:03.5</span><span class=\"ds-chip ds-chip-hide\">1.0s · hide · 00:04.5</span></div>",
+      "css": ".ds-series { display: flex; gap: 6px; flex-wrap: wrap; padding: 1rem; background: #fafafa; border: 1px solid #eee; border-radius: 8px; } .ds-chip { display: inline-flex; align-items: center; padding: 0.4rem 0.6rem; border: 1px solid #ddd; border-radius: 6px; background: #fff; font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; } .ds-chip-show { background: #dcfce7; border-color: #16a34a; color: #14532d; } .ds-chip-hide { background: #fee2e2; border-color: #fca5a5; color: #7f1d1d; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Equipment, not software",
+    "overview": "This is range equipment that happens to have a screen. It is read standing up, outdoors, in daylight, by someone who is about to run a live firing exercise and has better things to look at than a user interface. Every visual decision answers to that scene: grey by default, colour only where colour carries a safety meaning, and type sized so the one number that matters can be read at arm's length without walking to the phone.\n\nThe system is deliberately quiet. There is no brand expression competing for attention, because the three signal colours - green, red, amber - have fixed operational meanings and must be impossible to mistake for decoration. When a surface looks plain here, that is the design working, not the design missing.\n\nDensity is medium and consistent: one control height for the whole app, one breakpoint, one type ramp. The interface should feel like a well-labelled panel of switches, where nothing moves unless the state moved.",
+    "keyCharacteristics": [
+      "Neutral greys carry structure; hue is reserved for state",
+      "One control height (40px pointer, 44px touch) governs every row",
+      "Numbers are tabular so a readout never reflows as it counts",
+      "Flat at rest - depth is a response, not an ornament",
+      "Legibility in daylight outranks visual interest, always"
+    ],
+    "rules": [
+      { "name": "The Three Signals Rule", "body": "Green means the target is shown, red means it is hidden, amber means no delay is armed. No other element may use those hues for any other purpose. If a new state needs a colour and is not one of those three things, it uses indigo or a grey.", "section": "colors" },
+      { "name": "The One Family Rule", "body": "The palette is the Tailwind scale. Two earlier families are still present in the code - the Vite starter purple (#646cff) and the Material greens (#e8f5e9, #a5d6a7) - and are being retired. Do not add to them.", "section": "colors" },
+      { "name": "The Readable Signal Rule", "body": "Signal colours are chosen for contrast, not brightness. White text sits on green-700 (#15803d), never green-600, because white on green-600 measures 3.3:1 and fails AA. Any new coloured surface must clear 4.5:1 for its text before it ships.", "section": "colors" },
+      { "name": "The Arm's Length Rule", "body": "The countdown grows with the viewport instead of shrinking with it. A phone held at the firing line is further from the eye than a laptop on a desk, so 24vw is the floor of the readout, not its ceiling.", "section": "typography" },
+      { "name": "The Tabular Rule", "body": "Any number that changes in place is font-variant-numeric: tabular-nums. A readout that jitters as its digits change is a readout nobody trusts.", "section": "typography" },
+      { "name": "The No Nested Scroller Rule", "body": "The document scrolls; panels do not. A flex child with overflow-y: auto also computes overflow-x: auto, which silently clipped the programs and audios tables off the right edge on a phone. Wide content gets its own explicitly scrollable wrapper.", "section": "layout" },
+      { "name": "The Flat-By-Default Rule", "body": "A card gets a border, not a shadow. If you are reaching for box-shadow on a resting surface, the answer is a tone change or a border.", "section": "elevation" },
+      { "name": "The Neutral Elevation Rule", "body": "Shadows are black at low alpha. A shadow tinted to match its element's accent colour is decoration pretending to be depth.", "section": "elevation" },
+      { "name": "The Side-Tab Ban", "body": "No thick coloured border on one edge of a card. It is the most recognisable tell of machine-generated UI, and this system says warning with a tinted ground and a full hairline border instead.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do reserve green, red and amber for target shown, target hidden, and no delay armed. Anything else that needs colour uses indigo or a grey.",
+      "Do put every interactive control at var(--rt-control-height) so mixed rows line up and touch targets stay at 44px on a phone.",
+      "Do use font-variant-numeric: tabular-nums on any number that updates in place.",
+      "Do give every focusable element a visible :focus-visible outline - 2px solid #2563eb, 2px offset.",
+      "Do check 4.5:1 contrast for text on any new coloured ground before shipping it. This system has already had ten failures found and fixed.",
+      "Do give wide content (tables, timelines) its own scrollable wrapper rather than letting a layout container scroll."
+    ],
+    "donts": [
+      "Don't put a thick coloured border on one side of a card.",
+      "Don't put a resting shadow on a card. Use a border and a tone change.",
+      "Don't tint a shadow to match its element's colour.",
+      "Don't add overflow-y: auto to a flex layout container; it computes overflow-x: auto too and will clip content off the right edge.",
+      "Don't put white text on green-600 (#16a34a) - 3.3:1. Use green-700.",
+      "Don't introduce a fifth button style. There are four, and twelve files already redefine them; the next one should reuse, not add.",
+      "Don't scale the countdown down on small screens. It is read from further away there, not closer."
+    ]
+  }
+}
