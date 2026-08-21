@@ -257,8 +257,11 @@ function AudiosView(): React.ReactNode {
                         >
                           Play
                         </button>
-                        {/* Shipped clips are flashed with the firmware: the
-                            device answers 404 to a delete, so no button. */}
+                        {/* Shipped clips are flashed with the firmware:
+                            there is no file behind them to remove, so the
+                            device refuses the delete with a 409 that never
+                            lifts (D-23). No button rather than a button that
+                            can only fail. */}
                         {!clip.readonly &&
                           (pendingDeleteId === clip.id ? (
                             // Cancel first, so the harmless control - not

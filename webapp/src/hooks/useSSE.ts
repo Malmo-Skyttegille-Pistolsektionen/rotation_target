@@ -4,9 +4,25 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { SSETypes } from '../api/types';
-import type { BackendIssuePayload, StateUpdatePayload } from '../api/types';
+import type { BackendIssuePayload, LibraryChangedPayload, StateUpdatePayload } from '../api/types';
 import { getSseBaseUrl } from '../api/client';
 import { useSettings } from '../context/SettingsContext';
+
+/**
+ * Which cached queries a `libraryChanged` invalidates, by `kind`. The payload
+ * carries the kind precisely so an audio upload does not make every client
+ * refetch the program list as well, and the other way round (D-24) — on a
+ * device with one HTTP task and 77 shipped clips that is not free.
+ *
+ * `program` invalidates the list and the individual documents: `['program', id]`
+ * is fetched with `staleTime: Infinity` by the run view and the editor, so a
+ * replace made from another browser would otherwise never be picked up. Both
+ * keys are the program library; nothing audio is touched.
+ */
+const LIBRARY_QUERY_KEYS: Record<LibraryChangedPayload['kind'], string[][]> = {
+  program: [['programs'], ['program']],
+  audio: [['audios']],
+};
 
 export function useSSE(): void {
   const queryClient = useQueryClient();
@@ -61,6 +77,30 @@ export function useSSE(): void {
       // floor, which is what happened when the firmware started emitting it.
       // Fire-and-forget by contract - nothing replays it, so a missed issue is
       // gone.
+      // The device's library is served over REST and published nowhere else, so
+      // before this event a client only learned about its own uploads and
+      // deletes. With a laptop and a phone both open at the range - the normal
+      // case - the second one showed a program that could not be found until
+      // somebody reloaded the page (#74).
+      eventSource.addEventListener(SSETypes.LibraryChanged, (event) => {
+        try {
+          const data = JSON.parse(event.data) as LibraryChangedPayload;
+          const keys = LIBRARY_QUERY_KEYS[data.kind] as string[][] | undefined;
+          if (keys === undefined) {
+            // A closed enum this app does not know a member of means a newer
+            // contract. Ignoring it is what the contract asks for; refetching
+            // everything would be the client inventing a policy.
+            console.warn('[SSE] libraryChanged for an unknown kind', data.kind);
+            return;
+          }
+          for (const queryKey of keys) {
+            void queryClient.invalidateQueries({ queryKey });
+          }
+        } catch (error) {
+          console.error('[SSE] Failed to parse libraryChanged', error);
+        }
+      });
+
       eventSource.addEventListener(SSETypes.BackendIssue, (event) => {
         try {
           const data = JSON.parse(event.data) as BackendIssuePayload;

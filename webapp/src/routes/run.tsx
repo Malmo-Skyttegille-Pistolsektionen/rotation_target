@@ -8,6 +8,7 @@ import { Timeline } from '../components/Timeline';
 import { CountdownModal } from '../components/CountdownModal';
 import { useSettings } from '../context/SettingsContext';
 import { useAdminStatus } from '../hooks/useAdminStatus';
+import { unloadFailureNotice } from '../lib/program-notices';
 import styles from './run.module.css';
 
 export const Route = createFileRoute('/run')({
@@ -169,6 +170,17 @@ export function RunView(): React.ReactNode {
     mutationFn: programsApi.reset,
   });
 
+  // Unloading is run-state bookkeeping, not a library change (D-24 publishes it
+  // as a stateUpdate), so it belongs in this control row: the run state it
+  // clears is displayed here, and the Pause its 409 asks for is the button
+  // beside it.
+  const unloadMutation = useMutation({
+    mutationFn: programsApi.unload,
+    // A 200 says what is true now - not that this call is what made it true.
+    onSuccess: () => setNotice('Nothing is loaded on the device now.'),
+    onError: (error: Error) => setNotice(unloadFailureNotice(error).message),
+  });
+
   const toggleTargetsMutation = useMutation({
     mutationFn: programsApi.toggleTargets,
   });
@@ -223,6 +235,10 @@ export function RunView(): React.ReactNode {
   };
 
   const handlePause = (): void => stopMutation.mutate();
+  const handleUnload = (): void => {
+    setNotice(null);
+    unloadMutation.mutate();
+  };
   const handleReset = (): void => resetMutation.mutate();
   const handleToggleTargets = (): void => toggleTargetsMutation.mutate();
 
@@ -390,6 +406,19 @@ export function RunView(): React.ReactNode {
                   disabled={!programConfirmed || isRunning}
                 >
                   Reset
+                </button>
+
+                {/* Offered while a run is in progress too, rather than
+                    disabled: the device is the authority on what is loaded and
+                    whether it is running, and its 409 explains the refusal -
+                    the escape being the Pause button to the left of it. */}
+                <button
+                  className={clsx(styles.button, styles.buttonSecondary)}
+                  data-testid='run-unload'
+                  onClick={handleUnload}
+                  disabled={loadedProgramId === null || unloadMutation.isPending}
+                >
+                  Unload
                 </button>
 
                 <button className={clsx(styles.button, styles.buttonSecondary)} onClick={handleToggleTargets}>
