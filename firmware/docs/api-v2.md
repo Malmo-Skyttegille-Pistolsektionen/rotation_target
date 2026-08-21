@@ -80,7 +80,7 @@ different reasons.
 | Call | Effect |
 |------|--------|
 | `load` | Selects the program, series 0, event 0, `tickerMs` `null` |
-| `start` | Resumes from `tickerMs`, or runs the series from 0 |
+| `start` | Resumes from `tickerMs`, or runs the series from 0; `409` for another program |
 | `stop` | Pauses and keeps the position |
 | `reset` | Rewinds to the start of the current series |
 | `skip_to` | Selects a series, paused at its first event |
@@ -89,6 +89,20 @@ different reasons.
 When a series finishes and another follows, execution pauses at the start of the
 next series and the targets are hidden. When the last series finishes, execution
 stops with the series still selected.
+
+`start` carries `{"id": N}` — the program the caller decided to start — and a
+device holding a different one answers `409` (`Start refused: the device has
+program 1 loaded, not program 40`), naming both so the operator knows what the
+device actually holds. The id is required: an id-less start asks for whatever
+happens to be loaded when the request lands, and that is the ambiguity the body
+exists to remove. No client-side check can close it — between a client's last
+`stateUpdate` and its start arriving, any other client can load something else —
+and on a range the consequence is wrong target timing and wrong spoken commands.
+So the device refuses and the client only explains, the same division as the
+audio-delete guard and the strict `command` vocabulary. A refused start
+publishes nothing and changes nothing. Nothing loaded stays `400`
+(`No program loaded`): it is the more precise diagnosis, and it tells the client
+to load rather than to re-read what is loaded.
 
 `unload` is the one control call that can be refused for reasons other than
 "nothing is loaded". A run in progress answers `409` (`A program is running -

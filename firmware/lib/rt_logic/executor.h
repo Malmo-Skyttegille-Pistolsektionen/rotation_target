@@ -26,6 +26,17 @@ enum class UnloadResult {
   kRunning,
 };
 
+// What a client-driven start did. The caller names the program it decided to
+// start, so `kMismatch` is a start for a program the device no longer holds -
+// the one case no client-side check can rule out on its own.
+enum class StartResult {
+  kStarted,
+  // Nothing loaded, or the loaded program has no series at the current index:
+  // both leave nothing to run, and the contract answers one `400` for them.
+  kNotLoaded,
+  kMismatch,
+};
+
 class Clock {
  public:
   virtual ~Clock() = default;
@@ -61,7 +72,9 @@ class Executor {
   // is how "program not found" reaches the caller.
   bool load(const Program *program);
   // Resume from ticker_ms, or run the current series from zero.
-  bool start();
+  // `expected_program_id` is the program the caller decided to start; anything
+  // else being loaded is refused rather than started (#95).
+  StartResult start(int32_t expected_program_id);
   // Pause, keeping the position so start() can resume from it.
   bool stop();
   // Rewind to the start of the current series.

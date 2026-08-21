@@ -19,7 +19,21 @@ void init();
 // `program_id` is looked up in the program repository; false means no such
 // program, which the caller turns into a 404.
 bool load(int32_t program_id);
-bool start();
+
+// What a start did, together with the program the device actually holds so the
+// refusal can name it. `loaded_program_id` is `kNoProgram` when nothing is
+// loaded. Returned as one value because the answer and the id have to be read
+// inside the same locked section to agree with each other.
+struct StartOutcome {
+  static constexpr int32_t kNoProgram = -1;
+
+  rt::StartResult result;
+  int32_t loaded_program_id;
+};
+
+// Starts the loaded program, but only if it is `expected_program_id` (#95).
+StartOutcome start(int32_t expected_program_id);
+
 bool stop();
 bool reset();
 bool skip_to_series(int32_t series_index);

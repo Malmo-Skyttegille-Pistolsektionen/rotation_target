@@ -31,6 +31,11 @@ function programTitle(programs: ProgramSummary[] | undefined, id: number): strin
 /**
  * May the start go out, for the program it was decided for?
  *
+ * Since D-27 the request carries the id, so this is no longer what makes the
+ * start safe — the device refuses a stale one itself. It is kept because it
+ * explains the refusal in the operator's own terms, before the request goes
+ * out and while the countdown is still on screen.
+ *
  * Read from the query cache rather than from a render's props: react-query
  * defers subscriber notification through `notifyManager`, so a `stateUpdate`
  * arriving in the last milliseconds of a countdown is already written to the
@@ -39,7 +44,7 @@ function programTitle(programs: ProgramSummary[] | undefined, id: number): strin
  *
  * Module scope, so the countdown effect can call it without depending on it.
  */
-function refuseStart(queryClient: QueryClient, expectedProgramId: number | null): string | null {
+function refuseStart(queryClient: QueryClient, expectedProgramId: number): string | null {
   const latest = queryClient.getQueryData<StateUpdatePayload | null>(['state']);
   const deviceProgramId = latest?.loadedProgramId ?? null;
 
@@ -120,11 +125,12 @@ export function RunView(): React.ReactNode {
 
   // --- #70: nothing starts unless the device and the operator agree ---------
   //
-  // `POST /programs/start` carries no id: it starts whatever the device has
-  // loaded at that moment. So the device's `loadedProgramId` is the only thing
-  // the UI may act on, and the two moments where it can drift away from what
-  // the operator is looking at are settled here, during render, so no state
-  // survives the drift.
+  // The start names its program (D-27), so a stale one is refused by the
+  // device. These render-phase settlements are what stop the operator watching
+  // a countdown that is already doomed: the device's `loadedProgramId` is the
+  // only thing the UI may act on, and the two moments where it can drift away
+  // from what the operator is looking at are resolved here, during render, so
+  // no state survives the drift.
 
   // The load has been answered. Anything other than what the device held when
   // the pick was made counts, not the picked id specifically - two coalesced
@@ -160,6 +166,9 @@ export function RunView(): React.ReactNode {
   // render, so depending on it restarted the timer on every stateUpdate.
   const { mutate: startProgram } = useMutation({
     mutationFn: programsApi.start,
+    // The device's refusal, verbatim: its 409 names the program it actually
+    // holds, and that is the fact the operator has to act on.
+    onError: (error: Error) => setNotice(error.message),
   });
 
   const stopMutation = useMutation({
@@ -214,12 +223,16 @@ export function RunView(): React.ReactNode {
   };
 
   const startIfDeviceAgrees = (expectedProgramId: number | null): void => {
+    // Both callers reach here only with a program confirmed loaded. There is no
+    // id-less start to fall back to, so a null is dropped rather than sent.
+    if (expectedProgramId === null) return;
+
     const refusal = refuseStart(queryClient, expectedProgramId);
     if (refusal !== null) {
       setNotice(refusal);
       return;
     }
-    startProgram();
+    startProgram(expectedProgramId);
   };
 
   const handleStart = (): void => {
@@ -262,13 +275,14 @@ export function RunView(): React.ReactNode {
       }
       setCountdown(null);
       setArmedProgramId(null);
+      if (armedProgramId === null) return;
 
       const refusal = refuseStart(queryClient, armedProgramId);
       if (refusal !== null) {
         setNotice(refusal);
         return;
       }
-      startProgram();
+      startProgram(armedProgramId);
     }, 1000);
 
     return () => clearTimeout(timer);

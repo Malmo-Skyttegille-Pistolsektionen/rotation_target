@@ -42,10 +42,11 @@ client could break on — a removed field, a narrowed type, a changed status cod
 — is a new `/api/v3` prefix, which means a deliberate migration for the webapp
 and every other client, not a quiet edit here.
 
-**Recorded exceptions, D-16 and D-23:** `tickerSeconds` was replaced by
-`tickerMs` in the `stateUpdate` payload without moving to `/sse/v3`, and
-`DELETE` on a read-only program or clip changed from `404` to `409` without
-moving to `/api/v3`. The webapp ships inside the firmware image, so client and
+**Recorded exceptions, D-16, D-23 and D-27:** `tickerSeconds` was replaced by
+`tickerMs` in the `stateUpdate` payload without moving to `/sse/v3`, `DELETE` on
+a read-only program or clip changed from `404` to `409`, and
+`POST /programs/start` grew a **required** body, both without moving to
+`/api/v3`. The webapp ships inside the firmware image, so client and
 server are deployed atomically and there is no deployed client to break; no
 `firmware-vX.Y.Z` tag has ever been cut. See `docs/DECISIONS.md`. The rule
 stands for everything after this — the exceptions exist because the only client
