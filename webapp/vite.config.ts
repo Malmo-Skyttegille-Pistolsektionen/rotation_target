@@ -3,10 +3,7 @@ import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import babel from '@rolldown/plugin-babel';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import fs from 'fs';
-import { resolve } from 'path';
-import { mockServerPlugin } from './vite-plugins/mock-server';
 import { mockServerV2Plugin } from './vite-plugins/mock-server-v2';
-import { schemaSyncPlugin } from './vite-plugins/schema-sync';
 
 const packageJson = JSON.parse(fs.readFileSync('./package.json', 'utf-8'));
 const version = packageJson.version;
@@ -19,20 +16,5 @@ export default defineConfig({
     host: 'localhost',
     port: 8080,
   },
-  build: {
-    rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'index.html'),
-        legacy: resolve(__dirname, 'legacy.html'),
-      },
-    },
-  },
-  plugins: [
-    schemaSyncPlugin(),
-    tanstackRouter(),
-    react(),
-    babel({ presets: [reactCompilerPreset()] }),
-    mockServerPlugin(),
-    mockServerV2Plugin(),
-  ],
+  plugins: [tanstackRouter(), react(), babel({ presets: [reactCompilerPreset()] }), mockServerV2Plugin()],
 });

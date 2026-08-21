@@ -141,4 +141,3 @@ Admin mode is required for all mutations:
 | `src/hooks/useSSE.ts`            | SSE connection and cache updates     |
 | `vite-plugins/mock-server-v2.ts` | Development mock server              |
 | `docs/server-spec.md`            | API specification                    |
-| `docs/server-changelog.md`       | Changes vs legacy API                |

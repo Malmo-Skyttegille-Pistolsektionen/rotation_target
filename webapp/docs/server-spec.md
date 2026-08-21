@@ -10,7 +10,7 @@ not the contract itself.
 
 ## Overview
 
-Mock Server v2 is SSE-first. The legacy server (`/sse/v1`, `/api/v1/*`) still exists, but the current React app uses:
+Mock Server v2 is SSE-first. The v1 mock (`/sse/v1`, `/api/v1/*`) was removed with `src_legacy`; the app uses:
 
 - REST base: `/api/v2`
 - SSE endpoint: `/sse/v2`
