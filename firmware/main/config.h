@@ -78,3 +78,10 @@ constexpr uint16_t kHttpPort = CONFIG_RT_HTTP_PORT;
 constexpr int kSseHeartbeatSeconds = 10;
 // Ceiling on an uploaded program document or audio file.
 constexpr size_t kMaxUploadBytes = 1024 * 1024;
+// How many boot-time backend_issues GET /api/v2/diagnostics/info keeps. They
+// are raised before the SSE hub has a server and would otherwise be dropped;
+// beyond this many the oldest is discarded. Sized for "a handful of stored
+// programs went bad", which is what the boot scan can actually produce -
+// enough to name them, small enough that a corrupt directory cannot grow the
+// heap without bound.
+constexpr size_t kMaxStartupIssues = 8;

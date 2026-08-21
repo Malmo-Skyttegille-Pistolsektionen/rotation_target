@@ -168,6 +168,11 @@ the event is the notification. `sse_hub` drops frames raised before the HTTP
 server exists, which is what makes the boot-time program scan safe to emit
 from.
 
+**Amended by D-24 (2026-08-21):** frames raised before the server exists are no
+longer dropped — they are kept and served by `GET /api/v2/diagnostics/info`.
+Fire-and-forget still describes the stream itself; what changed is that an
+issue nobody could have been listening for is no longer lost.
+
 ## D-10 — Monorepo imports open PR branches, not main *(Decided 2026-08-20)*
 
 **Decision:** firmware is imported at the PR #2 branch tip, webapp at the
@@ -481,11 +486,14 @@ and by its absence from `GET /programs`, and *not* to a browser. Verified in
 QEMU with a hand-planted `uploads/programs/200.json`.
 
 That is a pre-existing gap in the `program_invalid` path, not one this change
-introduces — it just gives it its first likely trigger. Closing it wants a
-boot-issue buffer replayed to the first SSE client, or a rescan on connect;
-either is its own change. In the meantime the club-visible symptom of a typo is
-a program that fails to upload (`400`, at the moment of the typo), which is the
-case this decision is actually about.
+introduces — it just gives it its first likely trigger. In the meantime the
+club-visible symptom of a typo is a program that fails to upload (`400`, at the
+moment of the typo), which is the case this decision is actually about.
+
+**Closed by D-24 (2026-08-21):** the boot-time issues are kept and served as
+`startupIssues` on `GET /api/v2/diagnostics/info`, so a stored program that
+stops loading after this change names itself to a client rather than only to
+the serial console.
 
 **Rejected:** *deleting the enum* and blessing the lax behaviour — it makes the
 contract self-consistent by writing the hazard into it, and forces both clients
@@ -645,6 +653,66 @@ its two different reasons.
 not touch the device. *Reinstating the four v1 events* (option 3) — see above.
 *Per-item deltas* — a second serialization of the program document to keep in
 step with `GET /programs`, for a list that is seven entries long.
+
+## D-24 — Boot-time issues are served, not streamed *(Decided 2026-08-21)*
+
+**Decision:** `GET /api/v2/diagnostics/info` gains `startupIssues`, an array of
+the `backend_issue` payloads raised before the HTTP server existed — same
+`{code, message, context}` shape, same `code` vocabulary. `sse_hub` keeps them
+instead of dropping them, bounded at **8** (`kMaxStartupIssues`), oldest
+dropped. Empty on a clean boot. Nothing is pushed; a client that wants them
+asks.
+
+**Why:** `program_invalid` was a documented code that nothing could deliver.
+`programs::load_all()` runs at `app_main.cpp:58` and `web_server::start()` at
+`:76`, and `sse_hub::enqueue` returns early while there is no server — by
+design, and its comment said so. So a stored program that would not parse was
+skipped, vanished from `GET /programs`, and left one `W programs: Malformed
+program <path>` line on a serial console nobody at a range is watching. To a
+browser the program had simply ceased to exist. D-20 made that the migration
+story for every club-uploaded program with a typo in `command`.
+
+**Option 3 from #81, not option 1 (replay to the first SSE client).** Replay is
+the more expensive shape and the less honest one: it would make the stream
+carry history, which D-09 deliberately decided it does not, and it has to pick
+a policy for the second client (replay again? never again?) that is wrong for
+somebody. These issues are a *boot fact*, like `resetReason` and
+`coredumpPresent` — they describe the state the device came up in, do not
+change while it is up, and belong on the endpoint that already answers "what
+happened to this device". Option 2 (rescan the directory when the server
+starts) was rejected too: it re-reads and re-parses every stored program at
+boot to produce information the first scan already had, and doubles a path
+that must not disagree with itself.
+
+**The store needs no lock, and that is structural rather than a bet.** The only
+append is `broadcast_issue`'s existing `s_server == nullptr` branch, and
+`s_server` is set once in `attach()` before the server can accept the request
+that reads the list — every write happens-before every read. It is also
+single-writer today: the boot scan is the only pre-server emitter, on the main
+task, and the audio path cannot reach `broadcast_issue` before a run, which
+needs a request. There is no rescan path. **Adding one, or any other pre-server
+emitter on a second task, means revisiting this** — said so in the code, in
+`docs/api-v2.md` and here, because it is the one assumption that would fail
+quietly.
+
+**Bounded at 8, oldest dropped.** The input is a directory of files, so an
+unbounded list is an unbounded allocation at boot on a device with 512 KB of
+heap. Oldest-dropped rather than newest-refused so the array reflects where the
+scan finished; the consequence — an array of exactly 8 may be truncated — is
+written into the contract rather than papered over with a count field nobody
+would read. The bound and the ring live in `rt::IssueBuffer` in `rt_logic`, so
+both are host-tested rather than asserted.
+
+**Same shape as `backend_issue`, deliberately.** D-19 will formalise the slug
+vocabulary across REST and SSE; a second spelling of "the device could not do
+something" invented here would be one more thing for it to unify. The `code`
+stays `x-extensible-enum` for the same reason it is one on the stream.
+
+**Rejected:** *doing nothing* — leaves a code in the contract that nothing can
+deliver, which is worse than not specifying it. *A dedicated
+`GET /diagnostics/startup-issues`* — a second endpoint for a field, when the
+client fetching diagnostics wants both. *Emitting them on SSE connect* — see
+option 1 above.
 
 ## Open questions
 

@@ -12,6 +12,7 @@
 #include "config.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "issue_buffer.h"
 #include "program_executor.h"
 
 namespace sse_hub {
@@ -23,6 +24,22 @@ PsychicEventSource s_events;
 PsychicHttpServer *s_server = nullptr;
 esp_timer_handle_t s_heartbeat = nullptr;
 uint32_t s_heartbeat_id = 0;
+
+// backend_issues raised while there was no server to send them through, kept
+// so GET /api/v2/diagnostics/info can answer for them. Serialized payloads,
+// exactly as a connected client would have received them.
+//
+// No lock, and that is a property of when it is written rather than a bet:
+// the only append is the branch below that runs while `s_server` is null, and
+// `s_server` is set once, in attach(), before the HTTP server can accept the
+// request that reads it. Writes therefore all happen-before every read.
+//
+// It is also single-writer today: programs::load_all() is the only caller that
+// reaches broadcast_issue() before attach(), and it runs on the main task with
+// no other task able to raise an issue - the audio path needs a clip queued by
+// a run, and a run needs a request. **Adding a program rescan, or any other
+// pre-server emitter on another task, means revisiting this.**
+rt::IssueBuffer s_startup_issues(kMaxStartupIssues);
 
 // One SSE frame to fan out.
 struct Work {
@@ -167,7 +184,22 @@ void broadcast_state(const std::string &payload) {
 
 void broadcast_issue(const char *code, const std::string &message,
                      const rt::IssueContext &context) {
-  enqueue("backend_issue", rt::backend_issue_json(code, message, context));
+  std::string payload = rt::backend_issue_json(code, message, context);
+
+  // Before the server exists there is nobody to send to and enqueue() would
+  // drop this. Keep it instead: the boot scan is the only thing that reports a
+  // stored program it could not parse, and dropping that left the program
+  // simply missing from GET /api/v2/programs with no explanation anywhere.
+  if (s_server == nullptr || s_server->server == nullptr) {
+    s_startup_issues.push(std::move(payload));
+    return;
+  }
+
+  enqueue("backend_issue", std::move(payload));
+}
+
+const std::vector<std::string> &startup_issues() {
+  return s_startup_issues.entries();
 }
 
 void broadcast_library_changed(const char *kind) {

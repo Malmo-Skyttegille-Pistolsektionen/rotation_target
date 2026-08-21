@@ -43,6 +43,12 @@ export interface paths {
          *     snapshot and can contain the WiFi password, so retrieving one stays an
          *     out-of-band job needing physical access. `coredumpPresent` only says
          *     whether there is something to go and fetch.
+         *
+         *     `startupIssues` is the one field here that is not a health counter: it
+         *     is the set of `backend_issue` events the device raised before this
+         *     server existed, which the SSE stream could not deliver to anybody. A
+         *     client that wants to know whether a stored program failed to load has
+         *     to ask for them; nothing pushes them.
          */
         get: operations["getDiagnosticsInfo"];
         put?: never;
@@ -699,6 +705,49 @@ export interface components {
             /** @description The level actually on the pad, read back rather than remembered — the pair with `targetGpio` distinguishes "the firmware never drove it" from "something else is holding it". */
             targetGpioLevel: number;
             adminModeEnabled: boolean;
+            /**
+             * @description The `backend_issue` events raised during boot, before the HTTP
+             *     server was listening — today that is `program_invalid` from the
+             *     program scan, which runs several steps ahead of the server. The SSE
+             *     stream is fire-and-forget (see `contracts/asyncapi.yaml`), so those
+             *     frames reached nobody: a stored program that would not parse simply
+             *     disappeared from `GET /programs`, explained only on the serial
+             *     console.
+             *
+             *     Empty on a clean boot, which is the normal case. **At most 8
+             *     entries**, oldest dropped, so an array of exactly 8 may be a
+             *     truncated one; the device log remains the complete record.
+             *
+             *     Written once during boot and read-only afterwards — the list does
+             *     not grow while the device is up, and polling it will not show
+             *     anything new until the next reboot. Run-time failures such as
+             *     `audio_playback_failed` never appear here: they have a client to go
+             *     to and are delivered over SSE.
+             */
+            startupIssues: components["schemas"]["StartupIssue"][];
+        };
+        /** @description One boot-time device-side failure. Deliberately the same shape as the SSE `backend_issue` payload in `contracts/asyncapi.yaml`, with the same `code` vocabulary, so a client has one way to describe a device failure rather than two. */
+        StartupIssue: {
+            /**
+             * @description The machine-readable identifier, from the same open set as
+             *     `backend_issue.code` — tolerate a value this document does not
+             *     list. Only codes that can be raised before the server exists appear
+             *     here, which today is one:
+             *
+             *     - `program_invalid` — a file in a program directory could not be
+             *       read or did not parse and was skipped, so the program is absent
+             *       from `GET /programs`.
+             */
+            code: string;
+            /** @description English prose describing the failure, suitable for a banner. Not stable across releases and not to be parsed. */
+            message: string;
+            /** @description What failed. Present whenever the emitter has something to name; keys depend on `code`. */
+            context?: {
+                /** @description `program_invalid`: the program file's path on the device filesystem. */
+                file?: string;
+            } & {
+                [key: string]: string;
+            };
         };
     };
     responses: {

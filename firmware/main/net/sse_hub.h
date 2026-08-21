@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "backend_issue.h"
 #include "library_changed.h"
@@ -27,9 +28,20 @@ void broadcast_state(const std::string &payload);
 // stays the record of what happened and this is only the notification.
 //
 // Safe to call before the web server exists, which is where the boot-time
-// program scan calls it from.
+// program scan calls it from; those are kept for startup_issues() instead of
+// being dropped.
 void broadcast_issue(const char *code, const std::string &message,
                      const rt::IssueContext &context = {});
+
+// The issues raised before the HTTP server existed, as the same serialized
+// `backend_issue` payloads a connected client would have received. At most
+// kMaxStartupIssues are kept; past that the oldest is dropped, so a full
+// result may be a truncated one.
+//
+// GET /api/v2/diagnostics/info serves these: no client can be connected while
+// the boot scan runs, so without somewhere to put them a stored program that
+// will not parse is visible only on the serial console.
+const std::vector<std::string> &startup_issues();
 
 // The library a client fetches over REST has changed: a program or an audio
 // clip was created, replaced or deleted. `kind` is an rt::library_kind
