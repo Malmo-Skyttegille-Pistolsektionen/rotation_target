@@ -118,6 +118,20 @@
   background: #f0f0f0;
 }
 
+/* The editor is driven from the keyboard as much as the mouse — the move,
+   copy and delete buttons replaced drag handles and a context menu — so where
+   focus is has to be visible on every one of them. */
+.button:focus-visible,
+.iconButton:focus-visible,
+.chipButton:focus-visible,
+.collapseButton:focus-visible,
+.tab:focus-visible,
+.input:focus-visible,
+.textarea:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
 .message {
   color: #555;
 }

@@ -266,8 +266,23 @@ function withEvent(
   });
 }
 
-function eventKeys(draft: Draft): string[] {
-  return draft.series.flatMap((series) => series.events.map((event) => event.key));
+/** Every event key in the series that are not collapsed. */
+function visibleEventKeys(draft: Draft, collapsed: readonly string[]): string[] {
+  const hidden = new Set(collapsed);
+  return draft.series
+    .filter((series) => !hidden.has(series.key))
+    .flatMap((series) => series.events.map((event) => event.key));
+}
+
+/**
+ * Drop the selected events that live in a series being collapsed.
+ *
+ * The selection exists to be batch-deleted, and a tick the author cannot see
+ * is a row "Delete selected" would take without showing them what it took.
+ */
+function selectionWithin(draft: Draft, selection: readonly string[], collapsed: readonly string[]): string[] {
+  const visible = new Set(visibleEventKeys(draft, collapsed));
+  return selection.filter((key) => visible.has(key));
 }
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
@@ -336,16 +351,17 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       };
     }
 
-    case 'toggleCollapsed':
-      return {
-        ...state,
-        collapsed: state.collapsed.includes(action.key)
-          ? state.collapsed.filter((key) => key !== action.key)
-          : [...state.collapsed, action.key],
-      };
+    case 'toggleCollapsed': {
+      const collapsed = state.collapsed.includes(action.key)
+        ? state.collapsed.filter((key) => key !== action.key)
+        : [...state.collapsed, action.key];
+      return { ...state, collapsed, selection: selectionWithin(draft, state.selection, collapsed) };
+    }
 
-    case 'setAllCollapsed':
-      return { ...state, collapsed: action.collapsed ? draft.series.map((series) => series.key) : [] };
+    case 'setAllCollapsed': {
+      const collapsed = action.collapsed ? draft.series.map((series) => series.key) : [];
+      return { ...state, collapsed, selection: selectionWithin(draft, state.selection, collapsed) };
+    }
 
     case 'addEvent': {
       const key = `k${state.nextKey}`;
@@ -444,7 +460,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       };
 
     case 'selectAllEvents':
-      return { ...state, selection: eventKeys(draft) };
+      return { ...state, selection: visibleEventKeys(draft, state.collapsed) };
 
     case 'clearSelection':
       return { ...state, selection: [] };

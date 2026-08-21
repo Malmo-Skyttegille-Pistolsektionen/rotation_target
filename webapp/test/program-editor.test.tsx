@@ -332,7 +332,29 @@ describe('what the device would change', () => {
     expect((await storedProgram(UPLOADED.id)).series[0].events[0].duration).toBe(UPLOADED.series[0].events[0].duration);
   });
 
-  it('refuses to save a series with no name, which the device itself would accept', async () => {
+  it('still saves a stored program whose series was already unnamed', async () => {
+    // The device accepts this document, and this app's own upload path would
+    // store it. Refusing it here would make it uneditable: correcting the
+    // description would be blocked on a series the author never touched.
+    const flawed: Program = { ...UPLOADED, series: [{ name: '', optional: false, events: [{ duration: 1000 }] }] };
+    await requestElsewhere(PORT, 'PUT', `/api/v2/programs/${UPLOADED.id}`, flawed);
+
+    renderApp();
+    await ready();
+    await openEditor(UPLOADED.id);
+
+    type('editor-description', 'Rättad beskrivning');
+    fireEvent.click(screen.getByTestId('editor-save'));
+
+    const dialog = await screen.findByTestId('confirm-dialog');
+    expect(within(dialog).getByTestId('editor-carried').textContent).toContain('Series 1 needs a name.');
+
+    fireEvent.click(within(dialog).getByText('Save anyway'));
+    await waitFor(() => expect(editorNotice().textContent).toContain(`Saved program ${UPLOADED.id}`));
+    expect(await storedProgram(UPLOADED.id)).toMatchObject({ description: 'Rättad beskrivning' });
+  });
+
+  it('refuses a series this session left unnamed, which the device itself would accept', async () => {
     renderApp();
     await ready();
     await openEditor(UPLOADED.id);
@@ -343,6 +365,25 @@ describe('what the device would change', () => {
     await waitFor(() => expect(editorNotice().textContent).toContain('cannot be saved yet'));
     expect(editorNotice().textContent).toContain('Series 1 needs a name.');
     expect(await storedProgram(UPLOADED.id)).toMatchObject({ title: UPLOADED.title });
+  });
+});
+
+describe('the duration field', () => {
+  it('keeps what was typed, so the validator is what explains a bad value', async () => {
+    renderApp();
+    await ready();
+    await openEditor(UPLOADED.id);
+
+    // A number input would have blanked this itself and left the field showing
+    // text the model no longer held.
+    type('editor-event-0-0-duration', '12x');
+    expect(screen.getByTestId('editor-event-0-0-duration')).toHaveProperty('value', '12x');
+    expect(screen.getByTestId('editor-event-0-0-seconds').textContent).toBe('—');
+
+    fireEvent.click(screen.getByTestId('editor-save'));
+
+    await waitFor(() => expect(editorNotice().textContent).toContain('cannot be saved yet'));
+    expect(editorNotice().textContent).toContain('whole number');
   });
 });
 
@@ -398,6 +439,32 @@ describe('the unsaved-changes guard', () => {
     fireEvent.click(screen.getByTestId('editor-cancel'));
     fireEvent.click(within(await screen.findByTestId('confirm-dialog')).getByText('Discard'));
     await waitFor(() => expect(screen.queryByTestId('program-editor')).toBeNull());
+  });
+
+  it('counts unapplied JSON as an unsaved edit', async () => {
+    renderApp();
+    await ready();
+    await openEditor(UPLOADED.id);
+
+    // Typed into the JSON tab and never applied: the draft is untouched, so
+    // the only record of the edit is the textarea. `handleSave` would send it,
+    // which is exactly why closing must not drop it in silence.
+    fireEvent.click(screen.getByTestId('editor-tab-json'));
+    const text = (screen.getByTestId('editor-json') as HTMLTextAreaElement).value;
+    type('editor-json', text.replace(UPLOADED.title, 'Bara i JSON'));
+
+    fireEvent.click(screen.getByTestId('editor-cancel'));
+
+    const dialog = await screen.findByTestId('confirm-dialog');
+    expect(dialog.textContent).toContain('Discard unsaved changes?');
+    fireEvent.click(within(dialog).getByText('Cancel'));
+    await waitFor(() => expect(screen.queryByTestId('confirm-dialog')).toBeNull());
+
+    // And navigating away is blocked on the same edit.
+    await act(async () => {
+      fireEvent.click(screen.getByText('Audios'));
+    });
+    expect((await screen.findByTestId('confirm-dialog')).textContent).toContain('Leave the editor?');
   });
 
   it('closes without asking when nothing was changed', async () => {

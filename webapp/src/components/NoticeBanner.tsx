@@ -12,7 +12,13 @@ interface NoticeBannerProps {
 /** The one-line result of the last write, with the detail lines under it. */
 export function NoticeBanner({ notice, testId, onDismiss }: NoticeBannerProps): React.ReactNode {
   return (
-    <div className={clsx(styles.notice, styles[notice.kind])} role='status' data-testid={testId}>
+    // A failed write is announced at once; a success or a warning waits for a
+    // pause in what the screen reader is already saying.
+    <div
+      className={clsx(styles.notice, styles[notice.kind])}
+      role={notice.kind === 'error' ? 'alert' : 'status'}
+      data-testid={testId}
+    >
       <p className={styles.noticeMessage}>{notice.message}</p>
       {notice.details && notice.details.length > 0 && (
         <ul className={styles.noticeDetails}>

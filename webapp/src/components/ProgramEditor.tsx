@@ -1,11 +1,17 @@
-import { useReducer, useState } from 'react';
+import { useMemo, useReducer, useState } from 'react';
 import { useBlocker } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useAudiosApi } from '../api/audios';
 import { useProgramsApi } from '../api/programs';
 import type { AudioFile, Program } from '../api/types';
-import { authoringIssues, parseProgramDocument, type DocumentIssue } from '../lib/program-document';
+import {
+  authoringIssues,
+  authoringRegressions,
+  parseProgramDocument,
+  type AuthoringIssue,
+  type DocumentIssue,
+} from '../lib/program-document';
 import {
   createEditorState,
   durationMs,
@@ -106,6 +112,18 @@ interface FormProps extends ProgramEditorProps {
 
 type Tab = 'editor' | 'json';
 
+/** Both tabs render into one panel, so both `aria-controls` point at it. */
+const TAB_PANEL_ID = 'editor-tabpanel';
+
+/** A validated document waiting on the author to see what will happen to it. */
+interface PendingSave {
+  program: Program;
+  /** The device will store these differently from what was typed. */
+  warnings: DocumentIssue[];
+  /** Authoring problems the stored program already had (`authoringRegressions`). */
+  carried: AuthoringIssue[];
+}
+
 function ProgramEditorForm({ target, source, onClose, onCreated }: FormProps): React.ReactNode {
   const queryClient = useQueryClient();
   const programsApi = useProgramsApi();
@@ -122,12 +140,17 @@ function ProgramEditorForm({ target, source, onClose, onCreated }: FormProps): R
   const [tab, setTab] = useState<Tab>('editor');
   const [json, setJson] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [pendingWarnings, setPendingWarnings] = useState<{ program: Program; warnings: DocumentIssue[] } | null>(null);
+  const [pendingSave, setPendingSave] = useState<PendingSave | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const { data: audios } = useQuery({ queryKey: ['audios'], queryFn: audiosApi.list });
 
-  const dirty = isDirty(state);
+  // Unapplied JSON is an edit like any other. `isDirty` only sees the draft,
+  // and the JSON view holds its text until a tab switch or a save applies it —
+  // so without this half, typing into the JSON tab and closing the editor threw
+  // the work away in silence, while `handleSave` treated the very same text as
+  // the real document.
+  const dirty = isDirty(state) || (json !== null && json !== toJson(state.draft));
 
   // Navigating away from the tab drops the draft, and the legacy editor's
   // Cancel did it without a word. `enableBeforeUnload` covers closing the tab.
@@ -166,6 +189,9 @@ function ProgramEditorForm({ target, source, onClose, onCreated }: FormProps): R
 
   /** The JSON view's text: the draft, unless the user has typed over it. */
   const jsonText = json ?? toJson(state.draft);
+  // Once per keystroke rather than once per render: the textarea re-renders the
+  // whole editor, and the whole document is re-parsed to answer it.
+  const jsonResult = useMemo(() => (tab === 'json' ? parseProgramDocument(jsonText) : null), [tab, jsonText]);
 
   /**
    * Pull the JSON view's text back into the document, the way the legacy
@@ -242,14 +268,20 @@ function ProgramEditorForm({ target, source, onClose, onCreated }: FormProps): R
       setJson(null);
     }
 
+    // Only what this session introduced is refused; what the stored document
+    // already had is shown in the dialog and left to the author. See
+    // `authoringRegressions`.
+    const stored = parseProgramDocument(state.baseline);
     const authoring = authoringIssues(result.program);
-    if (authoring.length > 0) {
-      setNotice({ kind: 'error', message: 'This program cannot be saved yet.', details: issueLines(authoring) });
+    const introduced = authoringRegressions(stored.ok ? authoringIssues(stored.program) : [], authoring);
+
+    if (introduced.length > 0) {
+      setNotice({ kind: 'error', message: 'This program cannot be saved yet.', details: issueLines(introduced) });
       return;
     }
 
-    if (result.warnings.length > 0) {
-      setPendingWarnings({ program: result.program, warnings: result.warnings });
+    if (result.warnings.length > 0 || authoring.length > 0) {
+      setPendingSave({ program: result.program, warnings: result.warnings, carried: authoring });
       return;
     }
 
@@ -297,7 +329,9 @@ function ProgramEditorForm({ target, source, onClose, onCreated }: FormProps): R
           <div className={styles.tabs} role='tablist'>
             <button
               role='tab'
+              id='editor-tab-editor'
               aria-selected={tab === 'editor'}
+              aria-controls={TAB_PANEL_ID}
               className={clsx(styles.tab, tab === 'editor' && styles.tabActive)}
               data-testid='editor-tab-editor'
               onClick={() => selectTab('editor')}
@@ -306,7 +340,9 @@ function ProgramEditorForm({ target, source, onClose, onCreated }: FormProps): R
             </button>
             <button
               role='tab'
+              id='editor-tab-json'
               aria-selected={tab === 'json'}
+              aria-controls={TAB_PANEL_ID}
               className={clsx(styles.tab, tab === 'json' && styles.tabActive)}
               data-testid='editor-tab-json'
               onClick={() => selectTab('json')}
@@ -330,22 +366,28 @@ function ProgramEditorForm({ target, source, onClose, onCreated }: FormProps): R
 
       {notice && <NoticeBanner notice={notice} testId='editor-notice' onDismiss={() => setNotice(null)} />}
 
-      {tab === 'editor' ? (
-        <StructuredEditor state={state} dispatch={dispatch} audios={audios ?? []} />
-      ) : (
-        <JsonEditor
-          text={jsonText}
-          result={parseProgramDocument(jsonText)}
-          onChange={setJson}
-          onFormat={() => {
-            try {
-              setJson(JSON.stringify(JSON.parse(jsonText), null, 2));
-            } catch {
-              // Not JSON yet; the errors under the textarea already say so.
-            }
-          }}
-        />
-      )}
+      <div
+        id={TAB_PANEL_ID}
+        role='tabpanel'
+        aria-labelledby={tab === 'editor' ? 'editor-tab-editor' : 'editor-tab-json'}
+      >
+        {tab === 'editor' ? (
+          <StructuredEditor state={state} dispatch={dispatch} audios={audios ?? []} />
+        ) : (
+          <JsonEditor
+            text={jsonText}
+            result={jsonResult}
+            onChange={setJson}
+            onFormat={() => {
+              try {
+                setJson(JSON.stringify(JSON.parse(jsonText), null, 2));
+              } catch {
+                // Not JSON yet; the errors under the textarea already say so.
+              }
+            }}
+          />
+        )}
+      </div>
 
       <div className={styles.preview}>
         <h3 className={styles.sectionTitle}>Preview</h3>
@@ -357,30 +399,53 @@ function ProgramEditorForm({ target, source, onClose, onCreated }: FormProps): R
         />
       </div>
 
-      {pendingWarnings && (
+      {pendingSave && (
         <ConfirmDialog
-          title='The device will not store this program as written'
+          title={
+            pendingSave.warnings.length > 0
+              ? 'The device will not store this program as written'
+              : 'Save this program as it is?'
+          }
           body={
             <>
-              <p>It will be stored as:</p>
-              <ul data-testid='editor-warnings'>
-                {pendingWarnings.warnings.map((warning) => (
-                  <li key={`${warning.path}:${warning.message}`}>
-                    <code>{warning.path || '/'}</code> — {warning.message}
-                  </li>
-                ))}
-              </ul>
+              {pendingSave.warnings.length > 0 && (
+                <>
+                  <p>It will be stored as:</p>
+                  <ul data-testid='editor-warnings'>
+                    {pendingSave.warnings.map((warning) => (
+                      <li key={`${warning.path}:${warning.message}`}>
+                        <code>{warning.path || '/'}</code> — {warning.message}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {pendingSave.carried.length > 0 && (
+                <>
+                  <p>
+                    The stored program already had this, and these edits do not add to it. The device accepts it either
+                    way:
+                  </p>
+                  <ul data-testid='editor-carried'>
+                    {pendingSave.carried.map((issue) => (
+                      <li key={`${issue.path}:${issue.message}`}>
+                        <code>{issue.path || '/'}</code> — {issue.message}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </>
           }
           confirmLabel={target.kind === 'edit' ? 'Save anyway' : 'Create anyway'}
           destructive={target.kind === 'edit'}
           onConfirm={() => {
-            const pending = pendingWarnings;
-            setPendingWarnings(null);
+            const pending = pendingSave;
+            setPendingSave(null);
             setNotice(null);
             send(pending.program);
           }}
-          onCancel={() => setPendingWarnings(null)}
+          onCancel={() => setPendingSave(null)}
         />
       )}
 
@@ -641,12 +706,17 @@ function EventRow({
       <label className={styles.field}>
         <span className={styles.label}>Duration (ms)</span>
         <span className={styles.durationRow}>
+          {/* Text, not `type='number'`: a number input blanks its own value the
+              moment the content stops parsing, so "12x" reached the reducer as
+              "" and the field went on showing text the model no longer held.
+              The point of keeping the duration as typed (see program-editor.ts)
+              is that a half-written value survives to the validator, which is
+              what explains it. `inputMode` still brings up the numeric keypad
+              on the tablet this is used from. */}
           <input
             className={clsx(styles.input, styles.duration)}
-            type='number'
-            min={1}
-            max={3600000}
-            step={100}
+            type='text'
+            inputMode='numeric'
             aria-label={`Duration of event ${eventIndex + 1} of series ${seriesIndex + 1}, in milliseconds`}
             data-testid={`${testId}-duration`}
             value={event.duration}

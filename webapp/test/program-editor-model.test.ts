@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Program } from '../src/api/types';
-import { authoringIssues, parseProgramDocument } from '../src/lib/program-document';
+import { authoringIssues, authoringRegressions, parseProgramDocument } from '../src/lib/program-document';
 import {
   createEditorState,
   durationMs,
@@ -128,6 +128,17 @@ describe('series operations', () => {
     expect(copied.draft.series[2].key).not.toBe(copied.draft.series[1].key);
     expect(copied.draft.series[2].events[0].key).not.toBe(copied.draft.series[1].events[0].key);
     expect(copied.draft.series[2].events[0].duration).toBe('2000');
+  });
+
+  it('copies the audio list rather than sharing it with the original', () => {
+    const withAudio = editorReducer(base, { type: 'addAudio', series: 0, event: 0, audioId: 26 });
+    const copied = editorReducer(withAudio, { type: 'duplicateSeries', series: 0 });
+
+    const added = editorReducer(copied, { type: 'addAudio', series: 1, event: 0, audioId: 33 });
+
+    expect(added.draft.series[1].events[0].audioIds).toEqual([26, 33]);
+    // The original keeps its own list: a shared array would have grown too.
+    expect(added.draft.series[0].events[0].audioIds).toEqual([26]);
   });
 
   it('deletes one, and forgets it was collapsed or had events selected', () => {
@@ -253,6 +264,25 @@ describe('selection across series', () => {
     expect(pruned.selection).toEqual([]);
   });
 
+  it('ticks only the events on screen, and unticks the ones a collapse hides', () => {
+    const collapsedFirst = editorReducer(base, { type: 'toggleCollapsed', key: base.draft.series[0].key });
+
+    // "Select all events" cannot reach into a collapsed series: "Delete
+    // selected" would then take rows the author never saw.
+    const selected = editorReducer(collapsedFirst, { type: 'selectAllEvents' });
+    expect(selected.selection).toEqual([base.draft.series[1].events[0].key]);
+
+    // And collapsing after selecting gives the same guarantee.
+    const thenCollapsed = run(
+      base,
+      { type: 'selectAllEvents' },
+      { type: 'toggleCollapsed', key: base.draft.series[1].key },
+    );
+    expect(thenCollapsed.selection).toEqual(base.draft.series[0].events.map((event) => event.key));
+
+    expect(run(base, { type: 'selectAllEvents' }, { type: 'setAllCollapsed', collapsed: true }).selection).toEqual([]);
+  });
+
   it('unticks an event that is deleted on its own', () => {
     const key = base.draft.series[0].events[1].key;
     const gone = run(base, { type: 'toggleSelected', key }, { type: 'removeEvent', series: 0, event: 1 });
@@ -330,6 +360,34 @@ describe('what the validator says about a draft on its way out', () => {
       ]);
       expect(result.program.series[0].events[0].duration).toBe(1);
     }
+  });
+
+  it('counts only the authoring problems this session introduced', () => {
+    const stored: Program = {
+      id: 140,
+      title: 'Stored',
+      description: '',
+      readonly: false,
+      series: [{ name: 'Tom', optional: false, events: [] }],
+    };
+    const before = authoringIssues(stored);
+
+    // A description-only edit: the same problem, still there, still not ours.
+    // The device took this document once and will take it again, so refusing
+    // it would make a stored program uneditable.
+    expect(authoringRegressions(before, authoringIssues({ ...stored, description: 'Ny text' }))).toEqual([]);
+
+    // A second empty series is this session's doing, and is refused.
+    const worse = authoringIssues({
+      ...stored,
+      series: [...stored.series, { name: 'Också tom', optional: false, events: [] }],
+    });
+    expect(authoringRegressions(before, worse)).toHaveLength(2);
+
+    // A different kind of problem is a regression even when the count of the
+    // first kind has not moved.
+    const unnamed = authoringIssues({ ...stored, series: [{ name: '', optional: false, events: [] }] });
+    expect(authoringRegressions(before, unnamed).map((issue) => issue.kind)).toEqual(['unnamed-series']);
   });
 
   it('refuses an unnamed or empty series, which the device itself would accept', () => {
