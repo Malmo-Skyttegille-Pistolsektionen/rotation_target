@@ -191,6 +191,16 @@
   transform: translateX(-50%);
   font-size: 0.7rem;
   color: #888;
+  /* .tick is 1px wide, so an absolutely positioned label with no explicit
+     width shrink-to-fits against that 1px - harmless for a single digit-run
+     token, but the space before the unit gives the browser a break
+     opportunity it takes, wrapping "s" onto its own line. */
+  white-space: nowrap;
+}
+
+/* States the axis unit once, on the final tick. */
+.tickUnit {
+  color: #aaa;
 }
 
 .cursor {
