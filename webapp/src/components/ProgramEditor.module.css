@@ -1,0 +1,386 @@
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  padding: 1rem;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.meta {
+  margin: 0.25rem 0 0;
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.dirty {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tabs {
+  display: flex;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.tab {
+  border: none;
+  background: #fff;
+  padding: 0.4rem 0.9rem;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.tab + .tab {
+  border-left: 1px solid #ccc;
+}
+
+.tabActive {
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.button {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.button:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.button:disabled,
+.iconButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.buttonPrimary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.buttonPrimary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.buttonDestructive {
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.buttonDestructive:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
+.iconButton {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0.3rem 0.45rem;
+}
+
+.iconButton:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+/* The editor is driven from the keyboard as much as the mouse — the move,
+   copy and delete buttons replaced drag handles and a context menu — so where
+   focus is has to be visible on every one of them. */
+.button:focus-visible,
+.iconButton:focus-visible,
+.chipButton:focus-visible,
+.collapseButton:focus-visible,
+.tab:focus-visible,
+.input:focus-visible,
+.textarea:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.message {
+  color: #555;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.programFields {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.programFields .field {
+  flex: 1 1 16rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #6b7280;
+}
+
+.input {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.9rem;
+  background: #fff;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.selectionCount {
+  font-size: 0.85rem;
+  color: #4b5563;
+}
+
+.series {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: #fafafa;
+}
+
+.seriesHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.collapseButton {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0.2rem;
+}
+
+.seriesNumber,
+.eventNumber {
+  min-width: 1.2rem;
+  text-align: right;
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.seriesName {
+  flex: 1 1 12rem;
+}
+
+.seriesMeta {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.rowActions {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.event {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.durationRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.duration {
+  width: 6.5rem;
+}
+
+.hint {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.commands {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.commands legend {
+  float: left;
+  width: 100%;
+}
+
+.audio {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1 1 18rem;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.15rem 0.35rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 0.8rem;
+}
+
+.chipButton {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 0 0.1rem;
+}
+
+.chipButton:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.audioControls {
+  display: inline-flex;
+  gap: 0.3rem;
+}
+
+.audioSearch {
+  width: 8rem;
+}
+
+.json {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 22rem;
+  box-sizing: border-box;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  resize: vertical;
+}
+
+.issues {
+  margin: 0;
+  padding: 0.5rem 0.5rem 0.5rem 1.75rem;
+  border: 1px solid;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.issuesError {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
+.issuesWarning {
+  border-color: #d97706;
+  background: #fffbeb;
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #374151;
+}

@@ -329,3 +329,73 @@ export function programTotalMs(program: Program): number {
     0,
   );
 }
+
+/**
+ * A problem that is not the device's to refuse, only an author's to fix.
+ * `kind` is what makes one comparable to another: the paths carry indices, so
+ * they change when a series moves, and the messages carry the index too.
+ */
+export interface AuthoringIssue extends DocumentIssue {
+  kind: 'unnamed-series' | 'empty-series';
+}
+
+/**
+ * The checks that only apply to a document someone is authoring, not to one
+ * arriving as a file.
+ *
+ * The firmware accepts both of these — an unnamed series and a series with no
+ * events parse and store fine — so `parseProgramDocument` does not refuse
+ * them; a file that has them is still a file the device will hold, and
+ * `POST /programs` will take one. But neither is ever what an author meant: an
+ * unnamed series has nothing to show in the run view's series list, and an
+ * empty one occupies a slot and takes no time. The legacy editor refused to
+ * save either, and so does this — for the ones the author introduced. See
+ * `authoringRegressions` for why that distinction has to exist.
+ *
+ * Runs on the output of `parseProgramDocument`, so the shape is already known
+ * good and this only has to say what is missing.
+ */
+export function authoringIssues(program: Program): AuthoringIssue[] {
+  const issues: AuthoringIssue[] = [];
+
+  program.series.forEach((series, index) => {
+    if (series.name.trim().length === 0) {
+      issues.push({
+        kind: 'unnamed-series',
+        path: `/series/${index}/name`,
+        message: `Series ${index + 1} needs a name.`,
+      });
+    }
+    if (series.events.length === 0) {
+      issues.push({
+        kind: 'empty-series',
+        path: `/series/${index}/events`,
+        message: `Series ${index + 1} ("${series.name}") has no events, so it would take no time and do nothing.`,
+      });
+    }
+  });
+
+  return issues;
+}
+
+/**
+ * The authoring problems in `after` that `before` did not already have.
+ *
+ * Refusing every authoring problem outright would make a program the device is
+ * holding uneditable: `POST /programs` accepts a document with an unnamed or
+ * empty series — this app's own upload path does — and once one is stored,
+ * opening it and correcting the *description* would be refused for a series the
+ * author never touched. So the bar is a regression, not a state: what the
+ * stored document already had is the author's to fix when they choose, and what
+ * this session introduced is refused.
+ *
+ * Compared by `kind` and count rather than by path: a reorder renumbers every
+ * path, and which particular series is unnamed is not the question — whether
+ * there are more of them than there were is.
+ */
+export function authoringRegressions(before: AuthoringIssue[], after: AuthoringIssue[]): AuthoringIssue[] {
+  const countOf = (issues: AuthoringIssue[], kind: AuthoringIssue['kind']): number =>
+    issues.filter((issue) => issue.kind === kind).length;
+
+  return after.filter((issue) => countOf(after, issue.kind) > countOf(before, issue.kind));
+}
