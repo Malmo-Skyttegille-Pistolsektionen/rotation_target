@@ -24,6 +24,13 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-13 | Agent roles & review policy | Decided | 2026-08-20 |
 | D-14 | Webapp guardrails (devtools, src_legacy, size budget) | Decided | Aug 2026 |
 | D-15 | Program update is `PUT /programs/{id}`, refused while loaded | Decided | 2026-08-20 |
+| D-16 | `tickerMs` replaces `tickerSeconds` | Decided | 2026-08-20 |
+| D-17 | E2E runs against the firmware, in one CI job | Decided | 2026-08-20 |
+| D-18 | Program validation without ajv; the editor ports later | Decided | 2026-08-20 |
+| D-19 | REST errors become RFC 9457 problem details | Decided | 2026-08-20 |
+| D-20 | `Event.command` is a closed vocabulary | Decided | 2026-08-20 |
+| D-21 | An npm `override` must be truthful | Decided | 2026-08-20 |
+| D-22 | `POST /programs/unload` | Decided | 2026-08-21 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
 
@@ -264,6 +271,12 @@ during a range session.
 replace); v1's `POST /programs/{id}/update`; silently renumbering a mismatched
 body id; taking the executor lock and hot-swapping the loaded program.
 
+**Amended 2026-08-21 (#76):** "the client unloads first" was, when this was
+decided, an instruction with no endpoint behind it — v2 had no unload verb, so
+the only ways to clear the selection were to load a different program or delete
+the loaded one. `POST /api/v2/programs/unload` (D-22) closes that; the `409` now
+names a call the client can actually make.
+
 ## D-16 — `tickerMs` replaces `tickerSeconds` *(Decided 2026-08-20)*
 
 **Decision:** `stateUpdate.programState` carries `tickerMs` — milliseconds
@@ -487,6 +500,51 @@ survives a round trip. That assertion is false after this change and must be
 inverted once #72 lands; `program-document.ts`'s header note, which records
 that it is deliberately stricter than the firmware on `command`, must say that
 the two now agree.
+
+## D-22 — `POST /programs/unload` *(Decided 2026-08-21)*
+
+**Decision:** add `POST /api/v2/programs/unload`, admin-gated like every other
+mutation. It clears the selection and publishes a `stateUpdate` with
+`loadedProgramId: null`. **A run in progress is `409`** (`A program is running -
+stop it before unloading`). **Unloading nothing is `200` and publishes
+nothing.**
+
+**Why the endpoint:** D-15's `409` on a loaded program, and #79's `409` on
+deleting a clip the loaded program plays, both tell the client to "unload" —
+a verb v2 did not have. The only ways to clear `loadedProgramId` were loading
+some *other* program or deleting the loaded one, so the honest instruction was
+"load something else first", which is a workaround standing in for a missing
+operation, and the ported Programs tab had to say so out loud.
+
+**Why `409` while running:** unloading is bookkeeping; a call that reads as
+bookkeeping must not end a series mid-range. Every alternative is worse in the
+same way D-15 found: unload-and-stop hides a range-visible side effect behind a
+housekeeping verb, and a `force` flag invents a policy for a situation with no
+good answer during a session. The refusal is never a dead end — `stop` is a
+pause, so the escape is exactly one call away, and `stop` then `unload` is the
+same two-step the run controls already use.
+
+**Why `200` with no broadcast when nothing is loaded:** the endpoint states an
+outcome ("nothing is loaded"), and a client that asks for a state the device is
+already in has not made an error — so `200`, not `400`, and the same message
+either way, which is what makes a retry after a dropped response safe. The
+broadcast is skipped because the payload would be byte-identical to the one
+already sent: SSE here is a change notification, and the firmware's `flush()`
+has always been change-gated rather than request-gated. A repeat frame would
+teach clients that a `stateUpdate` need not mean a state update.
+
+**Where the refusal lives:** in `rt::Executor::unload()` (host-tested), not in
+the handler, so the check and the clear happen inside one locked section — a run
+starting between an `is_running()` probe and the clear would otherwise be
+unloaded by a call that had already decided it was safe. The unconditional
+`force_unload()` stays for the delete path, where the run loop's pointer into
+the program would dangle and refusing is not an option.
+
+**Rejected:** `DELETE /programs/loaded` (reads as deleting a program);
+`POST /programs/0/load` or a null-bodied load (overloading the id space);
+stopping the run as a side effect; a `force` query flag; `204 No Content`
+(every other mutation here answers a `Message`); `404` or `400` for "nothing
+loaded" (an idempotent operation has no error to report).
 
 ## Open questions
 

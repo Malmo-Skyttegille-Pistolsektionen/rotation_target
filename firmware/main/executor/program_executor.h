@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <string>
 
+#include "executor.h"
+
 // The firmware side of rt::Executor: a run-loop task, the real clock, and the
 // real side effects (target GPIO, I2S playback, SSE broadcast).
 //
@@ -26,8 +28,13 @@ void set_targets(bool shown);
 // Returns the resulting state.
 bool toggle_targets();
 
+// Clears the selection on behalf of POST /programs/unload. Refused while a run
+// is in progress; nothing loaded is a no-op that publishes nothing.
+rt::UnloadResult unload();
+
 // Drops the loaded program if it is `program_id` - used when a program is
-// deleted out from under a run. Returns whether anything was unloaded.
+// deleted out from under a run, which is refused for no run state. Returns
+// whether anything was unloaded.
 bool unload_if_loaded(int32_t program_id);
 
 // Whether `program_id` is the program currently loaded. Lets a handler refuse
