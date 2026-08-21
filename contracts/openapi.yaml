@@ -407,7 +407,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Program"
+              $ref: "#/components/schemas/ProgramUpdate"
       responses:
         "200":
           description: Replaced. The body is the program as stored.
@@ -1104,6 +1104,34 @@ components:
           type: string
         readonly:
           type: boolean
+        series:
+          type: array
+          items:
+            $ref: "#/components/schemas/Series"
+      additionalProperties: false
+
+    ProgramUpdate:
+      type: object
+      description: >-
+        The body of `PUT /programs/{id}`. `Program` with `id` made optional:
+        the path is the authority on the id, so a body may leave it out
+        entirely, and one declaring anything other than `{id}` is a `400`.
+        Spelled out rather than referenced because a JSON Schema `allOf` cannot
+        relax a `required` its base declares.
+      required: [title, description, readonly, series]
+      properties:
+        id:
+          type: integer
+          format: int32
+          description: >-
+            Optional. If present it must equal `{id}` in the path.
+        title:
+          type: string
+        description:
+          type: string
+        readonly:
+          type: boolean
+          description: Ignored; it follows from where the device stores the file.
         series:
           type: array
           items:

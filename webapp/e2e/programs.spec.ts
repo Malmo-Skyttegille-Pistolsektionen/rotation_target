@@ -1,0 +1,102 @@
+import type { APIRequestContext } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { openApp, resetDevice, SHIPPED_PROGRAM_IDS } from './device';
+
+/**
+ * The two things about program storage that only the real firmware can settle.
+ *
+ * Both are places where a mock is free to be plausible and wrong, and where
+ * being wrong is invisible until a club member hits it: which id an upload gets
+ * when there are gaps in the range, and what happens to a `command` the
+ * firmware does not recognise. `contracts/openapi.yaml` declares `command` as
+ * an enum while its own prose says any other string is kept — this asserts
+ * which of the two the device does.
+ */
+
+const API = '/api/v2';
+
+function documentWith(title: string, command?: string): Record<string, unknown> {
+  return {
+    title,
+    description: 'e2e',
+    readonly: false,
+    series: [{ name: 'Serie 1', optional: false, events: [{ duration: 1000, ...(command ? { command } : {}) }] }],
+  };
+}
+
+async function upload(request: APIRequestContext, title: string, command?: string): Promise<number> {
+  const res = await request.post(`${API}/programs`, { data: documentWith(title, command) });
+  expect(res.status(), `upload of "${title}" was refused`).toBe(201);
+  return ((await res.json()) as { id: number }).id;
+}
+
+/** Everything this spec uploaded, whatever order the assertions left it in. */
+async function removeUploads(request: APIRequestContext): Promise<void> {
+  const programs = (await (await request.get(`${API}/programs`)).json()) as { id: number; readonly: boolean }[];
+  for (const program of programs) {
+    if (!program.readonly && !SHIPPED_PROGRAM_IDS.includes(program.id)) {
+      await request.delete(`${API}/programs/${program.id}/delete`);
+    }
+  }
+}
+
+test.beforeEach(async ({ request }) => {
+  await resetDevice(request);
+  await removeUploads(request);
+});
+
+// Per test, not once at the end: the device is shared with every other spec,
+// and `load.spec.ts` asserts the program list is exactly the shipped seven.
+test.afterEach(async ({ request }) => {
+  await removeUploads(request);
+});
+
+test('an upload through the UI lands on the id the device chose', async ({ page, request }) => {
+  await openApp(page);
+  await page.getByRole('link', { name: 'Programs' }).click();
+  await expect(page.getByTestId('programs-table')).toBeVisible();
+
+  await page.getByTestId('programs-file-input').setInputFiles({
+    name: 'e2e-upload.json',
+    mimeType: 'application/json',
+    // The id in the document is ignored; 9999 makes that visible if it is not.
+    buffer: Buffer.from(JSON.stringify({ ...documentWith('E2E Upload'), id: 9999 })),
+  });
+
+  // 100 and 101 are shipped, so the first free id from 100 up is 102.
+  await expect(page.getByTestId('programs-notice')).toContainText('as program 102');
+  await expect(page.getByTestId('program-row-102')).toContainText('E2E Upload');
+  await expect(page.getByTestId('program-row-102')).toContainText('Uploaded');
+  await expect(page.getByTestId('program-row-9999')).toHaveCount(0);
+
+  const stored = (await (await request.get(`${API}/programs/102`)).json()) as { id: number; readonly: boolean };
+  expect(stored).toMatchObject({ id: 102, readonly: false });
+});
+
+test('a freed id is handed back out, not stepped past', async ({ request }) => {
+  expect(await upload(request, 'Gap A')).toBe(102);
+  expect(await upload(request, 'Gap B')).toBe(103);
+  expect(await upload(request, 'Gap C')).toBe(104);
+
+  expect((await request.delete(`${API}/programs/103/delete`)).status()).toBe(200);
+
+  // Highest-in-use + 1 would answer 105 here. The device scans up from 100.
+  expect(await upload(request, 'Gap D')).toBe(103);
+});
+
+test('a command the firmware does not act on survives the round trip verbatim', async ({ request }) => {
+  const id = await upload(request, 'Odd command', 'sideways');
+
+  const stored = (await (await request.get(`${API}/programs/${id}`)).json()) as {
+    series: { events: { command?: string }[] }[];
+  };
+
+  // Kept, not dropped and not rejected: only "show" and "hide" move the
+  // targets, but the field is stored and re-emitted as written.
+  expect(stored.series[0].events[0].command).toBe('sideways');
+
+  // And a replace keeps it too, so an edit round trip does not quietly lose it.
+  const put = await request.put(`${API}/programs/${id}`, { data: documentWith('Odd command', 'diagonally') });
+  expect(put.status()).toBe(200);
+  expect(((await put.json()) as typeof stored).series[0].events[0].command).toBe('diagonally');
+});

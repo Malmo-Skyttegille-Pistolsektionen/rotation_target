@@ -30,8 +30,11 @@ The web app has the following main features:
     - Manage audio library.
 
 3.  **Programs Tab:**
-    - Create and edit shooting programs.
-    - Upload programs to hardware.
+    - List the programs on the device, shipped and uploaded.
+    - Load a program, upload one from a file, replace one, delete one.
+    - Inspect a program's timeline and download its JSON.
+    - Authoring a program from scratch is still only in the legacy app
+      (`src_legacy/ui/views/program_editor.js`); porting it is issue #73.
 
 4.  **Settings Tab:**
     - Configure backend IP address.

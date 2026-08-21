@@ -19,7 +19,15 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import type { Program, StateUpdatePayload, ProgramState, AudioFile, ProgramSummary, Series } from '../../src/api/types';
+import type {
+  Program,
+  StateUpdatePayload,
+  ProgramState,
+  AudioFile,
+  ProgramSummary,
+  Series,
+  Event,
+} from '../../src/api/types';
 import type { EventLocation } from '../../src/lib/run-position';
 import { locateEvent, seriesTotalMs } from '../../src/lib/run-position';
 import type { Clock } from './clock';
@@ -32,13 +40,17 @@ const HEARTBEAT_INTERVAL = 10000; // 10 seconds
 const TICK_INTERVAL = 1000; // 1 second
 /** `kMaxUploadBytes` in firmware/main/config.h. */
 const MAX_UPLOAD_BYTES = 1024 * 1024;
-/** `kFirstUploadId` in firmware/main/config.h. */
+/** `kFirstUploadId` in firmware/main/config.h - the floor for uploaded audio AND program ids. */
 const FIRST_UPLOAD_ID = 100;
 /**
  * How long a clip counts as playing, so `DELETE` can answer 409 the way the
  * device does. Under a fake clock nothing expires until a test advances it.
  */
 const PLAYBACK_DURATION = 3000;
+
+/** Per-event clamp the firmware applies on parse. */
+const MIN_DURATION_MS = 1;
+const MAX_DURATION_MS = 3600000;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(here, '../data');
@@ -97,6 +109,58 @@ export function loadSeedFromDisk(dataDir: string = DATA_DIR): MockSeed {
   return { programs, audios };
 }
 
+/**
+ * What the firmware keeps of an uploaded document: unknown fields dropped,
+ * durations clamped, `id` from the path (or the assignment) and `readonly`
+ * false. `POST /programs` and `PUT /programs/{id}` both store this form, and
+ * it is what a later `GET` returns.
+ */
+function normalizeProgram(raw: Record<string, unknown>, id: number): Program {
+  const rawSeries = Array.isArray(raw.series) ? (raw.series as unknown[]) : [];
+
+  const series: Series[] = rawSeries.filter(isRecord).map((entry) => {
+    const rawEvents = Array.isArray(entry.events) ? (entry.events as unknown[]) : [];
+
+    const events: Event[] = rawEvents.filter(isRecord).map((rawEvent) => {
+      const duration = typeof rawEvent.duration === 'number' ? Math.trunc(rawEvent.duration) : MIN_DURATION_MS;
+      const event: Event = { duration: Math.min(Math.max(duration, MIN_DURATION_MS), MAX_DURATION_MS) };
+
+      // Any non-empty string survives and is re-emitted verbatim: `parse_event`
+      // does `e.command = src["command"] | ""` and `Event::to_json` writes back
+      // whatever that held. Only "show" and "hide" move the targets. The cast
+      // is the contract's fault, not this file's - `openapi.yaml` contradicts
+      // itself here, declaring an enum in `Event.command` while its prose says
+      // any other string is kept. Left faithful to the firmware so a client
+      // that mangles the field has something that can catch it.
+      if (typeof rawEvent.command === 'string' && rawEvent.command !== '') {
+        event.command = rawEvent.command as Event['command'];
+      }
+      if (Array.isArray(rawEvent.audio_ids)) {
+        event.audio_ids = (rawEvent.audio_ids as unknown[]).filter((v): v is number => typeof v === 'number');
+      }
+      return event;
+    });
+
+    return {
+      name: typeof entry.name === 'string' ? entry.name : '',
+      optional: entry.optional === true,
+      events,
+    };
+  });
+
+  return {
+    id,
+    title: typeof raw.title === 'string' ? raw.title : '',
+    description: typeof raw.description === 'string' ? raw.description : '',
+    readonly: false,
+    series,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 // --- Server ---
 
 export interface MockServerOptions {
@@ -142,10 +206,17 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   const clock = options.clock ?? realClock;
   const requestedPort = options.port ?? 0;
   const seed = options.seed ?? loadSeedFromDisk();
-  const { programs } = seed;
-  // Uploads and deletes mutate this, so it is a copy of the seed and `reset()`
-  // puts it back.
+  // Uploads, edits and deletes mutate both, so each is a copy of the seed and
+  // `reset()` puts it back rather than leaking one test's writes into the next.
   const audios: AudioFile[] = [...seed.audios];
+  const programs: Record<number, Program> = {};
+  function restorePrograms(): void {
+    for (const key of Object.keys(programs)) delete programs[Number(key)];
+    for (const [id, program] of Object.entries(seed.programs)) {
+      programs[Number(id)] = JSON.parse(JSON.stringify(program)) as Program;
+    }
+  }
+  restorePrograms();
 
   const state: ServerState = {
     loadedProgram: null,
@@ -320,6 +391,16 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     return state.playingAudioId === id && state.playingUntil !== null && clock.now() < state.playingUntil;
   }
 
+  function parseJsonObject(body: string): Record<string, unknown> | null {
+    if (!body) return null;
+    try {
+      const parsed: unknown = JSON.parse(body);
+      return isRecord(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
   function jsonResponse(res: ServerResponse, status: number, data: unknown): void {
     res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(data));
@@ -468,6 +549,28 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       return;
     }
 
+    // POST /programs - Requires auth. The document's id is ignored: the device
+    // assigns the next free one from 100 up and stores what it parsed.
+    if (endpoint === '/programs' && req.method === 'POST') {
+      if (!checkAdminAuth(req, res)) return;
+      const raw = parseJsonObject(await parseBody(req));
+      if (!raw) {
+        jsonResponse(res, 400, { error: 'Invalid program' });
+        return;
+      }
+
+      // Lowest free id from 100 up, not highest+1: `firmware/main/repositories/
+      // programs.cpp` walks `id = kFirstUploadId; while (count(id)) id++`, so a
+      // deleted program's id is handed straight back out. Shipped programs
+      // occupy some of that range on the real device (100 and 101 today), and
+      // the two allocators disagree the moment anything is deleted.
+      let id = FIRST_UPLOAD_ID;
+      while (programs[id] !== undefined) id++;
+      programs[id] = normalizeProgram(raw, id);
+      jsonResponse(res, 201, { id });
+      return;
+    }
+
     // GET /programs/{id} - No auth required (read-only)
     const programGetMatch = endpoint.match(/^\/programs\/(\d+)$/);
     if (programGetMatch && req.method === 'GET') {
@@ -477,6 +580,66 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         return;
       }
       jsonResponse(res, 200, program);
+      return;
+    }
+
+    // PUT /programs/{id} - Requires auth. See D-15: the path owns the id, a
+    // shipped program is a 409, and so is the loaded one.
+    if (programGetMatch && req.method === 'PUT') {
+      if (!checkAdminAuth(req, res)) return;
+      const id = parseInt(programGetMatch[1], 10);
+      const existing = programs[id];
+      if (!existing) {
+        jsonResponse(res, 404, { error: 'Program not found' });
+        return;
+      }
+      if (existing.readonly) {
+        jsonResponse(res, 409, { error: 'Program is read-only and cannot be updated' });
+        return;
+      }
+      if (state.loadedProgram?.id === id) {
+        jsonResponse(res, 409, { error: 'Program is loaded; unload it before updating' });
+        return;
+      }
+
+      const raw = parseJsonObject(await parseBody(req));
+      if (!raw) {
+        jsonResponse(res, 400, { error: 'Invalid program' });
+        return;
+      }
+      if (raw.id !== undefined && raw.id !== null && raw.id !== id) {
+        jsonResponse(res, 400, { error: 'Program id in the document does not match the path' });
+        return;
+      }
+
+      programs[id] = normalizeProgram(raw, id);
+      jsonResponse(res, 200, programs[id]);
+      return;
+    }
+
+    // DELETE /programs/{id}/delete - Requires auth. A shipped program is a 404,
+    // the same answer as one that does not exist.
+    const programDeleteMatch = endpoint.match(/^\/programs\/(\d+)\/delete$/);
+    if (programDeleteMatch && req.method === 'DELETE') {
+      if (!checkAdminAuth(req, res)) return;
+      const id = parseInt(programDeleteMatch[1], 10);
+      const existing = programs[id];
+      if (!existing || existing.readonly) {
+        jsonResponse(res, 404, { error: 'Program not found' });
+        return;
+      }
+
+      delete programs[id];
+
+      // Deleting the loaded program unloads it first, and that is published.
+      if (state.loadedProgram?.id === id) {
+        state.loadedProgram = null;
+        state.programState = null;
+        state.seriesStartTime = null;
+        broadcastState();
+      }
+
+      jsonResponse(res, 200, { message: 'Program deleted' });
       return;
     }
 
@@ -761,6 +924,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     middleware,
 
     reset(): void {
+      restorePrograms();
       state.loadedProgram = null;
       state.programState = null;
       state.targetStatus = 'hidden';

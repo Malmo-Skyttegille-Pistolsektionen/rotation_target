@@ -75,6 +75,177 @@ describe('REST surface', () => {
   });
 });
 
+describe('program storage', () => {
+  /** A document with everything the device is documented to ignore or fix up. */
+  const document = {
+    id: 7,
+    readonly: true,
+    title: 'Klubbserie',
+    description: 'Uploaded from a file',
+    nickname: 'dropped',
+    series: [
+      {
+        name: 'Serie 1',
+        optional: true,
+        colour: 'dropped',
+        events: [
+          { duration: 0, command: 'show', audio_ids: [26], start: true },
+          { duration: 9_000_000, command: 'sideways' },
+        ],
+      },
+    ],
+  };
+
+  async function upload(body: unknown = document): Promise<Response> {
+    return api('/programs', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  it("assigns the lowest free id from 100 up and ignores the document's", async () => {
+    const res = await upload();
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ id: 100 });
+
+    expect(await (await upload()).json()).toEqual({ id: 101 });
+    expect(await (await upload()).json()).toEqual({ id: 102 });
+
+    // A freed id is handed straight back out - the firmware scans up from 100
+    // rather than counting from the highest in use.
+    await api('/programs/101/delete', { method: 'DELETE' });
+    expect(await (await upload()).json()).toEqual({ id: 101 });
+  });
+
+  it('stores what it parsed: unknown fields dropped, duration clamped, never read-only', async () => {
+    const { id } = await (await upload()).json();
+
+    expect(await (await api(`/programs/${id}`)).json()).toEqual({
+      id,
+      title: 'Klubbserie',
+      description: 'Uploaded from a file',
+      readonly: false,
+      series: [
+        {
+          name: 'Serie 1',
+          optional: true,
+          events: [
+            { duration: 1, command: 'show', audio_ids: [26] },
+            // Kept verbatim, as the firmware keeps it: only show/hide act.
+            { duration: 3600000, command: 'sideways' },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('rejects an upload that is not a JSON object', async () => {
+    expect((await upload('[]')).status).toBe(400);
+    expect((await api('/programs', { method: 'POST' })).status).toBe(400);
+  });
+
+  it('replaces through PUT and answers with the stored form', async () => {
+    const { id } = await (await upload()).json();
+
+    const res = await api(`/programs/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...document, id, title: 'Klubbserie v2' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect((await res.json()).title).toBe('Klubbserie v2');
+    expect((await (await api(`/programs/${id}`)).json()).title).toBe('Klubbserie v2');
+  });
+
+  it('keeps the path id when the body declares none, and 400s a body that declares another', async () => {
+    const { id } = await (await upload()).json();
+
+    const kept = await api(`/programs/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ title: 'No id here', description: '', readonly: false, series: [] }),
+    });
+    expect(kept.status).toBe(200);
+    expect((await kept.json()).id).toBe(id);
+
+    const mismatched = await api(`/programs/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...document, id: id + 1 }),
+    });
+    expect(mismatched.status).toBe(400);
+    expect(await mismatched.json()).toEqual({ error: 'Program id in the document does not match the path' });
+  });
+
+  it('refuses to replace a shipped program, and 404s an unknown one', async () => {
+    const shipped = await api('/programs/40', { method: 'PUT', body: JSON.stringify(document) });
+    expect(shipped.status).toBe(409);
+    expect(await shipped.json()).toEqual({ error: 'Program is read-only and cannot be updated' });
+
+    expect((await api('/programs/999', { method: 'PUT', body: JSON.stringify(document) })).status).toBe(404);
+  });
+
+  it('refuses to replace the loaded program until something else is loaded (D-15)', async () => {
+    const { id } = await (await upload()).json();
+    await api(`/programs/${id}/load`, { method: 'POST' });
+
+    const refused = await api(`/programs/${id}`, { method: 'PUT', body: JSON.stringify({ ...document, id }) });
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ error: 'Program is loaded; unload it before updating' });
+
+    // There is no unload endpoint in v2: loading something else is the way out.
+    await api('/programs/40/load', { method: 'POST' });
+    expect((await api(`/programs/${id}`, { method: 'PUT', body: JSON.stringify({ ...document, id }) })).status).toBe(
+      200,
+    );
+  });
+
+  it('deletes an uploaded program and hides a shipped one behind the same 404', async () => {
+    const { id } = await (await upload()).json();
+
+    expect((await api(`/programs/${id}/delete`, { method: 'DELETE' })).status).toBe(200);
+    expect((await api(`/programs/${id}`)).status).toBe(404);
+    expect((await api(`/programs/${id}/delete`, { method: 'DELETE' })).status).toBe(404);
+
+    const shipped = await api('/programs/40/delete', { method: 'DELETE' });
+    expect(shipped.status).toBe(404);
+    expect((await api('/programs/40')).status).toBe(200);
+  });
+
+  it('unloads the loaded program when it is deleted, and says so', async () => {
+    const { id } = await (await upload()).json();
+    await api(`/programs/${id}/load`, { method: 'POST' });
+
+    const sse = await openSSE(server.port);
+    await flushIO();
+    expect(last(sse.payloads<StateUpdatePayload>('stateUpdate')).loadedProgramId).toBe(id);
+
+    await api(`/programs/${id}/delete`, { method: 'DELETE' });
+    await flushIO();
+    expect(last(sse.payloads<StateUpdatePayload>('stateUpdate')).loadedProgramId).toBeNull();
+
+    sse.close();
+  });
+
+  it('gates create, replace and delete on the admin token', async () => {
+    const { id } = await (await upload()).json();
+    const { token } = await (
+      await api('/admin-mode/enable', { method: 'POST', body: JSON.stringify({ password: 'range-2026' }) })
+    ).json();
+    const authorized = { Authorization: `Bearer ${token}` };
+
+    expect((await api('/programs', { method: 'POST', body: JSON.stringify(document) })).status).toBe(401);
+    expect((await api(`/programs/${id}`, { method: 'PUT', body: JSON.stringify({ ...document, id }) })).status).toBe(
+      401,
+    );
+    expect((await api(`/programs/${id}/delete`, { method: 'DELETE' })).status).toBe(401);
+
+    expect(
+      (await api('/programs', { method: 'POST', body: JSON.stringify(document), headers: authorized })).status,
+    ).toBe(201);
+    expect(
+      (await api(`/programs/${id}`, { method: 'PUT', body: JSON.stringify({ ...document, id }), headers: authorized }))
+        .status,
+    ).toBe(200);
+    expect((await api(`/programs/${id}/delete`, { method: 'DELETE', headers: authorized })).status).toBe(200);
+  });
+});
+
 describe('simulation on a fake clock', () => {
   let sse: SSEReader;
 
