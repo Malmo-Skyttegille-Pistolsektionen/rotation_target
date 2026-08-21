@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, resetDevice } from './device';
+import { expectProblem, openApp, resetDevice } from './device';
 
 /**
  * Listing only. QEMU emulates no I2S, so `POST /audios/{id}/play` would be
@@ -51,8 +51,12 @@ test('a shipped clip is refused a delete, not hidden behind a 404 (D-23)', async
   const shipped = audios.find((clip) => clip.readonly)!;
 
   const refused = await request.delete(`/api/v2/audios/${shipped.id}/delete`);
-  expect(refused.status()).toBe(409);
-  expect(((await refused.json()) as { error: string }).error).toContain('read-only');
+  await expectProblem(refused, {
+    type: '/problems/audio_readonly',
+    title: 'Audio is read-only',
+    status: 409,
+    detail: 'Audio is read-only and cannot be deleted',
+  });
 
   // Refused, not removed.
   const after = (await (await request.get('/api/v2/audios')).json()) as { audios: { id: number }[] };

@@ -1,6 +1,6 @@
 import type { APIRequestContext } from '@playwright/test';
 import { test, expect } from '@playwright/test';
-import { openApp, resetDevice, SHIPPED_PROGRAM_IDS } from './device';
+import { expectProblem, openApp, resetDevice, SHIPPED_PROGRAM_IDS } from './device';
 
 /**
  * The two things about program storage that only the real firmware can settle.
@@ -110,8 +110,12 @@ test('a shipped program is refused a delete, not hidden behind a 404 (D-23)', as
   // and not there. The Programs tab needs exactly that distinction to choose
   // between "offer upload-as-new" and "refresh the list".
   const refused = await request.delete(`${API}/programs/40/delete`);
-  expect(refused.status()).toBe(409);
-  expect(((await refused.json()) as { error: string }).error).toContain('read-only');
+  await expectProblem(refused, {
+    type: '/problems/program_readonly',
+    title: 'Program is read-only',
+    status: 409,
+    detail: 'Program is read-only and cannot be deleted',
+  });
 
   // Refused, not removed: it is still listed and still served in full.
   expect((await request.get(`${API}/programs/40`)).status()).toBe(200);

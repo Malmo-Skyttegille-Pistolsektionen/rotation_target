@@ -30,6 +30,7 @@
 #include "issue_buffer.h"
 #include "json_util.h"
 #include "net_mgr.h"
+#include "problem.h"
 #include "uri_path.h"
 #include "program_executor.h"
 #include "programs.h"
@@ -80,12 +81,13 @@ esp_err_t send_json(PsychicResponse *res, int code, const std::string &body) {
   return res->send(code, "application/json", body.c_str());
 }
 
-esp_err_t send_error(PsychicResponse *res, int code, const char *message) {
-  return send_json(res, code, rt::json_error(message));
-}
-
-esp_err_t send_error(PsychicResponse *res, int code, const std::string &message) {
-  return send_json(res, code, rt::json_error(message.c_str()));
+// Every failure answers an RFC 9457 problem detail (D-19). The status comes
+// from the type, so a `type` and the status it is served with can never drift
+// apart - which is what makes the per-operation type lists in
+// contracts/openapi.yaml exact.
+esp_err_t send_problem(PsychicResponse *res, const rt::ProblemType &type,
+                       const std::string &detail) {
+  return res->send(type.status, rt::kProblemContentType, rt::problem_json(type, detail).c_str());
 }
 
 esp_err_t send_message(PsychicResponse *res, const std::string &message) {
@@ -110,7 +112,7 @@ bool require_admin(PsychicRequest *req, PsychicResponse *res) {
   if (s_admin.authorize(authorization, cookie)) return true;
 
   ESP_LOGD(TAG, "Rejected %s %s", req->methodStr(), req->uri());
-  send_error(res, 401, "Invalid or missing admin credentials");
+  send_problem(res, rt::problem::kAdminCredentialsRequired, "Invalid or missing admin credentials");
   return false;
 }
 
@@ -186,12 +188,13 @@ void register_admin_mode_routes() {
   s_server.on("/api/v2/admin-mode/enable", HTTP_POST,
               [](PsychicRequest *req, PsychicResponse *res) {
                 if (s_admin.enabled()) {
-                  return send_error(res, 409,
-                                    "Admin mode is already enabled. Log in or disable it "
-                                    "before enabling again.");
+                  return send_problem(res, rt::problem::kAdminModeAlreadyEnabled,
+                                      "Admin mode is already enabled. Log in or disable it "
+                                      "before enabling again.");
                 }
                 const std::string token = s_admin.enable(password_from(req));
-                if (token.empty()) return send_error(res, 401, "Invalid password");
+                if (token.empty())
+                  return send_problem(res, rt::problem::kInvalidPassword, "Invalid password");
 
                 ESP_LOGI(TAG, "Admin mode enabled");
                 return send_admin_session(res, token);
@@ -199,10 +202,11 @@ void register_admin_mode_routes() {
 
   s_server.on("/api/v2/admin-mode/login", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
     if (!s_admin.enabled()) {
-      return send_error(res, 409, "Admin mode is not enabled. Enable it before logging in.");
+      return send_problem(res, rt::problem::kAdminModeNotEnabled,
+                          "Admin mode is not enabled. Enable it before logging in.");
     }
     const std::string token = s_admin.login(password_from(req));
-    if (token.empty()) return send_error(res, 401, "Invalid password");
+    if (token.empty()) return send_problem(res, rt::problem::kInvalidPassword, "Invalid password");
     return send_admin_session(res, token);
   });
 
@@ -247,21 +251,21 @@ void register_program_routes() {
 
     int32_t expected_id = 0;
     if (!body_program_id(req, expected_id)) {
-      return send_error(res, 400,
-                        "Expected a JSON body naming the program to start: {\"id\": <id>}");
+      return send_problem(res, rt::problem::kStartIdRequired,
+                          "Expected a JSON body naming the program to start: {\"id\": <id>}");
     }
 
     const executor::StartOutcome outcome = executor::start(expected_id);
     switch (outcome.result) {
       case rt::StartResult::kNotLoaded:
-        return send_error(res, 400, "No program loaded");
+        return send_problem(res, rt::problem::kNoProgramLoaded, "No program loaded");
       case rt::StartResult::kMismatch:
         // Both ids, because the operator has to know what the device actually
         // holds to decide what to do about it.
-        return send_error(res, 409,
-                          "Start refused: the device has program " +
-                              std::to_string(outcome.loaded_program_id) + " loaded, not program " +
-                              std::to_string(expected_id));
+        return send_problem(res, rt::problem::kStartProgramMismatch,
+                            "Start refused: the device has program " +
+                                std::to_string(outcome.loaded_program_id) +
+                                " loaded, not program " + std::to_string(expected_id));
       case rt::StartResult::kStarted:
         break;
     }
@@ -270,13 +274,15 @@ void register_program_routes() {
 
   s_server.on("/api/v2/programs/stop", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
     if (!require_admin(req, res)) return ESP_OK;
-    if (!executor::stop()) return send_error(res, 400, "Program not running");
+    if (!executor::stop())
+      return send_problem(res, rt::problem::kProgramNotRunning, "Program not running");
     return send_message(res, "Program paused");
   });
 
   s_server.on("/api/v2/programs/reset", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
     if (!require_admin(req, res)) return ESP_OK;
-    if (!executor::reset()) return send_error(res, 400, "No program loaded");
+    if (!executor::reset())
+      return send_problem(res, rt::problem::kNoProgramLoaded, "No program loaded");
     return send_message(res, "Program reset");
   });
 
@@ -289,7 +295,8 @@ void register_program_routes() {
     // caller asked for a state this already is - and publishes nothing,
     // because the payload would repeat the last one sent.
     if (executor::unload() == rt::UnloadResult::kRunning) {
-      return send_error(res, 409, "A program is running - stop it before unloading");
+      return send_problem(res, rt::problem::kProgramRunning,
+                          "A program is running - stop it before unloading");
     }
     return send_message(res, "Program unloaded");
   });
@@ -300,10 +307,11 @@ void register_program_routes() {
 
                 int32_t index = 0;
                 if (!path_id(req->uri(), "/api/v2/programs/series/", "/skip_to", index)) {
-                  return send_error(res, 404, "Not found");
+                  return send_problem(res, rt::problem::kRouteNotFound, "Not found");
                 }
                 if (!executor::skip_to_series(index)) {
-                  return send_error(res, 400, "No program loaded or series index out of bounds");
+                  return send_problem(res, rt::problem::kSeriesIndexInvalid,
+                                      "No program loaded or series index out of bounds");
                 }
                 return send_message(res, "Skipped to series " + std::to_string(index));
               });
@@ -325,13 +333,14 @@ void register_program_routes() {
 
     const char *body = req->body();
     const size_t length = static_cast<size_t>(req->contentLength());
-    if (body == nullptr || length == 0) return send_error(res, 400, "Invalid program");
+    if (body == nullptr || length == 0)
+      return send_problem(res, rt::problem::kProgramInvalid, "Invalid program");
 
     // contentLength, not strlen: a body carrying an embedded NUL would
     // otherwise be parsed as the prefix before it and rejected with a
     // misleading error.
     const int32_t id = programs::add_uploaded(body, length);
-    if (id < 0) return send_error(res, 400, "Invalid program");
+    if (id < 0) return send_problem(res, rt::problem::kProgramInvalid, "Invalid program");
 
     sse_hub::broadcast_library_changed(rt::library_kind::kProgram);
     return send_json(res, 201, "{\"id\":" + std::to_string(id) + "}");
@@ -340,10 +349,11 @@ void register_program_routes() {
   s_server.on("/api/v2/programs/*", HTTP_GET, [](PsychicRequest *req, PsychicResponse *res) {
     int32_t id = 0;
     if (!path_id(req->uri(), "/api/v2/programs/", "", id)) {
-      return send_error(res, 404, "Program not found");
+      return send_problem(res, rt::problem::kProgramNotFound, "Program not found");
     }
     const rt::Program *program = programs::get(id);
-    if (program == nullptr) return send_error(res, 404, "Program not found");
+    if (program == nullptr)
+      return send_problem(res, rt::problem::kProgramNotFound, "Program not found");
 
     return send_json(res, 200, rt::program_json(*program));
   });
@@ -355,14 +365,16 @@ void register_program_routes() {
 
     int32_t id = 0;
     if (!path_id(req->uri(), "/api/v2/programs/", "", id)) {
-      return send_error(res, 404, "Program not found");
+      return send_problem(res, rt::problem::kProgramNotFound, "Program not found");
     }
     const rt::Program *existing = programs::get(id);
-    if (existing == nullptr) return send_error(res, 404, "Program not found");
+    if (existing == nullptr)
+      return send_problem(res, rt::problem::kProgramNotFound, "Program not found");
     // Unlike DELETE, a shipped program is not disguised as a 404: it exists
     // and is fetchable, it just has no writable file behind it.
     if (existing->readonly) {
-      return send_error(res, 409, "Program is read-only and cannot be updated");
+      return send_problem(res, rt::problem::kProgramReadonly,
+                          "Program is read-only and cannot be updated");
     }
 
     // Refused while loaded rather than handled: ProgramState holds a bare
@@ -371,30 +383,35 @@ void register_program_routes() {
     // and beneath the indices already published over SSE. Making the client
     // unload first keeps that case out of existence.
     if (executor::is_loaded(id)) {
-      return send_error(res, 409, "Program is loaded; unload it before updating");
+      return send_problem(res, rt::problem::kProgramLoaded,
+                          "Program is loaded; unload it before updating");
     }
 
     const char *body = req->body();
     const size_t length = static_cast<size_t>(req->contentLength());
-    if (body == nullptr || length == 0) return send_error(res, 400, "Invalid program");
+    if (body == nullptr || length == 0)
+      return send_problem(res, rt::problem::kProgramInvalid, "Invalid program");
 
     switch (programs::update_uploaded(id, body, length)) {
       case programs::UpdateResult::kNotFound:
-        return send_error(res, 404, "Program not found");
+        return send_problem(res, rt::problem::kProgramNotFound, "Program not found");
       case programs::UpdateResult::kReadonly:
-        return send_error(res, 409, "Program is read-only and cannot be updated");
+        return send_problem(res, rt::problem::kProgramReadonly,
+                            "Program is read-only and cannot be updated");
       case programs::UpdateResult::kIdMismatch:
-        return send_error(res, 400, "Program id in the document does not match the path");
+        return send_problem(res, rt::problem::kProgramIdMismatch,
+                            "Program id in the document does not match the path");
       case programs::UpdateResult::kInvalid:
-        return send_error(res, 400, "Invalid program");
+        return send_problem(res, rt::problem::kProgramInvalid, "Invalid program");
       case programs::UpdateResult::kWriteFailed:
-        return send_error(res, 500, "Could not store program");
+        return send_problem(res, rt::problem::kProgramStoreFailed, "Could not store program");
       case programs::UpdateResult::kOk:
         break;
     }
 
     const rt::Program *stored = programs::get(id);
-    if (stored == nullptr) return send_error(res, 500, "Could not store program");
+    if (stored == nullptr)
+      return send_problem(res, rt::problem::kProgramStoreFailed, "Could not store program");
 
     sse_hub::broadcast_library_changed(rt::library_kind::kProgram);
     return send_json(res, 200, rt::program_json(*stored));
@@ -405,9 +422,10 @@ void register_program_routes() {
 
     int32_t id = 0;
     if (!path_id(req->uri(), "/api/v2/programs/", "/load", id)) {
-      return send_error(res, 404, "Not found");
+      return send_problem(res, rt::problem::kRouteNotFound, "Not found");
     }
-    if (!executor::load(id)) return send_error(res, 404, "Program not found");
+    if (!executor::load(id))
+      return send_problem(res, rt::problem::kProgramNotFound, "Program not found");
     return send_message(res, "Program loaded");
   });
 
@@ -416,7 +434,7 @@ void register_program_routes() {
 
     int32_t id = 0;
     if (!path_id(req->uri(), "/api/v2/programs/", "/delete", id)) {
-      return send_error(res, 404, "Not found");
+      return send_problem(res, rt::problem::kRouteNotFound, "Not found");
     }
     // Deletability first, THEN unload. programs::remove refuses shipped
     // (read-only) programs, so unloading first meant a DELETE against a
@@ -429,15 +447,18 @@ void register_program_routes() {
     // tell "gone" from "never deletable", with nothing gained: there is no
     // secret in an id every GET already publishes.
     const rt::Program *program = programs::get(id);
-    if (program == nullptr) return send_error(res, 404, "Program not found");
+    if (program == nullptr)
+      return send_problem(res, rt::problem::kProgramNotFound, "Program not found");
     if (program->readonly) {
-      return send_error(res, 409, "Program is read-only and cannot be deleted");
+      return send_problem(res, rt::problem::kProgramReadonly,
+                          "Program is read-only and cannot be deleted");
     }
 
     // Only now: dropping the program while the run loop holds a pointer to it
     // would dangle, and the client needs the stateUpdate either way.
     executor::unload_if_loaded(id);
-    if (!programs::remove(id)) return send_error(res, 404, "Program not found");
+    if (!programs::remove(id))
+      return send_problem(res, rt::problem::kProgramNotFound, "Program not found");
 
     sse_hub::broadcast_library_changed(rt::library_kind::kProgram);
     return send_message(res, "Program deleted successfully");
@@ -587,10 +608,10 @@ void register_audio_routes() {
 
     int32_t id = 0;
     if (!path_id(req->uri(), "/api/v2/audios/", "/play", id)) {
-      return send_error(res, 404, "Not found");
+      return send_problem(res, rt::problem::kRouteNotFound, "Not found");
     }
     const audios::Audio *clip = audios::get(id);
-    if (clip == nullptr) return send_error(res, 404, "Audio not found");
+    if (clip == nullptr) return send_problem(res, rt::problem::kAudioNotFound, "Audio not found");
 
     // Acknowledged immediately and played in the background: holding the
     // response open for the length of the clip blocked the client for its
@@ -605,7 +626,7 @@ void register_audio_routes() {
 
     int32_t id = 0;
     if (!path_id(req->uri(), "/api/v2/audios/", "/delete", id)) {
-      return send_error(res, 404, "Not found");
+      return send_problem(res, rt::problem::kRouteNotFound, "Not found");
     }
 
     // A clip that matters to a run must not disappear from under it: a spoken
@@ -621,25 +642,28 @@ void register_audio_routes() {
     // tells the user deleting it needs the program unloaded, not just paused.
     // Read-only ahead of both because it is the reason that never lifts.
     const audios::Audio *clip = audios::get(id);
-    if (clip == nullptr) return send_error(res, 404, "Audio not found");
+    if (clip == nullptr) return send_problem(res, rt::problem::kAudioNotFound, "Audio not found");
     if (clip->readonly) {
-      return send_error(res, 409, "Audio is read-only and cannot be deleted");
+      return send_problem(res, rt::problem::kAudioReadonly,
+                          "Audio is read-only and cannot be deleted");
     }
 
     // Not only while running: stop() is a pause, so a clip removed between two
     // runs would be missing when the loaded program is resumed.
     if (executor::loaded_program_uses_audio(id)) {
-      return send_error(res, 409, "Audio is used by the loaded program - unload the program first");
+      return send_problem(res, rt::problem::kAudioInUse,
+                          "Audio is used by the loaded program - unload the program first");
     }
     if (executor::is_running()) {
-      return send_error(res, 409, "A program is running - stop it before deleting audio");
+      return send_problem(res, rt::problem::kProgramRunning,
+                          "A program is running - stop it before deleting audio");
     }
 
     switch (audios::remove(id)) {
       case audios::RemoveResult::kNotFound:
-        return send_error(res, 404, "Audio not found");
+        return send_problem(res, rt::problem::kAudioNotFound, "Audio not found");
       case audios::RemoveResult::kPlaying:
-        return send_error(res, 409, "Audio is currently playing");
+        return send_problem(res, rt::problem::kAudioPlaying, "Audio is currently playing");
       case audios::RemoveResult::kOk:
         break;
     }
@@ -726,20 +750,20 @@ void register_audio_routes() {
       bool armed = true;
     } staged;
 
-    if (!uploaded) return send_error(res, 400, "No file uploaded");
+    if (!uploaded) return send_problem(res, rt::problem::kUploadMissingFile, "No file uploaded");
 
     PsychicWebParameter *title = req->hasParam("title") ? req->getParam("title", false) : nullptr;
     if (title == nullptr || title->value() == nullptr || *title->value() == '\0') {
-      return send_error(res, 400, "Missing title");
+      return send_problem(res, rt::problem::kUploadMissingTitle, "Missing title");
     }
 
     rt::WavInfo info;
     if (!audio::probe_wav(kStagedUploadPath, info)) {
-      return send_error(res, 400, "Unsupported audio format");
+      return send_problem(res, rt::problem::kAudioFormatUnsupported, "Unsupported audio format");
     }
 
     const int32_t id = audios::add_uploaded(title->value(), kStagedUploadPath);
-    if (id < 0) return send_error(res, 500, "Failed to add audio");
+    if (id < 0) return send_problem(res, rt::problem::kAudioStoreFailed, "Failed to add audio");
 
     // add_uploaded renamed the staged file into place; nothing left to clean.
     staged.armed = false;
@@ -888,7 +912,7 @@ bool start() {
       return index.send();
     }
 
-    return send_error(res, 404, "Not found");
+    return send_problem(res, rt::problem::kRouteNotFound, "Not found");
   });
 
   register_static_routes();

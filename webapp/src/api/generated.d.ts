@@ -598,9 +598,43 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** @description The shape every handler uses for a failure. The one exception is a request body over the size ceiling, rejected by the HTTP layer with a `text/html` body. */
-        Error: {
-            error: string;
+        /**
+         * @description An RFC 9457 problem detail — the shape every handler uses for a
+         *     failure, served as `application/problem+json` (D-19). The one
+         *     exception is a request body over the size ceiling, rejected by the
+         *     HTTP layer with a `text/html` body.
+         *
+         *     RFC 9457 permits extension members; this device emits none, which is
+         *     what `additionalProperties: false` records.
+         */
+        Problem: {
+            /**
+             * Format: uri-reference
+             * @description The problem type — **the member to branch on**. A stable relative
+             *     URI that is never dereferenced.
+             *
+             *     The enum is the whole vocabulary. It is open in practice: a client
+             *     must fall back to `status` and `detail` for a value it does not
+             *     recognise, because new types are additive and a client may be
+             *     older than the firmware it is talking to.
+             *
+             *     `/problems/program_invalid` is deliberately the same slug as the
+             *     `program_invalid` `backend_issue` code in `asyncapi.yaml`.
+             * @enum {string}
+             */
+            type: "/problems/admin_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/admin_mode_already_enabled" | "/problems/admin_mode_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/start_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed";
+            /**
+             * @description A short summary of the type, identical for every occurrence of it. Not for display — it does not describe this occurrence.
+             * @example Program is read-only
+             */
+            title: string;
+            /** @description The HTTP status, repeated in the body. One status per `type`, always, and always the status on the response line. */
+            status: number;
+            /**
+             * @description What went wrong on this occurrence. This is the string to show a user, and the only member whose wording may change without a contract change — never branch on it.
+             * @example Program is read-only and cannot be deleted
+             */
+            detail: string;
         };
         /** @description The shape every handler uses for a plain success. */
         Message: {
@@ -770,13 +804,16 @@ export interface components {
         };
     };
     responses: {
-        /** @description Admin mode is on and no valid token was presented (`Invalid or missing admin credentials`). */
+        /**
+         * @description - `/problems/admin_credentials_required` — admin mode is on and no
+         *       valid token was presented.
+         */
         Unauthorized: {
             headers: {
                 [name: string]: unknown;
             };
             content: {
-                "application/json": components["schemas"]["Error"];
+                "application/problem+json": components["schemas"]["Problem"];
             };
         };
         /** @description A session token, also set as a cookie. */
@@ -882,22 +919,28 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["AdminSession"];
-            /** @description The password was empty or the body carried none (`Invalid password`). */
+            /**
+             * @description - `/problems/invalid_password` — the password was empty, or the
+             *       body carried none.
+             */
             401: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Admin mode is already enabled. */
+            /**
+             * @description - `/problems/admin_mode_already_enabled` — log in or disable it
+             *       first.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -916,22 +959,25 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["AdminSession"];
-            /** @description Wrong password (`Invalid password`). */
+            /** @description - `/problems/invalid_password` — wrong password. */
             401: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Admin mode is not enabled, so there is nothing to log in to. */
+            /**
+             * @description - `/problems/admin_mode_not_enabled` — there is nothing to log in
+             *       to.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -1022,13 +1068,16 @@ export interface operations {
                     "application/json": components["schemas"]["CreatedId"];
                 };
             };
-            /** @description Empty body, malformed JSON, or a non-object root (`Invalid program`). */
+            /**
+             * @description - `/problems/program_invalid` — empty body, malformed JSON, or a
+             *       non-object root.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             401: components["responses"]["Unauthorized"];
@@ -1055,13 +1104,16 @@ export interface operations {
                     "application/json": components["schemas"]["Program"];
                 };
             };
-            /** @description No such program, or a path segment that is not a plain decimal integer (`Program not found`). */
+            /**
+             * @description - `/problems/program_not_found` — no such program, or a path
+             *       segment that is not a plain decimal integer.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -1092,41 +1144,62 @@ export interface operations {
                     "application/json": components["schemas"]["Program"];
                 };
             };
-            /** @description Empty body, malformed JSON, a non-object root (`Invalid program`), or a body declaring a different id (`Program id in the document does not match the path`). */
+            /**
+             * @description - `/problems/program_invalid` — empty body, malformed JSON, or a
+             *       non-object root.
+             *     - `/problems/program_id_mismatch` — the body declares a different
+             *       id from the path.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             401: components["responses"]["Unauthorized"];
-            /** @description No such program, or a path segment that is not a plain decimal integer (`Program not found`). */
+            /**
+             * @description - `/problems/program_not_found` — no such program, or a path
+             *       segment that is not a plain decimal integer.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description The program is shipped with the firmware and has no writable file behind it (`Program is read-only and cannot be updated`), or it is the loaded program (`Program is loaded; unload it before updating`). */
+            /**
+             * @description - `/problems/program_readonly` — the program is shipped with the
+             *       firmware and has no writable file behind it. Upload the document
+             *       as a new program instead.
+             *     - `/problems/program_loaded` — it is the loaded program.
+             *       `POST /programs/unload` first.
+             *
+             *     The same status for two refusals a client must answer differently
+             *     is why `type` exists (D-19): the wording of `detail` is not a
+             *     discriminator.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description The replacement could not be written to flash (`Could not store program`). The previous document is left intact. */
+            /**
+             * @description - `/problems/program_store_failed` — the replacement could not be
+             *       written to flash. The previous document is left intact.
+             */
             500: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -1153,13 +1226,16 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            /** @description No such program (`Program not found`), or a malformed path (`Not found`). */
+            /**
+             * @description - `/problems/program_not_found` — no such program.
+             *     - `/problems/route_not_found` — the path did not parse.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -1186,22 +1262,29 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            /** @description No such program (`Program not found`), or a malformed path (`Not found`). */
+            /**
+             * @description - `/problems/program_not_found` — no such program.
+             *     - `/problems/route_not_found` — the path did not parse.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description The program is shipped with the firmware and has no writable file behind it (`Program is read-only and cannot be deleted`). */
+            /**
+             * @description - `/problems/program_readonly` — the program is shipped with the
+             *       firmware and has no writable file behind it. The same type
+             *       `PUT /programs/{id}` answers for the same program.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -1228,23 +1311,37 @@ export interface operations {
                     "application/json": components["schemas"]["Message"];
                 };
             };
-            /** @description No body, unparseable JSON or no integer `id` (`Expected a JSON body naming the program to start: {"id": <id>}`); or nothing is loaded, or the loaded program has no series at the current index (`No program loaded`). "Nothing is loaded" outranks the id check: it is the more precise diagnosis, and it is what a client that has to load something first needs to hear. */
+            /**
+             * @description - `/problems/no_program_loaded` — nothing is loaded, or the loaded
+             *       program has no series at the current index.
+             *     - `/problems/start_id_required` — no body, unparseable JSON, or no
+             *       integer `id`.
+             *
+             *     "Nothing is loaded" outranks the id check: it is the more precise
+             *     diagnosis, and it is what a client that has to load something first
+             *     needs to hear.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             401: components["responses"]["Unauthorized"];
-            /** @description A different program is loaded (`Start refused: the device has program <loaded> loaded, not program <requested>`). Both ids are named, because the operator needs to know what the device actually holds to decide what to do about it. The run state is untouched and no `stateUpdate` is published. */
+            /**
+             * @description - `/problems/start_program_mismatch` — a different program is
+             *       loaded. `detail` names both ids, because the operator needs to
+             *       know what the device actually holds to decide what to do about
+             *       it. The run state is untouched and no `stateUpdate` is published.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -1267,13 +1364,13 @@ export interface operations {
                     "application/json": components["schemas"]["Message"];
                 };
             };
-            /** @description Nothing is running (`Program not running`). */
+            /** @description - `/problems/program_not_running` — nothing is running. */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             401: components["responses"]["Unauthorized"];
@@ -1297,13 +1394,13 @@ export interface operations {
                     "application/json": components["schemas"]["Message"];
                 };
             };
-            /** @description Nothing is loaded (`No program loaded`). */
+            /** @description - `/problems/no_program_loaded` — nothing is loaded. */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             401: components["responses"]["Unauthorized"];
@@ -1328,13 +1425,16 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            /** @description A run is in progress (`A program is running - stop it before unloading`). */
+            /**
+             * @description - `/problems/program_running` — a run is in progress. `stop` first;
+             *       it is a pause, so the refusal lifts with it.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -1360,23 +1460,30 @@ export interface operations {
                     "application/json": components["schemas"]["Message"];
                 };
             };
-            /** @description Nothing is loaded, or the index is outside the loaded program (`No program loaded or series index out of bounds`). */
+            /**
+             * @description - `/problems/series_index_invalid` — nothing is loaded, or the
+             *       index is outside the loaded program. The firmware does not
+             *       distinguish the two.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             401: components["responses"]["Unauthorized"];
-            /** @description The path segment is not a plain decimal integer (`Not found`). */
+            /**
+             * @description - `/problems/route_not_found` — the path segment is not a plain
+             *       decimal integer.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -1495,31 +1602,34 @@ export interface operations {
                 };
             };
             /**
-             * @description One of:
-             *
-             *     - `No file uploaded` — no file part arrived
-             *     - `Missing title` — the `title` field is absent or empty
-             *     - `Unsupported audio format` — not a playable PCM 16-bit WAV
+             * @description - `/problems/upload_missing_file` — no file part arrived.
+             *     - `/problems/upload_missing_title` — the `title` field is absent
+             *       or empty.
+             *     - `/problems/audio_format_unsupported` — not a playable PCM 16-bit
+             *       WAV.
              *
              *     A body over the 1 MiB ceiling is also answered `400`, but with a
-             *     `text/html` body rather than this shape.
+             *     `text/html` body rather than a problem detail.
              */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             401: components["responses"]["Unauthorized"];
-            /** @description The clip could not be moved into place or indexed (`Failed to add audio`). */
+            /**
+             * @description - `/problems/audio_store_failed` — the clip could not be moved
+             *       into place or indexed.
+             */
             500: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -1551,13 +1661,16 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            /** @description No such clip (`Audio not found`), or a malformed path (`Not found`). */
+            /**
+             * @description - `/problems/audio_not_found` — no such clip.
+             *     - `/problems/route_not_found` — the path did not parse.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -1584,29 +1697,34 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            /** @description No such clip (`Audio not found`), or a malformed path (`Not found`). */
+            /**
+             * @description - `/problems/audio_not_found` — no such clip.
+             *     - `/problems/route_not_found` — the path did not parse.
+             */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /**
-             * @description The clip is shipped, or it still matters to a run:
+             * @description The clip is shipped, or it still matters to a run. Four types
+             *     under one status, in the order the firmware checks them:
              *
-             *     - `Audio is read-only and cannot be deleted` — shipped with the
-             *       firmware, so there is no file of ours to remove. Checked first:
-             *       it is the only one of these reasons that never lifts.
-             *     - `Audio is used by the loaded program - unload the program first`
-             *       — an event of the loaded program plays it. Refused whether or not
-             *       a run is in progress: `stop` is a pause, so a clip deleted
-             *       between two runs would be missing when the program resumes.
-             *       "Unload" is `POST /programs/unload`.
-             *     - `A program is running - stop it before deleting audio` — a run is
-             *       in progress. Refused for every clip, referenced or not.
-             *     - `Audio is currently playing` — the audio task is reading the file
+             *     - `/problems/audio_readonly` — shipped with the firmware, so there
+             *       is no file of ours to remove. Checked first: it is the only one
+             *       of these reasons that never lifts.
+             *     - `/problems/audio_in_use` — an event of the loaded program plays
+             *       it. Refused whether or not a run is in progress: `stop` is a
+             *       pause, so a clip deleted between two runs would be missing when
+             *       the program resumes. "Unload" is `POST /programs/unload`.
+             *     - `/problems/program_running` — a run is in progress. Refused for
+             *       every clip, referenced or not. The same type
+             *       `POST /programs/unload` answers, because it is the same
+             *       condition.
+             *     - `/problems/audio_playing` — the audio task is reading the file
              *       right now. LittleFS has no unlink-while-open, so removing it
              *       would corrupt the read.
              */
@@ -1615,7 +1733,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
