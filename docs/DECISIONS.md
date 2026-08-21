@@ -654,7 +654,7 @@ not touch the device. *Reinstating the four v1 events* (option 3) — see above.
 *Per-item deltas* — a second serialization of the program document to keep in
 step with `GET /programs`, for a list that is seven entries long.
 
-## D-24 — Boot-time issues are served, not streamed *(Decided 2026-08-21)*
+## D-25 — Boot-time issues are served, not streamed *(Decided 2026-08-21)*
 
 **Decision:** `GET /api/v2/diagnostics/info` gains `startupIssues`, an array of
 the `backend_issue` payloads raised before the HTTP server existed — same
