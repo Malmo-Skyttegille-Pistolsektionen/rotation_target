@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import { useProgramsApi } from '../api/programs';
@@ -14,11 +14,45 @@ export const Route = createFileRoute('/run')({
   component: RunView,
 });
 
-const PROGRAM_CHANGED_NOTICE =
-  'Start cancelled: the device loaded a different program during the countdown. Check the program and start again.';
+const CONTACT_LOST_NOTICE =
+  'Start cancelled: lost contact with the device during the countdown. Check the connection and start again.';
+
+function cancelledNotice(deviceProgramId: number | null): string {
+  return deviceProgramId === null
+    ? 'Start cancelled: the device unloaded the program during the countdown. Load one and start again.'
+    : `Start cancelled: the device loaded program ${deviceProgramId} during the countdown. Check the program and start again.`;
+}
 
 function programTitle(programs: ProgramSummary[] | undefined, id: number): string {
   return programs?.find((program) => program.id === id)?.title ?? `program ${id}`;
+}
+
+/**
+ * May the start go out, for the program it was decided for?
+ *
+ * Read from the query cache rather than from a render's props: react-query
+ * defers subscriber notification through `notifyManager`, so a `stateUpdate`
+ * arriving in the last milliseconds of a countdown is already written to the
+ * cache while the component still renders the previous one - and a due timer
+ * wins that race. `useSSE` writes both of these keys synchronously.
+ *
+ * Module scope, so the countdown effect can call it without depending on it.
+ */
+function refuseStart(queryClient: QueryClient, expectedProgramId: number | null): string | null {
+  const latest = queryClient.getQueryData<StateUpdatePayload | null>(['state']);
+  const deviceProgramId = latest?.loadedProgramId ?? null;
+
+  if (deviceProgramId !== expectedProgramId) {
+    return cancelledNotice(deviceProgramId);
+  }
+
+  // A dropped stream means the last state we hold may be minutes old, and the
+  // reconnect backoff is longer than a short start delay.
+  if (queryClient.getQueryData<string>(['sse-status']) !== 'connected') {
+    return CONTACT_LOST_NOTICE;
+  }
+
+  return null;
 }
 
 /** Exported for the unit tests; the route renders it through `Route`. */
@@ -28,15 +62,19 @@ export function RunView(): React.ReactNode {
   // The program the device had loaded when Start was pressed. Non-null only
   // while a countdown is running.
   const [armedProgramId, setArmedProgramId] = useState<number | null>(null);
-  // The pick the operator made, until the device's own stateUpdate confirms
-  // it. Until then the device still holds the previous program.
-  const [pendingProgramId, setPendingProgramId] = useState<number | null>(null);
+  // The pick the operator made, together with the program the device held when
+  // they made it. Both are needed to recognise the answer: requiring an exact
+  // match on the pick wedges Start off whenever two stateUpdates coalesce and
+  // the picked id is never observed on its own, and requiring a *change* wedges
+  // it when the pick is the program already loaded.
+  const [pendingLoad, setPendingLoad] = useState<{ id: number; previousProgramId: number | null } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const { settings } = useSettings();
   const { adminModeEnabled } = useAdminStatus();
   const { adminToken } = useSettings();
   const { startDelaySeconds } = settings;
   const programsApi = useProgramsApi();
+  const queryClient = useQueryClient();
 
   // Check if user can control (admin mode off OR authenticated)
   const isAdminAuthenticated = adminModeEnabled && adminToken !== null;
@@ -74,7 +112,7 @@ export function RunView(): React.ReactNode {
     onError: (error: Error, id: number) => {
       // Without this Start stays disabled forever, waiting for a confirmation
       // the device is never going to send.
-      setPendingProgramId(null);
+      setPendingLoad(null);
       setNotice(`Could not load ${programTitle(programs, id)}: ${error.message}`);
     },
   });
@@ -87,9 +125,16 @@ export function RunView(): React.ReactNode {
   // the operator is looking at are settled here, during render, so no state
   // survives the drift.
 
-  // The pick has arrived: the select and the device agree again.
-  if (pendingProgramId !== null && pendingProgramId === loadedProgramId) {
-    setPendingProgramId(null);
+  // The load has been answered. Anything other than what the device held when
+  // the pick was made counts, not the picked id specifically - two coalesced
+  // stateUpdates never show the picked id on its own. The second clause is for
+  // re-picking the program already loaded, where "something else" never comes.
+  if (
+    pendingLoad !== null &&
+    !loadMutation.isPending &&
+    (loadedProgramId !== pendingLoad.previousProgramId || loadedProgramId === pendingLoad.id)
+  ) {
+    setPendingLoad(null);
   }
 
   // The device switched program while the countdown was running - another tab,
@@ -98,12 +143,12 @@ export function RunView(): React.ReactNode {
   if (armedProgramId !== null && armedProgramId !== loadedProgramId) {
     setCountdown(null);
     setArmedProgramId(null);
-    setNotice(PROGRAM_CHANGED_NOTICE);
+    setNotice(cancelledNotice(loadedProgramId));
   }
 
   // Start and Reset act on the device's loaded program, so they are offered
   // only once the device has confirmed which one that is.
-  const programConfirmed = loadedProgramId != null && pendingProgramId === null;
+  const programConfirmed = loadedProgramId != null && pendingLoad === null;
 
   const skipToSeriesMutation = useMutation({
     mutationFn: programsApi.skipToSeries,
@@ -132,7 +177,7 @@ export function RunView(): React.ReactNode {
     const id = Number(e.target.value);
     if (id) {
       setNotice(null);
-      setPendingProgramId(id);
+      setPendingLoad({ id, previousProgramId: loadedProgramId });
       loadMutation.mutate(id);
     }
   };
@@ -149,6 +194,15 @@ export function RunView(): React.ReactNode {
     setArmedProgramId(null);
   };
 
+  const startIfDeviceAgrees = (expectedProgramId: number | null): void => {
+    const refusal = refuseStart(queryClient, expectedProgramId);
+    if (refusal !== null) {
+      setNotice(refusal);
+      return;
+    }
+    startProgram();
+  };
+
   const handleStart = (): void => {
     if (!programConfirmed) return;
     setNotice(null);
@@ -157,7 +211,7 @@ export function RunView(): React.ReactNode {
       setArmedProgramId(loadedProgramId);
       setCountdown(startDelaySeconds);
     } else {
-      startProgram();
+      startIfDeviceAgrees(loadedProgramId);
     }
   };
 
@@ -165,7 +219,7 @@ export function RunView(): React.ReactNode {
 
   const handleStartNow = (): void => {
     closeCountdown();
-    startProgram();
+    startIfDeviceAgrees(armedProgramId);
   };
 
   const handlePause = (): void => stopMutation.mutate();
@@ -185,11 +239,17 @@ export function RunView(): React.ReactNode {
       }
       setCountdown(null);
       setArmedProgramId(null);
+
+      const refusal = refuseStart(queryClient, armedProgramId);
+      if (refusal !== null) {
+        setNotice(refusal);
+        return;
+      }
       startProgram();
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [countdown, startProgram]);
+  }, [countdown, armedProgramId, queryClient, startProgram]);
 
   return (
     <div className={styles.container}>
@@ -239,7 +299,7 @@ export function RunView(): React.ReactNode {
                 <select
                   className={styles.select}
                   data-testid='run-program-select'
-                  value={pendingProgramId ?? loadedProgramId ?? ''}
+                  value={pendingLoad?.id ?? loadedProgramId ?? ''}
                   onChange={handleProgramChange}
                   disabled={loadMutation.isPending}
                 >

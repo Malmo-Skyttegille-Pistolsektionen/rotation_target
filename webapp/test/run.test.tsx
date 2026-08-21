@@ -63,15 +63,32 @@ function renderRun(): void {
  * falls back to `setTimeout(0)` in this environment, so a zero-length advance
  * lets a render through without moving the countdown.
  */
+function deliverFrames(): void {
+  while (deliveredFrames < stream.frames.length) {
+    const frame = stream.frames[deliveredFrames++];
+    FakeEventSource.latest.emit(frame.event, frame.data);
+  }
+}
+
 async function pump(): Promise<void> {
   await act(async () => {
     if (vi.isFakeTimers()) vi.advanceTimersByTime(0);
     await new Promise((resolve) => setImmediate(resolve));
-    while (deliveredFrames < stream.frames.length) {
-      const frame = stream.frames[deliveredFrames++];
-      FakeEventSource.latest.emit(frame.event, frame.data);
-    }
+    deliverFrames();
   });
+}
+
+/**
+ * Wait for the device to broadcast, *without* handing the frame on. Lets a
+ * test choose the exact task the app learns about it in.
+ */
+async function awaitBroadcast(): Promise<void> {
+  const seen = stream.frames.length;
+  const deadline = Date.now() + 3000;
+  while (stream.frames.length === seen) {
+    await new Promise((resolve) => setImmediate(resolve));
+    if (Date.now() >= deadline) throw new Error('the device never broadcast');
+  }
 }
 
 /** Pump until the device and the app agree with `condition`. */
@@ -293,23 +310,109 @@ describe('#70: the loaded program changes while the start-delay countdown runs',
     expect(startNotice()).toContain('cancelled');
   });
 
-  it('keeps counting down when the device reports a change other than the program', async () => {
+  it('counts all the way down through stateUpdates that leave the program alone', async () => {
     await ready();
     await selectProgram(FALT.id);
 
     fakeCountdownTimer();
     await pressStart();
 
-    // Toggling targets is a stateUpdate carrying the same loadedProgramId. It
-    // must not abort the countdown - only a program switch does.
-    await requestElsewhere(PORT, 'POST', '/api/v2/targets/toggle');
-    await until(() => screen.getByTestId('run-target-status').textContent === 'shown', 'the targets to show');
+    // Toggling targets is a stateUpdate carrying the same loadedProgramId: it
+    // must neither cancel the countdown nor restart its one-second timer. One
+    // between every pair of ticks is the shape that used to hang the modal
+    // forever, back when the effect depended on the react-query mutation
+    // object and so re-ran - clearing the pending timeout - on every render.
+    // A stateUpdate every 700 ms of device time, for twice as long as the
+    // countdown lasts. The interval is the point: a timer that restarts on
+    // each one gets a fresh full second every 700 ms and so never completes,
+    // and the modal hangs on the same number for ever.
+    const STEP_MS = 700;
+    const steps = Math.ceil((2 * START_DELAY_SECONDS * 1000) / STEP_MS);
+    for (let step = 0; step < steps && startedProgramId() === null; step++) {
+      const before = screen.getByTestId('run-target-status').textContent;
+      await requestElsewhere(PORT, 'POST', '/api/v2/targets/toggle');
+      await until(() => screen.getByTestId('run-target-status').textContent !== before, 'the targets to flip');
+
+      await act(async () => {
+        vi.advanceTimersByTime(STEP_MS);
+      });
+    }
+
+    await until(() => startedProgramId() !== null, 'the device to report the program running');
+    expect(startedProgramId()).toBe(FALT.id);
+  });
+});
+
+describe('#70: the last instant of the countdown', () => {
+  it('does not start when the switch and the due timer land in the same task', async () => {
+    await ready();
+    await selectProgram(FALT.id);
+
+    fakeCountdownTimer();
+    await pressStart();
+
+    // Down to the final second, device still on 40.
+    for (let second = 1; second < START_DELAY_SECONDS; second++) {
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+    }
     expect(screen.getByText('Starting in...')).toBeTruthy();
 
-    await runCountdownOut();
-    await until(() => startedProgramId() !== null, 'the device to report the program running');
+    // The switch arrives, and the last tick comes due before React has been
+    // re-rendered with it: react-query defers subscriber notification through
+    // `notifyManager`, so the render-phase cancel has not run yet. The timer
+    // callback therefore closes over a state that is already out of date -
+    // which is why the start is decided against the cache, not the closure.
+    await requestElsewhere(PORT, 'POST', `/api/v2/programs/${MILITARY.id}/load`);
+    await awaitBroadcast();
+    await act(async () => {
+      deliverFrames();
+      vi.advanceTimersByTime(1000);
+    });
+    await quiesce();
 
-    expect(startedProgramId()).toBe(FALT.id);
+    expect(startedProgramId()).toBeNull();
+    expect(startNotice()).toContain('cancelled');
+  });
+
+  it('does not start on state it can no longer trust, when the stream dropped', async () => {
+    await ready();
+    await selectProgram(FALT.id);
+
+    fakeCountdownTimer();
+    await pressStart();
+
+    // `useSSE` parks 'error' and waits five seconds before reconnecting -
+    // longer than a short start delay, so whatever we last heard may well be
+    // out of date by the time the countdown expires.
+    await act(async () => {
+      FakeEventSource.latest.error();
+    });
+
+    await runCountdownOut();
+    await quiesce();
+
+    expect(startedProgramId()).toBeNull();
+    expect(startNotice()).toContain('lost contact');
+  });
+
+  it('says the program was unloaded, not swapped, when the device ends up holding none', async () => {
+    await ready();
+    await selectProgram(UPLOADED.id);
+
+    fakeCountdownTimer();
+    await pressStart();
+
+    // Deleting the loaded program unloads it, and the device publishes that.
+    await requestElsewhere(PORT, 'DELETE', `/api/v2/programs/${UPLOADED.id}/delete`);
+    await until(() => shownProgramId() === '-', 'the device to report nothing loaded');
+
+    await runCountdownOut();
+    await quiesce();
+
+    expect(startedProgramId()).toBeNull();
+    expect(startNotice()).toContain('unloaded');
   });
 });
 
@@ -331,6 +434,49 @@ describe('#70: the window between picking a program and the device confirming it
 
     await until(() => shownProgramId() === String(FALT.id), 'the device to confirm program 40');
     expect(startButton().disabled).toBe(false);
+  });
+
+  it('releases Start when the answer arrives coalesced with a later switch', async () => {
+    await ready();
+    await selectProgram(MILITARY.id);
+
+    await act(async () => {
+      fireEvent.change(programSelect(), { target: { value: String(FALT.id) } });
+    });
+    expect(startButton().disabled).toBe(true);
+
+    // The device loads 40, then another client loads 140 - and both frames
+    // reach the app in one task, so it never renders with 40 loaded. Waiting
+    // for the picked id to show up exactly would wedge Start off for good.
+    await awaitBroadcast();
+    await requestElsewhere(PORT, 'POST', `/api/v2/programs/${UPLOADED.id}/load`);
+    await awaitBroadcast();
+    await act(async () => {
+      deliverFrames();
+    });
+    await quiesce();
+
+    expect(shownProgramId()).toBe(String(UPLOADED.id));
+    expect(programSelect().value).toBe(String(UPLOADED.id));
+    expect(startButton().disabled).toBe(false);
+  });
+
+  it('releases Start when the pick is the program already loaded', async () => {
+    await ready();
+    await selectProgram(FALT.id);
+
+    // Picking the loaded program again still fires a change event - React
+    // routes every `change` on a `<select>` to onChange, whether or not the
+    // value moved, so the device answers with the id it already had. Waiting
+    // for it to report something *different* holds Start off for ever, which
+    // is what QEMU caught: the E2E spec re-selects the loaded program.
+    await act(async () => {
+      fireEvent.change(programSelect(), { target: { value: String(FALT.id) } });
+    });
+    await until(() => !startButton().disabled, 'Start to come back');
+
+    expect(shownProgramId()).toBe(String(FALT.id));
+    expect(programSelect().value).toBe(String(FALT.id));
   });
 
   it('releases Start again, with the reason, when the device refuses the load', async () => {
