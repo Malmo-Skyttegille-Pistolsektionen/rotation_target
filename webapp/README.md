@@ -33,8 +33,8 @@ The web app has the following main features:
     - List the programs on the device, shipped and uploaded.
     - Load a program, upload one from a file, replace one, delete one.
     - Inspect a program's timeline and download its JSON.
-    - Authoring a program from scratch is still only in the legacy app
-      (`src_legacy/ui/views/program_editor.js`); porting it is issue #73.
+    - Author a program in the editor: series and events, durations, target
+      commands and audio clips, with a JSON view and a timeline preview.
 
 4.  **Settings Tab:**
     - Configure backend IP address.
@@ -150,10 +150,11 @@ re-exports the shapes it actually uses from `components['schemas'][...]` in
 the generated file; SSE payload types (`contracts/asyncapi.yaml` is not fed
 to the generator) stay hand-written there.
 
-`public/program.schema.json` (the JSON Schema the legacy program editor
-validates against with ajv) is likewise never hand-edited: it is gitignored
-and copied fresh from `../contracts/program.schema.json` by
-`vite-plugins/schema-sync.ts` on every `npm run dev` / `npm run build`.
+The app does not ship a JSON Schema. `src/lib/program-document.ts` validates
+program documents against what the firmware's `parse_program` actually does
+(D-18); `test/program-document-schema.test.ts` cross-checks that against
+`../contracts/program.schema.json` with ajv, which is why ajv is still a
+devDependency.
 
 ## UI/UX
 
@@ -168,9 +169,8 @@ Primary audience is tablet and mobile, which requires larger, touch-friendly but
   - `api/`: API clients and types
   - `lib/`: Pure logic shared with the mock server (e.g. run-position, which
     mirrors `firmware/lib/rt_logic/run_position.h`)
-- `vite-plugins/`: Dev-server plugins (mock server adapter, schema sync)
+- `vite-plugins/`: Dev-server plugins (the mock server adapter)
 - `test/`: Unit tests, fixtures and the mock server implementation
-- `src_legacy/`: Legacy codebase (reference)
 
 ## Security
 

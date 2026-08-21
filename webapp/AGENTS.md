@@ -13,23 +13,26 @@ the implementation.
 - `src/api/generated.d.ts` is generated — run `npm run generate:api` after any
   contract change; CI fails on drift. `src/api/types.ts` hand-writes the SSE
   types and re-exports the REST ones from the generated file.
-- `public/program.schema.json` is synced byte-for-byte from `contracts/` at
-  build time — never edit it (a dev-server restart picks up contract edits).
 
 ## Special files and directories
 
 ```
 test/mock-server/                 # The v2 mock API: REST, SSE, simulation. Injectable clock
 vite-plugins/mock-server-v2.ts    # Thin adapter mounting the above on the Vite dev server
+src/lib/program-document.ts       # Validates a program against what parse_program does (D-18)
+src/lib/program-editor.ts         # The editor's document model; every edit is a reducer action
 src/lib/run-position.ts           # Mirrors firmware/lib/rt_logic/run_position.h - change both
 e2e/                              # Playwright suite against the QEMU-hosted firmware (D-17)
 ```
 
+The v1 snapshot (`src_legacy/`, `legacy.html`, `vite-plugins/mock-server.ts`)
+is gone: every tab it held is ported, the program editor last (#73). Git
+history is the reference now.
+
 ## Do Not
 
-- Edit files in `src_legacy/`, `legacy.html`, or `vite-plugins/mock-server.ts`.
-  These are a snapshot of the v1 implementation — and `src_legacy` is
-  load-bearing: the Programs tab exists nowhere else. (The Audios tab is
-  ported, at `src/routes/audios.tsx`; the legacy one stays until Programs is
-  ported too.)
+- Remove `ajv` from `devDependencies`. Nothing under `src/` imports it, so it
+  reads as unused — it is the second opinion in
+  `test/program-document-schema.test.ts`, which is what keeps the hand-written
+  validator and `contracts/program.schema.json` from drifting apart (D-18).
 - Use Tailwind CSS

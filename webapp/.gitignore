@@ -7,10 +7,6 @@ plans
 dist/
 *.tsbuildinfo
 
-# Synced from ../contracts/program.schema.json at dev/build time by
-# vite-plugins/schema-sync.ts — never hand-edit or commit this copy.
-public/program.schema.json
-
 # Ignore environment settings
 .env
 .env.*

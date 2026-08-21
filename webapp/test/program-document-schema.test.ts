@@ -13,10 +13,11 @@
  * A new one fails the run until someone writes down why it exists; a removed
  * one fails until the stale entry goes.
  *
- * **ajv is used here on purpose and costs nothing shipped.** It is already a
- * devDependency (`src_legacy` uses it), this file is a test, and nothing here
- * is reachable from `src/` — so D-18's ~45 KB gz win is intact. Do not
- * "clean up" the dependency.
+ * **ajv is used here on purpose and costs nothing shipped.** This file is the
+ * only thing left in the repository that imports it — it is a test, and nothing
+ * here is reachable from `src/`, so D-18's ~45 KB gz win is intact. That makes
+ * it look like an unused dependency to anyone pruning `package.json`: it is
+ * not. Do not "clean up" the dependency.
  */
 import { readFileSync } from 'node:fs';
 
@@ -51,10 +52,9 @@ interface Divergence {
  * fails the run rather than sitting here as folklore.
  *
  * `command` is deliberately absent: the schema's enum and the validator agree
- * that only `show`/`hide` are acceptable, even though today's firmware keeps
- * any non-empty string verbatim (`e.command = src["command"] | ""`). Both are
- * stricter than the device on purpose — authoring-time strictness — and PR #80
- * closes the gap from the firmware side.
+ * that only `show`/`hide` are acceptable, and since PR #80 so does
+ * `parse_command` — the only daylight left is `null` and `""`, which the device
+ * reads as "no command" while both descriptions here refuse them.
  */
 export const DIVERGENCES = {
   'unknown-fields-dropped': {
@@ -301,7 +301,7 @@ const CASES: Case[] = [
   { name: 'no command', doc: withEvent(without(anEvent(), 'command')), schema: 'accepted', validator: 'accepted' },
   { name: 'command "show"', doc: withEvent(anEvent({ command: 'show' })), schema: 'accepted', validator: 'accepted' },
   { name: 'command "hide"', doc: withEvent(anEvent({ command: 'hide' })), schema: 'accepted', validator: 'accepted' },
-  // Both refuse what the firmware currently keeps verbatim; see DIVERGENCES.
+  // Refused by the device too, since PR #80.
   {
     name: 'an unrecognised command',
     doc: withEvent(anEvent({ command: 'toggle' })),
