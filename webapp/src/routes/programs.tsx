@@ -282,110 +282,134 @@ export function ProgramsView(): React.ReactNode {
       {editing === null && listError && <p className={styles.message}>Could not list programs: {listError.message}</p>}
 
       {editing === null && programs && (
-        <table className={styles.table} data-testid='programs-table'>
-          <thead>
-            <tr>
-              <th className={styles.idColumn}>ID</th>
-              <th>Title</th>
-              <th>Description</th>
-              <th>Source</th>
-              <th className={styles.actionsColumn}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((program) => {
-              const isLoaded = program.id === loadedProgramId;
-              return (
-                <tr
-                  key={program.id}
-                  className={clsx(styles.row, isLoaded && styles.rowLoaded)}
-                  data-testid={`program-row-${program.id}`}
-                >
-                  <td className={styles.idColumn}>{program.id}</td>
-                  <td>
-                    <button className={styles.titleButton} onClick={() => setSelectedId(program.id)}>
-                      {program.title}
-                    </button>
-                    {isLoaded && <span className={clsx(styles.badge, styles.badgeLoaded)}>Loaded</span>}
-                  </td>
-                  <td className={styles.description}>{program.description}</td>
-                  <td>
-                    {/* `readonly` means the program was flashed with the firmware:
+        // The explicit roles are what keep this a table for assistive
+        // technology on a phone, where the CSS restacks every row as a block
+        // and `display` no longer implies the table roles.
+        <div className={styles.tableScroll}>
+          <table className={styles.table} data-testid='programs-table' role='table'>
+            <thead role='rowgroup'>
+              <tr role='row'>
+                <th className={styles.idColumn} role='columnheader' scope='col'>
+                  ID
+                </th>
+                <th role='columnheader' scope='col'>
+                  Title
+                </th>
+                <th role='columnheader' scope='col'>
+                  Description
+                </th>
+                <th role='columnheader' scope='col'>
+                  Source
+                </th>
+                <th className={styles.actionsColumn} role='columnheader' scope='col'>
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody role='rowgroup'>
+              {sorted.map((program) => {
+                const isLoaded = program.id === loadedProgramId;
+                return (
+                  <tr
+                    key={program.id}
+                    className={clsx(styles.row, isLoaded && styles.rowLoaded)}
+                    data-testid={`program-row-${program.id}`}
+                    role='row'
+                  >
+                    <td className={styles.idColumn} role='cell' data-label='ID'>
+                      {program.id}
+                    </td>
+                    <td role='cell' data-label='Title'>
+                      <button className={styles.titleButton} onClick={() => setSelectedId(program.id)}>
+                        {program.title}
+                      </button>
+                      {isLoaded && <span className={clsx(styles.badge, styles.badgeLoaded)}>Loaded</span>}
+                    </td>
+                    <td className={styles.description} role='cell' data-label='About'>
+                      {program.description}
+                    </td>
+                    <td role='cell' data-label='Source'>
+                      {/* `readonly` means the program was flashed with the firmware:
                         there is no file behind it to replace or delete. */}
-                    <span className={clsx(styles.badge, program.readonly ? styles.badgeShipped : styles.badgeUploaded)}>
-                      {program.readonly ? 'Shipped' : 'Uploaded'}
-                    </span>
-                  </td>
-                  <td className={styles.actionsColumn}>
-                    {canManage && (
-                      <>
-                        <button
-                          className={styles.button}
-                          data-testid={`program-load-${program.id}`}
-                          onClick={() => loadMutation.mutate(program)}
-                          disabled={busy || isLoaded}
-                        >
-                          Load
-                        </button>
-                        {isLoaded && (
+                      <span
+                        className={clsx(styles.badge, program.readonly ? styles.badgeShipped : styles.badgeUploaded)}
+                      >
+                        {program.readonly ? 'Shipped' : 'Uploaded'}
+                      </span>
+                    </td>
+                    <td className={styles.actionsColumn} role='cell' data-label='Actions'>
+                      {canManage && (
+                        <>
                           <button
                             className={styles.button}
-                            data-testid={`program-unload-${program.id}`}
-                            onClick={() => unloadMutation.mutate()}
-                            disabled={busy}
+                            data-testid={`program-load-${program.id}`}
+                            onClick={() => loadMutation.mutate(program)}
+                            disabled={busy || isLoaded}
                           >
-                            Unload
+                            Load
                           </button>
-                        )}
-                        {/* A shipped program cannot be written back, so editing
+                          {isLoaded && (
+                            <button
+                              className={styles.button}
+                              data-testid={`program-unload-${program.id}`}
+                              onClick={() => unloadMutation.mutate()}
+                              disabled={busy}
+                            >
+                              Unload
+                            </button>
+                          )}
+                          {/* A shipped program cannot be written back, so editing
                             one means editing a copy the device will store under
                             a new id. The legacy app offered no Edit at all on
                             these rows; downloading the JSON and uploading it
                             again was the whole flow. */}
-                        <button
-                          className={styles.button}
-                          data-testid={`program-edit-${program.id}`}
-                          onClick={() => {
-                            setNotice(null);
-                            setSelectedId(null);
-                            setEditing(
-                              program.readonly
-                                ? { kind: 'copy', sourceId: program.id, sourceTitle: program.title }
-                                : { kind: 'edit', id: program.id },
-                            );
-                          }}
-                          disabled={busy}
-                        >
-                          {program.readonly ? 'Edit a copy…' : 'Edit…'}
-                        </button>
-                        {!program.readonly && (
-                          <>
-                            <button
-                              className={styles.button}
-                              data-testid={`program-replace-${program.id}`}
-                              onClick={() => openFilePicker({ kind: 'replace', id: program.id, title: program.title })}
-                              disabled={busy}
-                            >
-                              Replace…
-                            </button>
-                            <button
-                              className={clsx(styles.button, styles.buttonDestructive)}
-                              data-testid={`program-delete-${program.id}`}
-                              onClick={() => setPendingDelete(program)}
-                              disabled={busy}
-                            >
-                              Delete
-                            </button>
-                          </>
-                        )}
-                      </>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                          <button
+                            className={styles.button}
+                            data-testid={`program-edit-${program.id}`}
+                            onClick={() => {
+                              setNotice(null);
+                              setSelectedId(null);
+                              setEditing(
+                                program.readonly
+                                  ? { kind: 'copy', sourceId: program.id, sourceTitle: program.title }
+                                  : { kind: 'edit', id: program.id },
+                              );
+                            }}
+                            disabled={busy}
+                          >
+                            {program.readonly ? 'Edit a copy…' : 'Edit…'}
+                          </button>
+                          {!program.readonly && (
+                            <>
+                              <button
+                                className={styles.button}
+                                data-testid={`program-replace-${program.id}`}
+                                onClick={() =>
+                                  openFilePicker({ kind: 'replace', id: program.id, title: program.title })
+                                }
+                                disabled={busy}
+                              >
+                                Replace…
+                              </button>
+                              <button
+                                className={clsx(styles.button, styles.buttonDestructive)}
+                                data-testid={`program-delete-${program.id}`}
+                                onClick={() => setPendingDelete(program)}
+                                disabled={busy}
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {editing === null && programs?.length === 0 && <p className={styles.message}>The device holds no programs.</p>}

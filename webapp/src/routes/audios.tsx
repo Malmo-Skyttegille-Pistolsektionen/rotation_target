@@ -220,92 +220,94 @@ function AudiosView(): React.ReactNode {
         {!isLoading && !listError && sorted.length === 0 && <p className={styles.empty}>No clips on the device.</p>}
 
         {sorted.length > 0 && (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th scope='col'>ID</th>
-                <th scope='col'>Title</th>
-                <th scope='col'>Source</th>
-                <th scope='col'>File</th>
-                <th scope='col' className={styles.actionsHeader}>
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((clip) => (
-                <tr key={clip.id} data-testid={`audios-row-${clip.id}`}>
-                  <td className={styles.idCell}>{clip.id}</td>
-                  <td>{clip.title}</td>
-                  <td>
-                    <span
-                      className={clsx(styles.badge, clip.readonly ? styles.badgeShipped : styles.badgeUploaded)}
-                      data-testid={`audios-source-${clip.id}`}
-                    >
-                      {clip.readonly ? 'Shipped' : 'Uploaded'}
-                    </span>
-                  </td>
-                  <td className={styles.fileCell}>{clip.filename}</td>
-                  <td className={styles.actionsCell}>
-                    {canControl ? (
-                      <>
-                        <button
-                          className={clsx(styles.button, styles.buttonSecondary)}
-                          type='button'
-                          onClick={() => playMutation.mutate(clip)}
-                          data-testid={`audios-play-${clip.id}`}
-                        >
-                          Play
-                        </button>
-                        {/* Shipped clips are flashed with the firmware:
+          <div className={styles.tableScroll}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th scope='col'>ID</th>
+                  <th scope='col'>Title</th>
+                  <th scope='col'>Source</th>
+                  <th scope='col'>File</th>
+                  <th scope='col' className={styles.actionsHeader}>
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((clip) => (
+                  <tr key={clip.id} data-testid={`audios-row-${clip.id}`}>
+                    <td className={styles.idCell}>{clip.id}</td>
+                    <td className={styles.titleCell}>{clip.title}</td>
+                    <td className={styles.sourceCell}>
+                      <span
+                        className={clsx(styles.badge, clip.readonly ? styles.badgeShipped : styles.badgeUploaded)}
+                        data-testid={`audios-source-${clip.id}`}
+                      >
+                        {clip.readonly ? 'Shipped' : 'Uploaded'}
+                      </span>
+                    </td>
+                    <td className={styles.fileCell}>{clip.filename}</td>
+                    <td className={styles.actionsCell}>
+                      {canControl ? (
+                        <>
+                          <button
+                            className={clsx(styles.button, styles.buttonSecondary)}
+                            type='button'
+                            onClick={() => playMutation.mutate(clip)}
+                            data-testid={`audios-play-${clip.id}`}
+                          >
+                            Play
+                          </button>
+                          {/* Shipped clips are flashed with the firmware:
                             there is no file behind them to remove, so the
                             device refuses the delete with a 409 that never
                             lifts (D-23). No button rather than a button that
                             can only fail. */}
-                        {!clip.readonly &&
-                          (pendingDeleteId === clip.id ? (
-                            // Cancel first, so the harmless control - not
-                            // Confirm - lands where Delete just was. The row
-                            // is left-aligned under 768px and right-aligned
-                            // above it, and a second tap on a phone would
-                            // otherwise delete the clip outright.
-                            <>
+                          {!clip.readonly &&
+                            (pendingDeleteId === clip.id ? (
+                              // Cancel first, so the harmless control - not
+                              // Confirm - lands where Delete just was. The row
+                              // is left-aligned under 768px and right-aligned
+                              // above it, and a second tap on a phone would
+                              // otherwise delete the clip outright.
+                              <>
+                                <button
+                                  className={clsx(styles.button, styles.buttonSecondary)}
+                                  type='button'
+                                  onClick={() => setPendingDeleteId(null)}
+                                  data-testid={`audios-delete-cancel-${clip.id}`}
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  className={clsx(styles.button, styles.buttonDestructive)}
+                                  type='button'
+                                  onClick={() => deleteMutation.mutate(clip)}
+                                  data-testid={`audios-delete-confirm-${clip.id}`}
+                                >
+                                  Confirm
+                                </button>
+                              </>
+                            ) : (
                               <button
-                                className={clsx(styles.button, styles.buttonSecondary)}
+                                className={clsx(styles.button, styles.buttonDestructiveGhost)}
                                 type='button'
-                                onClick={() => setPendingDeleteId(null)}
-                                data-testid={`audios-delete-cancel-${clip.id}`}
+                                onClick={() => setPendingDeleteId(clip.id)}
+                                data-testid={`audios-delete-${clip.id}`}
                               >
-                                Cancel
+                                Delete
                               </button>
-                              <button
-                                className={clsx(styles.button, styles.buttonDestructive)}
-                                type='button'
-                                onClick={() => deleteMutation.mutate(clip)}
-                                data-testid={`audios-delete-confirm-${clip.id}`}
-                              >
-                                Confirm
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              className={clsx(styles.button, styles.buttonDestructiveGhost)}
-                              type='button'
-                              onClick={() => setPendingDeleteId(clip.id)}
-                              data-testid={`audios-delete-${clip.id}`}
-                            >
-                              Delete
-                            </button>
-                          ))}
-                      </>
-                    ) : (
-                      <span className={styles.noActions}>—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                            ))}
+                        </>
+                      ) : (
+                        <span className={styles.noActions}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </div>

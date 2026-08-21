@@ -20,7 +20,9 @@
 .series.active {
   background-color: #f0f4ff;
   border: 2px solid #6366f1;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+  /* Neutral elevation. The indigo border already says "this is the series
+     running"; a coloured halo underneath it only says "decorated". */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .seriesTitle {
@@ -31,7 +33,8 @@
 }
 
 .series.active .seriesTitle {
-  color: #646cff;
+  /* #646cff on the active series' #f0f4ff is 3.7:1. */
+  color: #4338ca;
 }
 
 /* --- Default Timeline (Box based) --- */
@@ -97,7 +100,7 @@
 
 .accumulated {
   font-size: 0.75rem;
-  color: #999;
+  color: #6b7280;
   border-top: 1px solid #eee;
   margin-top: 4px;
   padding-top: 4px;
@@ -137,11 +140,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 500;
+  padding: 0 2px;
+  overflow: hidden;
   z-index: 2;
   transition: opacity 0.2s;
   border-radius: 4px;
+}
+
+.segmentLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .segment.show {
@@ -190,7 +202,7 @@
   bottom: -18px;
   transform: translateX(-50%);
   font-size: 0.7rem;
-  color: #888;
+  color: #6b7280;
   /* .tick is 1px wide, so an absolutely positioned label with no explicit
      width shrink-to-fits against that 1px - harmless for a single digit-run
      token, but the space before the unit gives the browser a break
@@ -200,7 +212,7 @@
 
 /* States the axis unit once, on the final tick. */
 .tickUnit {
-  color: #aaa;
+  color: #6b7280;
 }
 
 .cursor {
@@ -225,4 +237,80 @@
   background-color: #e53935;
   border-radius: 50%;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* --- Phone -----------------------------------------------------------------
+   The event-based timeline is the offender Jimisola photographed: tall cards,
+   two or three to a row, so one series filled a screen. Below the tablet
+   breakpoint the card lies down into a chip - the same three numbers on one
+   line - and four or five fit across a phone instead of two. A 133-event
+   program goes from ~9500 px of scrolling to ~2800. */
+@media (max-width: 768px) {
+  .timelineWrapper {
+    margin-top: 1rem;
+    padding-bottom: 3rem;
+  }
+
+  .series {
+    padding: 0.6rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .seriesTitle {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .defaultSeries {
+    gap: 4px;
+  }
+
+  .eventBox {
+    flex: 0 1 auto;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.35rem;
+    min-width: 0;
+    max-width: none;
+    min-height: 34px;
+    padding: 0.3rem 0.5rem;
+    text-align: left;
+  }
+
+  .duration {
+    font-size: 1rem;
+  }
+
+  /* Nothing here drops under 14 px: this is read from behind the firing line,
+     not from a desk. */
+  .symbol {
+    font-size: 0.875rem;
+    letter-spacing: 0;
+  }
+
+  /* The running total keeps a rule between itself and the duration, which is
+     what stopped "10 SHOW 30" reading as three unrelated numbers once the
+     card's horizontal rule went. */
+  .accumulated {
+    margin-top: 0;
+    padding: 0 0 0 0.35rem;
+    border-top: none;
+    border-left: 1px solid #e0e0e0;
+    font-size: 0.875rem;
+  }
+
+  .fieldContainer {
+    height: 104px;
+    margin-bottom: 2rem;
+  }
+
+  /* A 40-second series draws 41 one-second labels; at 360 CSS px they overlap
+     into a grey smear. Keep every fifth, plus the last - it carries the unit. */
+  .axis .tick:not(:nth-child(5n + 1)) .tickLabel {
+    display: none;
+  }
+
+  .axis .tick:last-child .tickLabel {
+    display: inline;
+  }
 }

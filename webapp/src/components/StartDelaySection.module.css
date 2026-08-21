@@ -36,7 +36,7 @@
   border: 1px solid #d1d5db;
   flex: 1;
   min-width: 200px;
-  height: 40px;
+  min-height: var(--rt-control-height);
   box-sizing: border-box;
   background-color: #fff;
   color: #333;
@@ -62,7 +62,7 @@
 
 .button {
   padding: 0 1.25rem;
-  height: 40px;
+  min-height: var(--rt-control-height);
   font-size: 0.95rem;
   font-weight: 500;
   border-radius: 6px;
@@ -89,12 +89,13 @@
 }
 
 .buttonPrimary {
-  background-color: #6366f1;
+  /* Indigo-600, not -500: white on -500 is 4.47:1, a hair under AA. */
+  background-color: #4f46e5;
   color: white;
 }
 
 .buttonPrimary:hover:not(:disabled) {
-  background-color: #4f46e5;
+  background-color: #4338ca;
 }
 
 .immediateNote {
@@ -112,6 +113,7 @@
   margin: 0;
   color: #6b7280;
   font-size: 0.85rem;
+  max-width: 68ch;
 }
 
 .successMessage {
