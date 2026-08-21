@@ -358,6 +358,16 @@ Close it structurally before the editor lands (#73) — either generate the
 validator from the schema so drift is a build failure, or cross-check the two
 in a test over the shipped programs plus hostile inputs.
 
+**Amended 2026-08-20 (implementation):** the cross-check landed —
+`webapp/test/program-document-schema.test.ts` compiles the schema with ajv (a
+devDependency already, so nothing is shipped) and runs both descriptions over
+the shipped programs and a hostile-input table. The divergences now live in one
+`DIVERGENCES` table with the `program.cpp` behaviour that justifies each; a new
+one fails the run until it is written down, and an entry nothing exercises
+fails too. Generating the validator from the schema was rejected: the schema
+cannot express what the *device* does, which is the whole point of the
+validator.
+
 ## D-19 — REST errors become RFC 9457 problem details *(Decided 2026-08-20, implementation pending)*
 
 **Decision:** every REST error response becomes an RFC 9457 problem detail
