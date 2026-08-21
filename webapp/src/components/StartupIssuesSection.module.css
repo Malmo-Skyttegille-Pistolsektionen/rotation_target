@@ -25,6 +25,7 @@
 
 .button {
   padding: 0.4rem 0.85rem;
+  min-height: var(--rt-control-height);
   border: 1px solid #d1d5db;
   border-radius: 6px;
   background-color: #f9fafb;
@@ -47,6 +48,7 @@
   font-size: 0.85rem;
   color: #6b7280;
   line-height: 1.5;
+  max-width: 68ch;
 }
 
 .message {
@@ -73,7 +75,10 @@
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.65rem 0.75rem;
-  border-left: 3px solid #d97706;
+  /* A full hairline in the same amber the rest of the app warns in
+     (BackendIssueBanner, the no-delay note) rather than a thick accent stripe
+     down one side. */
+  border: 1px solid #fcd34d;
   border-radius: 4px;
   background-color: #fffbeb;
 }
@@ -101,4 +106,5 @@
   font-size: 0.8rem;
   color: #6b7280;
   line-height: 1.5;
+  max-width: 68ch;
 }

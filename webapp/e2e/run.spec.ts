@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { ADMIN_PASSWORD, enableAdminViaUi, openApp, resetDevice, TEST_PROGRAM } from './device';
+import { ADMIN_PASSWORD, enableAdminViaUi, expectProblem, openApp, resetDevice, TEST_PROGRAM } from './device';
 
 test.beforeEach(async ({ request }) => {
   await resetDevice(request);
@@ -219,11 +219,13 @@ test('the device refuses a start for a program it no longer holds', async ({ pag
   // ...and now the start the browser would have sent, sent by hand: armed for
   // 40, arriving at a device that holds 1. Nothing in the browser is involved.
   const stale = await request.post('/api/v2/programs/start', { ...auth, data: { id: TEST_PROGRAM.id } });
-  expect(stale.status(), 'the device started a program it was not asked to start').toBe(409);
-  const refusal = (await stale.json()) as { error: string };
-  // Both ids: what the device holds, and what was asked for.
-  expect(refusal.error).toContain(`program ${OTHER_PROGRAM_ID} loaded`);
-  expect(refusal.error).toContain(`not program ${TEST_PROGRAM.id}`);
+  // Both ids in the detail: what the device holds, and what was asked for.
+  await expectProblem(stale, {
+    type: '/problems/start_program_mismatch',
+    title: 'A different program is loaded',
+    status: 409,
+    detail: `Start refused: the device has program ${OTHER_PROGRAM_ID} loaded, not program ${TEST_PROGRAM.id}`,
+  });
 
   // A missing or malformed body is a 400, never a start of whatever is loaded.
   expect((await request.post('/api/v2/programs/start', auth)).status()).toBe(400);

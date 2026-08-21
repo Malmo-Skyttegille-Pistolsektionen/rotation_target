@@ -178,7 +178,12 @@ function FieldTimelineSeries({
             }}
             title={`Duration: ${event.durationSec}s\nCommand: ${event.command ?? '-'}${event.audio_ids ? '\nAudios: ' + event.audio_ids.join(', ') : ''}`}
           >
-            {event.durationSec}s {getEventSymbol(event)}
+            {/* The label is wrapped so it can ellipsise: a segment is drawn to
+                scale, and at 3 s out of 28 on a phone there is no room for
+                "3s Show". The full text is in the segment's tooltip. */}
+            <span className={styles.segmentLabel}>
+              {event.durationSec}s {getEventSymbol(event)}
+            </span>
           </div>
         );
       })}

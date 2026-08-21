@@ -29,6 +29,7 @@
 
 .button {
   padding: 0.4rem 0.75rem;
+  min-height: var(--rt-control-height);
   border: 1px solid #ccc;
   border-radius: 4px;
   background: #fff;
@@ -85,6 +86,18 @@
 
 .message {
   color: #555;
+}
+
+/* Keeps a wide table inside its own scroller rather than letting it push the
+   page sideways. */
+.tableScroll {
+  width: 100%;
+  /* The page containers are flex columns, and a flex item's `min-width: auto`
+     refuses to shrink below its content - which is how a table wider than the
+     phone dragged the whole column out past the viewport instead of scrolling
+     inside this box. */
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .table {
@@ -172,4 +185,78 @@
 .badgeLoaded {
   background: #dbeafe;
   color: #1e40af;
+}
+
+/* --- Phone -----------------------------------------------------------------
+   Five columns and up to five buttons a row: on a phone the Actions column was
+   off-screen entirely. Each row becomes a labelled block, with the actions
+   wrapping underneath. The column headings move onto the cells through
+   `data-label`; `role` attributes in the JSX keep the table a table for
+   assistive technology once `display` stops saying so. */
+@media (max-width: 768px) {
+  .container {
+    padding: 0.75rem;
+  }
+
+  .table,
+  .table tbody,
+  .table tr {
+    display: block;
+    width: 100%;
+    /* The row carries padding and a border once it stops being a table row;
+       without this the 100% is 100% *plus* those, and the last few characters
+       of every description fall off the screen. */
+    box-sizing: border-box;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table tr {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .table td {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 0.2rem 0;
+    border-bottom: none;
+    overflow-wrap: anywhere;
+  }
+
+  .table td::before {
+    content: attr(data-label);
+    flex: 0 0 4.5rem;
+    color: #6b7280;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .idColumn {
+    width: auto;
+  }
+
+  .actionsColumn {
+    width: auto;
+    flex-wrap: wrap;
+    row-gap: 0.4rem;
+    white-space: normal;
+  }
+
+  .actionsColumn button + button {
+    margin-left: 0;
+  }
+
+  /* The buttons are the row's reason for existing on a phone: give them the
+     width, not the label. Two class names, to outweigh `.table td::before`. */
+  .table td.actionsColumn::before {
+    flex-basis: 100%;
+  }
 }

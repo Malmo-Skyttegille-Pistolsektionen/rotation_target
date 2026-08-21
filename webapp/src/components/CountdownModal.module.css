@@ -5,7 +5,9 @@
   background-color: white;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   max-width: 90vw;
-  width: 360px;
+  /* Wide enough that the digits, not the box, are the limit on how big the
+     readout can be. */
+  width: min(90vw, 420px);
   min-height: 200px;
 }
 
@@ -25,19 +27,31 @@
 
 .label {
   font-size: 1rem;
-  color: #6b7280;
+  color: #4b5563;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
+/* Near-black on the dialog's white, not the app's indigo accent: this is the
+   one number somebody reads at arm's length, outdoors, before a line goes hot
+   (17.4:1 against white). The semantic colours are spoken for - green is go,
+   red is stop, amber is "no delay" - and a countdown is none of those. */
 .countdown {
-  font-size: 72px;
+  font-size: clamp(4.5rem, 24vw, 7rem);
   font-weight: 700;
-  color: #6366f1;
+  color: #111827;
   line-height: 1;
+  /* The box does not resize as 10 becomes 9. */
+  font-variant-numeric: tabular-nums;
   animation: pulse 1s ease-in-out;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .countdown {
+    animation: none;
+  }
 }
 
 @keyframes pulse {
@@ -57,7 +71,7 @@
 
 .button {
   padding: 0.75rem 1.5rem;
-  height: 48px;
+  min-height: 48px;
   font-size: 1rem;
   font-weight: 600;
   border-radius: 8px;
@@ -95,12 +109,13 @@
 }
 
 .buttonStartNow {
-  background-color: #16a34a;
+  /* Green-700, not -600: white on -600 is 3.3:1. */
+  background-color: #15803d;
   color: white;
 }
 
 .buttonStartNow:hover {
-  background-color: #15803d;
+  background-color: #166534;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
 }
@@ -117,17 +132,8 @@
 
 /* Mobile adjustments */
 @media (max-width: 768px) {
-  .dialog {
-    width: 320px;
-    min-height: 180px;
-  }
-
   .content {
     padding: 1.5rem;
-  }
-
-  .countdown {
-    font-size: 60px;
   }
 
   .buttonRow {
