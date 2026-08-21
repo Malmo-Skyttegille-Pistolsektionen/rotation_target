@@ -329,3 +329,35 @@ export function programTotalMs(program: Program): number {
     0,
   );
 }
+
+/**
+ * The checks that only apply to a document someone is authoring, not to one
+ * arriving as a file.
+ *
+ * The firmware accepts both of these — an unnamed series and a series with no
+ * events parse and store fine — so `parseProgramDocument` does not refuse
+ * them; a file that has them is still a file the device will hold. But neither
+ * is ever what an author meant: an unnamed series has nothing to show in the
+ * run view's series list, and an empty one occupies a slot and takes no time.
+ * The legacy editor refused to save either, and so does this.
+ *
+ * Runs on the output of `parseProgramDocument`, so the shape is already known
+ * good and this only has to say what is missing.
+ */
+export function authoringIssues(program: Program): DocumentIssue[] {
+  const issues: DocumentIssue[] = [];
+
+  program.series.forEach((series, index) => {
+    if (series.name.trim().length === 0) {
+      issues.push({ path: `/series/${index}/name`, message: `Series ${index + 1} needs a name.` });
+    }
+    if (series.events.length === 0) {
+      issues.push({
+        path: `/series/${index}/events`,
+        message: `Series ${index + 1} ("${series.name}") has no events, so it would take no time and do nothing.`,
+      });
+    }
+  });
+
+  return issues;
+}

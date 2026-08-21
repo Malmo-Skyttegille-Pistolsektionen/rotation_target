@@ -1,0 +1,51 @@
+.notice {
+  border: 1px solid;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+}
+
+.notice.success {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.notice.warning {
+  border-color: #d97706;
+  background: #fffbeb;
+}
+
+.notice.error {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
+.noticeMessage {
+  margin: 0;
+}
+
+.noticeDetails {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.9rem;
+  color: #444;
+}
+
+.noticeActions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.button {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.button:hover:not(:disabled) {
+  background: #f0f0f0;
+}
