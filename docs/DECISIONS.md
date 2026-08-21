@@ -494,8 +494,7 @@ field (`error`) is a further breaking change on top of that. This is the
 **fourth and last** recorded exception to the "additive within a major version"
 rule in `contracts/README.md`, on the same grounds as D-16, D-23 and D-27: the
 webapp ships inside the firmware image, producer and consumer deploy
-atomically, and no `firmware-v*` tag has been cut. No `firmware-v*` tag is cut
-here either.
+atomically, and no release has ever been cut. None is cut here either.
 
 **The webapp branches on `type`.** `program-notices.ts`'s
 `/read-only|readonly|shipped/i` is gone; `client.ts`'s `ApiError` carries the
