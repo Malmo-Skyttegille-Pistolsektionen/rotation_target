@@ -32,7 +32,10 @@ export function useProgramsApi() {
         body: JSON.stringify(withoutId(program)),
       }),
     remove: (id: number) => client.request<void>(`/programs/${id}/delete`, { method: 'DELETE' }),
-    start: () => client.request<void>('/programs/start', { method: 'POST' }),
+    // The id is required (D-27): the device refuses with 409 when it holds a
+    // different program, which is the only check that cannot be raced.
+    start: (id: number) =>
+      client.request<void>('/programs/start', { method: 'POST', body: JSON.stringify({ id }) }),
     stop: () => client.request<void>('/programs/stop', { method: 'POST' }),
     reset: () => client.request<void>('/programs/reset', { method: 'POST' }),
     skipToSeries: (index: number) => client.request<void>(`/programs/series/${index}/skip_to`, { method: 'POST' }),
@@ -55,7 +58,7 @@ export const programsApi = {
   update: (id: number, program: Program) =>
     directClient<Program>(`/programs/${id}`, { method: 'PUT', body: JSON.stringify(withoutId(program)) }),
   remove: (id: number) => directClient<void>(`/programs/${id}/delete`, { method: 'DELETE' }),
-  start: () => directClient<void>('/programs/start', { method: 'POST' }),
+  start: (id: number) => directClient<void>('/programs/start', { method: 'POST', body: JSON.stringify({ id }) }),
   stop: () => directClient<void>('/programs/stop', { method: 'POST' }),
   reset: () => directClient<void>('/programs/reset', { method: 'POST' }),
   skipToSeries: (index: number) => directClient<void>(`/programs/series/${index}/skip_to`, { method: 'POST' }),

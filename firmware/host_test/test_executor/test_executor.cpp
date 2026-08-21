@@ -12,11 +12,15 @@ using rt_test::Harness;
 
 namespace {
 
+// The fixture's program id. Every start names it, because a start for any
+// other id is refused (#95).
+constexpr int32_t kFixtureId = 900;
+
 // Two short series: S0 shows for 200 ms then hides for 200 ms, S1 shows for
 // 200 ms. Same fixture the MicroPython suite used.
 rt::Program fixture_program() {
   rt::Program p;
-  p.id = 900;
+  p.id = kFixtureId;
   p.title = "Fixture";
   p.description = "Two short series";
 
@@ -78,14 +82,14 @@ void test_load_unknown_program_is_refused() {
 // --- start -----------------------------------------------------------------
 
 void test_start_without_a_program_is_refused() {
-  TEST_ASSERT_FALSE(h->executor.start());
+  TEST_ASSERT_EQUAL(rt::StartResult::kNotLoaded, h->executor.start(kFixtureId));
 }
 
 void test_start_enters_the_first_event() {
   h->executor.load(&g_program);
   h->effects.clear();
 
-  TEST_ASSERT_TRUE(h->executor.start());
+  TEST_ASSERT_EQUAL(rt::StartResult::kStarted, h->executor.start(kFixtureId));
 
   TEST_ASSERT_TRUE(h->state.running);
   TEST_ASSERT_EQUAL_INT32(0, h->state.current_event_index.value);
@@ -97,18 +101,64 @@ void test_start_enters_the_first_event() {
 
 void test_start_while_running_does_not_restart() {
   h->executor.load(&g_program);
-  h->executor.start();
+  h->executor.start(kFixtureId);
   const int64_t anchor = h->state.series_start_ms;
 
   h->clock.advance(50);
-  TEST_ASSERT_TRUE(h->executor.start());
+  TEST_ASSERT_EQUAL(rt::StartResult::kStarted, h->executor.start(kFixtureId));
 
   TEST_ASSERT_EQUAL_INT64(anchor, h->state.series_start_ms);
 }
 
+// --- #95: a start names the program it was decided for ---------------------
+
+void test_start_for_another_program_is_refused() {
+  h->executor.load(&g_program);
+  h->effects.clear();
+
+  TEST_ASSERT_EQUAL(rt::StartResult::kMismatch, h->executor.start(kFixtureId + 1));
+
+  // Nothing moved: no run, no targets driven, and no stateUpdate that would
+  // tell clients something had happened.
+  TEST_ASSERT_FALSE(h->state.running);
+  TEST_ASSERT_EQUAL_size_t(0, h->effects.broadcasts.size());
+  TEST_ASSERT_EQUAL_size_t(0, h->effects.target_history.size());
+}
+
+void test_start_for_another_program_is_refused_while_one_is_running() {
+  h->executor.load(&g_program);
+  h->executor.start(kFixtureId);
+  const int64_t anchor = h->state.series_start_ms;
+  h->effects.clear();
+
+  // Ahead of the already-running short circuit: a start aimed at the wrong
+  // program must not be answered "fine, it is running".
+  TEST_ASSERT_EQUAL(rt::StartResult::kMismatch, h->executor.start(kFixtureId + 1));
+
+  TEST_ASSERT_TRUE(h->state.running);
+  TEST_ASSERT_EQUAL_INT64(anchor, h->state.series_start_ms);
+  TEST_ASSERT_EQUAL_size_t(0, h->effects.broadcasts.size());
+}
+
+void test_a_refused_start_leaves_the_right_program_startable() {
+  h->executor.load(&g_program);
+  TEST_ASSERT_EQUAL(rt::StartResult::kMismatch, h->executor.start(kFixtureId + 1));
+
+  TEST_ASSERT_EQUAL(rt::StartResult::kStarted, h->executor.start(kFixtureId));
+  TEST_ASSERT_TRUE(h->state.running);
+}
+
+void test_nothing_loaded_outranks_the_id_check() {
+  // The contract's `400 No program loaded` for this case predates #95 and
+  // stays: "nothing is loaded" is the more precise diagnosis, and a client that
+  // gets it knows to load rather than to re-read what is loaded.
+  TEST_ASSERT_EQUAL(rt::StartResult::kNotLoaded, h->executor.start(kFixtureId));
+  TEST_ASSERT_EQUAL(rt::StartResult::kNotLoaded, h->executor.start(kFixtureId + 1));
+}
+
 void test_events_advance_and_the_series_pauses_at_the_next_one() {
   h->executor.load(&g_program);
-  h->executor.start();
+  h->executor.start(kFixtureId);
 
   h->run_to_idle();
 
@@ -127,7 +177,7 @@ void test_events_advance_and_the_series_pauses_at_the_next_one() {
 void test_program_completion_leaves_the_last_series_selected() {
   h->executor.load(&g_program);
   h->executor.skip_to_series(1);
-  h->executor.start();
+  h->executor.start(kFixtureId);
 
   h->run_to_idle();
 
@@ -144,7 +194,7 @@ void test_audio_is_played_when_an_event_is_entered() {
   p.series.push_back(s);
 
   h->executor.load(&p);
-  h->executor.start();
+  h->executor.start(p.id);
 
   TEST_ASSERT_EQUAL_size_t(1, h->effects.played.size());
   TEST_ASSERT_EQUAL_size_t(2, h->effects.played[0].size());
@@ -162,7 +212,7 @@ void test_stop_when_not_running_is_refused() {
 
 void test_stop_keeps_the_position() {
   h->executor.load(&g_program);
-  h->executor.start();
+  h->executor.start(kFixtureId);
   h->run_for(250);
 
   TEST_ASSERT_TRUE(h->executor.stop());
@@ -180,7 +230,7 @@ void test_start_resumes_from_the_paused_ticker() {
   h->executor.load(&g_program);
   h->state.ticker_ms.set(1000);
 
-  h->executor.start();
+  h->executor.start(kFixtureId);
 
   // 1000 ms into a 400 ms series is past the end, so the first tick completes
   // it and moves to the next series.
@@ -201,7 +251,7 @@ void test_resuming_mid_event_does_not_replay_its_audio() {
   h->state.ticker_ms.set(1000);
   h->effects.clear();
 
-  h->executor.start();
+  h->executor.start(p.id);
 
   TEST_ASSERT_EQUAL_size_t(0, h->effects.played.size());
 }
@@ -254,7 +304,7 @@ void test_skip_without_a_program_is_refused() {
 
 void test_skip_stops_a_running_series() {
   h->executor.load(&g_program);
-  h->executor.start();
+  h->executor.start(kFixtureId);
 
   h->executor.skip_to_series(1);
 
@@ -267,7 +317,7 @@ void test_skip_stops_a_running_series() {
 
 void test_a_series_streams_one_state_update_per_transition() {
   h->executor.load(&g_program);
-  h->executor.start();
+  h->executor.start(kFixtureId);
   h->run_to_idle();
 
   TEST_ASSERT_EQUAL_size_t(4, h->effects.broadcasts.size());
@@ -283,13 +333,13 @@ void test_a_series_streams_one_state_update_per_transition() {
 
 void test_a_long_event_publishes_once_a_second_not_once_a_tick() {
   rt::Program p;
-  p.id = 900;
+  p.id = kFixtureId;
   rt::Series s;
   s.events.push_back(rt::Event{5000, "show", {}});
   p.series.push_back(s);
 
   h->executor.load(&p);
-  h->executor.start();
+  h->executor.start(kFixtureId);
   h->effects.clear();
 
   h->run_for(2500);
@@ -308,14 +358,14 @@ void test_a_long_event_publishes_once_a_second_not_once_a_tick() {
 
 void test_pause_and_resume_keeps_the_position() {
   h->executor.load(&g_program);
-  h->executor.start();
+  h->executor.start(kFixtureId);
   h->run_for(250);
   h->executor.stop();
 
   TEST_ASSERT_EQUAL_STRING(state("false", "0", "1", "200", "hidden").c_str(),
                            h->effects.broadcasts.back().c_str());
 
-  h->executor.start();
+  h->executor.start(kFixtureId);
 
   // This is what D-16 bought. The whole-second ticker resumed a 250 ms pause
   // from 0 - back at event 0 with the targets shown again, a visible rewind
@@ -328,21 +378,21 @@ void test_pause_and_resume_keeps_the_position() {
 
 void test_resume_after_a_multi_second_pause_keeps_the_event() {
   rt::Program p;
-  p.id = 900;
+  p.id = kFixtureId;
   rt::Series s;
   s.events.push_back(rt::Event{1000, "show", {}});
   s.events.push_back(rt::Event{5000, "hide", {}});
   p.series.push_back(s);
 
   h->executor.load(&p);
-  h->executor.start();
+  h->executor.start(kFixtureId);
   h->run_for(2500);
   h->executor.stop();
 
   TEST_ASSERT_EQUAL_INT32(1, h->state.current_event_index.value);
   TEST_ASSERT_EQUAL_INT32(2000, h->state.ticker_ms.value);
 
-  h->executor.start();
+  h->executor.start(kFixtureId);
 
   // 2 s lands inside event 1, so the position survives the pause.
   TEST_ASSERT_EQUAL_INT32(1, h->state.current_event_index.value);
@@ -351,7 +401,7 @@ void test_resume_after_a_multi_second_pause_keeps_the_event() {
 
 void test_reset_returns_to_the_start_of_the_series() {
   h->executor.load(&g_program);
-  h->executor.start();
+  h->executor.start(kFixtureId);
   h->run_for(250);
 
   h->executor.reset();
@@ -367,7 +417,7 @@ void test_reset_leaves_the_targets_where_they_are() {
   // it - the existing reset test resets 250 ms in, which is already inside the
   // "hide" event, so the shown case was never covered.
   h->executor.load(&g_program);
-  h->executor.start();  // event 0 is "show"
+  h->executor.start(kFixtureId);  // event 0 is "show"
 
   TEST_ASSERT_TRUE(h->state.target_status_shown);
 
@@ -393,7 +443,7 @@ void test_unloading_clears_the_published_state() {
 
 void test_unload_while_running_is_refused() {
   h->executor.load(&g_program);
-  h->executor.start();
+  h->executor.start(kFixtureId);
   h->run_for(100);
   h->effects.clear();
 
@@ -411,7 +461,7 @@ void test_unload_after_a_stop_is_allowed() {
   // stop() is a pause, so the refusal has to lift with it - otherwise the
   // 409 has no escape and the endpoint solves nothing.
   h->executor.load(&g_program);
-  h->executor.start();
+  h->executor.start(kFixtureId);
   h->run_for(100);
   h->executor.stop();
   h->effects.clear();
@@ -439,7 +489,7 @@ void test_force_unload_drops_a_running_program() {
   // The delete path: the program is going away whatever the run state, because
   // the run loop's pointer into it would dangle.
   h->executor.load(&g_program);
-  h->executor.start();
+  h->executor.start(kFixtureId);
   h->run_for(100);
   h->effects.clear();
 
@@ -473,6 +523,10 @@ int main() {
   RUN_TEST(test_start_without_a_program_is_refused);
   RUN_TEST(test_start_enters_the_first_event);
   RUN_TEST(test_start_while_running_does_not_restart);
+  RUN_TEST(test_start_for_another_program_is_refused);
+  RUN_TEST(test_start_for_another_program_is_refused_while_one_is_running);
+  RUN_TEST(test_a_refused_start_leaves_the_right_program_startable);
+  RUN_TEST(test_nothing_loaded_outranks_the_id_check);
   RUN_TEST(test_events_advance_and_the_series_pauses_at_the_next_one);
   RUN_TEST(test_program_completion_leaves_the_last_series_selected);
   RUN_TEST(test_audio_is_played_when_an_event_is_entered);

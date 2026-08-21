@@ -35,6 +35,7 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-24 | One `libraryChanged` SSE event | Decided | 2026-08-21 |
 | D-25 | Boot-time issues are served, not streamed | Decided | 2026-08-21 |
 | D-26 | An audio upload is never refused for concurrency | Decided | 2026-08-21 |
+| D-27 | A start names the program it is for | Decided | 2026-08-21 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
 
@@ -787,6 +788,85 @@ console, and the staging file still has to be discarded for the same reason.
 was never modelled by a response and is now wrong in a second way. Both now say
 that no upload is refused for the staging slot and that an interrupted one
 leaves nothing behind — closing the unresolved half of #75.
+
+## D-27 — A start names the program it is for *(Decided 2026-08-21)*
+
+**Decision:** `POST /api/v2/programs/start` takes a **required** body
+`{"id": N}` — the program the caller decided to start. A device holding a
+different one refuses with **`409`** and names both:
+`Start refused: the device has program 1 loaded, not program 40`. A malformed or
+absent body is `400`. Nothing loaded stays `400 No program loaded`, unchanged.
+The comparison happens inside `rt::Executor::start(int32_t)`, so the check and
+the start are one locked section.
+
+**Why:** `start` carried no id, so it started whatever the device held when the
+request landed. #92 closed every *client-side* window — the armed countdown, the
+fire-time re-check against the query cache, the SSE-status guard — and none of
+them can be airtight, because the ambiguity is in the request rather than in the
+client: between a client's last knowledge and its start arriving, another client
+on the range can always load something else. On a range that is wrong target
+timing and wrong spoken range commands, with shooters acting on a sequence
+nobody chose (#70 is the observed instance). Same class as #79's audio-delete
+guard and #80's strict `command` vocabulary: **the device enforces the safety
+invariant, clients merely explain it.**
+
+**Why required, not optional:** an optional id keeps a spelling of the request
+that means "run whatever you happen to hold", which is precisely what is being
+removed — and it would be the spelling every future client reaches for first,
+because it is shorter. The cost of requiring it is one caller (`run.tsx`, which
+after #92 already computes the armed id at fire time and now sends it) and a
+webapp that ships inside the LittleFS image, so there is no client that can be
+left behind. Optional-with-a-warning would also mean the device cannot tell a
+client that omitted the id from one that has not been updated, which is exactly
+the distinction an operator would need if it ever went wrong.
+
+**Why `409`, and why both ids:** the request is well-formed and authorised — the
+*state* of the device is what refuses it, which is what `409` means, and it is
+already the answer `PUT` (D-15), `DELETE` (D-23) and `unload` (D-22) give for
+the same reason. Naming only the requested id would leave the operator with "not
+that one" and no way to find out what the device does hold without a second
+round trip; naming only the loaded one would not say which decision was
+rejected. Both, in the order the operator needs them: what is loaded first.
+
+**Why "nothing loaded" stays `400`:** it is the more precise diagnosis of two
+that a `409` would blur together, and it is actionable in a different way — load
+something, rather than re-read what is loaded. It is also the answer that
+endpoint already gave, so nothing that is not the point of this change moves.
+
+**Why in the executor rather than the handler:** an `is_loaded(id)` probe
+followed by `start()` is two locked sections with a window between them, and a
+load landing in that window starts the program the check had just cleared —
+the same reasoning D-22 applied to `unload`. Returning the loaded id from
+inside that same section is what lets the refusal name a program that is still
+the one that refused it.
+
+**This is a breaking change to an operation** — a new required body — which
+`contracts/README.md` reserves for a new `/api/v3` prefix. Taken as the third
+recorded exception, on D-16's grounds and while the same window is open: the
+only client ships inside the firmware image, so producer and consumer deploy
+atomically, and no `firmware-v*` tag has been cut. `openapi.yaml`'s
+`info.version` goes to `4.0.0`. After the first release this would need a
+deprecation path, which is the argument for doing it now rather than later.
+
+**Rejected:** *an `If-Match` precondition on `loadedProgramId`* — a correct
+shape, but it needs an ETag on a resource that is not fetched (run state is
+published over SSE, and there is no `GET /status` to carry the header), and it
+puts the safety-critical check in a place every HTTP intermediary is entitled to
+touch. *An `id` query parameter* — the other mutations that carry data carry it
+in a body, and a run-control call is not a lookup. *Refusing with `400`* — the
+request is valid; it is the device's state that says no. *`412 Precondition
+Failed`* — reserved for the header form, and `409` is what every other
+state-refusal on this API already answers. *Keeping the client-side guards as
+the whole answer* — they stay, because they explain the refusal before it
+happens and cancel a countdown the operator can still see, but they are the
+explanation, not the enforcement.
+
+**Follow-up (`skip_to`, filed, not done here):** `POST /programs/series/{index}/skip_to`
+has the same shape of ambiguity — it selects a series on whatever is loaded, and
+a program switched underneath it silently re-aims the next start at a series of
+a program nobody chose. It is a lesser instance (it arms rather than runs, and
+the `start` that follows is now itself checked), so it is a separate issue
+rather than scope creep here.
 
 ## Open questions
 

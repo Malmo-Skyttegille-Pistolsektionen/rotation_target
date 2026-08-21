@@ -299,8 +299,16 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Start or resume the loaded program
-         * @description Resumes the current series from `tickerMs`, or runs it from zero when the ticker is unset. Starting an already-running program is a no-op and still answers `200`. Audio only replays when the resume point lands exactly on an event boundary.
+         * Start the named program, if it is the one loaded
+         * @description Resumes the current series from `tickerMs`, or runs it from zero
+         *     when the ticker is unset. Starting an already-running program is a
+         *     no-op and still answers `200`. Audio only replays when the resume
+         *     point lands exactly on an event boundary.
+         *
+         *     The body names the program the caller decided to start, and the device
+         *     refuses with `409` if it holds a different one (D-27). The id is
+         *     **required**: an id-less start asks the device to run whatever it
+         *     happens to hold at that instant, which is the ambiguity this closes.
          */
         post: operations["startProgram"];
         delete?: never;
@@ -602,6 +610,14 @@ export interface components {
             /**
              * Format: int32
              * @description The id the device assigned. Uploaded programs and clips are numbered from 100 upwards, keeping them clear of the shipped ids.
+             */
+            id: number;
+        };
+        /** @description The program the caller decided to start. Required, and required to be an integer: a start with no id, or with an `id` of another type, is a `400` rather than a start of whatever happens to be loaded. */
+        StartRequest: {
+            /**
+             * Format: int32
+             * @description The program the client last saw loaded and armed the start for.
              */
             id: number;
         };
@@ -1197,7 +1213,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartRequest"];
+            };
+        };
         responses: {
             /** @description Program started. */
             200: {
@@ -1208,7 +1228,7 @@ export interface operations {
                     "application/json": components["schemas"]["Message"];
                 };
             };
-            /** @description Nothing is loaded, or the loaded program has no series at the current index (`No program loaded`). */
+            /** @description No body, unparseable JSON or no integer `id` (`Expected a JSON body naming the program to start: {"id": <id>}`); or nothing is loaded, or the loaded program has no series at the current index (`No program loaded`). "Nothing is loaded" outranks the id check: it is the more precise diagnosis, and it is what a client that has to load something first needs to hear. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1218,6 +1238,15 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            /** @description A different program is loaded (`Start refused: the device has program <loaded> loaded, not program <requested>`). Both ids are named, because the operator needs to know what the device actually holds to decide what to do about it. The run state is untouched and no `stateUpdate` is published. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     stopProgram: {

@@ -124,10 +124,11 @@ test('load, start, watch the timeline advance off real SSE, stop', async ({ page
 });
 
 /**
- * Issue #70: `POST /programs/start` carries no program id, so a start decided
- * before a start delay runs whatever the device holds when the delay expires.
- * A second client switching the program in that window used to mean the range
- * got a program nobody had chosen.
+ * Issue #70: a start decided before a start delay used to run whatever the
+ * device held when the delay expired. A second client switching the program in
+ * that window meant the range got a program nobody had chosen. The countdown
+ * cancel below is the client's half — the operator stops watching a countdown
+ * that is already doomed; the device's half is the test after it.
  */
 test('a program switch during the start delay cancels the start', async ({ page, request }) => {
   const OTHER_PROGRAM_ID = 1;
@@ -175,6 +176,72 @@ test('a program switch during the start delay cancels the start', async ({ page,
   await expect(page.getByRole('button', { name: 'Start' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Pause' })).toHaveCount(0);
   await expect(page.getByTestId('run-ticker')).toHaveCount(0);
+});
+
+/**
+ * Issue #95 / D-27, end to end: the refusal that matters is the **device's**.
+ *
+ * The browser's guards cannot be the proof, because they are exactly what this
+ * bypasses: a client whose knowledge of the device is one load out of date is
+ * simulated by an API client that never watched the stream at all. That is the
+ * real window — between a client's last `stateUpdate` and its start arriving,
+ * any other client can load something else — and only the device can close it.
+ */
+test('the device refuses a start for a program it no longer holds', async ({ page, request }) => {
+  const OTHER_PROGRAM_ID = 1;
+  const START_DELAY_SECONDS = 5;
+
+  await page.addInitScript((seconds: number) => {
+    localStorage.setItem('rt_settings_start_delay_seconds', String(seconds));
+  }, START_DELAY_SECONDS);
+
+  await openApp(page);
+  await enableAdminViaUi(page);
+  await page.getByRole('link', { name: 'Run' }).click();
+
+  await page.getByTestId('run-program-select').selectOption(String(TEST_PROGRAM.id));
+  await expect(page.getByTestId('run-program-id')).toHaveText(String(TEST_PROGRAM.id));
+
+  const session = await request.post('/api/v2/admin-mode/login', { data: { password: ADMIN_PASSWORD } });
+  expect(session.ok(), `could not log in as a second client: ${session.status()}`).toBeTruthy();
+  const { token } = (await session.json()) as { token: string };
+  const auth = { headers: { Authorization: `Bearer ${token}` } };
+
+  // The countdown is running, armed for program 40.
+  await page.getByRole('button', { name: 'Start' }).click();
+  await expect(page.getByText('Starting in...')).toBeVisible();
+
+  // The second client loads its own program mid-countdown.
+  const load = await request.post(`/api/v2/programs/${OTHER_PROGRAM_ID}/load`, auth);
+  expect(load.ok(), `the second client could not load a program: ${load.status()}`).toBeTruthy();
+  await expect(page.getByTestId('run-program-id')).toHaveText(String(OTHER_PROGRAM_ID));
+
+  // ...and now the start the browser would have sent, sent by hand: armed for
+  // 40, arriving at a device that holds 1. Nothing in the browser is involved.
+  const stale = await request.post('/api/v2/programs/start', { ...auth, data: { id: TEST_PROGRAM.id } });
+  expect(stale.status(), 'the device started a program it was not asked to start').toBe(409);
+  const refusal = (await stale.json()) as { error: string };
+  // Both ids: what the device holds, and what was asked for.
+  expect(refusal.error).toContain(`program ${OTHER_PROGRAM_ID} loaded`);
+  expect(refusal.error).toContain(`not program ${TEST_PROGRAM.id}`);
+
+  // A missing or malformed body is a 400, never a start of whatever is loaded.
+  expect((await request.post('/api/v2/programs/start', auth)).status()).toBe(400);
+  expect((await request.post('/api/v2/programs/start', { ...auth, data: { id: 'forty' } })).status()).toBe(400);
+
+  // Nothing ran, on either program. `run-ticker` renders only once a
+  // stateUpdate carries a ticker, and only a run produces one.
+  await page.waitForTimeout((START_DELAY_SECONDS + 2) * 1000);
+  await expect(page.getByRole('button', { name: 'Start' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Pause' })).toHaveCount(0);
+  await expect(page.getByTestId('run-ticker')).toHaveCount(0);
+
+  // And the program the device does hold still starts, so the refusal is the
+  // id check and not a wedged endpoint.
+  const good = await request.post('/api/v2/programs/start', { ...auth, data: { id: OTHER_PROGRAM_ID } });
+  expect(good.status(), await good.text()).toBe(200);
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+  await request.post('/api/v2/programs/stop', auth);
 });
 
 /**

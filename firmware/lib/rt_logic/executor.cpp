@@ -41,14 +41,22 @@ bool Executor::load(const Program *program) {
   return true;
 }
 
-bool Executor::start() {
-  if (!state_.is_loaded()) return false;
+StartResult Executor::start(int32_t expected_program_id) {
+  if (!state_.is_loaded()) return StartResult::kNotLoaded;
+
+  // #95: the request names the program it was decided for, and the device is
+  // the only place that check can be airtight - between a client's last
+  // stateUpdate and its start arriving, any other client can load something
+  // else. Ahead of the already-running short circuit, so a start aimed at the
+  // wrong program is never answered "fine, it is running".
+  if (state_.program->id != expected_program_id) return StartResult::kMismatch;
+
   // Already running is success, not an error - a second start is a no-op the
   // caller does not need to distinguish.
-  if (state_.running) return true;
+  if (state_.running) return StartResult::kStarted;
 
   const Series *series = series_at(state_.current_series_index);
-  if (series == nullptr) return false;
+  if (series == nullptr) return StartResult::kNotLoaded;
 
   // Exact, since D-16: the ticker is milliseconds, so a pause half a second
   // into a series resumes half a second in rather than rewinding to the top of
@@ -67,7 +75,7 @@ bool Executor::start() {
   }
 
   effects_.state_changed();
-  return true;
+  return StartResult::kStarted;
 }
 
 bool Executor::stop() {
