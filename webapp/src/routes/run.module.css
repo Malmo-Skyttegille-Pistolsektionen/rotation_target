@@ -114,6 +114,15 @@
 
 /* Removed old .timer style */
 
+.notice {
+  background-color: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  color: #92400e;
+  font-size: 0.9rem;
+  padding: 0.5rem 0.75rem;
+}
+
 .controlsRow {
   display: flex;
   gap: 1.5rem;
