@@ -4,13 +4,15 @@
 // @vitest-environment-options { "url": "http://127.0.0.1:18081" }
 import http from 'http';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MAX_FILE_BYTES, MAX_UPLOAD_BYTES } from '../src/api/audios';
 import type { AudioFile, BackendIssuePayload } from '../src/api/types';
 import { SettingsProvider } from '../src/context/SettingsContext';
 import { Route } from '../src/routes/audios';
+import { useSSE } from '../src/hooks/useSSE';
+import { FakeEventSource } from './fake-event-source';
 import { createFakeClock } from './mock-server/clock';
 import { createMockServer, type MockServer } from './mock-server/server';
 
@@ -132,7 +134,7 @@ describe('the audio library', () => {
     expect(within(screen.getByTestId('audios-row-100')).getByText('Klubbmästerskap 2026')).toBeTruthy();
   });
 
-  it('offers Delete on uploaded clips only — a shipped one answers 404', async () => {
+  it('offers Delete on uploaded clips only — a shipped one is refused with 409', async () => {
     renderAudios();
     await waitForClips();
 
@@ -422,5 +424,81 @@ describe('backend_issue', () => {
     // Nothing to wait for, so let a render pass go by before asserting.
     await waitFor(() => expect(screen.getByTestId('audios-row-1')).toBeTruthy());
     expect(screen.queryByTestId('backend-issue-banner')).toBeNull();
+  });
+});
+
+describe('D-24: the library changes under an open page', () => {
+  /** The page as it really runs: the view plus the stream that feeds its cache. */
+  function Harness(): React.ReactNode {
+    useSSE();
+    return <AudiosView />;
+  }
+
+  function renderWithStream(): void {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SettingsProvider>
+          <Harness />
+        </SettingsProvider>
+      </QueryClientProvider>,
+    );
+  }
+
+  /**
+   * An upload nothing on this page knows about - the laptop at the other end
+   * of the range. It goes out over the same origin rather than through the
+   * view, which is the point: no mutation hook runs, so nothing invalidates
+   * the cached list except the event the device broadcasts.
+   */
+  async function uploadElsewhere(title: string): Promise<void> {
+    const body = new FormData();
+    body.append('file', wavFile(`${title}.wav`));
+    body.append('title', title);
+    const res = await fetch('/api/v2/audios', { method: 'POST', body });
+    expect(res.status).toBe(201);
+  }
+
+  beforeEach(() => {
+    FakeEventSource.reset();
+    vi.stubGlobal('EventSource', FakeEventSource);
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shows another client's upload without anybody reloading the page", async () => {
+    renderWithStream();
+    await waitForClips();
+
+    await uploadElsewhere('Nytt klipp');
+    // Still stale, exactly as #71 shipped it: the list is fetched over REST and
+    // published nowhere else.
+    expect(screen.queryByTestId('audios-row-101')).toBeNull();
+
+    act(() => {
+      expect(FakeEventSource.latest.emit('libraryChanged', { kind: 'audio' })).toBe(true);
+    });
+
+    await waitFor(() => expect(screen.getByTestId('audios-row-101')).toBeTruthy());
+    expect(text(screen.getByTestId('audios-row-101'))).toContain('Nytt klipp');
+  });
+
+  it('leaves the clip list alone when it is the program library that changed', async () => {
+    renderWithStream();
+    await waitForClips();
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    act(() => {
+      FakeEventSource.latest.emit('libraryChanged', { kind: 'program' });
+      // Nor does run state touch it: load, start, stop and unload are
+      // stateUpdates, and none of them changes what the device stores.
+      FakeEventSource.latest.emit('stateUpdate', { loadedProgramId: null, programState: null, targetStatus: 'hidden' });
+    });
+
+    // A render pass to be wrong in, and then nothing was re-read.
+    await waitFor(() => expect(screen.getByTestId('audios-row-1')).toBeTruthy());
+    expect(fetchSpy.mock.calls.filter((call) => String(call[0]).endsWith('/api/v2/audios'))).toHaveLength(0);
   });
 });
