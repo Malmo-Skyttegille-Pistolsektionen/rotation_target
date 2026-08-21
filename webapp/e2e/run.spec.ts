@@ -201,7 +201,7 @@ test('unload clears the loaded program, and is refused while a series runs', asy
   await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
 
   await page.getByTestId('run-unload').click();
-  await expect(page.getByTestId('run-start-notice')).toContainText('Stop the program first');
+  await expect(page.getByTestId('run-start-notice')).toContainText('Pause the run first');
   // The series is untouched: unloading is bookkeeping and must not end it.
   await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
   await expect(page.getByTestId('run-program-id')).toHaveText(String(TEST_PROGRAM.id));

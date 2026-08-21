@@ -66,18 +66,63 @@ export function updateFailureNotice(err: unknown, id: number): Notice {
 }
 
 /**
+ * A read of a program answered 404: the device does not have it any more.
+ * Deleted from another browser, or by a delete on this one that the editor was
+ * not part of.
+ */
+export function isGoneFromDevice(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 404;
+}
+
+/**
+ * The editor could not re-read the document it has open. D-24 made that
+ * reachable mid-edit: `libraryChanged` invalidates `['program', id]` under an
+ * open editor, and the ordinary reason for the event is another client
+ * deleting or replacing that very program.
+ *
+ * The draft is never the casualty, so both branches say so; they differ in
+ * what Save will do next, which is decided by whether the program still
+ * exists. `PUT /programs/{id}` on an id the device does not have answers 404 —
+ * it does not re-create — so on a 404 the editor sends `POST` instead and this
+ * says as much rather than promising a replace that cannot happen.
+ */
+export function sourceReloadNotice(err: unknown, id: number): Notice {
+  if (isGoneFromDevice(err)) {
+    return {
+      kind: 'warning',
+      message:
+        `Program ${id} is no longer on the device — it was deleted while you had it open. Nothing typed here ` +
+        `was lost, but it cannot go back under id ${id}: the device refuses a replace of a program it does not ` +
+        'have. Save now creates this document as a new program, under an id the device assigns.',
+    };
+  }
+  return {
+    kind: 'warning',
+    message:
+      `Could not re-read program ${id} from the device: ${err instanceof Error ? err.message : String(err)} ` +
+      `What is on screen is what was loaded, plus your edits; Save still replaces program ${id}.`,
+  };
+}
+
+/**
  * `POST /programs/unload`. The only refusal it has is a run in progress
  * (D-22): unloading is bookkeeping and must not end a series mid-range, so the
  * device says stop first rather than stopping on the client's behalf. The
- * escape is one button away — Pause on the Run page — which is what this says.
+ * escape is one button away, and the wording has to name it for a reader on
+ * the programs tab without telling a reader on the Run page to go where they
+ * already are.
+ *
+ * That single refusal is also why this one does not sniff the message the way
+ * `updateFailureNotice` has to: `PUT` answers 409 for two different reasons
+ * and only the text tells them apart, while unload has exactly one.
  */
 export function unloadFailureNotice(err: unknown): Notice {
   if (err instanceof ApiError && err.status === 409) {
     return {
       kind: 'error',
       message:
-        'The device is running a program, and unloading would end the series. Stop the program first (Pause, ' +
-        'on the Run page), then unload.',
+        'The device is running a program, and unloading would end the series. Pause the run first, then ' +
+        'unload — Pause sits beside Unload on the Run page.',
     };
   }
   return failureNotice(err, 'Could not unload the program.');

@@ -72,11 +72,6 @@ export function useSSE(): void {
         queryClient.setQueryData(['sse-status'], 'connected');
       });
 
-      // Parked in the query cache rather than shown: the toast is a separate
-      // task. Until then this at least stops the event being dropped on the
-      // floor, which is what happened when the firmware started emitting it.
-      // Fire-and-forget by contract - nothing replays it, so a missed issue is
-      // gone.
       // The device's library is served over REST and published nowhere else, so
       // before this event a client only learned about its own uploads and
       // deletes. With a laptop and a phone both open at the range - the normal
@@ -101,6 +96,11 @@ export function useSSE(): void {
         }
       });
 
+      // Parked in the query cache rather than shown: the toast is a separate
+      // task. Until then this at least stops the event being dropped on the
+      // floor, which is what happened when the firmware started emitting it.
+      // Fire-and-forget by contract - nothing replays it, so a missed issue is
+      // gone.
       eventSource.addEventListener(SSETypes.BackendIssue, (event) => {
         try {
           const data = JSON.parse(event.data) as BackendIssuePayload;

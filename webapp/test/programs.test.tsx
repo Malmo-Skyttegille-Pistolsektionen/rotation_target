@@ -244,7 +244,7 @@ describe('unloading (D-22)', () => {
 
     fireEvent.click(screen.getByTestId(`program-unload-${UPLOADED.id}`));
 
-    await waitFor(() => expect(notice().textContent).toContain('Stop the program first'));
+    await waitFor(() => expect(notice().textContent).toContain('Pause the run first'));
     // Not the device's own sentence, and not a raw status: the escape is named.
     expect(notice().textContent).toContain('Pause');
   });
