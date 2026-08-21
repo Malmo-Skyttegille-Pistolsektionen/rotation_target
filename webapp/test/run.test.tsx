@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // Same-origin with the mock, as the app runs for real — the firmware serves
 // the bundle. See the note in useAdminStatus.test.tsx.
-// @vitest-environment-options { "url": "http://127.0.0.1:18083" }
+// @vitest-environment-options { "url": "http://127.0.0.1:18084" }
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -20,7 +20,10 @@ import { requestElsewhere } from './other-client';
 
 // Distinct per suite: vitest runs files in parallel, so a shared port is an
 // EADDRINUSE flake (18080 useAdminStatus, 18081 audios, 18082 programs).
-const PORT = 18083;
+// Distinct per suite - vitest runs files in parallel, so a shared port is an
+// EADDRINUSE flake (18080 useAdminStatus, 18081 audios, 18082 programs,
+// 18083 program-editor, 18084 here). Pick the next free number for a new suite.
+const PORT = 18084;
 
 /** The two programs of issue #70, under the ids the device gives them. */
 const MILITARY: Program = { ...PROGRAM_MILITARY_SNABBMATCH, id: 1 };
