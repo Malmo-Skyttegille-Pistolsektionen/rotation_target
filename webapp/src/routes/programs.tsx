@@ -2,27 +2,21 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import clsx from 'clsx';
-import { ApiError } from '../api/client';
 import { useProgramsApi } from '../api/programs';
 import type { Program, ProgramSummary, StateUpdatePayload } from '../api/types';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { NoticeBanner } from '../components/NoticeBanner';
 import { ProgramDetails } from '../components/ProgramDetails';
+import { ProgramEditor, type EditorTarget } from '../components/ProgramEditor';
 import { useSettings } from '../context/SettingsContext';
 import { useAdminStatus } from '../hooks/useAdminStatus';
 import { type DocumentIssue, parseProgramDocument } from '../lib/program-document';
+import { failureNotice, issueLines, updateFailureNotice, type Notice } from '../lib/program-notices';
 import styles from './programs.module.css';
 
 export const Route = createFileRoute('/programs')({
   component: ProgramsView,
 });
-
-interface Notice {
-  kind: 'error' | 'success' | 'warning';
-  message: string;
-  /** One line per point; used for the per-field validation output. */
-  details?: string[];
-  action?: { label: string; run: () => void };
-}
 
 /** What the picked file is for: a new program, or a replacement for this id. */
 type UploadTarget = { kind: 'create' } | { kind: 'replace'; id: number; title: string };
@@ -33,10 +27,6 @@ interface PendingUpload {
   program: Program;
   warnings: DocumentIssue[];
   fileName: string;
-}
-
-function issueLines(issues: DocumentIssue[]): string[] {
-  return issues.map((issue) => `${issue.path || '/'} — ${issue.message}`);
 }
 
 export function ProgramsView(): React.ReactNode {
@@ -52,6 +42,8 @@ export function ProgramsView(): React.ReactNode {
   // the user has seen what will change — for a replace that write is an
   // irreversible overwrite, so telling them afterwards is telling them too late.
   const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
+  // The WYSIWYG editor, open over the list. Null when the list is showing.
+  const [editing, setEditing] = useState<EditorTarget | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   // A ref, not state: the picker opens in the same tick as the click that sets
@@ -132,50 +124,6 @@ export function ProgramsView(): React.ReactNode {
     }
   }
 
-  /**
-   * Turn a rejected call into something a club member can act on. The device's
-   * own message is the fallback, but the ones that need context get it here.
-   */
-  function failureNotice(err: unknown, prefix: string): Notice {
-    if (err instanceof ApiError && err.status === 401) {
-      return {
-        kind: 'error',
-        message: `${prefix} Admin mode is on and this browser is not signed in — sign in under Settings.`,
-      };
-    }
-    return { kind: 'error', message: `${prefix} ${err instanceof Error ? err.message : String(err)}` };
-  }
-
-  function updateFailureNotice(err: unknown, id: number): Notice {
-    if (err instanceof ApiError && err.status === 409) {
-      // Shipped is the branch that has to prove itself: the UI never offers
-      // Replace on a shipped program, so a 409 that reaches here is the loaded
-      // one. Defaulting the other way would answer a reworded message with the
-      // wrong explanation entirely.
-      if (/read-only|readonly|shipped/i.test(err.message)) {
-        return {
-          kind: 'error',
-          message: `Program ${id} is shipped with the firmware and cannot be replaced. Upload the file as a new program instead.`,
-        };
-      }
-      // D-15: run state holds a pointer into the stored program, so the device
-      // refuses. There is no unload endpoint in v2, so the only ways out are
-      // loading a different program or deleting this one.
-      return {
-        kind: 'error',
-        message:
-          `Program ${id} is the one currently loaded on the device, and a loaded program cannot be replaced — ` +
-          'the run position points into it. Load a different program first, then replace this one. ' +
-          'If a series is running, loading another program stops it; and if this is the only program on the ' +
-          'device, delete it and upload the file as a new one instead.',
-      };
-    }
-    if (err instanceof ApiError && err.status === 404) {
-      return { kind: 'error', message: `Program ${id} is no longer on the device.` };
-    }
-    return failureNotice(err, `Could not replace program ${id}.`);
-  }
-
   function openFilePicker(target: UploadTarget): void {
     uploadTargetRef.current = target;
     setNotice(null);
@@ -252,14 +200,28 @@ export function ProgramsView(): React.ReactNode {
       <header className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>Programs</h1>
         {canManage ? (
-          <button
-            className={clsx(styles.button, styles.buttonPrimary)}
-            data-testid='programs-upload'
-            onClick={() => openFilePicker({ kind: 'create' })}
-            disabled={busy}
-          >
-            Upload program…
-          </button>
+          <div className={styles.headerActions}>
+            <button
+              className={styles.button}
+              data-testid='programs-upload'
+              onClick={() => openFilePicker({ kind: 'create' })}
+              disabled={busy || editing !== null}
+            >
+              Upload program…
+            </button>
+            <button
+              className={clsx(styles.button, styles.buttonPrimary)}
+              data-testid='programs-new'
+              onClick={() => {
+                setNotice(null);
+                setSelectedId(null);
+                setEditing({ kind: 'new' });
+              }}
+              disabled={busy || editing !== null}
+            >
+              New program
+            </button>
+          </div>
         ) : (
           <div className={styles.viewOnlyBadge} data-testid='programs-view-only'>
             <span aria-hidden='true'>👁</span>
@@ -277,41 +239,26 @@ export function ProgramsView(): React.ReactNode {
         onChange={(event) => void handleFileChosen(event)}
       />
 
-      {notice && (
-        <div className={clsx(styles.notice, styles[notice.kind])} role='status' data-testid='programs-notice'>
-          <p className={styles.noticeMessage}>{notice.message}</p>
-          {notice.details && notice.details.length > 0 && (
-            <ul className={styles.noticeDetails}>
-              {notice.details.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          )}
-          <div className={styles.noticeActions}>
-            {notice.action && (
-              <button
-                className={styles.button}
-                data-testid='programs-notice-action'
-                onClick={() => {
-                  const run = notice.action?.run;
-                  setNotice(null);
-                  run?.();
-                }}
-              >
-                {notice.action.label}
-              </button>
-            )}
-            <button className={styles.button} onClick={() => setNotice(null)}>
-              Dismiss
-            </button>
-          </div>
-        </div>
+      {notice && <NoticeBanner notice={notice} testId='programs-notice' onDismiss={() => setNotice(null)} />}
+
+      {editing !== null && (
+        <ProgramEditor
+          target={editing}
+          onClose={() => setEditing(null)}
+          onCreated={(id, title) => {
+            setEditing(null);
+            setSelectedId(id);
+            // The device assigns the id and ignores the document's, so say
+            // which one it picked — the same thing an upload reports.
+            setNotice({ kind: 'success', message: `Saved "${title}" as program ${id}.` });
+          }}
+        />
       )}
 
-      {isPending && <p className={styles.message}>Loading programs…</p>}
-      {listError && <p className={styles.message}>Could not list programs: {listError.message}</p>}
+      {editing === null && isPending && <p className={styles.message}>Loading programs…</p>}
+      {editing === null && listError && <p className={styles.message}>Could not list programs: {listError.message}</p>}
 
-      {programs && (
+      {editing === null && programs && (
         <table className={styles.table} data-testid='programs-table'>
           <thead>
             <tr>
@@ -357,6 +304,27 @@ export function ProgramsView(): React.ReactNode {
                         >
                           Load
                         </button>
+                        {/* A shipped program cannot be written back, so editing
+                            one means editing a copy the device will store under
+                            a new id. The legacy app offered no Edit at all on
+                            these rows; downloading the JSON and uploading it
+                            again was the whole flow. */}
+                        <button
+                          className={styles.button}
+                          data-testid={`program-edit-${program.id}`}
+                          onClick={() => {
+                            setNotice(null);
+                            setSelectedId(null);
+                            setEditing(
+                              program.readonly
+                                ? { kind: 'copy', sourceId: program.id, sourceTitle: program.title }
+                                : { kind: 'edit', id: program.id },
+                            );
+                          }}
+                          disabled={busy}
+                        >
+                          {program.readonly ? 'Edit a copy…' : 'Edit…'}
+                        </button>
                         {!program.readonly && (
                           <>
                             <button
@@ -387,9 +355,11 @@ export function ProgramsView(): React.ReactNode {
         </table>
       )}
 
-      {programs?.length === 0 && <p className={styles.message}>The device holds no programs.</p>}
+      {editing === null && programs?.length === 0 && <p className={styles.message}>The device holds no programs.</p>}
 
-      {selectedId !== null && <ProgramDetails id={selectedId} onClose={() => setSelectedId(null)} />}
+      {editing === null && selectedId !== null && (
+        <ProgramDetails id={selectedId} onClose={() => setSelectedId(null)} />
+      )}
 
       {pendingUpload && (
         <ConfirmDialog

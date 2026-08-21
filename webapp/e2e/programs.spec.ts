@@ -104,3 +104,56 @@ test('a command the firmware does not recognise is refused, on upload and on rep
   expect(stored.title).toBe('Good command');
   expect(stored.series[0].events[0].command).toBe('show');
 });
+
+/**
+ * The editor, against the real thing: a program typed into the browser, parsed
+ * by the firmware, stored on flash and loaded back for a run.
+ *
+ * The mock can only agree with the app about what a document means. This is
+ * the one that settles it — `rt::parse_program` reads what the editor wrote,
+ * and `loadedProgramId` comes back over SSE from the device's own run state.
+ */
+test('a program authored in the editor is stored and loaded by the device', async ({ page, request }) => {
+  await openApp(page);
+  await page.getByRole('link', { name: 'Programs' }).click();
+  await expect(page.getByTestId('programs-table')).toBeVisible();
+
+  await page.getByTestId('programs-new').click();
+  await page.getByTestId('editor-title').fill('E2E Editor');
+  await page.getByTestId('editor-description').fill('authored in the browser');
+  await page.getByTestId('editor-series-0-name').fill('Serie 1');
+  await page.getByTestId('editor-event-0-0-duration').fill('1000');
+  await page.getByTestId('editor-event-0-0-command-hide').check();
+
+  await page.getByTestId('editor-series-0-add-event').click();
+  await page.getByTestId('editor-event-0-1-duration').fill('2000');
+  await page.getByTestId('editor-event-0-1-command-show').check();
+
+  await page.getByTestId('editor-save').click();
+
+  // 100 and 101 are shipped, so the first free id from 100 up is 102.
+  await expect(page.getByTestId('programs-notice')).toContainText('as program 102');
+
+  const stored = (await (await request.get(`${API}/programs/102`)).json()) as Record<string, unknown>;
+  expect(stored).toMatchObject({
+    id: 102,
+    title: 'E2E Editor',
+    description: 'authored in the browser',
+    readonly: false,
+    series: [
+      {
+        name: 'Serie 1',
+        optional: false,
+        events: [
+          { duration: 1000, command: 'hide' },
+          { duration: 2000, command: 'show' },
+        ],
+      },
+    ],
+  });
+
+  // Loadable, which is the part a stored-but-unparseable document would fail:
+  // the badge is driven by `loadedProgramId` arriving over SSE from the device.
+  await page.getByTestId('program-load-102').click();
+  await expect(page.getByTestId('program-row-102')).toContainText('Loaded');
+});
