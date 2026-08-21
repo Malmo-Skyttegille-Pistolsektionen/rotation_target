@@ -60,17 +60,17 @@ void test_status_is_a_number_not_a_string() {
 void test_title_comes_from_the_type_not_the_detail() {
   // Two occurrences of one type carry the same title and differ only in
   // `detail` - the read-only refusal a PUT gives and the one a DELETE gives.
-  JsonDocument update = parsed(
-      rt::problem_json(rt::problem::kProgramReadonly, "Program is read-only and cannot be "
-                                                      "updated"));
-  JsonDocument remove = parsed(
-      rt::problem_json(rt::problem::kProgramReadonly, "Program is read-only and cannot be "
-                                                      "deleted"));
+  JsonDocument update = parsed(rt::problem_json(rt::problem::kProgramReadonly,
+                                                "Program is read-only and cannot be "
+                                                "updated"));
+  JsonDocument remove = parsed(rt::problem_json(rt::problem::kProgramReadonly,
+                                                "Program is read-only and cannot be "
+                                                "deleted"));
   TEST_ASSERT_EQUAL_STRING("Program is read-only", update["title"].as<const char *>());
   TEST_ASSERT_EQUAL_STRING("Program is read-only", remove["title"].as<const char *>());
   TEST_ASSERT_EQUAL_STRING(update["type"].as<const char *>(), remove["type"].as<const char *>());
-  TEST_ASSERT_TRUE(strcmp(update["detail"].as<const char *>(),
-                          remove["detail"].as<const char *>()) != 0);
+  TEST_ASSERT_TRUE(
+      strcmp(update["detail"].as<const char *>(), remove["detail"].as<const char *>()) != 0);
 }
 
 void test_an_empty_detail_is_still_valid_json() {

@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 import { ADMIN_PASSWORD, expectProblem, resetDevice } from './device';
 
@@ -87,7 +87,7 @@ test('upload: a POST with no file part', async ({ request }) => {
   );
 });
 
-test('auth: a protected call with no credentials, and a wrong password', async ({ request }) => {
+test('auth: a protected call with no credentials, and a wrong password', async ({ playwright, request }, testInfo) => {
   // The only group that needs admin mode on: while it is off every endpoint is
   // open, so there is no 401 to provoke. Turned off again at the end, which is
   // the state every other spec's beforeAll expects to find.
@@ -99,8 +99,16 @@ test('auth: a protected call with no credentials, and a wrong password', async (
   const { token } = (await session.json()) as { token: string };
   const auth = { headers: { Authorization: `Bearer ${token}` } };
 
+  // A context of its own, because `enable` above set the `admin` cookie on the
+  // shared one and the device accepts that cookie as a credential. Calling
+  // from the shared context would be authenticated, and would have answered
+  // `400 no_program_loaded` — a green test proving nothing.
+  const anonymous = await playwright.request.newContext({
+    baseURL: testInfo.project.use.baseURL,
+  });
+
   try {
-    await expectProblem(await request.post(`${API}/programs/start`), {
+    await expectProblem(await anonymous.post(`${API}/programs/start`), {
       type: '/problems/admin_credentials_required',
       title: 'Admin credentials required',
       status: 401,
@@ -121,7 +129,11 @@ test('auth: a protected call with no credentials, and a wrong password', async (
       detail: 'Admin mode is already enabled. Log in or disable it before enabling again.',
     });
   } finally {
-    await request.post(`${API}/admin-mode/disable`, auth);
+    await anonymous.dispose();
+    const disable = await request.post(`${API}/admin-mode/disable`, auth);
+    // Loud, because every spec after this one starts by expecting admin mode
+    // off: a silent failure here fails them instead of this test.
+    expect(disable.ok(), `could not disable admin mode: ${disable.status()}`).toBeTruthy();
   }
 
   await expectProblem(await request.post(`${API}/admin-mode/login`, { data: { password: ADMIN_PASSWORD } }), {
