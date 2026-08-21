@@ -4,7 +4,7 @@ openapi: 3.1.0
 
 info:
   title: Rotation target REST API v2
-  version: 3.0.0
+  version: 3.0.1
   license:
     name: MIT
     identifier: MIT
@@ -789,6 +789,8 @@ paths:
       tags: [audios]
       summary: List the stored audio clips
       operationId: listAudios
+      security:
+        - {}
       responses:
         "200":
           description: Every clip the device holds, shipped and uploaded.
