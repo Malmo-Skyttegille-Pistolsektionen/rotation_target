@@ -186,12 +186,25 @@ bool toggle_targets() {
   return shown;
 }
 
+rt::UnloadResult unload() {
+  rt::UnloadResult result = rt::UnloadResult::kNotLoaded;
+  {
+    Lock lock;
+    result = s_executor.unload();
+  }
+  // The check and the clear are one locked section: a run that starts between
+  // them would otherwise be unloaded by a call that had already decided it was
+  // safe.
+  flush(true);
+  return result;
+}
+
 bool unload_if_loaded(int32_t program_id) {
   bool unloaded = false;
   {
     Lock lock;
     if (s_state.program != nullptr && s_state.program->id == program_id) {
-      s_executor.unload();
+      s_executor.force_unload();
       unloaded = true;
     }
   }

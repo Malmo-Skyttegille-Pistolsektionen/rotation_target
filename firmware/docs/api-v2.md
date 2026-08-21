@@ -65,10 +65,25 @@ silently listing one program fewer.
 | `stop` | Pauses and keeps the position |
 | `reset` | Rewinds to the start of the current series |
 | `skip_to` | Selects a series, paused at its first event |
+| `unload` | Clears the selection; `409` while running |
 
 When a series finishes and another follows, execution pauses at the start of the
 next series and the targets are hidden. When the last series finishes, execution
 stops with the series still selected.
+
+`unload` is the one control call that can be refused for reasons other than
+"nothing is loaded". A run in progress answers `409` (`A program is running -
+stop it before unloading`): clearing the selection is bookkeeping, and
+bookkeeping must not end a series mid-range. `stop` is a pause, so the refusal
+lifts as soon as the run is paused — the escape is always one call away. It is
+also **idempotent**: unloading nothing answers `200` with the same message and
+publishes nothing, since the `stateUpdate` would repeat what clients already
+hold. That makes `200` mean "nothing is loaded now", never "something was
+unloaded just now".
+
+Deleting the loaded program still unloads it whatever the run state — the run
+loop holds a bare pointer into the stored program, so there the choice is
+between unloading and dangling, not between unloading and refusing.
 
 Audio attached to an event plays when the run loop enters that event. Resuming
 into the middle of an event does not replay its audio.
@@ -175,7 +190,8 @@ body with no `id` keeps the one in the path. Shipped programs answer `409` —
 `readonly` follows from the directory they live in, and there is no writable
 file behind them.
 
-**A loaded program cannot be updated** (`409`; unload or load another first).
+**A loaded program cannot be updated** (`409`; `POST /api/v2/programs/unload`,
+or load another, first).
 Run state holds a bare pointer into the stored program, so replacing one
 mid-run would swap the series out from beneath the run loop and beneath the
 series and event indices already published over SSE. Refusing keeps that case
@@ -212,7 +228,8 @@ is never reported as a conflict; the three `409` reasons then apply in order,
 most specific first:
 
 1. **The loaded program plays it** — `Audio is used by the loaded program -
-   unload the program first`. Refused whether or not a run is in progress:
+   unload the program first`, which is `POST /api/v2/programs/unload`. Refused
+   whether or not a run is in progress:
    `stop` is a pause, so a clip deleted between two runs would be missing when
    the program is resumed. The check is `rt::program_uses_audio`
    (`lib/rt_logic/program.h`, covered by `host_test/test_program_json`), read

@@ -108,7 +108,18 @@ bool Executor::skip_to_series(int32_t series_index) {
   return true;
 }
 
-void Executor::unload() {
+UnloadResult Executor::unload() {
+  // A run in progress outranks "nothing loaded" only in theory - running
+  // implies loaded - but checking it first is what makes the refusal the
+  // answer whenever there is a run to protect.
+  if (state_.running) return UnloadResult::kRunning;
+  if (!state_.is_loaded()) return UnloadResult::kNotLoaded;
+
+  force_unload();
+  return UnloadResult::kUnloaded;
+}
+
+void Executor::force_unload() {
   state_.unload();
   effects_.state_changed();
 }

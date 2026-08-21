@@ -215,6 +215,20 @@ void register_program_routes() {
     return send_message(res, "Program reset");
   });
 
+  s_server.on("/api/v2/programs/unload", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
+    if (!require_admin(req, res)) return ESP_OK;
+
+    // Refused mid-run rather than stopping the run itself: unloading is
+    // bookkeeping, and a call that reads as bookkeeping must not end a series
+    // in progress. Nothing loaded answers 200 with the same message - the
+    // caller asked for a state this already is - and publishes nothing,
+    // because the payload would repeat the last one sent.
+    if (executor::unload() == rt::UnloadResult::kRunning) {
+      return send_error(res, 409, "A program is running - stop it before unloading");
+    }
+    return send_message(res, "Program unloaded");
+  });
+
   s_server.on("/api/v2/programs/series/*", HTTP_POST,
               [](PsychicRequest *req, PsychicResponse *res) {
                 if (!require_admin(req, res)) return ESP_OK;
