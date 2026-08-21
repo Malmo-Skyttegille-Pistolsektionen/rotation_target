@@ -957,6 +957,11 @@ of the previous.
   repository is part of it.
 - The release build now bundles the webapp. The old "storage.bin currently ships
   without the web app" caveat in `docs/RELEASING.md` is gone.
+- The webapp takes its version from the same `git describe`, injected at build
+  time as `__APP_VERSION__`; `webapp/package.json` keeps a `0.0.0` placeholder
+  that nothing reads. Settings shows the bundle's version next to the device's
+  and flags a disagreement, which is only possible for a development build
+  pointed at a device flashed with something else.
 - Releases **are** marked latest again. The "deliberately not latest" nuance
   existed only because three tag lines shared one Releases page; with one tag
   line, `/releases/latest` means exactly what a consumer expects.

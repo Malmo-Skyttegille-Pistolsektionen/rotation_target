@@ -73,6 +73,18 @@ npm run build
 
 This generates an optimized build in the `dist/` folder.
 
+### Version
+
+The bundle's version is the release tag, resolved at build time by
+`vite.config.ts` from the same `git describe` the firmware's CMake runs and
+injected as `__APP_VERSION__` (read it through `src/appVersion.ts`). The webapp
+ships inside the firmware image, so the two report identical strings; the
+Settings page shows both, and flags a disagreement.
+
+`package.json`'s `"version": "0.0.0"` is a **placeholder**. npm wants the field;
+nothing reads it and nothing bumps it. A release is a tag — see
+[`docs/RELEASING.md`](../docs/RELEASING.md) and D-29 in the decision log.
+
 ### Code style
 
 The project uses strict ESLint and Prettier.
