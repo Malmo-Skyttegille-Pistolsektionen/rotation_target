@@ -62,7 +62,7 @@
         },
         "command": {
           "type": "string",
-          "description": "What to do with the targets on entering this event. Only \"show\" and \"hide\" do anything; any other value, or none, leaves them where they are.",
+          "description": "What to do with the targets on entering this event. Optional: omit it for a timed pause that leaves the targets where they are. When present it must be \"show\" or \"hide\" - the firmware refuses the whole program otherwise, so a typo fails at upload rather than becoming a target that silently never turns. The firmware additionally accepts null and \"\" on upload as spellings of omission (the legacy editor writes null); it never writes either, so no stored file carries them and this schema does not allow them.",
           "enum": ["show", "hide"]
         },
         "audio_ids": {

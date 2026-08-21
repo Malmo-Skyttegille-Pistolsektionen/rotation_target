@@ -609,7 +609,9 @@ export interface components {
              */
             duration: number;
             /**
-             * @description What to do with the targets on entering this event. Omitted, or any other string, leaves them where they are.
+             * @description What to do with the targets on entering this event. Optional: omit it for a timed pause that leaves the targets where they are. When it is present it must be `show` or `hide` — the device refuses the whole program with `400` otherwise, so that a typo such as `shwo` fails at upload instead of becoming a target that silently never turns mid-exercise.
+             *
+             *     For compatibility with the legacy program editor, which writes `null` for its "no change" option, the device also accepts `null` and the empty string in place of omission. Neither is part of this schema and neither is ever emitted: an event with no command has no `command` key.
              * @enum {string}
              */
             command?: "show" | "hide";

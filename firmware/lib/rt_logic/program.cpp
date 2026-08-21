@@ -3,13 +3,31 @@
 #include <ArduinoJson.h>
 
 #include <cstring>
+#include <utility>
 
 namespace rt {
 
 namespace {
 
-Event parse_event(JsonObjectConst src) {
-  Event e;
+// `command` is optional, but a value the executor does not recognise is a typo,
+// not an instruction: `"shwo"` would upload cleanly and the target would simply
+// never turn, mid-exercise, with nothing to see. Absent, JSON `null` and the
+// empty string all mean "leave the targets where they are" - the serializer
+// omits the key, the legacy editor writes `null` - and anything else fails the
+// whole program, the same as any other parse error.
+bool parse_command(JsonVariantConst src, std::string &out) {
+  if (src.isNull()) return true;
+  if (!src.is<const char *>()) return false;
+
+  const char *value = src.as<const char *>();
+  if (value == nullptr || *value == '\0') return true;
+  if (strcmp(value, "show") != 0 && strcmp(value, "hide") != 0) return false;
+
+  out = value;
+  return true;
+}
+
+bool parse_event(JsonObjectConst src, Event &e) {
   // Clamped, not merely read: `duration` is attacker-controlled via program
   // upload, and Series::total_ms() sums these into an int32. Unbounded values
   // overflow that sum (UB), and a negative one makes the run loop complete the
@@ -21,24 +39,27 @@ Event parse_event(JsonObjectConst src) {
   const int64_t clamped =
       duration < kMinEventMs ? kMinEventMs : (duration > kMaxEventMs ? kMaxEventMs : duration);
   e.duration_ms = static_cast<int32_t>(clamped);
-  e.command = src["command"] | "";
+  if (!parse_command(src["command"], e.command)) return false;
 
   JsonArrayConst ids = src["audio_ids"];
   for (JsonVariantConst id : ids) {
     if (id.is<int32_t>()) e.audio_ids.push_back(id.as<int32_t>());
   }
-  return e;
+  return true;
 }
 
-Series parse_series(JsonObjectConst src) {
-  Series s;
+bool parse_series(JsonObjectConst src, Series &s) {
   s.name = src["name"] | "";
   s.optional = src["optional"] | false;
 
   JsonArrayConst events = src["events"];
   s.events.reserve(events.size());
-  for (JsonObjectConst e : events) s.events.push_back(parse_event(e));
-  return s;
+  for (JsonObjectConst e : events) {
+    Event event;
+    if (!parse_event(e, event)) return false;
+    s.events.push_back(std::move(event));
+  }
+  return true;
 }
 
 }  // namespace
@@ -65,7 +86,11 @@ bool parse_program(const char *json, size_t len, bool readonly, Program &out, bo
 
   JsonArrayConst series = root["series"];
   out.series.reserve(series.size());
-  for (JsonObjectConst s : series) out.series.push_back(parse_series(s));
+  for (JsonObjectConst s : series) {
+    Series parsed;
+    if (!parse_series(s, parsed)) return false;
+    out.series.push_back(std::move(parsed));
+  }
 
   return true;
 }
