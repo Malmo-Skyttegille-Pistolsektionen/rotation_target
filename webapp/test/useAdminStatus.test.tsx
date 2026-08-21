@@ -3,7 +3,6 @@
 // how it runs for real (the firmware serves the webapp). Cross-origin would
 // need the device's CORS allowlist, which the mock does not implement.
 // @vitest-environment-options { "url": "http://127.0.0.1:18080" }
-import http from 'http';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,40 +10,15 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { SettingsProvider, useSettings } from '../src/context/SettingsContext';
 import { useAdminStatus } from '../src/hooks/useAdminStatus';
 import { createFakeClock } from './mock-server/clock';
+import { enableAdminElsewhere as enableAdminOn } from './other-client';
 import { createMockServer, type MockServer } from './mock-server/server';
 
 // Below 32768, out of the Linux ephemeral range: a runner process can
 // legitimately hold a port in 32768-60999, and the bind would lose the race.
 const PORT = 18080;
 
-/**
- * A request from *another* client — Node's http rather than the browser's
- * fetch, so the response's `Set-Cookie` never lands in this page's jar. The
- * mock accepts that cookie as proof of admin, which would otherwise
- * authenticate the very requests these tests want to see rejected.
- */
-function enableAdminElsewhere(password: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ password });
-    const req = http.request(
-      {
-        host: '127.0.0.1',
-        port: PORT,
-        path: '/api/v2/admin-mode/enable',
-        method: 'POST',
-        // No keep-alive: each test binds a fresh server on the same port, and
-        // a pooled socket from the previous one hangs up mid-request.
-        agent: false,
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-      },
-      (res) => {
-        res.resume();
-        res.on('end', () => resolve());
-      },
-    );
-    req.on('error', reject);
-    req.end(body);
-  });
+function enableAdminElsewhere(password: string): Promise<string> {
+  return enableAdminOn(PORT, password);
 }
 
 let server: MockServer;

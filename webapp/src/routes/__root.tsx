@@ -17,11 +17,14 @@ export const Route = createRootRoute({
         <Link to='/run' className={styles.link} activeProps={{ className: styles.active }}>
           Run
         </Link>
-        <Link to='/settings' className={styles.link} activeProps={{ className: styles.active }}>
-          Settings
+        <Link to='/programs' className={styles.link} activeProps={{ className: styles.active }}>
+          Programs
         </Link>
         <Link to='/audios' className={styles.link} activeProps={{ className: styles.active }}>
           Audios
+        </Link>
+        <Link to='/settings' className={styles.link} activeProps={{ className: styles.active }}>
+          Settings
         </Link>
         <Link to='/legacy' className={styles.link} activeProps={{ className: styles.active }}>
           Legacy App

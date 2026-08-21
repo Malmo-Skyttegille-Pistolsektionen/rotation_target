@@ -20,6 +20,24 @@ export function initializeBaseUrl(url: string): void {
   dynamicBaseUrl = normalizeBaseUrl(url);
 }
 
+/**
+ * A non-2xx response, carrying the status alongside the device's message.
+ *
+ * The status is load-bearing for the programs view: `PUT /programs/{id}` uses
+ * `409` for two different refusals (shipped, and loaded) that need different
+ * explanations, and neither is distinguishable from a transport failure by
+ * message alone.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 function getErrorMessageFromPayload(payload: unknown): string | null {
   if (typeof payload !== 'object' || payload === null) {
     return null;
@@ -83,7 +101,7 @@ async function request<T>(
       onAuthError();
     }
 
-    throw new Error(await getResponseErrorMessage(response));
+    throw new ApiError(response.status, await getResponseErrorMessage(response));
   }
 
   const text = await response.text();
