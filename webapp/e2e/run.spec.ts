@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { enableAdminViaUi, openApp, resetDevice, TEST_PROGRAM } from './device';
+import { ADMIN_PASSWORD, enableAdminViaUi, openApp, resetDevice, TEST_PROGRAM } from './device';
 
 test.beforeEach(async ({ request }) => {
   await resetDevice(request);
@@ -121,6 +121,50 @@ test('load, start, watch the timeline advance off real SSE, stop', async ({ page
   const frozen = await readTicker(page);
   await page.waitForTimeout(3_000);
   expect(await readTicker(page)).toBe(frozen);
+});
+
+/**
+ * Issue #70: `POST /programs/start` carries no program id, so a start decided
+ * before a start delay runs whatever the device holds when the delay expires.
+ * A second client switching the program in that window used to mean the range
+ * got a program nobody had chosen.
+ */
+test('a program switch during the start delay cancels the start', async ({ page, request }) => {
+  const OTHER_PROGRAM_ID = 1;
+
+  await openApp(page);
+  await enableAdminViaUi(page);
+  await page.getByRole('link', { name: 'Run' }).click();
+
+  await page.getByTestId('run-program-select').selectOption(String(TEST_PROGRAM.id));
+  await expect(page.getByTestId('run-program-id')).toHaveText(String(TEST_PROGRAM.id));
+
+  // Settings default: a 10 s delay, so the modal is up and the start is still
+  // pending while the rest of this runs.
+  await page.getByRole('button', { name: 'Start' }).click();
+  await expect(page.getByText('Starting in...')).toBeVisible();
+
+  // Another client on the range - a second tab, somebody's phone - loads a
+  // different program. The device publishes it and this page follows.
+  const session = await request.post('/api/v2/admin-mode/login', { data: { password: ADMIN_PASSWORD } });
+  expect(session.ok(), `could not log in as a second client: ${session.status()}`).toBeTruthy();
+  const { token } = (await session.json()) as { token: string };
+  const load = await request.post(`/api/v2/programs/${OTHER_PROGRAM_ID}/load`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(load.ok(), `the second client could not load a program: ${load.status()}`).toBeTruthy();
+
+  await expect(page.getByTestId('run-program-id')).toHaveText(String(OTHER_PROGRAM_ID));
+  await expect(page.getByText('Starting in...')).toBeHidden();
+  await expect(page.getByTestId('run-start-notice')).toContainText('cancelled');
+
+  // Well past the moment the countdown would have expired: the device never
+  // started anything. `run-ticker` only renders once a stateUpdate carries a
+  // ticker, which a run is the only thing that produces.
+  await page.waitForTimeout(12_000);
+  await expect(page.getByRole('button', { name: 'Start' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Pause' })).toHaveCount(0);
+  await expect(page.getByTestId('run-ticker')).toHaveCount(0);
 });
 
 test('backend_issue is not covered here', () => {

@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import { useProgramsApi } from '../api/programs';
-import type { StateUpdatePayload } from '../api/types';
+import type { ProgramSummary, StateUpdatePayload } from '../api/types';
 import { Timeline } from '../components/Timeline';
 import { CountdownModal } from '../components/CountdownModal';
 import { useSettings } from '../context/SettingsContext';
@@ -14,15 +14,28 @@ export const Route = createFileRoute('/run')({
   component: RunView,
 });
 
-function RunView(): React.ReactNode {
+const PROGRAM_CHANGED_NOTICE =
+  'Start cancelled: the device loaded a different program during the countdown. Check the program and start again.';
+
+function programTitle(programs: ProgramSummary[] | undefined, id: number): string {
+  return programs?.find((program) => program.id === id)?.title ?? `program ${id}`;
+}
+
+/** Exported for the unit tests; the route renders it through `Route`. */
+export function RunView(): React.ReactNode {
   const [timelineMode, setTimelineMode] = useState<'auto' | 'default' | 'field'>('auto');
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [showCountdownModal, setShowCountdownModal] = useState(false);
+  // The program the device had loaded when Start was pressed. Non-null only
+  // while a countdown is running.
+  const [armedProgramId, setArmedProgramId] = useState<number | null>(null);
+  // The pick the operator made, until the device's own stateUpdate confirms
+  // it. Until then the device still holds the previous program.
+  const [pendingProgramId, setPendingProgramId] = useState<number | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const { settings } = useSettings();
   const { adminModeEnabled } = useAdminStatus();
   const { adminToken } = useSettings();
   const { startDelaySeconds } = settings;
-  const countdownRef = useRef<number | null>(null);
   const programsApi = useProgramsApi();
 
   // Check if user can control (admin mode off OR authenticated)
@@ -58,13 +71,48 @@ function RunView(): React.ReactNode {
 
   const loadMutation = useMutation({
     mutationFn: programsApi.load,
+    onError: (error: Error, id: number) => {
+      // Without this Start stays disabled forever, waiting for a confirmation
+      // the device is never going to send.
+      setPendingProgramId(null);
+      setNotice(`Could not load ${programTitle(programs, id)}: ${error.message}`);
+    },
   });
+
+  // --- #70: nothing starts unless the device and the operator agree ---------
+  //
+  // `POST /programs/start` carries no id: it starts whatever the device has
+  // loaded at that moment. So the device's `loadedProgramId` is the only thing
+  // the UI may act on, and the two moments where it can drift away from what
+  // the operator is looking at are settled here, during render, so no state
+  // survives the drift.
+
+  // The pick has arrived: the select and the device agree again.
+  if (pendingProgramId !== null && pendingProgramId === loadedProgramId) {
+    setPendingProgramId(null);
+  }
+
+  // The device switched program while the countdown was running - another tab,
+  // another client on the range. Cancel it: the countdown was armed for a
+  // program that is no longer loaded.
+  if (armedProgramId !== null && armedProgramId !== loadedProgramId) {
+    setCountdown(null);
+    setArmedProgramId(null);
+    setNotice(PROGRAM_CHANGED_NOTICE);
+  }
+
+  // Start and Reset act on the device's loaded program, so they are offered
+  // only once the device has confirmed which one that is.
+  const programConfirmed = loadedProgramId != null && pendingProgramId === null;
 
   const skipToSeriesMutation = useMutation({
     mutationFn: programsApi.skipToSeries,
   });
 
-  const startMutation = useMutation({
+  // Only `mutate` is ever used, and destructuring it keeps the countdown
+  // effect's dependency stable: the object react-query returns is new on every
+  // render, so depending on it restarted the timer on every stateUpdate.
+  const { mutate: startProgram } = useMutation({
     mutationFn: programsApi.start,
   });
 
@@ -83,6 +131,8 @@ function RunView(): React.ReactNode {
   const handleProgramChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
     const id = Number(e.target.value);
     if (id) {
+      setNotice(null);
+      setPendingProgramId(id);
       loadMutation.mutate(id);
     }
   };
@@ -94,61 +144,52 @@ function RunView(): React.ReactNode {
     }
   };
 
+  const closeCountdown = (): void => {
+    setCountdown(null);
+    setArmedProgramId(null);
+  };
+
   const handleStart = (): void => {
+    if (!programConfirmed) return;
+    setNotice(null);
     if (startDelaySeconds > 0) {
-      countdownRef.current = startDelaySeconds;
+      // Armed against this program: see the render-phase cancel above.
+      setArmedProgramId(loadedProgramId);
       setCountdown(startDelaySeconds);
-      setShowCountdownModal(true);
     } else {
-      startMutation.mutate();
+      startProgram();
     }
   };
 
-  const handleCancelCountdown = (): void => {
-    setShowCountdownModal(false);
-    setCountdown(null);
-    countdownRef.current = null;
-  };
+  const handleCancelCountdown = (): void => closeCountdown();
 
   const handleStartNow = (): void => {
-    setShowCountdownModal(false);
-    setCountdown(null);
-    countdownRef.current = null;
-    startMutation.mutate();
+    closeCountdown();
+    startProgram();
   };
 
   const handlePause = (): void => stopMutation.mutate();
   const handleReset = (): void => resetMutation.mutate();
   const handleToggleTargets = (): void => toggleTargetsMutation.mutate();
 
-  // Countdown timer effect - handles timer tick and completion
+  // Countdown timer - one tick a second, then the start.
   useEffect(() => {
-    if (!showCountdownModal || countdown === null) {
-      return;
-    }
-
-    if (countdown <= 0) {
-      // Completion is handled by the timer callback when it reaches 0
+    if (countdown === null || countdown <= 0) {
       return;
     }
 
     const timer = setTimeout(() => {
-      const newValue = countdown - 1;
-      countdownRef.current = newValue;
-
-      if (newValue <= 0) {
-        // Handle completion - countdown reached 0
-        setShowCountdownModal(false);
-        setCountdown(null);
-        countdownRef.current = null;
-        startMutation.mutate();
-      } else {
-        setCountdown(newValue);
+      if (countdown > 1) {
+        setCountdown(countdown - 1);
+        return;
       }
+      setCountdown(null);
+      setArmedProgramId(null);
+      startProgram();
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [countdown, showCountdownModal, startMutation]);
+  }, [countdown, startProgram]);
 
   return (
     <div className={styles.container}>
@@ -185,6 +226,12 @@ function RunView(): React.ReactNode {
           </div>
         </div>
 
+        {notice && (
+          <div className={styles.notice} data-testid='run-start-notice' role='status'>
+            {notice}
+          </div>
+        )}
+
         <div className={styles.controlsRow}>
           <div className={styles.inputsGroup}>
             {canControl ? (
@@ -192,7 +239,7 @@ function RunView(): React.ReactNode {
                 <select
                   className={styles.select}
                   data-testid='run-program-select'
-                  value={loadedProgramId ?? ''}
+                  value={pendingProgramId ?? loadedProgramId ?? ''}
                   onChange={handleProgramChange}
                   disabled={loadMutation.isPending}
                 >
@@ -267,7 +314,7 @@ function RunView(): React.ReactNode {
                   <button
                     className={clsx(styles.button, styles.buttonStart)}
                     onClick={handleStart}
-                    disabled={!loadedProgramId}
+                    disabled={!programConfirmed}
                   >
                     Start
                   </button>
@@ -280,7 +327,7 @@ function RunView(): React.ReactNode {
                 <button
                   className={clsx(styles.button, styles.buttonDestructiveGhost)}
                   onClick={handleReset}
-                  disabled={!loadedProgramId || isRunning}
+                  disabled={!programConfirmed || isRunning}
                 >
                   Reset
                 </button>
@@ -309,7 +356,7 @@ function RunView(): React.ReactNode {
         />
       )}
 
-      {showCountdownModal && countdown !== null && (
+      {countdown !== null && (
         <CountdownModal seconds={countdown} onCancel={handleCancelCountdown} onStartNow={handleStartNow} />
       )}
     </div>
