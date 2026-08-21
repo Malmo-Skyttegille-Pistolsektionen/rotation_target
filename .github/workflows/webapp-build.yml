@@ -63,6 +63,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Check generated route tree is up to date
+        run: |
+          if ! git diff --exit-code src/routeTree.gen.ts; then
+            echo "::error::src/routeTree.gen.ts is stale — run 'npm run build' and commit it"
+            exit 1
+          fi
+
       - name: Check gzip size budget
         run: |
           budget=$(cat size-budget)
