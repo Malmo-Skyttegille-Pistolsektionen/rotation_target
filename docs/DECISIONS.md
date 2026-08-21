@@ -31,6 +31,7 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-20 | `Event.command` is a closed vocabulary | Decided | 2026-08-20 |
 | D-21 | An npm `override` must be truthful | Decided | 2026-08-20 |
 | D-22 | `POST /programs/unload` | Decided | 2026-08-21 |
+| D-23 | A refused delete is `409`, not `404` | Decided | 2026-08-21 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
 
@@ -545,6 +546,53 @@ the program would dangle and refusing is not an option.
 stopping the run as a side effect; a `force` query flag; `204 No Content`
 (every other mutation here answers a `Message`); `404` or `400` for "nothing
 loaded" (an idempotent operation has no error to report).
+
+## D-23 — A refused delete is `409`, not `404` *(Decided 2026-08-21)*
+
+**Decision:** `DELETE /programs/{id}/delete` and `DELETE /audios/{id}/delete`
+answer **`409`** for a shipped (read-only) program or clip — `Program is
+read-only and cannot be deleted`, `Audio is read-only and cannot be deleted`.
+`404` is left meaning exactly one thing: it is not there. On the audio path the
+read-only check goes ahead of the three run-safety `409`s from #79, because it
+is the only reason that never lifts.
+
+**Why:** the two write paths disagreed with each other. `PUT` on a shipped
+program is already a `409` (D-15) while `DELETE` on the same program was a
+`404`, so a client could not tell "refused because it is shipped" from "gone"
+— and the Programs tab, which needs exactly that distinction to decide between
+"offer upload-as-new" and "refresh the list", had to sidestep it by hiding
+Delete on shipped rows. It is the same complaint D-19 makes about `409`s that
+can only be told apart by string-matching prose, one level up: here even the
+status code was ambiguous.
+
+**There is no information-hiding argument to weigh.** Every shipped id is
+public: `GET /programs` lists them, `GET /programs/{id}` serves them in full,
+and `readonly: true` is in the payload. The `404` concealed nothing; it only
+cost the client the reason.
+
+**This is a changed status code**, which `contracts/README.md` reserves for a
+new `/api/v3` prefix. Taken as the second exception to that rule, on D-16's
+grounds and while the same window is open: the only client ships inside the
+firmware image, so producer and consumer deploy atomically, and no
+`firmware-v*` tag has been cut. `openapi.yaml`'s `info.version` goes to
+`3.0.0` — the same way `asyncapi.yaml` went to `3.0.0` for D-16 while the path
+prefix stayed `v2`. After the first release this would need a deprecation
+path, which is the argument for doing it now rather than later.
+
+**Rejected:** `403` (the request is well-formed and authorised — the *state* of
+the resource is what refuses it, which is what `409` means, and it is already
+what `PUT` answers); keeping `404` and adding a distinguishing body (a client
+would have to parse prose to recover what the status line should have told it);
+changing only the program path and leaving audio asymmetric (same issue class,
+same fix, and the audio path was about to grow a fourth `409` next to a `404`
+that meant two different things).
+
+**Follow-up (webapp, required):** `webapp/test/mock-server/server.ts` still
+models a shipped-program delete as `404`, and `mock-server.test.ts` asserts it
+(`deletes an uploaded program and hides a shipped one behind the same 404`);
+the comment at `webapp/e2e/audios.spec.ts:35` says shipped clips answer `404`
+to a delete. All three must follow the firmware. Not done here: the React
+Programs and Audios work owns those files in parallel.
 
 ## Open questions
 

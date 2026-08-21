@@ -200,6 +200,12 @@ elapsed time? — for a situation nobody wants during a range session. The
 replacement is staged through a temporary file and renamed into place, so a
 write that fails leaves the previous document intact.
 
+**A shipped program answers `409` to `DELETE` as well as to `PUT`** — `Program
+is read-only and cannot be deleted`. Both write paths refuse the same program
+for the same reason, so they say so the same way; `404` is reserved for a
+program that is genuinely not there. There is nothing to hide behind the `404`:
+`GET /api/v2/programs` lists every shipped program, ids included.
+
 `POST /api/v2/audios` takes a multipart body with a file part and a `title`
 field. The clip is streamed to a staging file, validated as PCM 16-bit
 mono/stereo WAV, and only then renamed to `<id>.wav`. Two details fall out of
@@ -224,19 +230,21 @@ does **not** answer in the `{"error": ...}` shape: it sends `400` with a
 `DELETE /api/v2/audios/{id}/delete` refuses to remove a clip that still matters
 to a run — on a range, a spoken command that silently fails mid-exercise is a
 safety problem, not an inconvenience. Existence is checked first, so a bogus id
-is never reported as a conflict; the three `409` reasons then apply in order,
-most specific first:
+is the only `404`; the four `409` reasons then apply in order, most specific
+first:
 
-1. **The loaded program plays it** — `Audio is used by the loaded program -
+1. **It is shipped with the firmware** — `Audio is read-only and cannot be
+   deleted`. First, because it is the one reason that never lifts.
+2. **The loaded program plays it** — `Audio is used by the loaded program -
    unload the program first`, which is `POST /api/v2/programs/unload`. Refused
    whether or not a run is in progress:
    `stop` is a pause, so a clip deleted between two runs would be missing when
    the program is resumed. The check is `rt::program_uses_audio`
    (`lib/rt_logic/program.h`, covered by `host_test/test_program_json`), read
    through the executor so the program pointer stays behind its lock.
-2. **A run is in progress** — `A program is running - stop it before deleting
+3. **A run is in progress** — `A program is running - stop it before deleting
    audio`. Blunt on purpose: it holds for every clip, referenced or not.
-3. **The clip is playing right now** — `Audio is currently playing`. LittleFS
+4. **The clip is playing right now** — `Audio is currently playing`. LittleFS
    has no unlink-while-open, so deleting it would corrupt the read.
 
 ## Static assets and the SPA fallback

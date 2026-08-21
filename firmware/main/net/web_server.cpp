@@ -352,11 +352,18 @@ void register_program_routes() {
     }
     // Deletability first, THEN unload. programs::remove refuses shipped
     // (read-only) programs, so unloading first meant a DELETE against a
-    // shipped program aborted a running series and *then* answered 404 - the
-    // caller told nothing happened while the range run had already stopped.
+    // shipped program aborted a running series and *then* answered an error -
+    // the caller told nothing happened while the range run had already stopped.
+    //
+    // Shipped is 409, not 404: it exists, GET lists it and fetches it, and only
+    // the write is refused - exactly what PUT above answers for the same
+    // program. Hiding the refusal behind "not found" left a client unable to
+    // tell "gone" from "never deletable", with nothing gained: there is no
+    // secret in an id every GET already publishes.
     const rt::Program *program = programs::get(id);
-    if (program == nullptr || program->readonly) {
-      return send_error(res, 404, "Program not found");
+    if (program == nullptr) return send_error(res, 404, "Program not found");
+    if (program->readonly) {
+      return send_error(res, 409, "Program is read-only and cannot be deleted");
     }
 
     // Only now: dropping the program while the run loop holds a pointer to it
@@ -527,14 +534,19 @@ void register_audio_routes() {
     // command that silently fails mid-exercise is a range-safety problem.
     // Refusal order, most specific reason first, and existence before any of
     // them so a bogus id is never reported as a conflict:
-    //   1. no such clip, or a shipped one            -> 404
-    //   2. the loaded program plays it               -> 409  (about this clip)
-    //   3. a run is in progress                      -> 409  (about any clip)
-    //   4. the audio task is reading it right now    -> 409  (audios::remove)
-    // 2 before 3 because it names the clip's own role: it survives a stop and
+    //   1. no such clip                              -> 404
+    //   2. a shipped one                             -> 409  (permanent)
+    //   3. the loaded program plays it               -> 409  (about this clip)
+    //   4. a run is in progress                      -> 409  (about any clip)
+    //   5. the audio task is reading it right now    -> 409  (audios::remove)
+    // 3 before 4 because it names the clip's own role: it survives a stop and
     // tells the user deleting it needs the program unloaded, not just paused.
+    // Read-only ahead of both because it is the reason that never lifts.
     const audios::Audio *clip = audios::get(id);
-    if (clip == nullptr || clip->readonly) return send_error(res, 404, "Audio not found");
+    if (clip == nullptr) return send_error(res, 404, "Audio not found");
+    if (clip->readonly) {
+      return send_error(res, 409, "Audio is read-only and cannot be deleted");
+    }
 
     // Not only while running: stop() is a pause, so a clip removed between two
     // runs would be missing when the loaded program is resumed.
