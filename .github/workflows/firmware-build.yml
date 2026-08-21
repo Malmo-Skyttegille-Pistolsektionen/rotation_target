@@ -14,12 +14,20 @@ on:
       - resources/**
       - .github/workflows/firmware-build.yml
 
+  # Called by release.yml so the release is gated on the same checks that guard
+  # main, run at the exact commit that gets tagged.
+  workflow_call:
+
 permissions:
   contents: read
 
-# A superseded push should not keep a full firmware build running to completion.
+# A superseded run should not keep this going. The group carries a literal
+# prefix as well as `github.workflow`, because `github.workflow` is the *caller*
+# name when release.yml calls this workflow - without the prefix, two workflows
+# called from the same release run would land in one group and cancel each
+# other.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: firmware-build-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -111,12 +119,34 @@ jobs:
           # submodule; a plain checkout already brings it along.
           submodules: false
 
+      # The container runs as root over a workspace git considers foreign, so
+      # without this `git describe` fails and CMake bakes "unknown" into the
+      # image instead of a version. Silent until something reads the version
+      # back - which is exactly what the release workflow and the E2E suite do.
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Build
         shell: bash
         run: |
           . "$IDF_PATH/export.sh"
           idf.py set-target esp32s3
           idf.py build
+
+      # Cheap, and the only ordinary-CI check that the version machinery works
+      # at all: everything else tolerates a versionless image in silence, and
+      # the release workflow would be the first to notice - after a tag exists.
+      - name: Assert the image carries the workspace's version
+        shell: bash
+        run: |
+          set -euo pipefail
+          DESCRIBED="$(git describe --tags --match '[0-9]*.[0-9]*.[0-9]*' --always --dirty)"
+          BUILT="$(python3 scripts/app_desc.py build/rotation_target_backend.bin --field version)"
+          if [ "$BUILT" != "$DESCRIBED" ]; then
+            echo "::error::The image reports '$BUILT', not the workspace's '$DESCRIBED'."
+            exit 1
+          fi
+          echo "Image reports $BUILT"
 
       - name: Report image size
         shell: bash
@@ -149,6 +179,13 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           submodules: false
+
+      # The container runs as root over a workspace git considers foreign, so
+      # without this `git describe` fails and CMake bakes "unknown" into the
+      # image instead of a version. Silent until something reads the version
+      # back - which is exactly what the release workflow and the E2E suite do.
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Build the QEMU profile
         shell: bash

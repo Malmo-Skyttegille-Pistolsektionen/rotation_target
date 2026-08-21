@@ -19,7 +19,7 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-08 | Target banks (A/B) deferred | Deferred | 2026-08-20 |
 | D-09 | `backend_issue` SSE event returns in v2 | Decided | 2026-08-20 |
 | D-10 | Monorepo imports open PR branches, not main | Decided | 2026-08-20 |
-| D-11 | Prefixed tags + dynamic versioning | Decided | Aug 2026 |
+| D-11 | Dynamic versioning from git tags | Decided | Aug 2026, revised 2026-08-21 |
 | D-12 | Webapp package manager: npm | Decided | 2026-08-20 |
 | D-13 | Agent roles & review policy | Decided | 2026-08-20 |
 | D-14 | Webapp guardrails (devtools, src_legacy, size budget) | Decided | Aug 2026 |
@@ -37,6 +37,7 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-26 | An audio upload is never refused for concurrency | Decided | 2026-08-21 |
 | D-27 | A start names the program it is for | Decided | 2026-08-21 |
 | D-28 | The start delay is a run-page control, and 0 is a value | Decided | 2026-08-21 |
+| D-29 | One version for the whole product; bare tags; no external release workflows | Decided | 2026-08-21 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
 
@@ -188,24 +189,22 @@ settings or `.github/` workflows, the newer side wins, compared per file.
 **Why:** the entire ESP-IDF port exists only on the #2 branch; merging PRs
 into repos about to be superseded adds no value.
 
-## D-11 — Prefixed tags + dynamic versioning *(Decided, Aug 2026)*
+## D-11 — Dynamic versioning from git tags *(Decided, Aug 2026; revised 2026-08-21 by D-29)*
 
-**Decision:** per-component releases via tag prefixes (`firmware-vX.Y.Z`,
-`webapp-vX.Y.Z`, …); version resolved from `git describe` at build time;
-artifacts attach to GitHub releases; reuse the reqstool `common-release-*`
-reusable workflows.
+**Decision:** the version is resolved from `git describe` at build time and from
+nowhere else. No version files, no version-bump commits, no committed manifest
+of shipped asset versions — pin in the *output* (the release artifacts and
+`GET /api/v2/diagnostics/info`), never in the input. A release is a tag plus the
+artifacts built from it, so reverting one means deleting a tag.
 
-**Constraints of record:** no version-bump commits, no git submodules, no
-committed manifest of asset versions — pin in the *output* (artifact +
-`GET /api/v2/diagnostics/info`), not the input.
+**Why:** a version string committed to the tree is a second source of truth that
+drifts from the tag the moment anyone forgets to bump it, and every bump commit
+is a merge conflict waiting to happen.
 
-**Amended 2026-08-20 (implementation):** only `common-release-assets` is
-reusable as-is. `common-release-prepare`, `-tag` and `-promote` assume bare
-`X.Y.Z` tags — they validate the version as semver and tag it unprefixed — so
-they are ported into `.github/workflows/firmware-release.yml` rather than
-called. Releases are also **not** marked "latest": with three tag lines in one
-repository that flag would name a webapp release as the newest firmware.
-See `docs/RELEASING.md`.
+**Revised 2026-08-21:** this entry originally also specified *per-component tag
+prefixes* (`firmware-vX.Y.Z`, `webapp-vX.Y.Z`, `resources-vX.Y.Z`) and mandated
+reusing the reqstool org's `common-release-*` reusable workflows. Both are gone —
+see **D-29**. Everything above still holds.
 
 ## D-12 — Webapp package manager: npm *(Decided 2026-08-20)*
 
@@ -309,7 +308,7 @@ migration it exists for is not.
 
 It is safe here because there is no deployed client to break: the webapp is
 built into the LittleFS image and flashed with the firmware, so the two are
-deployed atomically, and no `firmware-vX.Y.Z` tag has ever been cut. This is
+deployed atomically, and no release has ever been cut. This is
 a recorded exception to the contract's own "additive within a major version"
 rule (`contracts/README.md`), and it stops being available the moment a
 firmware is released.
@@ -440,8 +439,8 @@ is, but the standard costs little more, ends the field-naming argument, and the
 existing tooling understands it — Redocly lints `application/problem+json`, and
 `openapi-typescript` gives the webapp a discriminated union to switch on.
 
-**Why now:** the same window that made D-16 safe is still open. No `firmware-v*`
-tag has been cut, and the webapp ships inside the firmware image, so producer
+**Why now:** the same window that made D-16 safe is still open. No release
+has been cut, and the webapp ships inside the firmware image, so producer
 and consumer deploy atomically — there is no skew period where an old client
 meets a new error shape. After the first release this becomes a breaking change
 with deprecation cost, and the error surface grows every week.
@@ -619,7 +618,7 @@ cost the client the reason.
 new `/api/v3` prefix. Taken as the second exception to that rule, on D-16's
 grounds and while the same window is open: the only client ships inside the
 firmware image, so producer and consumer deploy atomically, and no
-`firmware-v*` tag has been cut. `openapi.yaml`'s `info.version` goes to
+no release has been cut. `openapi.yaml`'s `info.version` goes to
 `3.0.0` — the same way `asyncapi.yaml` went to `3.0.0` for D-16 while the path
 prefix stayed `v2`. After the first release this would need a deprecation
 path, which is the argument for doing it now rather than later.
@@ -845,7 +844,7 @@ the one that refused it.
 `contracts/README.md` reserves for a new `/api/v3` prefix. Taken as the third
 recorded exception, on D-16's grounds and while the same window is open: the
 only client ships inside the firmware image, so producer and consumer deploy
-atomically, and no `firmware-v*` tag has been cut. `openapi.yaml`'s
+atomically, and no release has been cut. `openapi.yaml`'s
 `info.version` goes to `4.0.0`. After the first release this would need a
 deprecation path, which is the argument for doing it now rather than later.
 
@@ -910,6 +909,73 @@ settings entirely* — settings stays the place where the whole configuration is
 visible in one list. *A confirmation flow for 0* — a modal to confirm the
 setting that exists to remove a modal. *Relying on "Start Now"* — it is two
 presses and a modal flash, which is what 0 exists to avoid.
+
+## D-29 — One version for the whole product; bare tags; no external release workflows *(Decided 2026-08-21)*
+
+**Decision:** three separate points, settled together because each one falls out
+of the previous.
+
+1. **One version for firmware, webapp and resources.** The webapp bundle and the
+   shipped programs and audio are baked into the same LittleFS image the
+   firmware boots from. They are one artifact, released together, under one tag.
+   There are no `firmware-*` / `webapp-*` / `resources-*` tag lines, and there is
+   no standalone webapp or resources release. Supersedes D-11's prefixes.
+2. **Tags are bare semver — `2.0.0`.** No `v`, no component prefix, no `X.Y`
+   shorthand. The tag string *is* the value the device reports
+   (`esp_app_desc_t.version`, `GET /api/v2/version`) and the value the webapp
+   displays, so it has to be a semver value with nothing to strip.
+3. **The release workflow depends on nothing outside this repository.**
+   `.github/workflows/release.yml` calls no reusable workflow from any other org.
+   Its two helpers are local composite actions, `setup-git-cliff` and
+   `check-version`. Supersedes D-11's "reuse the reqstool `common-release-*`
+   workflows" and the 2026-08-20 amendment that kept `common-release-assets`.
+
+**Why:**
+
+- *One version.* A separate webapp version would have to answer "a webapp
+  release is for what?" — and the honest answer is nothing: no consumer can
+  install one, because the only place that bundle runs is inside a firmware
+  image. Two version lines for one artifact would let the Settings page show a
+  webapp version that no device could ever be flashed with.
+- *Bare tags.* With one tag line the prefix bought nothing and cost something:
+  `git describe` had to strip it, the API parser had to be defended against it,
+  and every consumer had to know it. A bare tag needs none of that, and it is
+  the scheme `jimisola/AutoLee` already uses.
+- *No external workflows.* A release that reaches across org boundaries can be
+  broken by a repository this project does not own, and pinning by SHA freezes
+  the whole transitive graph rather than fixing it. Everything the release needs
+  is ~60 lines of composite action.
+
+**Consequences:**
+
+- `.github/cliff-firmware.toml` collapses into a single `cliff.toml` at the
+  repository root, with `tag_pattern = "^[0-9]+\\.[0-9]+\\.[0-9]+$"`. Its one
+  deliberate divergence from the org's default config is carried across: `build:`
+  commits are **not** skipped, because CMake, partition-table and LittleFS
+  changes alter the image a user flashes.
+- The `--include-path` filters go away. One product means every path in the
+  repository is part of it.
+- The release build now bundles the webapp. The old "storage.bin currently ships
+  without the web app" caveat in `docs/RELEASING.md` is gone.
+- Releases **are** marked latest again. The "deliberately not latest" nuance
+  existed only because three tag lines shared one Releases page; with one tag
+  line, `/releases/latest` means exactly what a consumer expects.
+- The release shape is AutoLee's: `prepare -> checks -> [approval] -> build +
+  prerelease + assets -> verify by downloading -> promote`. The prerelease is the
+  load-bearing part — publicly readable by exact tag, so verification exercises
+  the real download path, but excluded from `/releases/latest`, so a failed
+  verification never serves anyone a broken release.
+- The approval gate is `environment: release`, which **must be configured by
+  hand with a required reviewer**; GitHub auto-creates a named environment with
+  no protection rules, and an unconfigured gate silently passes.
+
+**Rejected:** *keeping the prefixes* — they only made sense with independent tag
+lines. *A `v` prefix* — it is a character that every consumer has to strip and
+that the firmware's own version field cannot carry. *Per-component cliff configs
+selected by `--tag-pattern`* — verified to work on the pinned git-cliff 2.13.1,
+and no longer needed once there is one tag line. *A standalone webapp release
+(a dev-server bundle, an offline-flashing archive)* — nobody asked for either,
+and inventing a consumer to justify a version line is how the drift starts.
 
 ## Open questions
 
