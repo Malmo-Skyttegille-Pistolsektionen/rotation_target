@@ -32,6 +32,13 @@ nearest (`pre-copilot`, say). From there the value flows into
 `esp_app_desc_t.version` — visible in `esptool image-info`, in the boot log and
 to OTA — and `GET /api/v2/version` splits it into `{major, minor, patch}`.
 
+`webapp/vite.config.ts` runs the same command and injects the result as
+`__APP_VERSION__`, so the bundle baked into the image reports the identical
+string. The Settings page shows both it and the device's own answer from
+`GET /api/v2/diagnostics/info`, and flags a disagreement — which can only mean a
+development bundle is pointed at a device flashed with something else.
+`webapp/package.json` carries a `0.0.0` placeholder that nothing reads.
+
 | Build | `esp_app_desc_t.version` | `GET /api/v2/version` |
 |---|---|---|
 | At tag `2.0.0` | `2.0.0` | `2.0.0` |

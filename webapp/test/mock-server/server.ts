@@ -71,6 +71,12 @@ export interface MockSeed {
    * (D-25). Defaults to none, which is what a clean boot reports.
    */
   startupIssues?: StartupIssue[];
+  /**
+   * The `git describe` string `GET /diagnostics/info` reports. Defaults to a
+   * value no bundle can have been built at, so the version comparison on
+   * Settings has something to disagree with unless a test says otherwise.
+   */
+  firmwareVersion?: string;
 }
 
 /**
@@ -581,7 +587,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     // from the live state (`startupIssues`, and the counts).
     if (endpoint === '/diagnostics/info' && req.method === 'GET') {
       const info: DiagnosticsInfo = {
-        version: '2.0.0-mock',
+        version: seed.firmwareVersion ?? '2.0.0-mock',
         idfVersion: 'v6.0.2',
         buildDate: 'Aug 21 2026 09:12:44',
         resetReason: 'poweron',
