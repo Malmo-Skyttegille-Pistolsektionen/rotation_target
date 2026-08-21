@@ -105,6 +105,41 @@ test('a command the firmware does not recognise is refused, on upload and on rep
   expect(stored.series[0].events[0].command).toBe('show');
 });
 
+test('a shipped program is refused a delete, not hidden behind a 404 (D-23)', async ({ request }) => {
+  // 409 and 404 mean two different things now: refused because it is shipped,
+  // and not there. The Programs tab needs exactly that distinction to choose
+  // between "offer upload-as-new" and "refresh the list".
+  const refused = await request.delete(`${API}/programs/40/delete`);
+  expect(refused.status()).toBe(409);
+  expect(((await refused.json()) as { error: string }).error).toContain('read-only');
+
+  // Refused, not removed: it is still listed and still served in full.
+  expect((await request.get(`${API}/programs/40`)).status()).toBe(200);
+
+  expect((await request.delete(`${API}/programs/9999/delete`)).status()).toBe(404);
+});
+
+test('an upload by another client reaches an open page over SSE (D-24)', async ({ page, request }) => {
+  // The two-devices-at-the-range case: a laptop uploads, and the phone already
+  // showing the list has to find out. Before `libraryChanged` the phone kept
+  // its list until somebody reloaded it.
+  await openApp(page);
+  await page.getByRole('link', { name: 'Programs' }).click();
+  await expect(page.getByTestId('programs-table')).toBeVisible();
+  await expect(page.getByTestId('program-row-102')).toHaveCount(0);
+
+  const id = await upload(request, 'From the other client');
+  expect(id).toBe(102);
+
+  // No reload, no navigation, no polling: the device said the library changed
+  // and this page re-read the list.
+  await expect(page.getByTestId('program-row-102')).toContainText('From the other client');
+
+  // ...and the same in reverse when it goes away.
+  expect((await request.delete(`${API}/programs/${id}/delete`)).status()).toBe(200);
+  await expect(page.getByTestId('program-row-102')).toHaveCount(0);
+});
+
 /**
  * The editor, against the real thing: a program typed into the browser, parsed
  * by the firmware, stored on flash and loaded back for a run.

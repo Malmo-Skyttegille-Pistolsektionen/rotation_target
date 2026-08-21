@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { StateUpdatePayload } from '../../src/api/types';
+import type { AudioFile, DiagnosticsInfo, LibraryChangedPayload, StateUpdatePayload } from '../../src/api/types';
 import { PROGRAM_FALT_TRANING } from '../fixtures';
 import { createFakeClock, type FakeClock } from './clock';
 import { createMockServer, loadSeedFromDisk, type MockServer } from './server';
@@ -220,22 +220,29 @@ describe('program storage', () => {
     expect(refused.status).toBe(409);
     expect(await refused.json()).toEqual({ error: 'Program is loaded; unload it before updating' });
 
-    // There is no unload endpoint in v2: loading something else is the way out.
+    // The way out is POST /programs/unload (D-22); loading something else does
+    // it too, and is what this asserts because it also proves the refusal is
+    // about *this* program being loaded.
     await api('/programs/40/load', { method: 'POST' });
     expect((await api(`/programs/${id}`, { method: 'PUT', body: JSON.stringify({ ...document, id }) })).status).toBe(
       200,
     );
   });
 
-  it('deletes an uploaded program and hides a shipped one behind the same 404', async () => {
+  it('deletes an uploaded program, and tells "gone" apart from "read-only" (D-23)', async () => {
     const { id } = await (await upload()).json();
 
     expect((await api(`/programs/${id}/delete`, { method: 'DELETE' })).status).toBe(200);
     expect((await api(`/programs/${id}`)).status).toBe(404);
+    // Now it really is gone, which is the one thing 404 means.
     expect((await api(`/programs/${id}/delete`, { method: 'DELETE' })).status).toBe(404);
 
+    // A shipped program is refused, not hidden: it exists, GET still serves it,
+    // and only the write is refused - so a client can tell "refused because it
+    // is shipped" from "not there" and offer upload-as-new instead of a refresh.
     const shipped = await api('/programs/40/delete', { method: 'DELETE' });
-    expect(shipped.status).toBe(404);
+    expect(shipped.status).toBe(409);
+    expect(await shipped.json()).toEqual({ error: 'Program is read-only and cannot be deleted' });
     expect((await api('/programs/40')).status).toBe(200);
   });
 
@@ -275,6 +282,252 @@ describe('program storage', () => {
         .status,
     ).toBe(200);
     expect((await api(`/programs/${id}/delete`, { method: 'DELETE', headers: authorized })).status).toBe(200);
+  });
+});
+
+describe('unloading (D-22)', () => {
+  async function loadFalt(): Promise<void> {
+    expect((await api('/programs/40/load', { method: 'POST' })).status).toBe(200);
+  }
+
+  it('clears the selection and publishes it', async () => {
+    await loadFalt();
+    const sse = await openSSE(server.port);
+    await flushIO();
+    expect(last(sse.payloads<StateUpdatePayload>('stateUpdate')).loadedProgramId).toBe(40);
+
+    const res = await api('/programs/unload', { method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ message: 'Program unloaded' });
+
+    await flushIO();
+    const published = last(sse.payloads<StateUpdatePayload>('stateUpdate'));
+    expect(published.loadedProgramId).toBeNull();
+    expect(published.programState).toBeNull();
+
+    sse.close();
+  });
+
+  it('leaves the targets where the run left them - unloading moves no hardware', async () => {
+    await loadFalt();
+    await api('/targets/show', { method: 'POST' });
+
+    await api('/programs/unload', { method: 'POST' });
+    const sse = await openSSE(server.port);
+    await flushIO();
+    expect(sse.payloads<StateUpdatePayload>('stateUpdate')[0].targetStatus).toBe('shown');
+
+    sse.close();
+  });
+
+  it('answers 200 and publishes nothing when nothing is loaded', async () => {
+    const sse = await openSSE(server.port);
+    await flushIO();
+    // The connect frame, and nothing after it.
+    const before = sse.payloads<StateUpdatePayload>('stateUpdate').length;
+
+    const res = await api('/programs/unload', { method: 'POST' });
+    expect(res.status).toBe(200);
+    // The same message either way: a 200 says "nothing is loaded now", not
+    // "something was unloaded just now". That is what makes a retry safe.
+    expect(await res.json()).toEqual({ message: 'Program unloaded' });
+
+    await flushIO();
+    // A repeat frame would teach clients that a stateUpdate need not mean a
+    // state update.
+    expect(sse.payloads<StateUpdatePayload>('stateUpdate')).toHaveLength(before);
+
+    sse.close();
+  });
+
+  it('refuses a run in progress, and the refusal lifts with a stop', async () => {
+    await loadFalt();
+    await api('/programs/start', { method: 'POST' });
+
+    const refused = await api('/programs/unload', { method: 'POST' });
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ error: 'A program is running - stop it before unloading' });
+    // Nothing happened to the run.
+    const sse = await openSSE(server.port);
+    await flushIO();
+    expect(sse.payloads<StateUpdatePayload>('stateUpdate')[0].programState?.running).toBe(true);
+    sse.close();
+
+    await api('/programs/stop', { method: 'POST' });
+    expect((await api('/programs/unload', { method: 'POST' })).status).toBe(200);
+  });
+
+  it('is gated on the admin token like every other mutation', async () => {
+    const { token } = await (
+      await api('/admin-mode/enable', { method: 'POST', body: JSON.stringify({ password: 'range-2026' }) })
+    ).json();
+
+    expect((await api('/programs/unload', { method: 'POST' })).status).toBe(401);
+    expect(
+      (await api('/programs/unload', { method: 'POST', headers: { Authorization: `Bearer ${token}` } })).status,
+    ).toBe(200);
+  });
+});
+
+describe('libraryChanged (D-24)', () => {
+  /** A clip library, which the default seed deliberately does not have. */
+  const SEED_AUDIOS: AudioFile[] = [
+    { id: 3, title: 'Eld upphör', filename: '/storage/shipped/audio/3.wav', readonly: true },
+    { id: 100, title: 'Klubbmästerskap', filename: '/storage/uploads/audio/100.wav', readonly: false },
+  ];
+
+  const document = {
+    title: 'Klubbserie',
+    description: 'Uploaded from a file',
+    series: [{ name: 'Serie 1', optional: false, events: [{ duration: 1000, command: 'show' }] }],
+  };
+
+  let audioServer: MockServer;
+  let audioBase: string;
+  let sse: SSEReader;
+
+  beforeEach(async () => {
+    audioServer = createMockServer({ clock, seed: { programs: { 40: PROGRAM_FALT_TRANING }, audios: SEED_AUDIOS } });
+    audioBase = `http://127.0.0.1:${await audioServer.listen()}/api/v2`;
+    sse = await openSSE(audioServer.port);
+    await flushIO();
+  });
+
+  afterEach(async () => {
+    sse.close();
+    await audioServer.close();
+  });
+
+  function call(path: string, init?: RequestInit): Promise<Response> {
+    return fetch(`${audioBase}${path}`, init);
+  }
+
+  function kinds(): string[] {
+    return sse.payloads<LibraryChangedPayload>('libraryChanged').map((payload) => payload.kind);
+  }
+
+  /**
+   * A minimal RIFF/WAVE body in a multipart envelope the mock will accept.
+   * Every byte in it is ASCII or NUL, so a plain string is byte-for-byte what
+   * a file would be - and `fetch` takes one without a Buffer conversion.
+   */
+  function wavUpload(title: string): { body: string; headers: Record<string, string> } {
+    const boundary = '----rtmock';
+    const wav = `RIFF${'\0'.repeat(4)}WAVE${'\0'.repeat(52)}`;
+    const body =
+      `--${boundary}\r\nContent-Disposition: form-data; name="title"\r\n\r\n${title}\r\n` +
+      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="clip.wav"\r\n\r\n` +
+      `${wav}\r\n--${boundary}--\r\n`;
+    return { body, headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` } };
+  }
+
+  it('names the program library on create, replace and delete', async () => {
+    const { id } = await (await call('/programs', { method: 'POST', body: JSON.stringify(document) })).json();
+    await flushIO();
+    expect(kinds()).toEqual(['program']);
+
+    await call(`/programs/${id}`, { method: 'PUT', body: JSON.stringify(document) });
+    await flushIO();
+    expect(kinds()).toEqual(['program', 'program']);
+
+    await call(`/programs/${id}/delete`, { method: 'DELETE' });
+    await flushIO();
+    expect(kinds()).toEqual(['program', 'program', 'program']);
+  });
+
+  it('names the audio library on upload and delete', async () => {
+    const { body, headers } = wavUpload('Nytt klipp');
+    const created = await call('/audios', { method: 'POST', body, headers });
+    expect(created.status).toBe(201);
+    await flushIO();
+    expect(kinds()).toEqual(['audio']);
+
+    expect((await call('/audios/100/delete', { method: 'DELETE' })).status).toBe(200);
+    await flushIO();
+    expect(kinds()).toEqual(['audio', 'audio']);
+  });
+
+  it('says nothing about the library when the device only changes what it is doing', async () => {
+    await call('/programs/40/load', { method: 'POST' });
+    await call('/programs/start', { method: 'POST' });
+    await call('/programs/stop', { method: 'POST' });
+    await call('/programs/reset', { method: 'POST' });
+    await call('/programs/series/1/skip_to', { method: 'POST' });
+    await call('/programs/unload', { method: 'POST' });
+    await call('/targets/toggle', { method: 'POST' });
+    await flushIO();
+
+    expect(kinds()).toEqual([]);
+    // ...and every one of those did publish run state, so the stream is alive.
+    expect(sse.payloads<StateUpdatePayload>('stateUpdate').length).toBeGreaterThan(1);
+  });
+
+  it('emits both events when the loaded program is deleted, for its two reasons', async () => {
+    const { id } = await (await call('/programs', { method: 'POST', body: JSON.stringify(document) })).json();
+    await call(`/programs/${id}/load`, { method: 'POST' });
+    await flushIO();
+    const stateFrames = sse.payloads<StateUpdatePayload>('stateUpdate').length;
+
+    await call(`/programs/${id}/delete`, { method: 'DELETE' });
+    await flushIO();
+
+    expect(sse.payloads<StateUpdatePayload>('stateUpdate').length).toBe(stateFrames + 1);
+    expect(last(sse.payloads<StateUpdatePayload>('stateUpdate')).loadedProgramId).toBeNull();
+    // The create emitted one too, so the delete is the second.
+    expect(kinds()).toEqual(['program', 'program']);
+  });
+
+  it('stays silent on a refused write - a 409 changed nothing', async () => {
+    expect((await call('/programs/40/delete', { method: 'DELETE' })).status).toBe(409);
+    expect((await call('/audios/3/delete', { method: 'DELETE' })).status).toBe(409);
+    await flushIO();
+    expect(kinds()).toEqual([]);
+  });
+
+  it('refuses a shipped clip with 409, ahead of every other reason (D-23)', async () => {
+    const refused = await call('/audios/3/delete', { method: 'DELETE' });
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ error: 'Audio is read-only and cannot be deleted' });
+    // Still there, and still listed - it was refused, not hidden.
+    const { audios } = (await (await call('/audios')).json()) as { audios: AudioFile[] };
+    expect(audios.map((clip) => clip.id)).toContain(3);
+
+    // 404 is left meaning exactly one thing.
+    expect((await call('/audios/999/delete', { method: 'DELETE' })).status).toBe(404);
+  });
+});
+
+describe('diagnostics (D-25)', () => {
+  it('serves no startup issues for a clean boot', async () => {
+    const info = (await (await api('/diagnostics/info')).json()) as DiagnosticsInfo;
+    expect(info.startupIssues).toEqual([]);
+    expect(info.programCount).toBe(1);
+  });
+
+  it('serves what the boot scan could not read, bounded and oldest-dropped', async () => {
+    const issues = Array.from({ length: 10 }, (_, index) => ({
+      code: 'program_invalid',
+      message: 'Program file is malformed and was skipped',
+      context: { file: `/storage/uploads/programs/${index}.json` },
+    }));
+    const bounded = createMockServer({ clock, seed: { programs: {}, audios: [], startupIssues: issues } });
+    const port = await bounded.listen();
+
+    const info = (await (await fetch(`http://127.0.0.1:${port}/api/v2/diagnostics/info`)).json()) as DiagnosticsInfo;
+    // Eight kept, the oldest two dropped: the array reflects where the scan
+    // finished, and an array of exactly eight may be a truncated one.
+    expect(info.startupIssues).toHaveLength(8);
+    expect(info.startupIssues[0].context).toEqual({ file: '/storage/uploads/programs/2.json' });
+    expect(info.startupIssues[7].context).toEqual({ file: '/storage/uploads/programs/9.json' });
+
+    await bounded.close();
+  });
+
+  it('is public - no token needed once admin mode is on', async () => {
+    await api('/admin-mode/enable', { method: 'POST', body: JSON.stringify({ password: 'range-2026' }) });
+    const res = await api('/diagnostics/info');
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as DiagnosticsInfo).adminModeEnabled).toBe(true);
   });
 });
 

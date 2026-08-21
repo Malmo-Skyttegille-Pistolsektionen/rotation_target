@@ -36,6 +36,8 @@ Mock Server v2 is SSE-first. The v1 mock (`/sse/v1`, `/api/v1/*`) was removed wi
 - `GET /sse/v2`
   - Immediately emits a `stateUpdate` event.
   - Emits `stateUpdate` on every state change.
+  - Emits `libraryChanged` when a program or an audio clip is created, replaced
+    or deleted — never for load/start/stop/reset/skip_to/unload.
   - Emits `heartbeat` every 10 seconds.
 
 ### Public REST
@@ -46,6 +48,7 @@ Mock Server v2 is SSE-first. The v1 mock (`/sse/v1`, `/api/v1/*`) was removed wi
 - `GET /api/v2/programs`
 - `GET /api/v2/programs/{id}`
 - `GET /api/v2/audios`
+- `GET /api/v2/diagnostics/info`
 
 ### Conditionally Protected REST
 
@@ -56,6 +59,7 @@ These endpoints are public while admin mode is off, and require auth while admin
 - `POST /api/v2/programs/start`
 - `POST /api/v2/programs/stop`
 - `POST /api/v2/programs/reset`
+- `POST /api/v2/programs/unload`
 - `POST /api/v2/programs/series/{idx}/skip_to`
 - `POST /api/v2/targets/show`
 - `POST /api/v2/targets/hide`
@@ -90,6 +94,28 @@ Rules:
   `Math.floor(tickerMs / 1000)`.
 - `currentEventIndex` is derived from elapsed series time.
 - Program structure is fetched separately with `GET /api/v2/programs/{id}`.
+
+### `libraryChanged`
+
+Sent after a REST call changed what the device _stores_ (D-24). A
+cache-invalidation signal, not a delta: refetch the list `kind` names.
+
+```typescript
+interface LibraryChangedPayload {
+  kind: 'audio' | 'program';
+}
+```
+
+Rules:
+
+- `program` follows `POST /programs`, `PUT /programs/{id}` and
+  `DELETE /programs/{id}/delete`; `audio` follows `POST /audios` and
+  `DELETE /audios/{id}/delete`.
+- Never emitted for run state — that is what `stateUpdate` is for. Deleting the
+  loaded program emits both, for its two different reasons.
+- Not emitted when a write is refused: a `409` changed nothing.
+- `kind` is a closed enum; ignore one you do not recognise rather than
+  refetching everything.
 
 ### `heartbeat`
 
@@ -140,3 +166,14 @@ Notes:
 - `start` resumes from current `tickerMs` if paused, otherwise starts from 0.
 - `reset` resets execution to the start of the current series and sets `tickerMs` to `null`.
 - `skip_to` validates the zero-based index; out-of-range returns `400` and does not change state.
+- `unload` clears the selection and broadcasts. A run in progress is `409`
+  (`A program is running - stop it before unloading`); nothing loaded is `200`
+  with the same message as a real unload and **no broadcast**, because the
+  payload would repeat the one clients already hold (D-22). The targets stay
+  where the run left them.
+- A delete refused because the program or clip is read-only is `409`, not `404`
+  (D-23): `404` means it is not there.
+- `GET /diagnostics/info` carries `startupIssues` — the `backend_issue` payloads
+  raised during boot, before the server existed (D-25). At most 8, oldest
+  dropped, so exactly 8 may be a truncated list. Seeded per mock server; empty
+  by default.

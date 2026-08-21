@@ -13,16 +13,19 @@ export type Event = components['schemas']['Event'];
 export type AudioFile = components['schemas']['Audio'];
 export type ProgramUpdate = components['schemas']['ProgramUpdate'];
 export type CreatedId = components['schemas']['CreatedId'];
+export type StartupIssue = components['schemas']['StartupIssue'];
+export type DiagnosticsInfo = components['schemas']['DiagnosticsInfo'];
 
 // SSE shapes are specified in `contracts/asyncapi.yaml`, which
 // openapi-typescript does not read (it only generates from `openapi.yaml`).
 // Hand-written, and kept in lock-step with that document's `StateUpdate`,
-// `ProgramState`, `Heartbeat` and `BackendIssue` schemas by hand — nothing
-// checks it, so adding a message there means editing here.
+// `ProgramState`, `Heartbeat`, `BackendIssue` and `LibraryChanged` schemas by
+// hand — nothing checks it, so adding a message there means editing here.
 export const SSETypes = {
   StateUpdate: 'stateUpdate',
   Heartbeat: 'heartbeat',
   BackendIssue: 'backend_issue',
+  LibraryChanged: 'libraryChanged',
 } as const;
 
 export interface HeartbeatPayload {
@@ -55,6 +58,19 @@ export interface ProgramState {
    * a second and on event boundaries.
    */
   tickerMs: number | null;
+}
+
+/**
+ * The stored library changed — a program or a clip was created, replaced or
+ * deleted, by this client or another one. Refetch the list `kind` names.
+ *
+ * `kind` is a CLOSED enum (D-24), unlike `backend_issue.code`: it enumerates
+ * the collections this API has. A value outside it means a document newer than
+ * this app, and the contract's instruction is to ignore it rather than refetch
+ * everything.
+ */
+export interface LibraryChangedPayload {
+  kind: 'audio' | 'program';
 }
 
 export interface StateUpdatePayload {

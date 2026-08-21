@@ -24,8 +24,11 @@ import type {
   StateUpdatePayload,
   ProgramState,
   AudioFile,
+  DiagnosticsInfo,
+  LibraryChangedPayload,
   ProgramSummary,
   Series,
+  StartupIssue,
   Event,
 } from '../../src/api/types';
 import type { EventLocation } from '../../src/lib/run-position';
@@ -48,6 +51,9 @@ const FIRST_UPLOAD_ID = 100;
  */
 const PLAYBACK_DURATION = 3000;
 
+/** `kMaxStartupIssues` in firmware/main/net/sse_hub.cpp: the ring is bounded, oldest dropped. */
+const MAX_STARTUP_ISSUES = 8;
+
 /** Per-event clamp the firmware applies on parse. */
 const MIN_DURATION_MS = 1;
 const MAX_DURATION_MS = 3600000;
@@ -60,6 +66,11 @@ const DATA_DIR = path.resolve(here, '../data');
 export interface MockSeed {
   programs: Record<number, Program>;
   audios: AudioFile[];
+  /**
+   * What the boot scan complained about, served by `GET /diagnostics/info`
+   * (D-25). Defaults to none, which is what a clean boot reports.
+   */
+  startupIssues?: StartupIssue[];
 }
 
 /**
@@ -240,6 +251,12 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     playingUntil: null,
   };
 
+  // What `uptimeSeconds` counts from. The mock has no reboot, so this is fixed
+  // for the life of the server - as are the startup issues, which the device
+  // collects once during boot and never adds to while it is up (D-25).
+  const bootedAt = clock.now();
+  const startupIssues: StartupIssue[] = (seed.startupIssues ?? []).slice(-MAX_STARTUP_ISSUES);
+
   const clients: SSEClient[] = [];
   let httpServer: http.Server | null = null;
   let boundPort = 0;
@@ -260,6 +277,17 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
 
   function broadcastState(): void {
     const message = stateUpdateFrame();
+    clients.forEach(({ res }) => res.write(message));
+  }
+
+  /**
+   * `sse_hub::broadcast_library_changed`, emitted from the REST handlers after
+   * a change has reached storage and the response is a success (D-24) - never
+   * from load/start/stop/reset/skip_to/unload, which change what the device is
+   * doing rather than what it stores.
+   */
+  function broadcastLibraryChanged(kind: LibraryChangedPayload['kind']): void {
+    const message = `event: libraryChanged\ndata: ${JSON.stringify({ kind })}\n\n`;
     clients.forEach(({ res }) => res.write(message));
   }
 
@@ -546,6 +574,40 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       return;
     }
 
+    // --- Diagnostics ---
+
+    // GET /diagnostics/info - public, like every other GET. The health figures
+    // are plausible constants; the two fields a test can care about are read
+    // from the live state (`startupIssues`, and the counts).
+    if (endpoint === '/diagnostics/info' && req.method === 'GET') {
+      const info: DiagnosticsInfo = {
+        version: '2.0.0-mock',
+        idfVersion: 'v6.0.2',
+        buildDate: 'Aug 21 2026 09:12:44',
+        resetReason: 'poweron',
+        uptimeSeconds: Math.floor((clock.now() - bootedAt) / 1000),
+        freeHeapBytes: 182_344,
+        minFreeHeapBytes: 170_112,
+        freePsramBytes: 8_216_576,
+        runningPartition: 'ota_0',
+        coredumpPresent: false,
+        storageTotalBytes: 12_582_912,
+        storageUsedBytes: 4_194_304,
+        programCount: Object.keys(programs).length,
+        audioCount: audios.length,
+        ipAddress: '127.0.0.1',
+        targetGpio: 4,
+        targetGpioLevel: state.targetStatus === 'shown' ? 1 : 0,
+        adminModeEnabled: isAdminEnabled(),
+        // Already bounded at construction: an array of exactly 8 may be a
+        // truncated one, which is what the contract says and what the app warns
+        // about.
+        startupIssues,
+      };
+      jsonResponse(res, 200, info);
+      return;
+    }
+
     // --- Programs Endpoints ---
 
     // GET /programs - No auth required (read-only)
@@ -583,6 +645,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         return;
       }
       programs[id] = program;
+      broadcastLibraryChanged('program');
       jsonResponse(res, 201, { id });
       return;
     }
@@ -636,25 +699,33 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       }
 
       programs[id] = replacement;
+      broadcastLibraryChanged('program');
       jsonResponse(res, 200, programs[id]);
       return;
     }
 
-    // DELETE /programs/{id}/delete - Requires auth. A shipped program is a 404,
-    // the same answer as one that does not exist.
+    // DELETE /programs/{id}/delete - Requires auth. Deletability is decided
+    // before anything is unloaded, and a shipped program is a 409, not a 404
+    // (D-23): it exists, GET lists it and fetches it, and only the write is
+    // refused - the same answer PUT gives for the same program. 404 is left
+    // meaning exactly one thing.
     const programDeleteMatch = endpoint.match(/^\/programs\/(\d+)\/delete$/);
     if (programDeleteMatch && req.method === 'DELETE') {
       if (!checkAdminAuth(req, res)) return;
       const id = parseInt(programDeleteMatch[1], 10);
       const existing = programs[id];
-      if (!existing || existing.readonly) {
+      if (!existing) {
         jsonResponse(res, 404, { error: 'Program not found' });
         return;
       }
+      if (existing.readonly) {
+        jsonResponse(res, 409, { error: 'Program is read-only and cannot be deleted' });
+        return;
+      }
 
-      delete programs[id];
-
-      // Deleting the loaded program unloads it first, and that is published.
+      // Unloaded first, as the firmware does: the run loop holds a pointer into
+      // the program, and the client needs the stateUpdate either way. Whatever
+      // the run state - refusing is not an option once the file is going.
       if (state.loadedProgram?.id === id) {
         state.loadedProgram = null;
         state.programState = null;
@@ -662,6 +733,11 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         broadcastState();
       }
 
+      delete programs[id];
+
+      // Both events, for their two different reasons: the state changed because
+      // nothing is loaded, the library changed because a program is gone.
+      broadcastLibraryChanged('program');
       jsonResponse(res, 200, { message: 'Program deleted' });
       return;
     }
@@ -687,6 +763,32 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
 
       broadcastState();
       jsonResponse(res, 200, { message: 'Program loaded' });
+      return;
+    }
+
+    // POST /programs/unload - Requires auth. `rt::Executor::unload` (D-22):
+    // running is refused first, so the refusal is the answer whenever there is
+    // a run to protect; nothing loaded is a 200 that publishes nothing, because
+    // the payload would repeat the one clients already hold.
+    if (endpoint === '/programs/unload' && req.method === 'POST') {
+      if (!checkAdminAuth(req, res)) return;
+      if (state.programState?.running) {
+        jsonResponse(res, 409, { error: 'A program is running - stop it before unloading' });
+        return;
+      }
+      if (!state.loadedProgram) {
+        jsonResponse(res, 200, { message: 'Program unloaded' });
+        return;
+      }
+
+      // The targets are left where the run left them: unloading moves no
+      // hardware, so `targetStatus` is untouched.
+      state.loadedProgram = null;
+      state.programState = null;
+      state.seriesStartTime = null;
+
+      broadcastState();
+      jsonResponse(res, 200, { message: 'Program unloaded' });
       return;
     }
 
@@ -869,6 +971,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         filename: `/storage/uploads/audio/${id}.wav`,
         readonly: false,
       });
+      broadcastLibraryChanged('audio');
       jsonResponse(res, 201, { id });
       return;
     }
@@ -879,9 +982,15 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       if (!checkAdminAuth(req, res)) return;
       const id = parseInt(audioDeleteMatch[1], 10);
       const index = audios.findIndex((a) => a.id === id);
-      // A shipped clip is indistinguishable from a missing one, by contract.
-      if (index === -1 || audios[index].readonly) {
+      // Existence first, so a bogus id is never reported as a conflict; then
+      // read-only, which is the reason that never lifts (D-23) and therefore
+      // goes ahead of the run-safety conflicts below it.
+      if (index === -1) {
         jsonResponse(res, 404, { error: 'Audio not found' });
+        return;
+      }
+      if (audios[index].readonly) {
+        jsonResponse(res, 409, { error: 'Audio is read-only and cannot be deleted' });
         return;
       }
       if (isPlaying(id)) {
@@ -889,6 +998,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         return;
       }
       audios.splice(index, 1);
+      broadcastLibraryChanged('audio');
       jsonResponse(res, 200, { message: 'Audio deleted successfully' });
       return;
     }
