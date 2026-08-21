@@ -285,7 +285,10 @@ jobs:
             if [ -n "$PREVIOUS" ]; then
               git log "${PREVIOUS}..${SHA}" --format="- %h %s"
             else
-              git log "$SHA" --format="- %h %s" | head -40
+              # `-n 40` rather than `| head -40`: head closes the pipe once it
+              # has its lines, git takes SIGPIPE, and pipefail turns that into
+              # exit 141 - which is exactly how the first dry run died.
+              git log "$SHA" -n 40 --format="- %h %s"
             fi
             echo ""
             echo "</details>"

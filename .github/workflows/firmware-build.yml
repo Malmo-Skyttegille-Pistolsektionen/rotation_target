@@ -200,7 +200,7 @@ jobs:
           # espressif/idf:v6.0.2 ships qemu-xtensa 9.2.2 already installed and
           # on PATH after export.sh, so the runner's install-on-first-use branch
           # never fires here and there is nothing worth caching.
-          qemu-system-xtensa --version | head -1
+          qemu-system-xtensa --version | sed -n '1p'
           # The runner execs qemu, so this PID is the emulator's.
           scripts/run-qemu.sh --no-build --headless > qemu-serial.log 2>&1 &
           echo "$!" > qemu.pid
