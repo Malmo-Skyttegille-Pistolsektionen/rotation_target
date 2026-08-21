@@ -75,7 +75,7 @@ describe('updateFailureNotice branches on type, not on wording', () => {
 describe('unloadFailureNotice', () => {
   it('names the escape for a run in progress', () => {
     const notice = unloadFailureNotice(apiError('/problems/program_running', 'A program is running', 409));
-    expect(notice.message).toContain('Stop the program first');
+    expect(notice.message).toContain('Pause the run first');
   });
 
   it('falls back to detail for any other refusal', () => {

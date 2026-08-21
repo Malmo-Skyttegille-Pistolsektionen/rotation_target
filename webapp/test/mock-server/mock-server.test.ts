@@ -89,7 +89,11 @@ describe('REST surface', () => {
     for (const body of [undefined, '', 'not json', '[]', '{}', '{"id":null}', '{"id":"40"}', '{"id":40.5}']) {
       const res = await api('/programs/start', { method: 'POST', body });
       expect(res.status, `body: ${String(body)}`).toBe(400);
-      expect(await res.json()).toEqual({ error: malformed });
+      expect(await res.json()).toMatchObject({
+        type: '/problems/start_id_required',
+        status: 400,
+        detail: malformed,
+      });
     }
   });
 
@@ -98,8 +102,10 @@ describe('REST surface', () => {
 
     const res = await start(1);
     expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({
-      error: 'Start refused: the device has program 40 loaded, not program 1',
+    expect(await res.json()).toMatchObject({
+      type: '/problems/start_program_mismatch',
+      status: 409,
+      detail: 'Start refused: the device has program 40 loaded, not program 1',
     });
   });
 
