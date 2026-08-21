@@ -6,7 +6,8 @@ interface NoticeBannerProps {
   notice: Notice;
   /** Distinct per view, so a test can tell the tab's banner from the editor's. */
   testId: string;
-  onDismiss: () => void;
+  /** Omitted for a standing condition — one that dismissing would not change. */
+  onDismiss?: () => void;
 }
 
 /** The one-line result of the last write, with the detail lines under it. */
@@ -27,24 +28,28 @@ export function NoticeBanner({ notice, testId, onDismiss }: NoticeBannerProps): 
           ))}
         </ul>
       )}
-      <div className={styles.noticeActions}>
-        {notice.action && (
-          <button
-            className={styles.button}
-            data-testid={`${testId}-action`}
-            onClick={() => {
-              const run = notice.action?.run;
-              onDismiss();
-              run?.();
-            }}
-          >
-            {notice.action.label}
-          </button>
-        )}
-        <button className={styles.button} onClick={onDismiss}>
-          Dismiss
-        </button>
-      </div>
+      {(notice.action || onDismiss) && (
+        <div className={styles.noticeActions}>
+          {notice.action && (
+            <button
+              className={styles.button}
+              data-testid={`${testId}-action`}
+              onClick={() => {
+                const run = notice.action?.run;
+                onDismiss?.();
+                run?.();
+              }}
+            >
+              {notice.action.label}
+            </button>
+          )}
+          {onDismiss && (
+            <button className={styles.button} onClick={onDismiss}>
+              Dismiss
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
