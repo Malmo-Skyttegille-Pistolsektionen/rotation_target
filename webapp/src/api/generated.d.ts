@@ -487,8 +487,11 @@ export interface paths {
          *     Chunks are walked rather than assumed, so a `LIST`/`INFO` chunk before
          *     `data` is fine.
          *
-         *     One upload at a time: there is a single staging slot, and a second
-         *     concurrent upload is refused.
+         *     There is one staging slot, but no upload is ever refused for it: the
+         *     server handles requests one at a time, so two uploads never overlap. A
+         *     new upload always proceeds, starting by discarding anything an
+         *     interrupted upload left staged — so an upload whose connection dies
+         *     mid-body leaves nothing behind and cannot corrupt the next one.
          *
          *     Two details of the vendored HTTP layer, recorded because clients rely
          *     on them in practice: the part name of the file is not inspected (any

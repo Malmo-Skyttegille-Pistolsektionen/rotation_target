@@ -34,6 +34,7 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-23 | A refused delete is `409`, not `404` | Decided | 2026-08-21 |
 | D-24 | One `libraryChanged` SSE event | Decided | 2026-08-21 |
 | D-25 | Boot-time issues are served, not streamed | Decided | 2026-08-21 |
+| D-26 | An audio upload is never refused for concurrency | Decided | 2026-08-21 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
 
@@ -747,6 +748,46 @@ deliver, which is worse than not specifying it. *A dedicated
 `GET /diagnostics/startup-issues`* — a second endpoint for a field, when the
 client fetching diagnostics wants both. *Emitting them on SSE connect* — see
 option 1 above.
+
+## D-26 — An audio upload is never refused for concurrency *(Decided 2026-08-21)*
+
+**Decision:** `POST /api/v2/audios` no longer refuses an upload because another
+is "in flight". A new upload always proceeds, and it starts by discarding
+whatever the previous one left in the single staging slot — from the upload
+handler's middleware, which runs before the body is streamed, and again when
+the audio routes are registered at boot. `s_upload_in_flight` survives only as
+the marker that says the last request never reached `onRequest`; the log line
+it now produces is the diagnostic that used to be a refusal.
+
+**Why:** the guard modelled a situation that cannot occur and caused one that
+can. `ENABLE_ASYNC` is off, so `esp_http_server` serves one request at a time
+and two uploads never overlap — the only way the flag was set when a new upload
+began was a *stuck* flag from an upload whose connection died mid-body, which
+returns `ESP_FAIL` out of `MultipartProcessor::process()` and so never reaches
+`onRequest`, the only reset. Vendored `_handleUploadByte` then discards the
+upload callback's return value, so refusing skipped one 8 KiB chunk rather than
+the request: a single-chunk clip vanished (`400 No file uploaded`), and a
+multi-chunk clip lost its first 8 KiB and was appended to the dead upload's
+leftovers, because the staging file is only truncated by the `index == 0` open
+that the refusal returned before. Measured in QEMU on a 352 844 B WAV: `400
+Unsupported audio format`, `400 No file uploaded`, or `201` on a file 8 192 B
+short at the front and 16 384 B long at the back (#97).
+
+**Rejected:** *patching `_handleUploadByte` to honour the callback's return* —
+`lib/psychic_http` stays byte-identical to upstream
+(`firmware/CONTRIBUTING.md`), and it would only
+turn silent corruption into a clean refusal of an upload that has no reason to
+be refused. *Keeping the refusal and clearing the flag on socket error* — there
+is no error path in the vendored layer to hang it on. *Dropping the flag
+entirely* — an interrupted upload is worth one warning line on the serial
+console, and the staging file still has to be discarded for the same reason.
+
+**Contract:** the `POST /audios` prose in `contracts/openapi.yaml` and
+`firmware/docs/api-v2.md` claimed a second concurrent upload was refused, which
+was never modelled by a response and is now wrong in a second way. Both now say
+that no upload is refused for the staging slot and that an interrupted one
+leaves nothing behind — closing the unresolved half of #75.
+
 ## Open questions
 
 - **Are `app` / `x86_linux` used by anyone?** (asked — drives D-03's

@@ -270,8 +270,11 @@ checked, as an early reject. A client-chosen name could collide with the
 repository's own `audios.json` index (destroying it) or with an existing clip
 (leaving two ids sharing one file, so deleting either broke the other). Every
 failure path removes the staging file, so a repeated failed upload cannot fill
-the partition. There is one staging slot, so a second concurrent upload is
-refused.
+the partition. There is one staging slot, and nothing is refused for it: the
+HTTP server runs on a single task, so two uploads never overlap. An upload
+whose connection dies mid-body never reaches `onRequest`, which is where that
+cleanup lives, so the next upload — and every boot — starts by discarding
+whatever is still staged.
 
 Uploads and request bodies alike are bounded by `kMaxUploadBytes` (1 MB),
 applied to the HTTP layer — not just when reading files back. That check lives

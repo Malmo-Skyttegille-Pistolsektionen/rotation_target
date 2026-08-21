@@ -47,7 +47,22 @@ PsychicUploadHandler s_audio_upload;
 
 // Uploads land here first and are renamed to <id>.wav once validated.
 constexpr const char *kStagedUploadPath = "/storage/uploads/audio/.staging";
+
+// Set while a request body is being streamed to the staging file, cleared by
+// the handler's onRequest. Still set outside a request means the last upload
+// died mid-body.
 bool s_upload_in_flight = false;
+
+// Drops whatever a previous upload left staged. Safe to call outside a
+// request: every completion path either renames the staging file into the
+// repository or removes it, so a survivor is always dead weight.
+void discard_dead_upload() {
+  if (s_upload_in_flight) {
+    ESP_LOGW(TAG, "Previous upload died mid-body - discarding its staged bytes");
+    s_upload_in_flight = false;
+  }
+  ::remove(kStagedUploadPath);
+}
 
 void esp_random_bytes(uint8_t *out, size_t len) {
   esp_fill_random(out, len);
@@ -510,6 +525,10 @@ void register_target_routes() {
 }
 
 void register_audio_routes() {
+  // Nothing reads a staged file back after a reboot, so a survivor is an
+  // interrupted upload's remains.
+  discard_dead_upload();
+
   s_server.on("/api/v2/audios", HTTP_GET, [](PsychicRequest *, PsychicResponse *res) {
     return send_json(res, 200, audios::list_json());
   });
@@ -598,12 +617,8 @@ void register_audio_routes() {
     }
 
     if (index == 0) {
-      // One staging slot, so two uploads at once would interleave into one
-      // file. Rare enough to refuse rather than engineer around.
-      if (s_upload_in_flight) {
-        ESP_LOGW(TAG, "Rejected upload: another is already in flight");
-        return ESP_FAIL;
-      }
+      // Marks the body as streaming so the middleware can tell, next time
+      // round, that this request never reached onRequest.
       s_upload_in_flight = true;
       storage::make_dirs(kUploadAudioDir);
     }
@@ -636,6 +651,13 @@ void register_audio_routes() {
         // streams the body to flash. Checking afterwards would let an
         // unauthenticated caller write a file and only then be told no.
         if (!require_admin(req, res)) return ESP_OK;
+
+        // The server is single-task (ENABLE_ASYNC is off), so no other upload
+        // can still be running: a flag still set here belongs to one whose
+        // connection died mid-body, which skipped onRequest - the only reset -
+        // and left its bytes staged. Clear both, or they prepend the file
+        // about to arrive.
+        discard_dead_upload();
         return next();
       });
 
