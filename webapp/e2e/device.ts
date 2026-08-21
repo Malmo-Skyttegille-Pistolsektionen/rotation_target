@@ -1,4 +1,4 @@
-import type { APIRequestContext, Page } from '@playwright/test';
+import type { APIRequestContext, APIResponse, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 /**
@@ -31,6 +31,30 @@ export const TEST_PROGRAM = {
 export const SHIPPED_PROGRAM_IDS = [1, 2, 20, 40, 50, 100, 101];
 
 const API = '/api/v2';
+
+/**
+ * Assert an RFC 9457 problem detail, media type included (D-19).
+ *
+ * `title` and `status` are fixed per `type` by `rt::ProblemType`
+ * (`firmware/lib/rt_logic/problem.h`), so they are asserted too: this is the
+ * only place the whole vocabulary meets the real firmware, and it is what
+ * proves `test/mock-server/server.ts` is imitating rather than inventing.
+ */
+export async function expectProblem(
+  response: APIResponse,
+  expected: { type: string; title: string; status: number; detail?: string },
+): Promise<void> {
+  expect(response.status()).toBe(expected.status);
+  expect(response.headers()['content-type']).toBe('application/problem+json');
+  const body = (await response.json()) as Record<string, unknown>;
+  expect(body.type).toBe(expected.type);
+  expect(body.title).toBe(expected.title);
+  expect(body.status).toBe(expected.status);
+  expect(typeof body.detail).toBe('string');
+  if (expected.detail !== undefined) expect(body.detail).toBe(expected.detail);
+  // D-19: no request ids on this device, so no `instance`.
+  expect(body).not.toHaveProperty('instance');
+}
 
 /**
  * Put the device back to: admin mode off, nothing running, nothing loaded.

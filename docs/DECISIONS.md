@@ -27,7 +27,7 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-16 | `tickerMs` replaces `tickerSeconds` | Decided | 2026-08-20 |
 | D-17 | E2E runs against the firmware, in one CI job | Decided | 2026-08-20 |
 | D-18 | Program validation without ajv; the editor ports later | Decided | 2026-08-20 |
-| D-19 | REST errors become RFC 9457 problem details | Decided | 2026-08-20 |
+| D-19 | REST errors become RFC 9457 problem details | Implemented | 2026-08-21 |
 | D-20 | `Event.command` is a closed vocabulary | Decided | 2026-08-20 |
 | D-21 | An npm `override` must be truthful | Decided | 2026-08-20 |
 | D-22 | `POST /programs/unload` | Decided | 2026-08-21 |
@@ -413,7 +413,7 @@ fails too. Generating the validator from the schema was rejected: the schema
 cannot express what the *device* does, which is the whole point of the
 validator.
 
-## D-19 — REST errors become RFC 9457 problem details *(Decided 2026-08-20, implementation pending)*
+## D-19 — REST errors become RFC 9457 problem details *(Decided 2026-08-20; implemented 2026-08-21)*
 
 **Decision:** every REST error response becomes an RFC 9457 problem detail
 served as `application/problem+json`, carrying `type`, `title`, `status` and
@@ -449,6 +449,81 @@ with deprecation cost, and the error surface grows every week.
 every future contributor must be taught); `instance` (no request ids);
 converting piecemeal (would leave a half-and-half API — one focused PR changes
 the helper, all 39 sites, the contract, the webapp and the mock together).
+
+### As implemented (2026-08-21)
+
+**48 error sites, not 39** — the surface grew by nine while this sat pending:
+the unload `409` (D-22), the two read-only delete `409`s (D-23), the audio
+guard's `409`s (#79), and D-27's two on `POST /programs/start`, which landed
+while this branch was open and were converted on rebase. Every one funnels
+through a single helper, so the count is a property of the call sites, not of
+the conversion.
+
+**25 problem types.** The status lives *on the type*, not at the call site:
+`rt::ProblemType` (`firmware/lib/rt_logic/problem.h`) is `{slug, title,
+status}`, and `send_problem` reads the status from it. That was not in the
+original entry and is the one design decision taken during implementation. It
+buys the thing that makes the contract usable — "one status per type, always"
+is true by construction, so `openapi.yaml` can list exactly which `type`s each
+operation produces under each status code, and a generated client can trust
+it. It also removes a whole class of drift: a reworded refusal cannot
+accidentally change its status.
+
+| Group | Types |
+|---|---|
+| auth | `admin_credentials_required` (401), `invalid_password` (401) |
+| not found | `route_not_found`, `program_not_found`, `audio_not_found` (404) |
+| conflict/state | `admin_mode_already_enabled`, `admin_mode_not_enabled`, `program_running`, `program_loaded`, `start_program_mismatch`, `program_readonly`, `audio_readonly`, `audio_in_use`, `audio_playing` (409); `no_program_loaded`, `program_not_running` (400) |
+| validation | `program_invalid`, `program_id_mismatch`, `series_index_invalid`, `start_id_required` (400) |
+| upload | `upload_missing_file`, `upload_missing_title`, `audio_format_unsupported` (400) |
+| internal | `program_store_failed`, `audio_store_failed` (500) |
+
+**The shared vocabulary is one slug, not many.** `program_invalid` is the only
+overlap with `backend_issue`: it is the same word over REST and over SSE, and
+`host_test/test_problem` asserts the two constants are equal so renaming one
+without the other fails the build. `audio_playback_failed` has no REST
+counterpart, because playback is acknowledged before the clip is read — there
+is no request left to answer. That the overlap is one code rather than several
+is not a disappointment: the vocabulary is shared *where it means the same
+thing*, and inventing REST types to match SSE codes nothing raises would repeat
+the mistake D-09 avoided.
+
+**Version bump: `openapi.yaml` `info.version` 4.0.0 → 5.0.0**, path prefix
+still `/api/v2`. D-27 took it to `4.0.0` while this branch was open; a removed
+field (`error`) is a further breaking change on top of that. This is the
+**fourth and last** recorded exception to the "additive within a major version"
+rule in `contracts/README.md`, on the same grounds as D-16, D-23 and D-27: the
+webapp ships inside the firmware image, producer and consumer deploy
+atomically, and no release has ever been cut. None is cut here either.
+
+**The webapp branches on `type`.** `program-notices.ts`'s
+`/read-only|readonly|shipped/i` is gone; `client.ts`'s `ApiError` carries the
+parsed problem and `problemType(err)` returns it. The comparisons are against
+`components['schemas']['Problem']['type']`, a generated union — so a slug
+renamed in the contract is a `tsc` failure at every comparison site rather than
+a branch that quietly stops matching. That, not the RFC, is the durable part.
+
+**Reported, not fixed** (this PR changed the error *format*, not the
+semantics):
+
+- A path segment that will not parse is `program_not_found` on
+  `GET`/`PUT /programs/{id}` but `route_not_found` on `/load` and `/delete` —
+  same condition, two types. The conversion preserved each site's existing
+  message, and the split is now visible in the contract instead of hidden in
+  prose.
+- `series_index_invalid` conflates "nothing loaded" with "index out of range";
+  the firmware answers one `400` for both.
+- `POST /audios` has no `audio_in_use`-style guard and the audio delete path's
+  `program_running` shares a type with unload's — deliberate, they are the same
+  condition, but worth recording as a place where one type serves two routes.
+- The Audios tab still shows `detail` raw for its four `409`s, where the
+  Programs tab explains them. Now cheap to fix — the types are there — but it
+  is a UX change, not a format one.
+- D-27's start mismatch got a type of its own, `start_program_mismatch`, rather
+  than reusing `program_id_mismatch`: that slug is the `PUT` `400`, and one slug
+  answering two statuses is exactly what the status-on-the-type design forbids.
+  Two ids in one `detail` is also the first `detail` on this device that is not
+  a constant string, which is why `send_problem` takes a `std::string`.
 
 ## D-20 — `Event.command` is a closed vocabulary *(Decided 2026-08-20)*
 
@@ -739,7 +814,7 @@ written into the contract rather than papered over with a count field nobody
 would read. The bound and the ring live in `rt::IssueBuffer` in `rt_logic`, so
 both are host-tested rather than asserted.
 
-**Same shape as `backend_issue`, deliberately.** D-19 will formalise the slug
+**Same shape as `backend_issue`, deliberately.** D-19 formalised the slug
 vocabulary across REST and SSE; a second spelling of "the device could not do
 something" invented here would be one more thing for it to unify. The `code`
 stays `x-extensible-enum` for the same reason it is one on the stream.

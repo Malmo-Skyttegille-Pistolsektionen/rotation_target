@@ -6,7 +6,7 @@
  * `PUT` 409 in particular is a paragraph of context (D-15) that must not exist
  * in two versions that can drift apart.
  */
-import { ApiError } from '../api/client';
+import { problemType } from '../api/client';
 import type { DocumentIssue } from './program-document';
 
 export interface Notice {
@@ -23,10 +23,15 @@ export function issueLines(issues: DocumentIssue[]): string[] {
 
 /**
  * Turn a rejected call into something a club member can act on. The device's
- * own message is the fallback, but the ones that need context get it here.
+ * own `detail` is the fallback, but the ones that need context get it here.
+ *
+ * Every branch below keys off the problem `type` (D-19), never off the
+ * wording: `detail` is display text and the contract says so. A `type` this
+ * app does not know falls through to showing `detail`, which is what the
+ * contract asks a client to do.
  */
 export function failureNotice(err: unknown, prefix: string): Notice {
-  if (err instanceof ApiError && err.status === 401) {
+  if (problemType(err) === '/problems/admin_credentials_required') {
     return {
       kind: 'error',
       message: `${prefix} Admin mode is on and this browser is not signed in — sign in under Settings.`,
@@ -36,31 +41,26 @@ export function failureNotice(err: unknown, prefix: string): Notice {
 }
 
 export function updateFailureNotice(err: unknown, id: number): Notice {
-  if (err instanceof ApiError && err.status === 409) {
-    // Shipped is the branch that has to prove itself: the UI never offers
-    // Replace on a shipped program, so a 409 that reaches here is the loaded
-    // one. Defaulting the other way would answer a reworded message with the
-    // wrong explanation entirely.
-    if (/read-only|readonly|shipped/i.test(err.message)) {
+  switch (problemType(err)) {
+    case '/problems/program_readonly':
       return {
         kind: 'error',
         message: `Program ${id} is shipped with the firmware and cannot be replaced. Upload the file as a new program instead.`,
       };
-    }
     // D-15: run state holds a pointer into the stored program, so the device
     // refuses. D-22 gave that refusal an escape of its own - before
     // `POST /programs/unload` existed the only ways out were loading some other
     // program or deleting this one, and this notice had to say so.
-    return {
-      kind: 'error',
-      message:
-        `Program ${id} is the one currently loaded on the device, and a loaded program cannot be replaced — ` +
-        'the run position points into it. Unload it first — the Unload button on the program’s row, or on the ' +
-        'Run page — and then replace it. If a series is running, stop it before unloading.',
-    };
-  }
-  if (err instanceof ApiError && err.status === 404) {
-    return { kind: 'error', message: `Program ${id} is no longer on the device.` };
+    case '/problems/program_loaded':
+      return {
+        kind: 'error',
+        message:
+          `Program ${id} is the one currently loaded on the device, and a loaded program cannot be replaced — ` +
+          'the run position points into it. Unload it first — the Unload button on the program’s row, or on the ' +
+          'Run page — and then replace it. If a series is running, stop it before unloading.',
+      };
+    case '/problems/program_not_found':
+      return { kind: 'error', message: `Program ${id} is no longer on the device.` };
   }
   return failureNotice(err, `Could not replace program ${id}.`);
 }
@@ -71,7 +71,7 @@ export function updateFailureNotice(err: unknown, id: number): Notice {
  * not part of.
  */
 export function isGoneFromDevice(err: unknown): boolean {
-  return err instanceof ApiError && err.status === 404;
+  return problemType(err) === '/problems/program_not_found';
 }
 
 /**
@@ -117,7 +117,7 @@ export function sourceReloadNotice(err: unknown, id: number): Notice {
  * and only the text tells them apart, while unload has exactly one.
  */
 export function unloadFailureNotice(err: unknown): Notice {
-  if (err instanceof ApiError && err.status === 409) {
+  if (problemType(err) === '/problems/program_running') {
     return {
       kind: 'error',
       message:

@@ -391,6 +391,11 @@ components:
               this stream: it is served by `GET /api/v2/diagnostics/info` as
               `startupIssues` instead. The code is specified here because the
               payload is the same and a rescan added later would emit it.
+
+            `program_invalid` is also a REST problem type,
+            `/problems/program_invalid` in `openapi.yaml` — one failure, one
+            word, whichever channel reports it (D-19). Rename it in one place
+            and `host_test/test_problem` fails.
           x-extensible-enum:
             - audio_playback_failed
             - program_invalid
