@@ -50,11 +50,13 @@ by the boot scan).
 
 It is fire-and-forget by design. Nothing is buffered for a client that connects
 later and nothing is replayed on reconnect, so the event is a notification and
-the device log remains the record. That also means the boot-scan emissions
-reach nobody: `load_all()` runs before the HTTP server exists, and `sse_hub`
-drops frames raised before it has a server to send them through. The code is
-specified anyway, so that a rescan added later reports a bad file rather than
-silently listing one program fewer.
+the device log remains the record.
+
+The boot scan is the exception, because it runs before there is anything to
+notify: `load_all()` is several steps ahead of the HTTP server, so a
+`program_invalid` raised there has no client and never will. Those frames are
+kept instead of dropped and served by `GET /api/v2/diagnostics/info` as
+`startupIssues` — see below.
 
 `libraryChanged` (`{"kind": "audio" | "program"}`) is the fourth, and says the
 stored library is no longer what the client last fetched: refetch the list
@@ -176,7 +178,14 @@ incident is diagnosable without a USB cable:
   "programCount": 7, "audioCount": 77,
   "ipAddress": "192.168.1.42",
   "targetGpio": 5, "targetGpioLevel": 1,
-  "adminModeEnabled": false
+  "adminModeEnabled": false,
+  "startupIssues": [                // empty on a clean boot
+    {
+      "code": "program_invalid",
+      "message": "Program file is malformed and was skipped",
+      "context": { "file": "/storage/uploads/programs/200.json" }
+    }
+  ]
 }
 ```
 
@@ -190,6 +199,32 @@ distinguishes "the firmware never drove it" from "something else is holding it".
 and can contain the WiFi password in plaintext, so retrieving one stays an
 out-of-band job needing physical access. `coredumpPresent` only tells you there
 is something to go and fetch.
+
+### `startupIssues`
+
+The `backend_issue` events raised before the HTTP server existed, in the same
+`{code, message, context}` shape the SSE stream uses — one vocabulary for a
+device failure, not two. Today the only code that can appear is
+`program_invalid`: a stored program that would not read or parse. Before this
+the file was skipped, the program vanished from `GET /api/v2/programs`, and the
+only trace was a `W programs: Malformed program <path>` line on a serial
+console nobody at a range is watching. Since the device rejects an unrecognised
+`command`, a club-uploaded program with a typo disappears exactly that way at
+the next boot.
+
+**At most 8 are kept, oldest dropped** (`kMaxStartupIssues`, `main/config.h`),
+so an array of exactly 8 may be a truncated one and the log stays the complete
+record. The bound is what keeps a directory full of unparsable files from being
+an unbounded allocation at boot.
+
+The list is **written during boot and read-only afterwards** — `sse_hub` keeps
+an issue only while it has no server to send it through, and it has a server
+from `web_server::start()` onwards. Nothing appears in it while the device is
+up, so polling gains nothing; run-time failures such as `audio_playback_failed`
+have a client to reach and go out over SSE as before. That single-writer,
+publish-then-read shape is also why the store needs no lock: every write
+happens before the server can accept the request that reads it. A program
+rescan, or any other pre-server emitter on a second task, would change that.
 
 ## Uploads
 

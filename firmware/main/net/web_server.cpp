@@ -27,6 +27,7 @@
 #include "esp_log.h"
 #include "esp_random.h"
 #include "esp_timer.h"
+#include "issue_buffer.h"
 #include "json_util.h"
 #include "net_mgr.h"
 #include "uri_path.h"
@@ -477,6 +478,11 @@ void register_diagnostics_routes() {
     out += std::to_string(targets::level());
     out += ",\"adminModeEnabled\":";
     out += s_admin.enabled() ? "true" : "false";
+    // The backend_issues raised before this server existed, which is the only
+    // way they can reach a client at all - sse_hub had nowhere to send them.
+    // Already-serialized payloads, joined into the array.
+    out += ",\"startupIssues\":";
+    out += rt::issue_array_json(sse_hub::startup_issues());
     out += "}";
 
     return send_json(res, 200, out);
