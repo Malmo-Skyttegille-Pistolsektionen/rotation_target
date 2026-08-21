@@ -500,3 +500,122 @@ describe('#70: the window between picking a program and the device confirming it
     expect(startButton().disabled).toBe(false);
   });
 });
+
+describe('D-22: unloading from the run controls', () => {
+  /** The device's own answer to "what is loaded", read off the badge. */
+  function unloadButton(): HTMLButtonElement {
+    return screen.getByTestId('run-unload') as HTMLButtonElement;
+  }
+
+  it('is offered only once the device says something is loaded', async () => {
+    await ready();
+    expect(unloadButton().disabled).toBe(true);
+
+    await selectProgram(FALT.id);
+    expect(unloadButton().disabled).toBe(false);
+  });
+
+  it('clears the selection, and the view follows the device rather than itself', async () => {
+    await ready();
+    await selectProgram(FALT.id);
+
+    await act(async () => {
+      fireEvent.click(unloadButton());
+    });
+    // Nothing is optimistic: the badge only clears because the device
+    // published `loadedProgramId: null`.
+    await until(() => shownProgramId() === '-', 'the device to report nothing loaded');
+
+    expect(programSelect().value).toBe('');
+    expect(startButton().disabled).toBe(true);
+    expect(startNotice()).toContain('Nothing is loaded');
+  });
+
+  it('refuses mid-run, says to stop first, and leaves the run alone', async () => {
+    await ready();
+    await selectProgram(FALT.id);
+
+    await pressStart();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Start Now' }));
+    });
+    await until(
+      () => screen.queryByRole('button', { name: 'Pause' }) !== null,
+      'the device to report the program running',
+    );
+
+    await act(async () => {
+      fireEvent.click(unloadButton());
+    });
+    await waitFor(() => expect(startNotice()).toContain('Stop the program first'));
+
+    // The series is still going: unloading is bookkeeping and must not end it.
+    expect(shownProgramId()).toBe(String(FALT.id));
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy();
+
+    // And the escape really is one button away.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    });
+    await until(() => screen.queryByRole('button', { name: 'Start' }) !== null, 'the run to pause');
+    await act(async () => {
+      fireEvent.click(unloadButton());
+    });
+    await until(() => shownProgramId() === '-', 'the device to report nothing loaded');
+  });
+});
+
+describe('D-24: the library changes under an open page', () => {
+  /** GETs of the program list, as seen on the wire. */
+  function listFetches(spy: { mock: { calls: unknown[][] } }): number {
+    return spy.mock.calls.filter(
+      (call) =>
+        String(call[0]).endsWith('/api/v2/programs') && (call[1] as RequestInit | undefined)?.method === undefined,
+    ).length;
+  }
+
+  it("shows another client's upload without anybody reloading the page", async () => {
+    await ready();
+    expect(programSelect().options.length).toBe(4);
+
+    // The laptop at the other end of the range uploads a program. Before
+    // `libraryChanged` this phone kept showing three until it was reloaded.
+    await requestElsewhere(PORT, 'POST', '/api/v2/programs', {
+      title: 'Ny klubbserie',
+      description: 'from the other client',
+      series: [{ name: 'Serie 1', optional: false, events: [{ duration: 1000, command: 'show' }] }],
+    });
+
+    await until(() => programSelect().options.length === 5, 'the picker to gain the uploaded program');
+    expect(programSelect().textContent).toContain('Ny klubbserie');
+  });
+
+  it('refetches nothing when the device only changes what it is doing', async () => {
+    await ready();
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    // Load, start, pause, unload: four mutations, four stateUpdates, and no
+    // reason to re-read a list that did not change.
+    await selectProgram(FALT.id);
+    await pressStart();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Start Now' }));
+    });
+    await until(
+      () => screen.queryByRole('button', { name: 'Pause' }) !== null,
+      'the device to report the program running',
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    });
+    await until(() => screen.queryByRole('button', { name: 'Start' }) !== null, 'the run to pause');
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('run-unload'));
+    });
+    await until(() => shownProgramId() === '-', 'the device to report nothing loaded');
+    await quiesce();
+
+    expect(listFetches(fetchSpy)).toBe(0);
+    expect(stream.frames.filter((frame) => frame.event === 'libraryChanged')).toHaveLength(0);
+  });
+});

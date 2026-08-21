@@ -175,6 +175,59 @@ describe('frames', () => {
     expect(queryClient.getQueryData(['state'])).toEqual(RUNNING_STATE);
   });
 
+  it('refetches the library the device says changed, and only that one', () => {
+    // #74: the list is fetched over REST and published nowhere, so before this
+    // event a client only learned about its own uploads. `kind` is what keeps
+    // an audio upload from making every client refetch the program list too.
+    renderSSE();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+
+    act(() => {
+      expect(FakeEventSource.latest.emit('libraryChanged', { kind: 'audio' })).toBe(true);
+    });
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([['audios']]);
+
+    invalidate.mockClear();
+    act(() => {
+      FakeEventSource.latest.emit('libraryChanged', { kind: 'program' });
+    });
+    // The list, and the documents the run view and the editor hold with
+    // `staleTime: Infinity` - both the program library, nothing audio.
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([['programs'], ['program']]);
+  });
+
+  it('ignores a kind it does not know rather than refetching everything', () => {
+    // A closed enum this app does not know a member of means a newer contract.
+    renderSSE();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+
+    act(() => {
+      FakeEventSource.latest.emit('libraryChanged', { kind: 'targetBank' });
+    });
+    expect(invalidate).not.toHaveBeenCalled();
+
+    // And a malformed frame does not take the stream down with it.
+    act(() => {
+      FakeEventSource.latest.emit('libraryChanged', '{not json');
+      FakeEventSource.latest.emit('stateUpdate', RUNNING_STATE);
+    });
+    expect(queryClient.getQueryData(['state'])).toEqual(RUNNING_STATE);
+  });
+
+  it('refetches nothing when the device only changes what it is doing', () => {
+    // Run state is not library state (D-24): load, start, stop, reset, skip_to
+    // and unload arrive as stateUpdate and touch no cached list.
+    renderSSE();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+
+    act(() => {
+      FakeEventSource.latest.emit('stateUpdate', RUNNING_STATE);
+      FakeEventSource.latest.emit('stateUpdate', { ...RUNNING_STATE, loadedProgramId: null, programState: null });
+      FakeEventSource.latest.emit('heartbeat', { id: 1 });
+    });
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
   it('ignores an event type it has no listener for', () => {
     renderSSE();
     act(() => {

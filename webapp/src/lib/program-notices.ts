@@ -48,19 +48,37 @@ export function updateFailureNotice(err: unknown, id: number): Notice {
       };
     }
     // D-15: run state holds a pointer into the stored program, so the device
-    // refuses. There is no unload endpoint in v2, so the only ways out are
-    // loading a different program or deleting this one.
+    // refuses. D-22 gave that refusal an escape of its own - before
+    // `POST /programs/unload` existed the only ways out were loading some other
+    // program or deleting this one, and this notice had to say so.
     return {
       kind: 'error',
       message:
         `Program ${id} is the one currently loaded on the device, and a loaded program cannot be replaced — ` +
-        'the run position points into it. Load a different program first, then replace this one. ' +
-        'If a series is running, loading another program stops it; and if this is the only program on the ' +
-        'device, delete it and upload the file as a new one instead.',
+        'the run position points into it. Unload it first — the Unload button on the program’s row, or on the ' +
+        'Run page — and then replace it. If a series is running, stop it before unloading.',
     };
   }
   if (err instanceof ApiError && err.status === 404) {
     return { kind: 'error', message: `Program ${id} is no longer on the device.` };
   }
   return failureNotice(err, `Could not replace program ${id}.`);
+}
+
+/**
+ * `POST /programs/unload`. The only refusal it has is a run in progress
+ * (D-22): unloading is bookkeeping and must not end a series mid-range, so the
+ * device says stop first rather than stopping on the client's behalf. The
+ * escape is one button away — Pause on the Run page — which is what this says.
+ */
+export function unloadFailureNotice(err: unknown): Notice {
+  if (err instanceof ApiError && err.status === 409) {
+    return {
+      kind: 'error',
+      message:
+        'The device is running a program, and unloading would end the series. Stop the program first (Pause, ' +
+        'on the Run page), then unload.',
+    };
+  }
+  return failureNotice(err, 'Could not unload the program.');
 }

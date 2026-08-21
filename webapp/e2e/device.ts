@@ -55,9 +55,13 @@ export async function resetDevice(request: APIRequestContext): Promise<void> {
   const auth = { headers: { Authorization: `Bearer ${token}` } };
 
   // stop before reset: reset on a running program is rejected by the UI and
-  // pointless on the device.
+  // pointless on the device. Unload last of the three, because it is the one
+  // that is refused while a run is in progress (D-22) - and it is what makes
+  // "nothing loaded" above true rather than aspirational.
   await request.post(`${API}/programs/stop`, auth);
   await request.post(`${API}/programs/reset`, auth);
+  const unload = await request.post(`${API}/programs/unload`, auth);
+  expect(unload.ok(), `could not unload: ${unload.status()}`).toBeTruthy();
 
   const disable = await request.post(`${API}/admin-mode/disable`, auth);
   expect(disable.ok(), `could not disable admin mode: ${disable.status()}`).toBeTruthy();

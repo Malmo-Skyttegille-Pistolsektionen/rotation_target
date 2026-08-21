@@ -292,7 +292,7 @@ describe('saving an edit', () => {
     fireEvent.click(screen.getByTestId('editor-save'));
 
     await waitFor(() => expect(editorNotice().textContent).toContain('currently loaded on the device'));
-    expect(editorNotice().textContent).toContain('Load a different program first');
+    expect(editorNotice().textContent).toContain('Unload it first');
     // The editor stays open on the refused edit: closing it would throw away
     // the work the device just declined to store.
     expect(screen.getByTestId('editor-title')).toHaveProperty('value', 'Klubbserie 2026');

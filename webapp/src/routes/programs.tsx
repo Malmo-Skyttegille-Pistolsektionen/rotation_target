@@ -11,7 +11,13 @@ import { ProgramEditor, type EditorTarget } from '../components/ProgramEditor';
 import { useSettings } from '../context/SettingsContext';
 import { useAdminStatus } from '../hooks/useAdminStatus';
 import { type DocumentIssue, parseProgramDocument } from '../lib/program-document';
-import { failureNotice, issueLines, updateFailureNotice, type Notice } from '../lib/program-notices';
+import {
+  failureNotice,
+  issueLines,
+  unloadFailureNotice,
+  updateFailureNotice,
+  type Notice,
+} from '../lib/program-notices';
 import styles from './programs.module.css';
 
 export const Route = createFileRoute('/programs')({
@@ -82,6 +88,19 @@ export function ProgramsView(): React.ReactNode {
     mutationFn: (program: ProgramSummary) => programsApi.load(program.id),
     onSuccess: (_data, program) => setNotice({ kind: 'success', message: `Loaded "${program.title}" on the device.` }),
     onError: (err, program) => setNotice(failureNotice(err, `Could not load "${program.title}".`)),
+  });
+
+  // The inverse of Load, and it belongs on the same row: this page is where
+  // the refusals that name unloading are raised - a replace against the loaded
+  // program is a 409 that says to unload it (D-15/D-22) - so the instruction
+  // and the button are in the same place.
+  const unloadMutation = useMutation({
+    mutationFn: () => programsApi.unload(),
+    // Deliberately an outcome, not an event: a 200 means "nothing is loaded
+    // now", and the device does not distinguish "just unloaded" from "nothing
+    // was loaded" (D-22).
+    onSuccess: () => setNotice({ kind: 'success', message: 'Nothing is loaded on the device now.' }),
+    onError: (err) => setNotice(unloadFailureNotice(err)),
   });
 
   const deleteMutation = useMutation({
@@ -193,7 +212,11 @@ export function ProgramsView(): React.ReactNode {
 
   const sorted = [...(programs ?? [])].sort((a, b) => a.id - b.id);
   const busy =
-    loadMutation.isPending || deleteMutation.isPending || createMutation.isPending || updateMutation.isPending;
+    loadMutation.isPending ||
+    unloadMutation.isPending ||
+    deleteMutation.isPending ||
+    createMutation.isPending ||
+    updateMutation.isPending;
 
   return (
     <div className={styles.container}>
@@ -304,6 +327,16 @@ export function ProgramsView(): React.ReactNode {
                         >
                           Load
                         </button>
+                        {isLoaded && (
+                          <button
+                            className={styles.button}
+                            data-testid={`program-unload-${program.id}`}
+                            onClick={() => unloadMutation.mutate()}
+                            disabled={busy}
+                          >
+                            Unload
+                          </button>
+                        )}
                         {/* A shipped program cannot be written back, so editing
                             one means editing a copy the device will store under
                             a new id. The legacy app offered no Edit at all on

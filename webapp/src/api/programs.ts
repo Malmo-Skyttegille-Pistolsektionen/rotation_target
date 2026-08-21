@@ -18,6 +18,10 @@ export function useProgramsApi() {
     list: () => client.request<ProgramSummary[]>('/programs'),
     get: (id: number) => client.request<Program>(`/programs/${id}`),
     load: (id: number) => client.request<void>(`/programs/${id}/load`, { method: 'POST' }),
+    // 200 whether something was unloaded or nothing was loaded to begin with;
+    // 409 while a run is in progress (D-22). Idempotent, so a retry after a
+    // dropped response is safe.
+    unload: () => client.request<void>('/programs/unload', { method: 'POST' }),
     // The device assigns the id and ignores the one in the document, so the
     // caller learns it from the response rather than from what it sent.
     create: (program: Program) =>
@@ -46,6 +50,7 @@ export const programsApi = {
   list: () => directClient<ProgramSummary[]>('/programs'),
   get: (id: number) => directClient<Program>(`/programs/${id}`),
   load: (id: number) => directClient<void>(`/programs/${id}/load`, { method: 'POST' }),
+  unload: () => directClient<void>('/programs/unload', { method: 'POST' }),
   create: (program: Program) => directClient<CreatedId>('/programs', { method: 'POST', body: JSON.stringify(program) }),
   update: (id: number, program: Program) =>
     directClient<Program>(`/programs/${id}`, { method: 'PUT', body: JSON.stringify(withoutId(program)) }),

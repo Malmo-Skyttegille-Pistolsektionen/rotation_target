@@ -105,8 +105,8 @@ describe('the list', () => {
     renderPrograms();
     await ready();
 
-    // A shipped program has no writable file: the device answers 404 to a
-    // delete and 409 to a replace, so neither button is offered.
+    // A shipped program has no writable file: the device refuses both a delete
+    // and a replace with a 409 that never lifts, so neither button is offered.
     expect(screen.queryByTestId(`program-replace-${SHIPPED.id}`)).toBeNull();
     expect(screen.queryByTestId(`program-delete-${SHIPPED.id}`)).toBeNull();
     expect(screen.getByTestId(`program-load-${SHIPPED.id}`)).toBeTruthy();
@@ -189,6 +189,64 @@ describe('deleting', () => {
 
     await waitFor(() => expect(screen.queryByTestId('confirm-dialog')).toBeNull());
     expect((await programsOnDevice()).map((p) => p.id)).toEqual([SHIPPED.id, UPLOADED.id]);
+  });
+});
+
+describe('unloading (D-22)', () => {
+  /** Have the device load a program, and tell this page as `useSSE` would. */
+  async function loadedOnDevice(id: number): Promise<void> {
+    await requestElsewhere(PORT, 'POST', `/api/v2/programs/${id}/load`);
+    await act(async () => {
+      queryClient.setQueryData(['state'], { loadedProgramId: id, programState: null, targetStatus: 'hidden' });
+    });
+    // The badge is the page's own proof that it has taken the state in.
+    await waitFor(() => expect(within(screen.getByTestId(`program-row-${id}`)).getByText('Loaded')).toBeTruthy());
+  }
+
+  it('is offered on the loaded row and nowhere else', async () => {
+    renderPrograms();
+    await ready();
+    expect(screen.queryByTestId(`program-unload-${UPLOADED.id}`)).toBeNull();
+
+    await loadedOnDevice(UPLOADED.id);
+
+    expect(screen.getByTestId(`program-unload-${UPLOADED.id}`)).toBeTruthy();
+    expect(screen.queryByTestId(`program-unload-${SHIPPED.id}`)).toBeNull();
+  });
+
+  it('clears the selection, which is what unblocks the replace this page refuses', async () => {
+    renderPrograms();
+    await ready();
+    await loadedOnDevice(UPLOADED.id);
+
+    // The refusal the notice tells the operator to escape from.
+    const blocked = await requestElsewhere(PORT, 'PUT', `/api/v2/programs/${UPLOADED.id}`, {
+      ...UPLOADED,
+      id: undefined,
+    });
+    expect(blocked.status).toBe(409);
+
+    fireEvent.click(screen.getByTestId(`program-unload-${UPLOADED.id}`));
+    await waitFor(() => expect(notice().textContent).toContain('Nothing is loaded on the device now.'));
+
+    const allowed = await requestElsewhere(PORT, 'PUT', `/api/v2/programs/${UPLOADED.id}`, {
+      ...UPLOADED,
+      id: undefined,
+    });
+    expect(allowed.status).toBe(200);
+  });
+
+  it('explains the 409 a run in progress answers with', async () => {
+    renderPrograms();
+    await ready();
+    await loadedOnDevice(UPLOADED.id);
+    await requestElsewhere(PORT, 'POST', '/api/v2/programs/start');
+
+    fireEvent.click(screen.getByTestId(`program-unload-${UPLOADED.id}`));
+
+    await waitFor(() => expect(notice().textContent).toContain('Stop the program first'));
+    // Not the device's own sentence, and not a raw status: the escape is named.
+    expect(notice().textContent).toContain('Pause');
   });
 });
 
@@ -305,7 +363,7 @@ describe('replacing a program', () => {
     await pickFile({ ...UPLOADED, title: 'Klubbserie 2026' });
 
     await waitFor(() => expect(notice().textContent).toContain('currently loaded on the device'));
-    expect(notice().textContent).toContain('Load a different program first');
+    expect(notice().textContent).toContain('Unload it first');
     // The stored document is untouched.
     expect(await programsOnDevice()).toContainEqual(expect.objectContaining({ id: UPLOADED.id, title: 'Klubbserie' }));
   });
