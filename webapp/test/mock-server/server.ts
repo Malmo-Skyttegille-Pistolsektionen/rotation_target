@@ -792,11 +792,33 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       return;
     }
 
-    // POST /programs/start - Requires auth
+    // POST /programs/start - Requires auth. The body names the program the
+    // caller decided to start (D-27); the device refuses a start for one it no
+    // longer holds. Order mirrors `rt::Executor::start`: a malformed body is
+    // rejected before anything is read, then "nothing loaded" (the more precise
+    // diagnosis, and the answer this endpoint always gave), then the id.
     if (endpoint === '/programs/start' && req.method === 'POST') {
       if (!checkAdminAuth(req, res)) return;
+
+      const startBody = parseJsonObject(await parseBody(req));
+      const requestedId = startBody?.id;
+      if (typeof requestedId !== 'number' || !Number.isInteger(requestedId)) {
+        jsonResponse(res, 400, { error: 'Expected a JSON body naming the program to start: {"id": <id>}' });
+        return;
+      }
+
       if (!state.loadedProgram || !state.programState) {
         jsonResponse(res, 400, { error: 'No program loaded' });
+        return;
+      }
+
+      if (state.loadedProgram.id !== requestedId) {
+        // Checked whether or not a run is in progress, as in the firmware: a
+        // start aimed at the wrong program is never answered "fine, it is
+        // running". Both ids, so the operator learns what the device holds.
+        jsonResponse(res, 409, {
+          error: `Start refused: the device has program ${state.loadedProgram.id} loaded, not program ${requestedId}`,
+        });
         return;
       }
 

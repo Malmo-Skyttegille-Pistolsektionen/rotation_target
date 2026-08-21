@@ -240,7 +240,7 @@ describe('unloading (D-22)', () => {
     renderPrograms();
     await ready();
     await loadedOnDevice(UPLOADED.id);
-    await requestElsewhere(PORT, 'POST', '/api/v2/programs/start');
+    await requestElsewhere(PORT, 'POST', '/api/v2/programs/start', { id: UPLOADED.id });
 
     fireEvent.click(screen.getByTestId(`program-unload-${UPLOADED.id}`));
 

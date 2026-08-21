@@ -84,6 +84,10 @@ esp_err_t send_error(PsychicResponse *res, int code, const char *message) {
   return send_json(res, code, rt::json_error(message));
 }
 
+esp_err_t send_error(PsychicResponse *res, int code, const std::string &message) {
+  return send_json(res, code, rt::json_error(message.c_str()));
+}
+
 esp_err_t send_message(PsychicResponse *res, const std::string &message) {
   return send_json(res, 200, rt::json_message(message));
 }
@@ -127,6 +131,24 @@ std::string password_from(PsychicRequest *req) {
   JsonDocument doc;
   if (deserializeJson(doc, body) != DeserializationError::Ok) return {};
   return doc["password"] | "";
+}
+
+// The program id from a `{"id": N}` body. False when the body is absent, is not
+// JSON, or carries no integer `id` - the caller turns that into a `400`. The id
+// is required rather than optional: an id-less start is exactly the ambiguity
+// #95 removes, and accepting one would keep a way to ask the device to run
+// whatever it happens to hold.
+bool body_program_id(PsychicRequest *req, int32_t &out) {
+  const char *body = req->body();
+  if (body == nullptr || *body == '\0') return false;
+
+  JsonDocument doc;
+  if (deserializeJson(doc, body) != DeserializationError::Ok) return false;
+
+  JsonVariantConst id = doc["id"];
+  if (!id.is<int32_t>()) return false;
+  out = id.as<int32_t>();
+  return true;
 }
 
 // Origins the webapp may legitimately be served from: the device itself by
@@ -213,9 +235,36 @@ void register_program_routes() {
   // Registration order matters: esp_http_server matches wildcards in the order
   // handlers were added, so the fixed run-control paths must come before the
   // "/api/v2/programs/*" catch-all that carries {id}.
+
+  // #95: the body names the program the caller decided to start, and a device
+  // holding a different one refuses. No client-side check can close this - the
+  // program can change between a client's last stateUpdate and its start
+  // arriving - and starting the wrong one on a range is wrong target timing and
+  // wrong spoken commands. Same shape as #79 and #80: the device enforces, the
+  // client only explains.
   s_server.on("/api/v2/programs/start", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
     if (!require_admin(req, res)) return ESP_OK;
-    if (!executor::start()) return send_error(res, 400, "No program loaded");
+
+    int32_t expected_id = 0;
+    if (!body_program_id(req, expected_id)) {
+      return send_error(res, 400,
+                        "Expected a JSON body naming the program to start: {\"id\": <id>}");
+    }
+
+    const executor::StartOutcome outcome = executor::start(expected_id);
+    switch (outcome.result) {
+      case rt::StartResult::kNotLoaded:
+        return send_error(res, 400, "No program loaded");
+      case rt::StartResult::kMismatch:
+        // Both ids, because the operator has to know what the device actually
+        // holds to decide what to do about it.
+        return send_error(res, 409,
+                          "Start refused: the device has program " +
+                              std::to_string(outcome.loaded_program_id) + " loaded, not program " +
+                              std::to_string(expected_id));
+      case rt::StartResult::kStarted:
+        break;
+    }
     return send_message(res, "Program started");
   });
 

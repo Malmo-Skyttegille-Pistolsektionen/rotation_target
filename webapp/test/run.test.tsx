@@ -124,7 +124,7 @@ function startButton(): HTMLButtonElement {
 }
 
 function startNotice(): string {
-  return screen.getByTestId('run-start-notice').textContent ?? '';
+  return screen.queryByTestId('run-start-notice')?.textContent ?? '';
 }
 
 /** The id in the first `stateUpdate` the device published with the program running. */
@@ -263,8 +263,10 @@ describe('#70: the loaded program changes while the start-delay countdown runs',
     await requestElsewhere(PORT, 'POST', `/api/v2/programs/${MILITARY.id}/load`);
     await until(() => shownProgramId() === String(MILITARY.id), 'the device to report program 1 loaded');
 
-    // `POST /programs/start` carries no id, so before the fix the expiring
-    // countdown started program 1 - the one the operator never chose.
+    // Before #92 the expiring countdown started program 1 - the one the
+    // operator never chose. The cancel is what keeps them from watching a
+    // countdown that is already doomed; #95's id in the body is what makes it
+    // safe even when they do.
     await runCountdownOut();
     await quiesce();
 
@@ -416,6 +418,61 @@ describe('#70: the last instant of the countdown', () => {
 
     expect(startedProgramId()).toBeNull();
     expect(startNotice()).toContain('unloaded');
+  });
+});
+
+describe('#95: the device refuses a start for a program it no longer holds', () => {
+  /**
+   * The window no client-side check can close: another client has loaded a
+   * different program and the `stateUpdate` saying so has not reached this page
+   * yet, so every guard in the view is satisfied and the start goes out anyway.
+   * Held back deliberately here; on a range it is just latency.
+   */
+  async function switchProgramBehindThePage(): Promise<void> {
+    await requestElsewhere(PORT, 'POST', `/api/v2/programs/${MILITARY.id}/load`);
+    await awaitBroadcast();
+  }
+
+  it('answers 409 and the page shows the device sentence, naming both programs', async () => {
+    localStorage.setItem('rt_settings_start_delay_seconds', '0');
+    await ready();
+    await selectProgram(FALT.id);
+
+    await switchProgramBehindThePage();
+    // The page still believes 40 is loaded - which is why its own guards pass.
+    expect(shownProgramId()).toBe(String(FALT.id));
+
+    await pressStart();
+    await until(() => startNotice().includes('Start refused'), 'the device refusal to reach the page');
+
+    expect(startNotice()).toContain(`program ${MILITARY.id} loaded`);
+    expect(startNotice()).toContain(`not program ${FALT.id}`);
+  });
+
+  it('and nothing runs: the refusal is the device\'s, not the browser\'s', async () => {
+    localStorage.setItem('rt_settings_start_delay_seconds', '0');
+    await ready();
+    await selectProgram(FALT.id);
+
+    await switchProgramBehindThePage();
+    await pressStart();
+    await quiesce();
+
+    // Neither program started - not the one that was armed, and not the one
+    // the device happened to be holding.
+    expect(startedProgramId()).toBeNull();
+  });
+
+  it('sends the armed id, so the same press starts the program that is loaded', async () => {
+    localStorage.setItem('rt_settings_start_delay_seconds', '0');
+    await ready();
+    await selectProgram(MILITARY.id);
+
+    await pressStart();
+    await until(() => startedProgramId() !== null, 'the device to report the program running');
+
+    expect(startedProgramId()).toBe(MILITARY.id);
+    expect(startNotice()).toBe('');
   });
 });
 

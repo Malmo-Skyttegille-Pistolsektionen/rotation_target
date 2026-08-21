@@ -126,14 +126,19 @@ bool load(int32_t program_id) {
   return ok;
 }
 
-bool start() {
-  bool ok = false;
+StartOutcome start(int32_t expected_program_id) {
+  StartOutcome outcome{rt::StartResult::kNotLoaded, StartOutcome::kNoProgram};
   {
+    // The comparison and the start are one locked section, and the id the
+    // refusal reports is read inside it too: a load landing between them would
+    // otherwise let a start through for a program the check had already cleared,
+    // or name a program that is no longer the one that refused it.
     Lock lock;
-    ok = s_executor.start();
+    outcome.result = s_executor.start(expected_program_id);
+    if (s_state.program != nullptr) outcome.loaded_program_id = s_state.program->id;
   }
   flush(true);
-  return ok;
+  return outcome;
 }
 
 bool stop() {

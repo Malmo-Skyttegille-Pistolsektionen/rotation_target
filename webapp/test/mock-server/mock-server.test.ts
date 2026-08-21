@@ -24,6 +24,11 @@ async function api(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${base}${path}`, init);
 }
 
+/** `POST /programs/start` for a named program - the body is required (D-27). */
+async function start(id: number, init?: RequestInit): Promise<Response> {
+  return api('/programs/start', { method: 'POST', body: JSON.stringify({ id }), ...init });
+}
+
 beforeEach(async () => {
   clock = createFakeClock(1_000_000);
   server = createMockServer({ clock, seed: { programs: { 40: PROGRAM_FALT_TRANING }, audios: [] } });
@@ -50,9 +55,64 @@ describe('REST surface', () => {
   });
 
   it('rejects a start with no program loaded', async () => {
-    const res = await api('/programs/start', { method: 'POST' });
+    const res = await start(40);
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: 'No program loaded' });
+  });
+
+  // --- D-27: a start names the program it is for ---------------------------
+
+  it('rejects a start with no body, a non-object body or a non-integer id', async () => {
+    await api('/programs/40/load', { method: 'POST' });
+    const malformed = 'Expected a JSON body naming the program to start: {"id": <id>}';
+
+    for (const body of [undefined, '', 'not json', '[]', '{}', '{"id":null}', '{"id":"40"}', '{"id":40.5}']) {
+      const res = await api('/programs/start', { method: 'POST', body });
+      expect(res.status, `body: ${String(body)}`).toBe(400);
+      expect(await res.json()).toEqual({ error: malformed });
+    }
+  });
+
+  it('refuses a start for a program the device no longer holds, naming both', async () => {
+    await api('/programs/40/load', { method: 'POST' });
+
+    const res = await start(1);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: 'Start refused: the device has program 40 loaded, not program 1',
+    });
+  });
+
+  it('leaves the run untouched when it refuses, and the right id still starts', async () => {
+    await api('/programs/40/load', { method: 'POST' });
+    const sse = await openSSE(server.port);
+    const before = sse.payloads<StateUpdatePayload>('stateUpdate').length;
+
+    expect((await start(1)).status).toBe(409);
+    await flushIO();
+    // A refused start publishes nothing: nothing about the device changed.
+    expect(sse.payloads<StateUpdatePayload>('stateUpdate')).toHaveLength(before);
+    expect(last(sse.payloads<StateUpdatePayload>('stateUpdate')).programState?.running).toBe(false);
+
+    expect((await start(40)).status).toBe(200);
+    await flushIO();
+    expect(last(sse.payloads<StateUpdatePayload>('stateUpdate')).programState?.running).toBe(true);
+
+    sse.close();
+  });
+
+  it('refuses a stale start even while a run is in progress', async () => {
+    await api('/programs/40/load', { method: 'POST' });
+    expect((await start(40)).status).toBe(200);
+
+    // Never "fine, it is running": the caller asked for a different program.
+    expect((await start(1)).status).toBe(409);
+  });
+
+  it('answers 400 rather than 409 when nothing is loaded at all', async () => {
+    // The more precise diagnosis wins: the client has to load something, not
+    // re-read what is loaded.
+    expect((await start(1)).status).toBe(400);
   });
 
   it('bounds-checks skip_to', async () => {
@@ -342,7 +402,7 @@ describe('unloading (D-22)', () => {
 
   it('refuses a run in progress, and the refusal lifts with a stop', async () => {
     await loadFalt();
-    await api('/programs/start', { method: 'POST' });
+    await start(40);
 
     const refused = await api('/programs/unload', { method: 'POST' });
     expect(refused.status).toBe(409);
@@ -449,7 +509,7 @@ describe('libraryChanged (D-24)', () => {
 
   it('says nothing about the library when the device only changes what it is doing', async () => {
     await call('/programs/40/load', { method: 'POST' });
-    await call('/programs/start', { method: 'POST' });
+    await call('/programs/start', { method: 'POST', body: JSON.stringify({ id: 40 }) });
     await call('/programs/stop', { method: 'POST' });
     await call('/programs/reset', { method: 'POST' });
     await call('/programs/series/1/skip_to', { method: 'POST' });
@@ -551,7 +611,7 @@ describe('simulation on a fake clock', () => {
 
   it('walks the whole 28 s series, event by event, in no real time', async () => {
     await api('/programs/40/load', { method: 'POST' });
-    await api('/programs/start', { method: 'POST' });
+    await start(40);
     await flushIO();
 
     clock.advance(FALT_SERIES_MS);
@@ -574,7 +634,7 @@ describe('simulation on a fake clock', () => {
 
   it('pauses at the start of the next series when one completes', async () => {
     await api('/programs/40/load', { method: 'POST' });
-    await api('/programs/start', { method: 'POST' });
+    await start(40);
     clock.advance(FALT_SERIES_MS);
     await flushIO();
 
@@ -590,7 +650,7 @@ describe('simulation on a fake clock', () => {
 
   it('stop pauses and start resumes from the same millisecond', async () => {
     await api('/programs/40/load', { method: 'POST' });
-    await api('/programs/start', { method: 'POST' });
+    await start(40);
     clock.advance(12_000);
     await api('/programs/stop', { method: 'POST' });
     await flushIO();
@@ -603,7 +663,7 @@ describe('simulation on a fake clock', () => {
     await flushIO();
     expect(last(sse.payloads<StateUpdatePayload>('stateUpdate')).programState!.tickerMs).toBe(12_000);
 
-    await api('/programs/start', { method: 'POST' });
+    await start(40);
     await flushIO();
     expect(last(sse.payloads<StateUpdatePayload>('stateUpdate')).programState).toMatchObject({
       running: true,
@@ -614,7 +674,7 @@ describe('simulation on a fake clock', () => {
 
   it('reset rewinds to the top of the series', async () => {
     await api('/programs/40/load', { method: 'POST' });
-    await api('/programs/start', { method: 'POST' });
+    await start(40);
     clock.advance(12_000);
     await api('/programs/stop', { method: 'POST' });
     await api('/programs/reset', { method: 'POST' });
