@@ -36,6 +36,7 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-25 | Boot-time issues are served, not streamed | Decided | 2026-08-21 |
 | D-26 | An audio upload is never refused for concurrency | Decided | 2026-08-21 |
 | D-27 | A start names the program it is for | Decided | 2026-08-21 |
+| D-28 | The start delay is a run-page control, and 0 is a value | Decided | 2026-08-21 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
 
@@ -867,6 +868,48 @@ a program switched underneath it silently re-aims the next start at a series of
 a program nobody chose. It is a lesser instance (it arms rather than runs, and
 the `start` that follows is now itself checked), so it is a separate issue
 rather than scope creep here.
+## D-28 — The start delay is a run-page control, and 0 is a value *(Decided 2026-08-21)*
+
+**Decision:** the start delay is editable beside Start on the run page, not only
+on the settings page, and its range is **0-60 s** in code and in both editors,
+where `0` means "no countdown - Start begins the program at once". The run
+control writes straight through to `SettingsContext`, so the two editors are two
+views of one value; the settings section keeps its explicit Save and gains the
+0 labelling. The control is frozen while a countdown runs.
+
+**Why:** the countdown happens on the run page and the setting lived two
+navigations away, so the operator pressed Start and a countdown of a length they
+could not see began. Putting it beside the button it governs is the whole
+request. The range was the second half of the same problem: `run.tsx` has always
+branched on `startDelaySeconds > 0` and started immediately when it was zero,
+while the settings input advertised `1-60` — so "no countdown" was reachable
+from a hand-edited `localStorage` and from nowhere in the UI. Of the two ways to
+make them agree, admitting 0 keeps a working, tested code path and gives the
+operator a genuine one-press start; legislating a floor of 1 would delete the
+path and leave a 1-second modal flash as the shortest possible start. On a live
+firing line the immediate case is called out where it is set — an amber "no
+delay - Start begins the program at once" beside the field, and the same
+statement on the settings page — rather than discovered by pressing Start.
+
+**Frozen mid-countdown, not applied-next-time:** the countdown captures its
+length into component state when Start is pressed, and `CountdownModal` uses
+`dialog.showModal()`, which makes the page behind it inert — so an edit during a
+countdown is neither possible for a person nor able to affect the running one.
+Disabling says that, instead of leaving a live-looking field whose value the
+countdown is ignoring. While a *program* runs the control stays editable: that
+edit is for the next start, and nothing has captured it yet.
+
+**Still a browser-local setting.** `startDelaySeconds` is in `localStorage`, not
+on the device (D-14's client/device split), so two phones on the range can hold
+different delays. Both editors say so in one line rather than a paragraph; making
+it a device setting would be a contract change and is not this request.
+
+**Rejected:** *a full form on the run page* — the run page is operated, not
+configured; a stepper-sized field is what fits beside Start. *Moving it off
+settings entirely* — settings stays the place where the whole configuration is
+visible in one list. *A confirmation flow for 0* — a modal to confirm the
+setting that exists to remove a modal. *Relying on "Start Now"* — it is two
+presses and a modal flash, which is what 0 exists to avoid.
 
 ## Open questions
 

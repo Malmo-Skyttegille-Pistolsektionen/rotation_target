@@ -16,6 +16,22 @@ const DEFAULT_VALUES = {
   startDelaySeconds: 10,
 } as const;
 
+/**
+ * Seconds the run page counts down before it starts the program. `0` is a
+ * value, not the absence of one: it means start at once, which is the branch
+ * `run.tsx` has always had for it.
+ */
+export const START_DELAY_MIN_SECONDS = 0;
+export const START_DELAY_MAX_SECONDS = 60;
+
+/** The one place the range is enforced - every writer and the reader go through it. */
+function clampStartDelaySeconds(seconds: number): number {
+  if (!Number.isFinite(seconds)) {
+    return DEFAULT_VALUES.startDelaySeconds;
+  }
+  return Math.min(START_DELAY_MAX_SECONDS, Math.max(START_DELAY_MIN_SECONDS, Math.round(seconds)));
+}
+
 export interface Settings {
   serverBaseUrl: string;
   startDelaySeconds: number;
@@ -51,7 +67,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
 
     return {
       serverBaseUrl: storedUrl ?? DEFAULT_VALUES.serverBaseUrl,
-      startDelaySeconds: storedDelay ? Number(storedDelay) : DEFAULT_VALUES.startDelaySeconds,
+      startDelaySeconds:
+        storedDelay === null ? DEFAULT_VALUES.startDelaySeconds : clampStartDelaySeconds(Number(storedDelay)),
     };
   });
 
@@ -71,7 +88,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
   }
 
   function setStartDelaySeconds(seconds: number): void {
-    const validSeconds = Math.max(1, Math.min(60, seconds));
+    const validSeconds = clampStartDelaySeconds(seconds);
     localStorage.setItem(STORAGE_KEYS.startDelaySeconds, String(validSeconds));
     setSettings((prev) => ({ ...prev, startDelaySeconds: validSeconds }));
   }
@@ -99,7 +116,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
       if (e.key === STORAGE_KEYS.serverBaseUrl && e.newValue) {
         setSettings((prev) => ({ ...prev, serverBaseUrl: e.newValue! }));
       } else if (e.key === STORAGE_KEYS.startDelaySeconds && e.newValue) {
-        setSettings((prev) => ({ ...prev, startDelaySeconds: Number(e.newValue) }));
+        setSettings((prev) => ({ ...prev, startDelaySeconds: clampStartDelaySeconds(Number(e.newValue)) }));
       } else if (e.key === STORAGE_KEYS.adminToken) {
         setAdminTokenState(e.newValue);
       }
