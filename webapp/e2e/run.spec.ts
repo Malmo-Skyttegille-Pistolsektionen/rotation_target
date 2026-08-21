@@ -245,6 +245,37 @@ test('the device refuses a start for a program it no longer holds', async ({ pag
 });
 
 /**
+ * The start delay is set where it is used, and 0 means the press is the start.
+ */
+test('the start delay is set beside Start, and 0 starts without a countdown', async ({ page }) => {
+  await openApp(page);
+  await enableAdminViaUi(page);
+  await page.getByRole('link', { name: 'Run' }).click();
+
+  await page.getByTestId('run-program-select').selectOption(String(TEST_PROGRAM.id));
+  await expect(page.getByTestId('run-program-id')).toHaveText(String(TEST_PROGRAM.id));
+
+  // The settings default (10 s), on the page the countdown happens on.
+  await expect(page.getByTestId('run-start-delay')).toHaveValue('10');
+  await page.getByTestId('run-start-delay').fill('0');
+  await expect(page.getByTestId('run-start-delay-unit')).toContainText('no delay');
+
+  // One setting, two editors: the settings page reads what the run page wrote.
+  await page.getByRole('link', { name: 'Settings' }).click();
+  await expect(page.getByTestId('settings-start-delay')).toHaveValue('0');
+  await expect(page.getByTestId('settings-start-delay-immediate')).toBeVisible();
+  await page.getByRole('link', { name: 'Run' }).click();
+
+  // No modal at 0: Start is the start.
+  await page.getByRole('button', { name: 'Start' }).click();
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+  await expect(page.getByText('Starting in...')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await expect(page.getByRole('button', { name: 'Start' })).toBeVisible();
+});
+
+/**
  * D-22, end to end: the operator clears the device's selection, and the
  * refusal that protects a run in progress is the device's, not the browser's.
  */
