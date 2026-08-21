@@ -1,3 +1,6 @@
+/* eslint-disable @eslint-react/web-api-no-leaked-event-listener --
+   The listeners hang off an EventSource the cleanup closes and drops, which
+   detaches them; there is no long-lived target to leak from. */
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { SSETypes } from '../api/types';
