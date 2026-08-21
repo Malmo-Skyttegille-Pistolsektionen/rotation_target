@@ -219,8 +219,9 @@ export interface paths {
          *     **The program must not be loaded.** Run state holds a pointer into the
          *     stored program, so replacing a loaded one would swap the series out
          *     from beneath a run in progress and beneath the indices already
-         *     published over `stateUpdate`. The client unloads (or loads something
-         *     else) first; there is no forced-update flag.
+         *     published over `stateUpdate`. The client calls
+         *     `POST /programs/unload` (or loads something else) first; there is no
+         *     forced-update flag.
          */
         put: operations["updateProgram"];
         post?: never;
@@ -334,6 +335,42 @@ export interface paths {
          * @description Stops the run, selects event 0 of the current series and clears `tickerMs`. The selected series is kept.
          */
         post: operations["resetProgram"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/programs/unload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clear the loaded program
+         * @description Clears the selection and publishes a `stateUpdate` carrying
+         *     `loadedProgramId: null` and `programState: null`. The targets are left
+         *     exactly where the run left them — unloading moves no hardware.
+         *
+         *     **Refused while a run is in progress** (`409`): unloading is
+         *     bookkeeping, and a call that reads as bookkeeping must not end a series
+         *     mid-range. `stop` first — it is a pause, so the refusal lifts with it.
+         *
+         *     **Idempotent.** Unloading when nothing is loaded is `200` with the same
+         *     message; no `stateUpdate` follows, because it would repeat the one
+         *     clients already hold. So a `200` means "nothing is loaded now", not
+         *     "something was unloaded just now" — the two are not distinguishable,
+         *     deliberately.
+         *
+         *     This is the escape from the `409` that `PUT /programs/{id}` and
+         *     `DELETE /audios/{id}/delete` point at when the program that blocks them
+         *     is the loaded one.
+         */
+        post: operations["unloadProgram"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1179,6 +1216,36 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
         };
     };
+    unloadProgram: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Nothing is loaded. Either it was just unloaded (a `stateUpdate` follows) or nothing was loaded to begin with (none does). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Message"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description A run is in progress (`A program is running - stop it before unloading`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     skipToSeries: {
         parameters: {
             query?: never;
@@ -1440,6 +1507,7 @@ export interface operations {
              *       — an event of the loaded program plays it. Refused whether or not
              *       a run is in progress: `stop` is a pause, so a clip deleted
              *       between two runs would be missing when the program resumes.
+             *       "Unload" is `POST /programs/unload`.
              *     - `A program is running - stop it before deleting audio` — a run is
              *       in progress. Refused for every clip, referenced or not.
              *     - `Audio is currently playing` — the audio task is reading the file

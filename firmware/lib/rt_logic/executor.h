@@ -18,6 +18,14 @@
 
 namespace rt {
 
+// What a client-driven unload did. `kNotLoaded` is a success the caller does
+// not need to distinguish - it is only separate so the no-op skips a broadcast.
+enum class UnloadResult {
+  kUnloaded,
+  kNotLoaded,
+  kRunning,
+};
+
 class Clock {
  public:
   virtual ~Clock() = default;
@@ -60,9 +68,15 @@ class Executor {
   bool reset();
   // Select a series, paused at its first event.
   bool skip_to_series(int32_t series_index);
+  // Clear the selection. Refused while running: unloading mid-series would end
+  // a range run from a call that reads as bookkeeping, so the client stops
+  // first. Nothing loaded is success with nothing published - the payload would
+  // be identical to the last one sent.
+  UnloadResult unload();
 
-  // Drop the loaded program - used when it is deleted out from under a run.
-  void unload();
+  // Drop the loaded program whatever the run state - used when it is deleted
+  // out from under a run, where refusing is not an option.
+  void force_unload();
 
   // Target control for the /targets/* endpoints. Keeps the published flag and
   // the pin in step; the caller broadcasts.

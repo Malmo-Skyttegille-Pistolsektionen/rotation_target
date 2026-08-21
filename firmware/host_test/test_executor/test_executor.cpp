@@ -378,14 +378,76 @@ void test_reset_leaves_the_targets_where_they_are() {
                            h->effects.broadcasts.back().c_str());
 }
 
+// --- unload ----------------------------------------------------------------
+
 void test_unloading_clears_the_published_state() {
   h->executor.load(&g_program);
 
-  h->executor.unload();
+  TEST_ASSERT_EQUAL(rt::UnloadResult::kUnloaded, h->executor.unload());
 
+  TEST_ASSERT_FALSE(h->state.is_loaded());
   TEST_ASSERT_EQUAL_STRING(
       "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"hidden\"}",
       h->effects.broadcasts.back().c_str());
+}
+
+void test_unload_while_running_is_refused() {
+  h->executor.load(&g_program);
+  h->executor.start();
+  h->run_for(100);
+  h->effects.clear();
+
+  TEST_ASSERT_EQUAL(rt::UnloadResult::kRunning, h->executor.unload());
+
+  // Not a partial refusal: the run keeps its program, its position and its
+  // targets, and no client is told anything happened.
+  TEST_ASSERT_TRUE(h->state.is_loaded());
+  TEST_ASSERT_TRUE(h->state.running);
+  TEST_ASSERT_TRUE(h->state.target_status_shown);
+  TEST_ASSERT_EQUAL_size_t(0, h->effects.broadcasts.size());
+}
+
+void test_unload_after_a_stop_is_allowed() {
+  // stop() is a pause, so the refusal has to lift with it - otherwise the
+  // 409 has no escape and the endpoint solves nothing.
+  h->executor.load(&g_program);
+  h->executor.start();
+  h->run_for(100);
+  h->executor.stop();
+  h->effects.clear();
+
+  TEST_ASSERT_EQUAL(rt::UnloadResult::kUnloaded, h->executor.unload());
+
+  TEST_ASSERT_FALSE(h->state.is_loaded());
+  TEST_ASSERT_EQUAL_size_t(1, h->effects.broadcasts.size());
+  // The targets stay where the run left them; unloading moves no hardware.
+  TEST_ASSERT_EQUAL_STRING(
+      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"shown\"}",
+      h->effects.broadcasts.back().c_str());
+}
+
+void test_unload_with_nothing_loaded_publishes_nothing() {
+  // Idempotent: the second unload of a pair is this case, and repeating a
+  // stateUpdate identical to the last one tells a client nothing.
+  TEST_ASSERT_EQUAL(rt::UnloadResult::kNotLoaded, h->executor.unload());
+
+  TEST_ASSERT_FALSE(h->state.is_loaded());
+  TEST_ASSERT_EQUAL_size_t(0, h->effects.broadcasts.size());
+}
+
+void test_force_unload_drops_a_running_program() {
+  // The delete path: the program is going away whatever the run state, because
+  // the run loop's pointer into it would dangle.
+  h->executor.load(&g_program);
+  h->executor.start();
+  h->run_for(100);
+  h->effects.clear();
+
+  h->executor.force_unload();
+
+  TEST_ASSERT_FALSE(h->state.is_loaded());
+  TEST_ASSERT_FALSE(h->state.running);
+  TEST_ASSERT_EQUAL_size_t(1, h->effects.broadcasts.size());
 }
 
 // --- targets ---------------------------------------------------------------
@@ -435,6 +497,10 @@ int main() {
   RUN_TEST(test_reset_returns_to_the_start_of_the_series);
   RUN_TEST(test_reset_leaves_the_targets_where_they_are);
   RUN_TEST(test_unloading_clears_the_published_state);
+  RUN_TEST(test_unload_while_running_is_refused);
+  RUN_TEST(test_unload_after_a_stop_is_allowed);
+  RUN_TEST(test_unload_with_nothing_loaded_publishes_nothing);
+  RUN_TEST(test_force_unload_drops_a_running_program);
 
   RUN_TEST(test_toggle_targets_flips_the_published_flag_and_the_pin);
 
