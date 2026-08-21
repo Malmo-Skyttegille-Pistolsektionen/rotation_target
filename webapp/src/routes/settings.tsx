@@ -6,6 +6,7 @@ import { ServerUrlSection } from '../components/ServerUrlSection';
 import { AdminModeSection } from '../components/AdminModeSection';
 import { StartDelaySection } from '../components/StartDelaySection';
 import { StartupIssuesSection } from '../components/StartupIssuesSection';
+import { VersionSection } from '../components/VersionSection';
 import styles from './settings.module.css';
 
 export const Route = createFileRoute('/settings')({
@@ -35,6 +36,8 @@ function SettingsPage(): React.ReactNode {
       <StartDelaySection />
 
       <StartupIssuesSection />
+
+      <VersionSection />
     </div>
   );
 }
