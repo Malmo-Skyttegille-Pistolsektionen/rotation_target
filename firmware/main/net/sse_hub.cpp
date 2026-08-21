@@ -170,4 +170,8 @@ void broadcast_issue(const char *code, const std::string &message,
   enqueue("backend_issue", rt::backend_issue_json(code, message, context));
 }
 
+void broadcast_library_changed(const char *kind) {
+  enqueue("libraryChanged", rt::library_changed_json(kind));
+}
+
 }  // namespace sse_hub

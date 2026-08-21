@@ -4,7 +4,7 @@ asyncapi: 3.1.0
 
 info:
   title: Rotation target SSE v2
-  version: 3.0.0
+  version: 3.1.0
   license:
     name: MIT
   description: |
@@ -28,6 +28,11 @@ info:
     both invisible to a client otherwise — the run simply carries on, quietly
     wrong.
 
+    `libraryChanged` covers the third: the stored programs and audio clips are
+    fetched over REST, not published here, so a client that did not make the
+    change had no way to learn of it. On a range with a laptop and a phone
+    both open, the second one showed a stale list until somebody reloaded it.
+
     ## Connection behaviour
 
     - `GET /sse/v2` answers `200` with `Content-Type: text/event-stream`,
@@ -45,6 +50,12 @@ info:
     - A `heartbeat` follows every 10 seconds
       (`kSseHeartbeatSeconds`, `firmware/main/config.h`), whether or not
       anything changed.
+    - `libraryChanged` is emitted when a REST call changes what
+      `GET /api/v2/programs` or `GET /api/v2/audios` would return, and is
+      **fire-and-forget** on the same terms as `backend_issue` below: nothing
+      is buffered for a client that connects later and nothing is replayed on
+      reconnect. A client that was not listening does not need it — it fetches
+      both lists on connect anyway.
     - `backend_issue` is emitted only when something fails, and is
       **fire-and-forget**: it is delivered to whoever is connected at that
       instant and to nobody else. Nothing is buffered for a client that
@@ -106,6 +117,8 @@ channels:
         $ref: "#/components/messages/heartbeat"
       backend_issue:
         $ref: "#/components/messages/backendIssue"
+      libraryChanged:
+        $ref: "#/components/messages/libraryChanged"
 
 operations:
   receiveEvents:
@@ -119,6 +132,7 @@ operations:
       - $ref: "#/channels/events/messages/stateUpdate"
       - $ref: "#/channels/events/messages/heartbeat"
       - $ref: "#/channels/events/messages/backend_issue"
+      - $ref: "#/channels/events/messages/libraryChanged"
 
 components:
   messages:
@@ -228,6 +242,51 @@ components:
             message: Program file is malformed and was skipped
             context:
               file: /storage/uploads/programs/20.json
+
+    libraryChanged:
+      name: libraryChanged
+      title: The stored library changed
+      summary: >-
+        A program or an audio clip was created, replaced or deleted. Refetch
+        the list `kind` names; nothing else about the device has changed.
+      description: |
+        Programs and audio clips are fetched over REST — `GET /api/v2/programs`
+        and `GET /api/v2/audios` — so before this event a client only knew
+        about the changes it made itself. Every other client kept showing the
+        list it last fetched, which at a range with a laptop and a phone open
+        is a program that has been uploaded but cannot be found.
+
+        The payload deliberately carries **no id and no operation**: this is a
+        cache-invalidation signal, not a delta. The client re-issues the GET it
+        would have made anyway and the device stays the single source of truth,
+        which is the same reason `stateUpdate` sends the whole state rather
+        than a diff. `kind` is there only so a client refetches one list
+        instead of both.
+
+        **Run state is not library state.** `load`, `start`, `stop`, `reset`,
+        `skip_to` and `unload` change what the device is *doing*, not what it
+        *stores*, and are published as `stateUpdate`. Deleting the loaded
+        program emits both: `libraryChanged` because a program is gone, and
+        `stateUpdate` because nothing is loaded any more.
+
+        Advisory, like `backend_issue`: a client that ignores it behaves
+        exactly as it did before — stale, but correct in everything else.
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/LibraryChanged"
+      examples:
+        - name: program-uploaded
+          summary: >-
+            After `POST /api/v2/programs`, `PUT /api/v2/programs/{id}` or
+            `DELETE /api/v2/programs/{id}/delete`.
+          payload:
+            kind: program
+        - name: clip-deleted
+          summary: >-
+            After `POST /api/v2/audios` (upload) or
+            `DELETE /api/v2/audios/{id}/delete`.
+          payload:
+            kind: audio
 
   schemas:
     StateUpdate:
@@ -356,6 +415,29 @@ components:
               description: >-
                 `program_invalid`: the program file's path on the device
                 filesystem.
+
+    LibraryChanged:
+      type: object
+      required: [kind]
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          description: |
+            Which stored collection to refetch.
+
+            - `program` — `GET /api/v2/programs`. Emitted after a create, a
+              replace or a delete.
+            - `audio` — `GET /api/v2/audios`. Emitted after an upload or a
+              delete.
+
+            A closed `enum`, unlike `backend_issue`'s `code`: it enumerates the
+            library collections this API has, so gaining a third one means
+            gaining REST endpoints and a new version of this document, not a
+            firmware quietly emitting a value nobody specified. A client should
+            still ignore a `kind` it does not recognise rather than refetch
+            everything.
+          enum: [audio, program]
 
     Heartbeat:
       type: object
