@@ -51,10 +51,9 @@ interface Divergence {
  * fails the run rather than sitting here as folklore.
  *
  * `command` is deliberately absent: the schema's enum and the validator agree
- * that only `show`/`hide` are acceptable, even though today's firmware keeps
- * any non-empty string verbatim (`e.command = src["command"] | ""`). Both are
- * stricter than the device on purpose — authoring-time strictness — and PR #80
- * closes the gap from the firmware side.
+ * that only `show`/`hide` are acceptable, and since PR #80 so does
+ * `parse_command` — the only daylight left is `null` and `""`, which the device
+ * reads as "no command" while both descriptions here refuse them.
  */
 export const DIVERGENCES = {
   'unknown-fields-dropped': {
@@ -301,7 +300,7 @@ const CASES: Case[] = [
   { name: 'no command', doc: withEvent(without(anEvent(), 'command')), schema: 'accepted', validator: 'accepted' },
   { name: 'command "show"', doc: withEvent(anEvent({ command: 'show' })), schema: 'accepted', validator: 'accepted' },
   { name: 'command "hide"', doc: withEvent(anEvent({ command: 'hide' })), schema: 'accepted', validator: 'accepted' },
-  // Both refuse what the firmware currently keeps verbatim; see DIVERGENCES.
+  // Refused by the device too, since PR #80.
   {
     name: 'an unrecognised command',
     doc: withEvent(anEvent({ command: 'toggle' })),

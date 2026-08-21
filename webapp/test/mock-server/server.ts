@@ -110,12 +110,28 @@ export function loadSeedFromDisk(dataDir: string = DATA_DIR): MockSeed {
 }
 
 /**
+ * `parse_command` in `firmware/lib/rt_logic/program.cpp`: absent, JSON `null`
+ * and `""` all mean "leave the targets where they are"; `show` and `hide` are
+ * the commands; anything else - a typo, the wrong case, a non-string - refuses
+ * the whole program, so that `shwo` fails at upload instead of becoming a
+ * target that silently never turns mid-exercise.
+ */
+function parseCommand(raw: unknown): { ok: true; command?: Event['command'] } | { ok: false } {
+  if (raw === undefined || raw === null || raw === '') return { ok: true };
+  if (raw !== 'show' && raw !== 'hide') return { ok: false };
+  return { ok: true, command: raw };
+}
+
+/**
  * What the firmware keeps of an uploaded document: unknown fields dropped,
  * durations clamped, `id` from the path (or the assignment) and `readonly`
  * false. `POST /programs` and `PUT /programs/{id}` both store this form, and
- * it is what a later `GET` returns.
+ * it is what a later `GET` returns. `null` when the document is one the device
+ * refuses outright.
  */
-function normalizeProgram(raw: Record<string, unknown>, id: number): Program {
+function normalizeProgram(raw: Record<string, unknown>, id: number): Program | null {
+  let refused = false;
+
   const rawSeries = Array.isArray(raw.series) ? (raw.series as unknown[]) : [];
 
   const series: Series[] = rawSeries.filter(isRecord).map((entry) => {
@@ -125,16 +141,9 @@ function normalizeProgram(raw: Record<string, unknown>, id: number): Program {
       const duration = typeof rawEvent.duration === 'number' ? Math.trunc(rawEvent.duration) : MIN_DURATION_MS;
       const event: Event = { duration: Math.min(Math.max(duration, MIN_DURATION_MS), MAX_DURATION_MS) };
 
-      // Any non-empty string survives and is re-emitted verbatim: `parse_event`
-      // does `e.command = src["command"] | ""` and `Event::to_json` writes back
-      // whatever that held. Only "show" and "hide" move the targets. The cast
-      // is the contract's fault, not this file's - `openapi.yaml` contradicts
-      // itself here, declaring an enum in `Event.command` while its prose says
-      // any other string is kept. Left faithful to the firmware so a client
-      // that mangles the field has something that can catch it.
-      if (typeof rawEvent.command === 'string' && rawEvent.command !== '') {
-        event.command = rawEvent.command as Event['command'];
-      }
+      const command = parseCommand(rawEvent.command);
+      if (!command.ok) refused = true;
+      else if (command.command !== undefined) event.command = command.command;
       if (Array.isArray(rawEvent.audio_ids)) {
         event.audio_ids = (rawEvent.audio_ids as unknown[]).filter((v): v is number => typeof v === 'number');
       }
@@ -147,6 +156,8 @@ function normalizeProgram(raw: Record<string, unknown>, id: number): Program {
       events,
     };
   });
+
+  if (refused) return null;
 
   return {
     id,
@@ -566,7 +577,12 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       // the two allocators disagree the moment anything is deleted.
       let id = FIRST_UPLOAD_ID;
       while (programs[id] !== undefined) id++;
-      programs[id] = normalizeProgram(raw, id);
+      const program = normalizeProgram(raw, id);
+      if (!program) {
+        jsonResponse(res, 400, { error: 'Invalid program' });
+        return;
+      }
+      programs[id] = program;
       jsonResponse(res, 201, { id });
       return;
     }
@@ -607,12 +623,19 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         jsonResponse(res, 400, { error: 'Invalid program' });
         return;
       }
+      // Parsed before the id is compared, as `update_uploaded` does: a document
+      // that is refused outright is `kInvalid` even when its id also mismatches.
+      const replacement = normalizeProgram(raw, id);
+      if (!replacement) {
+        jsonResponse(res, 400, { error: 'Invalid program' });
+        return;
+      }
       if (raw.id !== undefined && raw.id !== null && raw.id !== id) {
         jsonResponse(res, 400, { error: 'Program id in the document does not match the path' });
         return;
       }
 
-      programs[id] = normalizeProgram(raw, id);
+      programs[id] = replacement;
       jsonResponse(res, 200, programs[id]);
       return;
     }
