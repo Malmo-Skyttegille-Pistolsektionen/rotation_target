@@ -14,12 +14,20 @@ on:
       - resources/**
       - .github/workflows/firmware-build.yml
 
+  # Called by release.yml so the release is gated on the same checks that guard
+  # main, run at the exact commit that gets tagged.
+  workflow_call:
+
 permissions:
   contents: read
 
-# A superseded push should not keep a full firmware build running to completion.
+# A superseded run should not keep this going. The group carries a literal
+# prefix as well as `github.workflow`, because `github.workflow` is the *caller*
+# name when release.yml calls this workflow - without the prefix, two workflows
+# called from the same release run would land in one group and cancel each
+# other.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: firmware-build-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

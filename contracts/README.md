@@ -34,7 +34,7 @@ about which one was true.
 The contract is versioned by its **path prefix** — `/api/v2`, `/sse/v2` — and
 that is the only version clients need to look at. `info.version` in each
 document tracks the contract itself, not the firmware: it moves when the shapes
-move, and it is unrelated to the `firmware-vX.Y.Z` tags.
+move, and it is unrelated to the product's release tags.
 
 Within a major version, changes must be **additive**: a new endpoint, a new
 optional field, a new enum member a client can ignore. Anything a deployed
@@ -48,7 +48,7 @@ a read-only program or clip changed from `404` to `409`, and
 `POST /programs/start` grew a **required** body, both without moving to
 `/api/v3`. The webapp ships inside the firmware image, so client and
 server are deployed atomically and there is no deployed client to break; no
-`firmware-vX.Y.Z` tag has ever been cut. See `docs/DECISIONS.md`. The rule
+release has ever been cut. See `docs/DECISIONS.md`. The rule
 stands for everything after this — the exceptions exist because the only client
 is in this repository, and they stop being available the moment a firmware is
 released.

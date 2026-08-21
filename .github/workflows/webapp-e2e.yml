@@ -30,13 +30,20 @@ on:
       - contracts/**
       - .github/workflows/webapp-e2e.yml
 
+  # Called by release.yml so the release is gated on the same checks that guard
+  # main, run at the exact commit that gets tagged.
+  workflow_call:
+
 permissions:
   contents: read
 
-# The slowest workflow in the repo; a superseded push should not keep a whole
-# firmware build plus a browser run going.
+# A superseded run should not keep this going. The group carries a literal
+# prefix as well as `github.workflow`, because `github.workflow` is the *caller*
+# name when release.yml calls this workflow - without the prefix, two workflows
+# called from the same release run would land in one group and cancel each
+# other.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: webapp-e2e-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
