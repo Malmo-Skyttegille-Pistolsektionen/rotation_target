@@ -26,9 +26,11 @@ function resolveVersion(): string {
     // Fall through: no git at all - a tarball, or a container without the
     // repository.
   }
-  // What the device answers for a build with no release tag reachable, so it is
-  // the honest stand-in rather than a number invented here.
-  return '0.0.0';
+  // The same word `firmware/CMakeLists.txt` puts in PROJECT_VER for a build with
+  // no git metadata, so the app and the device still agree in the one case
+  // neither can name a version. Deliberately not a number: `0.0.0` is valid
+  // semver and would read as a real, very old release.
+  return 'unknown';
 }
 
 const version = resolveVersion();
