@@ -5,19 +5,36 @@
 }
 
 .nav {
-  padding: 1rem;
+  padding: 0.5rem 1rem;
   display: flex;
-  gap: 1rem;
+  gap: 0.25rem;
   border-bottom: 1px solid #eee;
   background-color: #fff;
+  /* The run page is metres of timeline on a phone; the tabs have to stay
+     reachable without scrolling back to the top. */
+  position: sticky;
+  top: 0;
+  z-index: 30;
 }
 
 .link {
   text-decoration: none;
   color: inherit;
-  padding: 0.5rem;
+  padding: 0.5rem 0.75rem;
   border-radius: 4px;
   transition: background-color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--rt-control-height);
+  flex: 1 1 auto;
+  white-space: nowrap;
+}
+
+@media (min-width: 769px) {
+  .link {
+    flex: 0 0 auto;
+  }
 }
 
 .link:hover {
@@ -29,11 +46,15 @@
   background-color: #e0e0e0;
 }
 
+/* No `overflow-y: auto` here: it never scrolled (the flex item grows with its
+   content and the document is what scrolls), but it computed overflow-x to
+   `auto` as well, which is where the programs and audios tables were silently
+   disappearing off the right-hand edge on a phone. */
 .content {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
   width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }

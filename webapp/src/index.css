@@ -19,6 +19,19 @@ body {
   min-height: 100vh;
 }
 
+/* One control height for the whole app, so a button, a select and an input
+   agree on a row. A coarse pointer - the phone and the tablet on the firing
+   line - gets the 44px minimum tap target; a mouse keeps the denser 40px. */
+:root {
+  --rt-control-height: 40px;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --rt-control-height: 44px;
+  }
+}
+
 #root {
   /* No special styles needed here, managed by app layout */
 }

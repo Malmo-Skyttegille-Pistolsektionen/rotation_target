@@ -63,7 +63,7 @@
   border: 1px solid #ccc;
   background-color: #fff;
   color: #333;
-  height: 40px;
+  min-height: var(--rt-control-height);
   box-sizing: border-box;
 }
 
@@ -76,7 +76,7 @@
 
 .button {
   padding: 0 1.25rem;
-  height: 40px;
+  min-height: var(--rt-control-height);
   font-size: 0.95rem;
   font-weight: 500;
   border-radius: 6px;
@@ -132,12 +132,26 @@
   color: #b91c1c;
 }
 
+/* Disabled controls are exempt from WCAG 1.4.3, but the #9ca3af this used to
+   carry is 2.3:1 on #f3f4f6 - unreadable outdoors, exemption or not. */
 .button:disabled {
   background-color: #f3f4f6;
-  color: #9ca3af;
+  color: #4b5563;
   border-color: #e5e7eb;
   cursor: not-allowed;
   opacity: 0.7;
+}
+
+/* Keeps a wide library table inside its own scroller rather than letting it
+   push the page sideways. */
+.tableScroll {
+  width: 100%;
+  /* The page containers are flex columns, and a flex item's `min-width: auto`
+     refuses to shrink below its content - which is how a table wider than the
+     phone dragged the whole column out past the viewport instead of scrolling
+     inside this box. */
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .table {
@@ -186,7 +200,7 @@
 }
 
 .noActions {
-  color: #9ca3af;
+  color: #6b7280;
 }
 
 .badge {
@@ -258,7 +272,7 @@
   gap: 0.5rem;
   padding: 0.5rem 1rem;
   background-color: #fef3c7;
-  color: #d97706;
+  color: #92400e;
   border-radius: 6px;
   font-size: 0.9rem;
   font-weight: 500;
@@ -270,21 +284,52 @@
   font-size: 1.1rem;
 }
 
+/* --- Phone -----------------------------------------------------------------
+   Five columns, of which File and Actions fell off the right-hand edge of a
+   phone: Play and Delete were unreachable. The library is 100+ rows, so
+   restacking each one into a labelled block - the right answer for the
+   programs list - would have doubled the scrolling. Dropping the stored path
+   (diagnostics, not something to read on a phone) and tightening the cells
+   fits ID, title, source and the buttons inside 360 px instead. */
 @media (max-width: 768px) {
+  .container {
+    padding: 0.75rem;
+  }
+
   .uploadForm {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .fileCell {
+  .table {
+    font-size: 0.875rem;
+  }
+
+  .table th,
+  .table td {
+    padding: 0.4rem 0.25rem;
+  }
+
+  /* The stored path is diagnostics; Shipped/Uploaded is already implied by
+     whether the row offers Delete. Dropping both is what fits the title and
+     the buttons inside 360 px without a sideways scroll. */
+  .fileCell,
+  .table th:nth-child(4),
+  .sourceCell,
+  .table th:nth-child(3) {
     display: none;
   }
 
-  .table th:nth-child(4) {
-    display: none;
+  .titleCell {
+    overflow-wrap: anywhere;
   }
 
   .actionsCell {
-    justify-content: flex-start;
+    gap: 0.25rem;
+  }
+
+  .button {
+    padding: 0 0.65rem;
+    font-size: 0.875rem;
   }
 }

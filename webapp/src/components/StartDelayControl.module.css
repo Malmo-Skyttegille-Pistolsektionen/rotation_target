@@ -4,8 +4,9 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  height: 40px;
-  padding: 0 0.75rem;
+  min-height: var(--rt-control-height);
+  padding: 0.25rem 0.75rem;
+  flex-wrap: wrap;
   border: 1px solid #d1d5db;
   border-radius: 6px;
   background-color: #fff;
@@ -43,7 +44,7 @@
 
 .input:disabled {
   background-color: #f3f4f6;
-  color: #9ca3af;
+  color: #4b5563;
   cursor: not-allowed;
 }
 
@@ -74,5 +75,6 @@
 
   .input {
     width: 4.5rem;
+    min-height: var(--rt-control-height);
   }
 }

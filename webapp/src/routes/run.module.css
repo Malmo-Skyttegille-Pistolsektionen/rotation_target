@@ -47,7 +47,7 @@
   color: #374151;
   border: 2px solid #e5e7eb;
   padding: 0 0.75rem;
-  height: 36px; /* Fixed height for consistency */
+  min-height: 36px;
   border-radius: 6px;
   display: flex;
   align-items: center;
@@ -154,12 +154,12 @@
   min-width: 180px;
   background-color: #fff;
   color: #333;
-  height: 40px; /* Touch friendly height */
+  min-height: var(--rt-control-height);
 }
 
 .button {
   padding: 0 1.25rem;
-  height: 40px; /* Touch friendly height */
+  min-height: var(--rt-control-height);
   font-size: 0.95rem;
   font-weight: 500;
   border-radius: 6px;
@@ -191,31 +191,35 @@
   border-color: #9ca3af;
 }
 
+/* Disabled controls are exempt from WCAG 1.4.3, but the #9ca3af these used to
+   carry is 2.3:1 on #f3f4f6 - unreadable outdoors, exemption or not. */
 .button:disabled,
 .buttonSecondary:disabled {
   background-color: #f3f4f6;
-  color: #9ca3af;
+  color: #4b5563;
   border-color: #e5e7eb;
   cursor: not-allowed;
   opacity: 0.7;
 }
 
 .buttonStart {
-  background-color: #16a34a; /* Green-600 */
+  /* Green-700, not -600: white on -600 is 3.3:1. */
+  background-color: #15803d;
   color: white;
 }
 
 .buttonStart:hover {
-  background-color: #15803d; /* Green-700 */
+  background-color: #166534; /* Green-800 */
 }
 
 .buttonPause {
-  background-color: #d97706; /* Amber-600 */
+  /* Amber-700, not -600: white on -600 is 2.9:1. */
+  background-color: #b45309;
   color: white;
 }
 
 .buttonPause:hover {
-  background-color: #b45309; /* Amber-700 */
+  background-color: #92400e; /* Amber-800 */
 }
 
 .buttonDestructiveGhost {
@@ -232,15 +236,32 @@
 
 .button:disabled {
   background-color: #e5e7eb;
-  color: #9ca3af;
+  color: #4b5563;
 }
 
 /* Mobile adjustments */
 @media (max-width: 768px) {
+  .container {
+    padding: 0.75rem;
+    gap: 0.75rem;
+  }
+
+  .controlBoard {
+    padding: 0.75rem;
+    gap: 0.75rem;
+  }
+
   .boardHeader {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.5rem;
+    padding-bottom: 0.5rem;
+    margin-bottom: 0;
+  }
+
+  .title {
+    font-size: 1.15rem;
+    margin-right: 0;
   }
 
   .statusDisplay {
@@ -260,6 +281,17 @@
     min-width: 0;
   }
 
+  /* One control per row: two 180px selects fit side by side at 412 px and
+     neither is then wide enough to show a program title. */
+  .inputsGroup {
+    flex-direction: column;
+  }
+
+  .select {
+    width: 100%;
+    min-width: 0;
+  }
+
   .actionsGroup {
     justify-content: flex-start;
   }
@@ -275,7 +307,7 @@
   gap: 0.5rem;
   padding: 0.5rem 1rem;
   background-color: #fef3c7;
-  color: #d97706;
+  color: #92400e;
   border-radius: 6px;
   font-size: 0.9rem;
   font-weight: 500;

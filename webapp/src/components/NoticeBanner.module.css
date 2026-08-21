@@ -38,6 +38,7 @@
 
 .button {
   padding: 0.4rem 0.75rem;
+  min-height: var(--rt-control-height);
   border: 1px solid #ccc;
   border-radius: 4px;
   background: #fff;

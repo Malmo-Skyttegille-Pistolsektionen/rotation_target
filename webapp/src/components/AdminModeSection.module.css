@@ -37,24 +37,27 @@
   letter-spacing: 0.05em;
 }
 
+/* Each badge's text against its own tint, not against white: #6b7280 on
+   #e5e7eb is 3.9:1, and the amber and green pairs were under 3:1. */
 .statusOff {
   background-color: #e5e7eb;
-  color: #6b7280;
+  color: #4b5563;
 }
 
 .statusLocked {
   background-color: #fef3c7;
-  color: #d97706;
+  color: #92400e;
 }
 
 .statusActive {
   background-color: #dcfce7;
-  color: #16a34a;
+  color: #14532d;
 }
 
 .statusDescription {
   color: #6b7280;
   font-size: 0.9rem;
+  max-width: 68ch;
 }
 
 .inputRow {
@@ -71,7 +74,7 @@
   border: 1px solid #d1d5db;
   flex: 1;
   min-width: 200px;
-  height: 40px;
+  min-height: var(--rt-control-height);
   box-sizing: border-box;
   background-color: #fff;
   color: #333;
@@ -91,7 +94,7 @@
 
 .button {
   padding: 0 1.25rem;
-  height: 40px;
+  min-height: var(--rt-control-height);
   font-size: 0.95rem;
   font-weight: 500;
   border-radius: 6px;
@@ -118,12 +121,13 @@
 }
 
 .buttonPrimary {
-  background-color: #6366f1;
+  /* Indigo-600, not -500: white on -500 is 4.47:1, a hair under AA. */
+  background-color: #4f46e5;
   color: white;
 }
 
 .buttonPrimary:hover:not(:disabled) {
-  background-color: #4f46e5;
+  background-color: #4338ca;
 }
 
 .buttonSecondary {
@@ -148,6 +152,7 @@
 .infoText {
   color: #6b7280;
   font-size: 0.85rem;
+  max-width: 68ch;
   font-style: italic;
   padding: 0.5rem 0;
   border-top: 1px solid #e5e7eb;

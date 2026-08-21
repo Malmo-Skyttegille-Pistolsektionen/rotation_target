@@ -32,11 +32,13 @@
 .buttonRow {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
 .button {
   padding: 0.5rem 1rem;
+  min-height: var(--rt-control-height);
   border: 1px solid #ccc;
   border-radius: 4px;
   background: #fff;
