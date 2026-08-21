@@ -1,5 +1,0 @@
-.frame {
-  width: 100%;
-  height: calc(100vh - 50px); /* Adjust based on your header/nav height */
-  border: none;
-}

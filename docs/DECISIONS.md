@@ -229,6 +229,17 @@ views are now ported to React (#71, #72). What still exists only in
 `src_legacy` is the **WYSIWYG program editor** (#73) — so `src_legacy`
 stays until that lands. See [D-18](#d-18--program-validation-without-ajv-the-editor-ports-later); CI enforces a gzip size budget.
 
+**Amended 2026-08-21 (`src_legacy` removed):** the editor is ported (#73), so
+the condition this guardrail was waiting on is met and `src_legacy` is
+**deleted** — with `legacy.html`, the `/legacy` route and nav link, the v1 mock
+`vite-plugins/mock-server.ts`, the schema-sync plugin and the icons only it
+used. `prismjs` and `@types/prismjs` go with it; **`ajv` stays** as a
+test-only devDependency, because `test/program-document-schema.test.ts` is the
+cross-check D-18 asked for. The gzip total drops from 197 755 to 133 022 bytes
+and the budget with it. The v1 implementation is in git history; there is no
+second copy of anything left to keep in step. The rest of the guardrail —
+devtools dev-only, CI size budget — is unchanged.
+
 ## D-15 — Program update endpoint *(Decided 2026-08-20)*
 
 **Decision:** add `PUT /api/v2/programs/{id}`. The path is the authority on
@@ -350,6 +361,17 @@ editor in the new app.
 **Rejected:** ajv in standalone (build-time compiled) mode — still a build
 complication for one form; porting the editor partially; deleting `src_legacy`
 before authoring exists in React.
+
+**Amended 2026-08-21 (the editor is ported):** #73 landed, and it validates
+with `src/lib/program-document.ts` as this decision required — no ajv, no
+Prism in the bundle. The editor adds ~12 KB gz where the legacy one cost ~65 KB
+gz including those two libraries. Two things this decision left open are now
+settled by the port: the legacy editor's five view tabs became two (Form,
+Events and Timeline were three renderings of the same edit operations), and
+`authoringIssues` was added to the validator for the checks that only apply to
+a document under edit — an unnamed series and an empty one, both of which the
+device accepts and no author means. With the editor ported, `src_legacy` is
+deleted; see the amendment on [D-14](#d-14--webapp-guardrails-decided-aug-2026).
 
 **Known cost:** the validator and the schema are now two hand-maintained
 descriptions of one document, which is the drift shape that produced the 100x

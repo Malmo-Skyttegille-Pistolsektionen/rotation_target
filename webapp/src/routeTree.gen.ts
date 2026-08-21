@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AudiosRouteImport } from './routes/audios'
-import { Route as LegacyRouteImport } from './routes/legacy'
 import { Route as ProgramsRouteImport } from './routes/programs'
 import { Route as RunRouteImport } from './routes/run'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -24,11 +23,6 @@ const IndexRoute = IndexRouteImport.update({
 const AudiosRoute = AudiosRouteImport.update({
   id: '/audios',
   path: '/audios',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LegacyRoute = LegacyRouteImport.update({
-  id: '/legacy',
-  path: '/legacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProgramsRoute = ProgramsRouteImport.update({
@@ -50,7 +44,6 @@ const SettingsRoute = SettingsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/audios': typeof AudiosRoute
-  '/legacy': typeof LegacyRoute
   '/programs': typeof ProgramsRoute
   '/run': typeof RunRoute
   '/settings': typeof SettingsRoute
@@ -58,7 +51,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/audios': typeof AudiosRoute
-  '/legacy': typeof LegacyRoute
   '/programs': typeof ProgramsRoute
   '/run': typeof RunRoute
   '/settings': typeof SettingsRoute
@@ -67,30 +59,21 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/audios': typeof AudiosRoute
-  '/legacy': typeof LegacyRoute
   '/programs': typeof ProgramsRoute
   '/run': typeof RunRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/audios' | '/legacy' | '/programs' | '/run' | '/settings'
+  fullPaths: '/' | '/audios' | '/programs' | '/run' | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/audios' | '/legacy' | '/programs' | '/run' | '/settings'
-  id:
-    | '__root__'
-    | '/'
-    | '/audios'
-    | '/legacy'
-    | '/programs'
-    | '/run'
-    | '/settings'
+  to: '/' | '/audios' | '/programs' | '/run' | '/settings'
+  id: '__root__' | '/' | '/audios' | '/programs' | '/run' | '/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AudiosRoute: typeof AudiosRoute
-  LegacyRoute: typeof LegacyRoute
   ProgramsRoute: typeof ProgramsRoute
   RunRoute: typeof RunRoute
   SettingsRoute: typeof SettingsRoute
@@ -110,13 +93,6 @@ declare module '@tanstack/react-router' {
       path: '/audios'
       fullPath: '/audios'
       preLoaderRoute: typeof AudiosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/legacy': {
-      id: '/legacy'
-      path: '/legacy'
-      fullPath: '/legacy'
-      preLoaderRoute: typeof LegacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/programs': {
@@ -146,7 +122,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AudiosRoute: AudiosRoute,
-  LegacyRoute: LegacyRoute,
   ProgramsRoute: ProgramsRoute,
   RunRoute: RunRoute,
   SettingsRoute: SettingsRoute,
