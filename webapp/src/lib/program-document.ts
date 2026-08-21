@@ -27,12 +27,11 @@
  * runs both descriptions over every shipped program and a table of hostile
  * inputs, and fails on a divergence nobody wrote down (D-18).
  *
- * One place where the schema is followed *against* the firmware, deliberately:
- * `command`. The firmware keeps any non-empty string and re-emits it verbatim
- * (only `show` and `hide` move the targets); the schema and `openapi.yaml`
- * declare an enum. Authoring-time strictness is the point of this file, so an
- * unrecognised command is refused here. `contracts/openapi.yaml` contradicts
- * itself on that point and needs a decision — see the PR that added this.
+ * `command` used to be a departure the other way — stricter than the device.
+ * PR #80 closed that: the firmware now refuses anything but `show`, `hide`,
+ * absent, `null` and `""`, which is what the schema's enum already said. This
+ * file keeps refusing `null` and `""` too, because at authoring time they are a
+ * half-written event worth a message, not the "no command" the device reads.
  */
 import type { Event, Program, Series } from '../api/types';
 

@@ -8,9 +8,7 @@ import { openApp, resetDevice, SHIPPED_PROGRAM_IDS } from './device';
  * Both are places where a mock is free to be plausible and wrong, and where
  * being wrong is invisible until a club member hits it: which id an upload gets
  * when there are gaps in the range, and what happens to a `command` the
- * firmware does not recognise. `contracts/openapi.yaml` declares `command` as
- * an enum while its own prose says any other string is kept — this asserts
- * which of the two the device does.
+ * firmware does not recognise.
  */
 
 const API = '/api/v2';
@@ -84,19 +82,25 @@ test('a freed id is handed back out, not stepped past', async ({ request }) => {
   expect(await upload(request, 'Gap D')).toBe(103);
 });
 
-test('a command the firmware does not act on survives the round trip verbatim', async ({ request }) => {
-  const id = await upload(request, 'Odd command', 'sideways');
+test('a command the firmware does not recognise is refused, on upload and on replace', async ({ request }) => {
+  // Not kept and not dropped: only "show" and "hide" are commands, and a typo
+  // such as "shwo" has to fail at upload rather than become a target that
+  // silently never turns mid-exercise.
+  const refused = await request.post(`${API}/programs`, { data: documentWith('Odd command', 'sideways') });
+  expect(refused.status()).toBe(400);
+
+  // Nothing was stored, so the id it would have taken is still free.
+  const id = await upload(request, 'Good command', 'show');
+  expect(id).toBe(102);
+
+  // And a replace is refused the same way, leaving the stored program alone.
+  const put = await request.put(`${API}/programs/${id}`, { data: documentWith('Odd command', 'diagonally') });
+  expect(put.status()).toBe(400);
 
   const stored = (await (await request.get(`${API}/programs/${id}`)).json()) as {
+    title: string;
     series: { events: { command?: string }[] }[];
   };
-
-  // Kept, not dropped and not rejected: only "show" and "hide" move the
-  // targets, but the field is stored and re-emitted as written.
-  expect(stored.series[0].events[0].command).toBe('sideways');
-
-  // And a replace keeps it too, so an edit round trip does not quietly lose it.
-  const put = await request.put(`${API}/programs/${id}`, { data: documentWith('Odd command', 'diagonally') });
-  expect(put.status()).toBe(200);
-  expect(((await put.json()) as typeof stored).series[0].events[0].command).toBe('diagonally');
+  expect(stored.title).toBe('Good command');
+  expect(stored.series[0].events[0].command).toBe('show');
 });

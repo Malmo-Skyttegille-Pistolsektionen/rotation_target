@@ -90,7 +90,7 @@ describe('program storage', () => {
         colour: 'dropped',
         events: [
           { duration: 0, command: 'show', audio_ids: [26], start: true },
-          { duration: 9_000_000, command: 'sideways' },
+          { duration: 9_000_000, command: 'hide' },
         ],
       },
     ],
@@ -128,8 +128,7 @@ describe('program storage', () => {
           optional: true,
           events: [
             { duration: 1, command: 'show', audio_ids: [26] },
-            // Kept verbatim, as the firmware keeps it: only show/hide act.
-            { duration: 3600000, command: 'sideways' },
+            { duration: 3600000, command: 'hide' },
           ],
         },
       ],
@@ -139,6 +138,39 @@ describe('program storage', () => {
   it('rejects an upload that is not a JSON object', async () => {
     expect((await upload('[]')).status).toBe(400);
     expect((await api('/programs', { method: 'POST' })).status).toBe(400);
+  });
+
+  // `parse_command` in firmware/lib/rt_logic/program.cpp: a command it does not
+  // recognise is a typo, not an instruction, and fails the whole program.
+  it('refuses a command that is not show or hide, on create and on replace', async () => {
+    const withCommand = (command: unknown) => ({
+      ...document,
+      series: [{ name: 'Serie 1', optional: false, events: [{ duration: 1000, command }] }],
+    });
+
+    for (const command of ['sideways', 'Show', 'SHOW', 'show ', 5, true, ['show']]) {
+      expect((await upload(withCommand(command))).status, `command ${JSON.stringify(command)}`).toBe(400);
+    }
+
+    // Absent, null and "" all mean "leave the targets where they are".
+    for (const command of [null, '']) {
+      const created = await upload(withCommand(command));
+      expect(created.status, `command ${JSON.stringify(command)}`).toBe(201);
+      const { id } = await created.json();
+      expect((await (await api(`/programs/${id}`)).json()).series[0].events[0]).toEqual({ duration: 1000 });
+
+      const replaced = await api(`/programs/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(withCommand('sideways')),
+      });
+      expect(replaced.status).toBe(400);
+      // Not the id-mismatch error, though the body still carries the fixture's
+      // id 7: `update_uploaded` parses before it compares ids.
+      expect(await replaced.json()).toEqual({ error: 'Invalid program' });
+
+      // And the stored program is untouched by the refused replace.
+      expect((await (await api(`/programs/${id}`)).json()).series[0].events[0]).toEqual({ duration: 1000 });
+    }
   });
 
   it('replaces through PUT and answers with the stored form', async () => {
