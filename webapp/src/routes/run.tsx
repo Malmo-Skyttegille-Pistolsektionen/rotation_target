@@ -6,6 +6,7 @@ import { useProgramsApi } from '../api/programs';
 import type { ProgramSummary, StateUpdatePayload } from '../api/types';
 import { Timeline } from '../components/Timeline';
 import { CountdownModal } from '../components/CountdownModal';
+import { StartDelayControl } from '../components/StartDelayControl';
 import { useSettings } from '../context/SettingsContext';
 import { useAdminStatus } from '../hooks/useAdminStatus';
 import { unloadFailureNotice } from '../lib/program-notices';
@@ -407,6 +408,12 @@ export function RunView(): React.ReactNode {
           <div className={styles.actionsGroup}>
             {canControl ? (
               <>
+                {/* Beside Start, because the countdown it sets off happens
+                    here. Frozen while one runs: that countdown captured its
+                    length when Start was pressed and must not appear to be
+                    editable. */}
+                <StartDelayControl disabled={countdown !== null} />
+
                 {!isRunning ? (
                   <button
                     className={clsx(styles.button, styles.buttonStart)}
