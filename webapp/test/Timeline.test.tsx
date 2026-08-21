@@ -147,6 +147,26 @@ describe('event durations', () => {
   });
 });
 
+describe('the field timeline axis', () => {
+  // Regression lock. Every tick used to carry its own "s" suffix - "0s 1s
+  // 2s … 28s" - which repeats the unit as many times as there are ticks.
+  it('numbers ticks with bare digits and states the unit once, on the final tick', () => {
+    renderTimeline(PROGRAM_FALT_TRANING, { mode: 'field' });
+
+    // Series 1 totals 28 s: one tick per second, 0 through 28.
+    const ticks = Array.from(document.querySelectorAll('.axis')[0].querySelectorAll('.tick'));
+    expect(ticks).toHaveLength(29);
+
+    expect(ticks[0].textContent).toBe('0');
+    expect(ticks[5].textContent).toBe('5');
+    expect(ticks[28].textContent).toBe('28 s');
+
+    // "s" appears exactly once across the whole axis, not once per tick.
+    const axisText = document.querySelectorAll('.axis')[0].textContent ?? '';
+    expect(axisText.match(/s/g)).toHaveLength(1);
+  });
+});
+
 describe('the run position', () => {
   it('marks the active event, and only in the current series', () => {
     renderTimeline(PROGRAM_FALT_TRANING, { currentSeriesIndex: 1, currentEventIndex: 3 });
