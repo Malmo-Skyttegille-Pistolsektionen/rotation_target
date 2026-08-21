@@ -108,15 +108,21 @@ export function sourceReloadNotice(err: unknown, id: number): Notice {
  * `POST /programs/unload`. The only refusal it has is a run in progress
  * (D-22): unloading is bookkeeping and must not end a series mid-range, so the
  * device says stop first rather than stopping on the client's behalf. The
- * escape is one button away — Pause on the Run page — which is what this says.
+ * escape is one button away, and the wording has to name it for a reader on
+ * the programs tab without telling a reader on the Run page to go where they
+ * already are.
+ *
+ * That single refusal is also why this one does not sniff the message the way
+ * `updateFailureNotice` has to: `PUT` answers 409 for two different reasons
+ * and only the text tells them apart, while unload has exactly one.
  */
 export function unloadFailureNotice(err: unknown): Notice {
   if (err instanceof ApiError && err.status === 409) {
     return {
       kind: 'error',
       message:
-        'The device is running a program, and unloading would end the series. Stop the program first (Pause, ' +
-        'on the Run page), then unload.',
+        'The device is running a program, and unloading would end the series. Pause the run first, then ' +
+        'unload — Pause sits beside Unload on the Run page.',
     };
   }
   return failureNotice(err, 'Could not unload the program.');
