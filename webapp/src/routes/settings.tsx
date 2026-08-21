@@ -15,10 +15,10 @@ function SettingsPage(): React.ReactNode {
   const { settings } = useSettings();
 
   // Initialize base URL on mount - only run once on initial mount
-  const isFirstRender = useRef(true);
+  const isFirstRenderRef = useRef(true);
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
       initializeBaseUrl(settings.serverBaseUrl);
     }
   }, [settings.serverBaseUrl]);

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, use, useState, useEffect } from 'react';
 
 const STORAGE_PREFIX = 'rt_settings_';
 const STORAGE_KEYS = {
@@ -33,7 +33,7 @@ export interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | null>(null);
 
 export function useSettings(): SettingsContextType {
-  const context = useContext(SettingsContext);
+  const context = use(SettingsContext);
   if (!context) {
     throw new Error('useSettings must be used within a SettingsProvider');
   }
@@ -55,6 +55,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     };
   });
 
+  // Not `setAdminToken`: that name belongs to the context method below, which
+  // wraps this setter with the localStorage write.
+  // eslint-disable-next-line @eslint-react/use-state
   const [adminToken, setAdminTokenState] = useState<string | null>(() => {
     if (typeof window === 'undefined') {
       return null;
@@ -115,5 +118,5 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     logoutAdmin,
   };
 
-  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
+  return <SettingsContext value={value}>{children}</SettingsContext>;
 }
