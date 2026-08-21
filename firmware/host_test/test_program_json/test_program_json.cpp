@@ -268,6 +268,74 @@ void test_a_hostile_duration_is_clamped() {
   TEST_ASSERT_EQUAL_INT32(rt::kMaxEventMs + rt::kMinEventMs, p.series[0].total_ms());
 }
 
+// --- the command vocabulary ------------------------------------------------
+
+void test_show_and_hide_are_accepted() {
+  rt::Program p;
+  const char *doc =
+      "{\"id\":1,\"series\":[{\"events\":[{\"duration\":100,\"command\":\"show\"},"
+      "{\"duration\":100,\"command\":\"hide\"}]}]}";
+  TEST_ASSERT_TRUE(rt::parse_program(doc, strlen(doc), false, p));
+  TEST_ASSERT_EQUAL_STRING("show", p.series[0].events[0].command.c_str());
+  TEST_ASSERT_EQUAL_STRING("hide", p.series[0].events[1].command.c_str());
+}
+
+void test_an_absent_command_is_accepted() {
+  rt::Program p;
+  const char *doc = "{\"id\":1,\"series\":[{\"events\":[{\"duration\":100}]}]}";
+  TEST_ASSERT_TRUE(rt::parse_program(doc, strlen(doc), false, p));
+  TEST_ASSERT_TRUE(p.series[0].events[0].command.empty());
+}
+
+void test_an_unrecognised_command_fails_the_whole_program() {
+  // The point of the strictness: "sideways" - or, in practice, "shwo" - must
+  // not upload cleanly and then show up as a target that simply never turns.
+  rt::Program p;
+  const char *doc =
+      "{\"id\":1,\"series\":[{\"events\":[{\"duration\":100,\"command\":\"sideways\"}]}]}";
+  TEST_ASSERT_FALSE(rt::parse_program(doc, strlen(doc), false, p));
+}
+
+void test_a_command_is_case_sensitive() {
+  rt::Program p;
+  const char *doc =
+      "{\"id\":1,\"series\":[{\"events\":[{\"duration\":100,\"command\":\"Show\"}]}]}";
+  TEST_ASSERT_FALSE(rt::parse_program(doc, strlen(doc), false, p));
+}
+
+void test_a_bad_command_in_a_later_series_still_fails() {
+  // The walk must not stop at the first series: a good first series used to be
+  // enough to make the whole document look fine.
+  rt::Program p;
+  const char *doc =
+      "{\"id\":1,\"series\":["
+      "{\"name\":\"First\",\"events\":[{\"duration\":100,\"command\":\"show\"}]},"
+      "{\"name\":\"Second\",\"events\":[{\"duration\":100},"
+      "{\"duration\":100,\"command\":\"sideways\"}]}]}";
+  TEST_ASSERT_FALSE(rt::parse_program(doc, strlen(doc), false, p));
+}
+
+void test_null_and_empty_commands_mean_no_command() {
+  // The two other spellings of "leave the targets where they are": the legacy
+  // program editor writes `null` for the "no change" radio button, and "" is
+  // what the parser's own default used to be. Neither is ever emitted - the
+  // serializer omits the key - so neither round-trips back out.
+  rt::Program p;
+  const char *doc =
+      "{\"id\":1,\"series\":[{\"events\":[{\"duration\":100,\"command\":null},"
+      "{\"duration\":100,\"command\":\"\"}]}]}";
+  TEST_ASSERT_TRUE(rt::parse_program(doc, strlen(doc), false, p));
+  TEST_ASSERT_TRUE(p.series[0].events[0].command.empty());
+  TEST_ASSERT_TRUE(p.series[0].events[1].command.empty());
+  TEST_ASSERT_EQUAL_STRING("{\"duration\":100}", rt::event_json(p.series[0].events[0]).c_str());
+}
+
+void test_a_non_string_command_is_refused() {
+  rt::Program p;
+  const char *doc = "{\"id\":1,\"series\":[{\"events\":[{\"duration\":100,\"command\":1}]}]}";
+  TEST_ASSERT_FALSE(rt::parse_program(doc, strlen(doc), false, p));
+}
+
 // --- audio references ------------------------------------------------------
 
 namespace {
@@ -371,6 +439,14 @@ int main() {
   RUN_TEST(test_a_non_numeric_filename_is_refused);
   RUN_TEST(test_a_filename_id_past_int32_is_refused);
   RUN_TEST(test_a_hostile_duration_is_clamped);
+
+  RUN_TEST(test_show_and_hide_are_accepted);
+  RUN_TEST(test_an_absent_command_is_accepted);
+  RUN_TEST(test_an_unrecognised_command_fails_the_whole_program);
+  RUN_TEST(test_a_command_is_case_sensitive);
+  RUN_TEST(test_a_bad_command_in_a_later_series_still_fails);
+  RUN_TEST(test_null_and_empty_commands_mean_no_command);
+  RUN_TEST(test_a_non_string_command_is_refused);
 
   RUN_TEST(test_a_document_reports_whether_it_declares_an_id);
   RUN_TEST(test_a_null_or_garbage_id_is_not_silently_accepted);

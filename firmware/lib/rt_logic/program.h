@@ -28,7 +28,8 @@ constexpr int32_t kMinEventMs = 1;
 // targets and playing audio on entry.
 struct Event {
   int32_t duration_ms = 0;
-  // "show", "hide", or empty for "leave the targets where they are".
+  // "show", "hide", or empty for "leave the targets where they are". Any other
+  // value fails the parse - see parse_program().
   std::string command;
   std::vector<int32_t> audio_ids;
 };
@@ -145,9 +146,15 @@ inline std::string program_json(const Program &p) {
 
 // --- Parsing ---------------------------------------------------------------
 
-// Parse a program document. Returns false on malformed JSON or a non-object
-// root; missing fields fall back to the same defaults the MicroPython
-// `from_dict` used, so a sparse-but-valid document still loads.
+// Parse a program document. Returns false on malformed JSON, a non-object
+// root, or an event whose `command` is a value the executor does not
+// recognise; missing fields otherwise fall back to the same defaults the
+// MicroPython `from_dict` used, so a sparse-but-valid document still loads.
+//
+// `command` is the one field where an unknown value is refused rather than
+// ignored. Absent, JSON `null` and "" all mean "leave the targets where they
+// are"; anything other than "show" or "hide" is a typo that would otherwise
+// turn into a target silently not moving in the middle of an exercise.
 //
 // `readonly` is imposed by the caller rather than read from the document: it
 // is a property of where the file came from (shipped vs uploaded), not
