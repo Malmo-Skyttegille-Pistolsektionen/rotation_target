@@ -48,11 +48,22 @@ test('not found: an unmatched API route and a missing program', async ({ request
 test('conflict/state: starting with nothing loaded', async ({ request }) => {
   // resetDevice leaves nothing loaded, and leaves admin mode off - so this is
   // the device's own refusal, not an auth one.
-  await expectProblem(await request.post(`${API}/programs/start`), {
+  // The body is required since D-27, and its check runs first - so reaching the
+  // nothing-loaded refusal means naming a program the device does not hold.
+  await expectProblem(await request.post(`${API}/programs/start`, { data: { id: 40 } }), {
     type: '/problems/no_program_loaded',
     title: 'No program loaded',
     status: 400,
     detail: 'No program loaded',
+  });
+
+  // A client that has not learned D-27 sends no body at all: the device must
+  // say what is missing rather than guessing which program was meant.
+  await expectProblem(await request.post(`${API}/programs/start`), {
+    type: '/problems/start_id_required',
+    title: 'A program id is required to start',
+    status: 400,
+    detail: 'Expected a JSON body naming the program to start: {"id": <id>}',
   });
 
   await expectProblem(await request.post(`${API}/programs/stop`), {
