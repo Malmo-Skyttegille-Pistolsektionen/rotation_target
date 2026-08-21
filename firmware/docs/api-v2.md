@@ -17,6 +17,60 @@ This document is the prose companion: the *why* behind the contract, and the
 execution semantics no schema can express. It deliberately does not repeat the
 route list.
 
+## Errors
+
+Every REST failure is an [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)
+problem detail, served as `application/problem+json` (D-19):
+
+```jsonc
+{
+  "type": "/problems/program_readonly",   // the discriminator
+  "title": "Program is read-only",        // stable, one per type
+  "status": 409,                          // same as the response line
+  "detail": "Program is read-only and cannot be deleted"
+}
+```
+
+**`type` is the only member to branch on.** It is a relative URI and is never
+dereferenced — nothing is served at `/problems/`; it is an identifier that
+happens to be spelled as a URI, which is what RFC 9457 asks for. `title` is
+short and identical for every occurrence of a type, so it says nothing about
+*this* one; `detail` is the sentence to put in front of a user, and its wording
+may change at any time. `instance` is omitted: it identifies a single
+occurrence and there are no request ids on this device.
+
+The reason this exists is that four distinct refusals answer `409` and a client
+has to react differently to each. Before D-19 the only way to tell them apart
+was to string-match English prose — which broke on any rewording and could
+never be translated for a Swedish club.
+
+One status per type, always. `rt::ProblemType` (`lib/rt_logic/problem.h`)
+carries the status next to the slug and the title, so a type and the status it
+is answered with cannot drift apart, and `contracts/openapi.yaml` can therefore
+list exactly which types each operation produces under each status code.
+
+### The vocabulary is shared with `backend_issue`
+
+A failure that means the same thing on both channels is spelled the same way:
+a program that will not parse is `/problems/program_invalid` over REST and
+`program_invalid` in a `backend_issue` frame. `host_test/test_problem` asserts
+the two constants stay equal, so renaming one without the other fails the
+build.
+
+`audio_playback_failed` has no REST counterpart, because playback is
+acknowledged before the clip is read — a failure after that point has no
+request left to answer.
+
+### For clients
+
+Branch on `type`, and **fall back to `status` and `detail` for a type you do
+not recognise**. New types are additive: a client may be older than the
+firmware it is talking to, and a problem it cannot classify is still a problem
+it can display. The full list lives in one place, the `enum` on
+`Problem.type` in `contracts/openapi.yaml`, and reaches the webapp as a
+generated TypeScript union — so a renamed slug is a `tsc` failure at every
+comparison site rather than a branch that quietly stops matching.
+
 ## State model
 
 `stateUpdate` is the only channel run state is published on. There is no
@@ -91,9 +145,10 @@ next series and the targets are hidden. When the last series finishes, execution
 stops with the series still selected.
 
 `start` carries `{"id": N}` — the program the caller decided to start — and a
-device holding a different one answers `409` (`Start refused: the device has
-program 1 loaded, not program 40`), naming both so the operator knows what the
-device actually holds. The id is required: an id-less start asks for whatever
+device holding a different one answers `409 /problems/start_program_mismatch`,
+with `detail` naming both ids so the operator knows what the device actually
+holds. A body that does not name an integer id is
+`400 /problems/start_id_required`. The id is required: an id-less start asks for whatever
 happens to be loaded when the request lands, and that is the ambiguity the body
 exists to remove. No client-side check can close it — between a client's last
 `stateUpdate` and its start arriving, any other client can load something else —
@@ -293,8 +348,7 @@ whatever is still staged.
 Uploads and request bodies alike are bounded by `kMaxUploadBytes` (1 MB),
 applied to the HTTP layer — not just when reading files back. That check lives
 above every handler, in the vendored HTTP layer, and is the one failure that
-does **not** answer in the `{"error": ...}` shape: it sends `400` with a
-`text/html` body.
+is **not** a problem detail: it sends `400` with a `text/html` body.
 
 `DELETE /api/v2/audios/{id}/delete` refuses to remove a clip that still matters
 to a run — on a range, a spoken command that silently fails mid-exercise is a
@@ -302,18 +356,19 @@ safety problem, not an inconvenience. Existence is checked first, so a bogus id
 is the only `404`; the four `409` reasons then apply in order, most specific
 first:
 
-1. **It is shipped with the firmware** — `Audio is read-only and cannot be
-   deleted`. First, because it is the one reason that never lifts.
-2. **The loaded program plays it** — `Audio is used by the loaded program -
-   unload the program first`, which is `POST /api/v2/programs/unload`. Refused
+1. **It is shipped with the firmware** — `/problems/audio_readonly`. First,
+   because it is the one reason that never lifts.
+2. **The loaded program plays it** — `/problems/audio_in_use`; the escape is
+   `POST /api/v2/programs/unload`. Refused
    whether or not a run is in progress:
    `stop` is a pause, so a clip deleted between two runs would be missing when
    the program is resumed. The check is `rt::program_uses_audio`
    (`lib/rt_logic/program.h`, covered by `host_test/test_program_json`), read
    through the executor so the program pointer stays behind its lock.
-3. **A run is in progress** — `A program is running - stop it before deleting
-   audio`. Blunt on purpose: it holds for every clip, referenced or not.
-4. **The clip is playing right now** — `Audio is currently playing`. LittleFS
+3. **A run is in progress** — `/problems/program_running`, the same type
+   `POST /api/v2/programs/unload` answers, because it is the same condition.
+   Blunt on purpose: it holds for every clip, referenced or not.
+4. **The clip is playing right now** — `/problems/audio_playing`. LittleFS
    has no unlink-while-open, so deleting it would corrupt the read.
 
 ## Static assets and the SPA fallback
@@ -328,7 +383,8 @@ files the image does not have. A `GET` that finds no file is answered with
 shared link land where it should. Three things are deliberately outside that:
 
 - anything under `/api` or `/sse` — a miss there is a client error and keeps
-  the `{"error": ...}` 404, or a browser gets HTML where it asked for JSON;
+  the `/problems/route_not_found` 404, or a browser gets HTML where it asked
+  for JSON;
 - a path whose last segment has a file extension — a missing bundle chunk must
   stay a 404, not become a script that will not parse;
 - any method other than `GET`, and any build with no webapp in the image (an

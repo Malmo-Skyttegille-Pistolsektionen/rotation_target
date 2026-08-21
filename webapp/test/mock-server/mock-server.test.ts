@@ -29,6 +29,23 @@ async function start(id: number, init?: RequestInit): Promise<Response> {
   return api('/programs/start', { method: 'POST', body: JSON.stringify({ id }), ...init });
 }
 
+/**
+ * Asserts the whole RFC 9457 problem document, media type included (D-19).
+ *
+ * The whole document rather than just the `type`: `title` and `status` are
+ * fixed per type by the firmware and must not vary between occurrences, and
+ * `detail` is what a user is shown. The same four assertions run against the
+ * real firmware in `e2e/`, which is what keeps this mock honest.
+ */
+async function expectProblem(
+  res: Response,
+  expected: { type: string; title: string; status: number; detail: string },
+): Promise<void> {
+  expect(res.status).toBe(expected.status);
+  expect(res.headers.get('content-type')).toBe('application/problem+json');
+  expect(await res.json()).toEqual(expected);
+}
+
 beforeEach(async () => {
   clock = createFakeClock(1_000_000);
   server = createMockServer({ clock, seed: { programs: { 40: PROGRAM_FALT_TRANING }, audios: [] } });
@@ -55,9 +72,12 @@ describe('REST surface', () => {
   });
 
   it('rejects a start with no program loaded', async () => {
-    const res = await start(40);
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: 'No program loaded' });
+    await expectProblem(await start(40), {
+      type: '/problems/no_program_loaded',
+      title: 'No program loaded',
+      status: 400,
+      detail: 'No program loaded',
+    });
   });
 
   // --- D-27: a start names the program it is for ---------------------------
@@ -69,7 +89,11 @@ describe('REST surface', () => {
     for (const body of [undefined, '', 'not json', '[]', '{}', '{"id":null}', '{"id":"40"}', '{"id":40.5}']) {
       const res = await api('/programs/start', { method: 'POST', body });
       expect(res.status, `body: ${String(body)}`).toBe(400);
-      expect(await res.json()).toEqual({ error: malformed });
+      expect(await res.json()).toMatchObject({
+        type: '/problems/start_id_required',
+        status: 400,
+        detail: malformed,
+      });
     }
   });
 
@@ -78,8 +102,10 @@ describe('REST surface', () => {
 
     const res = await start(1);
     expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({
-      error: 'Start refused: the device has program 40 loaded, not program 1',
+    expect(await res.json()).toMatchObject({
+      type: '/problems/start_program_mismatch',
+      status: 409,
+      detail: 'Start refused: the device has program 40 loaded, not program 1',
     });
   });
 
@@ -226,7 +252,12 @@ describe('program storage', () => {
       expect(replaced.status).toBe(400);
       // Not the id-mismatch error, though the body still carries the fixture's
       // id 7: `update_uploaded` parses before it compares ids.
-      expect(await replaced.json()).toEqual({ error: 'Invalid program' });
+      await expectProblem(replaced, {
+      type: '/problems/program_invalid',
+      title: 'Invalid program',
+      status: 400,
+      detail: 'Invalid program',
+    });
 
       // And the stored program is untouched by the refused replace.
       expect((await (await api(`/programs/${id}`)).json()).series[0].events[0]).toEqual({ duration: 1000 });
@@ -260,14 +291,23 @@ describe('program storage', () => {
       method: 'PUT',
       body: JSON.stringify({ ...document, id: id + 1 }),
     });
-    expect(mismatched.status).toBe(400);
-    expect(await mismatched.json()).toEqual({ error: 'Program id in the document does not match the path' });
+    await expectProblem(mismatched, {
+      type: '/problems/program_id_mismatch',
+      title: 'Program id does not match the path',
+      status: 400,
+      detail: 'Program id in the document does not match the path',
+    });
   });
 
   it('refuses to replace a shipped program, and 404s an unknown one', async () => {
     const shipped = await api('/programs/40', { method: 'PUT', body: JSON.stringify(document) });
-    expect(shipped.status).toBe(409);
-    expect(await shipped.json()).toEqual({ error: 'Program is read-only and cannot be updated' });
+    // `type` alone — the two sentences are not what distinguishes them.
+    await expectProblem(shipped, {
+      type: '/problems/program_readonly',
+      title: 'Program is read-only',
+      status: 409,
+      detail: 'Program is read-only and cannot be updated',
+    });
 
     expect((await api('/programs/999', { method: 'PUT', body: JSON.stringify(document) })).status).toBe(404);
   });
@@ -277,8 +317,12 @@ describe('program storage', () => {
     await api(`/programs/${id}/load`, { method: 'POST' });
 
     const refused = await api(`/programs/${id}`, { method: 'PUT', body: JSON.stringify({ ...document, id }) });
-    expect(refused.status).toBe(409);
-    expect(await refused.json()).toEqual({ error: 'Program is loaded; unload it before updating' });
+    await expectProblem(refused, {
+      type: '/problems/program_loaded',
+      title: 'Program is loaded',
+      status: 409,
+      detail: 'Program is loaded; unload it before updating',
+    });
 
     // The way out is POST /programs/unload (D-22); loading something else does
     // it too, and is what this asserts because it also proves the refusal is
@@ -301,8 +345,12 @@ describe('program storage', () => {
     // and only the write is refused - so a client can tell "refused because it
     // is shipped" from "not there" and offer upload-as-new instead of a refresh.
     const shipped = await api('/programs/40/delete', { method: 'DELETE' });
-    expect(shipped.status).toBe(409);
-    expect(await shipped.json()).toEqual({ error: 'Program is read-only and cannot be deleted' });
+    await expectProblem(shipped, {
+      type: '/problems/program_readonly',
+      title: 'Program is read-only',
+      status: 409,
+      detail: 'Program is read-only and cannot be deleted',
+    });
     expect((await api('/programs/40')).status).toBe(200);
   });
 
@@ -405,8 +453,12 @@ describe('unloading (D-22)', () => {
     await start(40);
 
     const refused = await api('/programs/unload', { method: 'POST' });
-    expect(refused.status).toBe(409);
-    expect(await refused.json()).toEqual({ error: 'A program is running - stop it before unloading' });
+    await expectProblem(refused, {
+      type: '/problems/program_running',
+      title: 'A program is running',
+      status: 409,
+      detail: 'A program is running - stop it before unloading',
+    });
     // Nothing happened to the run.
     const sse = await openSSE(server.port);
     await flushIO();
@@ -546,8 +598,12 @@ describe('libraryChanged (D-24)', () => {
 
   it('refuses a shipped clip with 409, ahead of every other reason (D-23)', async () => {
     const refused = await call('/audios/3/delete', { method: 'DELETE' });
-    expect(refused.status).toBe(409);
-    expect(await refused.json()).toEqual({ error: 'Audio is read-only and cannot be deleted' });
+    await expectProblem(refused, {
+      type: '/problems/audio_readonly',
+      title: 'Audio is read-only',
+      status: 409,
+      detail: 'Audio is read-only and cannot be deleted',
+    });
     // Still there, and still listed - it was refused, not hidden.
     const { audios } = (await (await call('/audios')).json()) as { audios: AudioFile[] };
     expect(audios.map((clip) => clip.id)).toContain(3);

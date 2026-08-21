@@ -73,6 +73,8 @@ enable_testing()
 # program.cpp above.
 set_source_files_properties("${TEST_DIR}/test_backend_issue/test_backend_issue.cpp"
   PROPERTIES COMPILE_OPTIONS "-Wno-maybe-uninitialized")
+set_source_files_properties("${TEST_DIR}/test_problem/test_problem.cpp"
+  PROPERTIES COMPILE_OPTIONS "-Wno-maybe-uninitialized")
 
 file(GLOB test_suites RELATIVE "${TEST_DIR}" "${TEST_DIR}/test_*")
 foreach(suite ${test_suites})

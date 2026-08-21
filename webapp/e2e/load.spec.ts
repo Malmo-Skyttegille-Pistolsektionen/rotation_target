@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, resetDevice, SHIPPED_PROGRAM_IDS } from './device';
+import { expectProblem, openApp, resetDevice, SHIPPED_PROGRAM_IDS } from './device';
 
 test.beforeEach(async ({ request }) => {
   await resetDevice(request);
@@ -43,13 +43,19 @@ test('a miss that is not navigation keeps its own 404', async ({ request }) => {
   // The fallback must not swallow these: an API typo answered with HTML is a
   // client that cannot read the error, and a missing bundle chunk answered with
   // HTML is a script parse error instead of a 404.
-  const api = await request.get('/api/v2/nope');
-  expect(api.status()).toBe(404);
-  expect(api.headers()['content-type']).toContain('application/json');
+  await expectProblem(await request.get('/api/v2/nope'), {
+    type: '/problems/route_not_found',
+    title: 'Route not found',
+    status: 404,
+    detail: 'Not found',
+  });
 
-  const asset = await request.get('/assets/definitely-not-here.js');
-  expect(asset.status()).toBe(404);
-  expect(asset.headers()['content-type']).toContain('application/json');
+  await expectProblem(await request.get('/assets/definitely-not-here.js'), {
+    type: '/problems/route_not_found',
+    title: 'Route not found',
+    status: 404,
+    detail: 'Not found',
+  });
 });
 
 test('the program list is the seven shipped programs', async ({ page, request }) => {

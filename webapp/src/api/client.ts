@@ -1,6 +1,7 @@
 import { useSettings } from '../context/SettingsContext';
 
 import { DEFAULT_BASE_URL, normalizeBaseUrl } from './base-url';
+import type { Problem, ProblemType } from './types';
 
 let dynamicBaseUrl = normalizeBaseUrl(DEFAULT_BASE_URL);
 
@@ -21,53 +22,105 @@ export function initializeBaseUrl(url: string): void {
 }
 
 /**
- * A non-2xx response, carrying the status alongside the device's message.
+ * A non-2xx response.
  *
- * The status is load-bearing for the programs view: `PUT /programs/{id}` uses
- * `409` for two different refusals (shipped, and loaded) that need different
- * explanations, and neither is distinguishable from a transport failure by
- * message alone.
+ * `problem` is the device's RFC 9457 problem detail (D-19) when the body was
+ * one, and `null` when it was not — a transport failure, an intermediary, or
+ * the one endpoint that answers `text/html` (a body over the 1 MiB ceiling,
+ * refused above every handler). Branch on `problem.type`; `message` is
+ * `problem.detail` and is for display only.
+ *
+ * `status` is kept alongside it because it is the only thing left to go on
+ * when `problem` is null.
  */
 export class ApiError extends Error {
   readonly status: number;
+  readonly problem: Problem | null;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, problem: Problem | null = null) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.problem = problem;
   }
 }
 
-function getErrorMessageFromPayload(payload: unknown): string | null {
+/**
+ * The problem type this error carries, or `null` for a body that was not a
+ * problem detail. Narrowed to `ProblemType` so a comparison against a slug the
+ * contract does not define fails to compile.
+ */
+export function problemType(err: unknown): ProblemType | null {
+  if (!(err instanceof ApiError) || err.problem === null) {
+    return null;
+  }
+  // The cast is the widening in `Problem['type']` being taken back: an
+  // unrecognised type simply matches none of the callers' comparisons.
+  return err.problem.type as ProblemType;
+}
+
+/**
+ * A parsed body, if it is a problem detail. Every member is required, and a
+ * body missing one is not treated as a problem at all rather than half-read —
+ * the caller's fallback is better than a `detail` of `undefined`.
+ */
+function asProblem(payload: unknown): Problem | null {
   if (typeof payload !== 'object' || payload === null) {
     return null;
   }
-
-  if ('error' in payload && typeof payload.error === 'string' && payload.error.length > 0) {
-    return payload.error;
+  const candidate = payload as Record<string, unknown>;
+  if (
+    typeof candidate.type !== 'string' ||
+    typeof candidate.title !== 'string' ||
+    typeof candidate.status !== 'number' ||
+    typeof candidate.detail !== 'string'
+  ) {
+    return null;
   }
-
-  if ('message' in payload && typeof payload.message === 'string' && payload.message.length > 0) {
-    return payload.message;
-  }
-
-  return null;
+  return {
+    type: candidate.type,
+    title: candidate.title,
+    status: candidate.status,
+    detail: candidate.detail,
+  };
 }
 
-async function getResponseErrorMessage(response: Response): Promise<string> {
+async function getResponseError(response: Response): Promise<{ message: string; problem: Problem | null }> {
   const text = await response.text();
   const fallbackMessage = response.statusText ? `API Error: ${response.statusText}` : `API Error: ${response.status}`;
 
   if (!text) {
-    return fallbackMessage;
+    return { message: fallbackMessage, problem: null };
   }
 
+  let payload: unknown;
   try {
-    const payload: unknown = JSON.parse(text);
-    return getErrorMessageFromPayload(payload) ?? fallbackMessage;
+    payload = JSON.parse(text);
   } catch {
-    return text;
+    // Not JSON at all — the `text/html` oversize refusal lands here, and its
+    // sentence is the most useful thing there is to show.
+    return { message: text, problem: null };
   }
+
+  // Parsed by shape, not by `Content-Type`: an intermediary that rewrites the
+  // header should not cost the client the discriminator.
+  const problem = asProblem(payload);
+  if (problem !== null) {
+    return { message: problem.detail || fallbackMessage, problem };
+  }
+
+  // A JSON body that is not a problem detail. Nothing in this API produces one
+  // for a failure, so this is a proxy or a captive portal rather than the
+  // device; `message` is still worth surfacing if it carries one.
+  const message =
+    typeof payload === 'object' &&
+    payload !== null &&
+    'message' in payload &&
+    typeof payload.message === 'string' &&
+    payload.message.length > 0
+      ? payload.message
+      : fallbackMessage;
+  return { message, problem: null };
 }
 
 async function request<T>(
@@ -101,7 +154,8 @@ async function request<T>(
       onAuthError();
     }
 
-    throw new ApiError(response.status, await getResponseErrorMessage(response));
+    const { message, problem } = await getResponseError(response);
+    throw new ApiError(response.status, message, problem);
   }
 
   const text = await response.text();

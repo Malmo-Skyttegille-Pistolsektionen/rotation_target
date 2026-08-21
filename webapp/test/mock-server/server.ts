@@ -30,11 +30,56 @@ import type {
   Series,
   StartupIssue,
   Event,
+  ProblemType,
 } from '../../src/api/types';
 import type { EventLocation } from '../../src/lib/run-position';
 import { locateEvent, seriesTotalMs } from '../../src/lib/run-position';
 import type { Clock } from './clock';
 import { realClock } from './clock';
+
+/**
+ * Every RFC 9457 problem type, with the title and status the firmware answers
+ * it with. Kept in lock-step with `RT_PROBLEM_TYPES` in
+ * `firmware/lib/rt_logic/problem.h`; the e2e suite is what proves they agree,
+ * because it puts the same assertions against the real firmware in QEMU.
+ *
+ * `satisfies` rather than a type annotation so the lookup keeps its literal
+ * types while still failing to compile if a type in `contracts/openapi.yaml`
+ * is missing here.
+ */
+const PROBLEMS = {
+  // auth
+  '/problems/admin_credentials_required': { title: 'Admin credentials required', status: 401 },
+  '/problems/invalid_password': { title: 'Invalid password', status: 401 },
+  // not found
+  '/problems/route_not_found': { title: 'Route not found', status: 404 },
+  '/problems/program_not_found': { title: 'Program not found', status: 404 },
+  '/problems/audio_not_found': { title: 'Audio not found', status: 404 },
+  // conflict / state
+  '/problems/admin_mode_already_enabled': { title: 'Admin mode already enabled', status: 409 },
+  '/problems/admin_mode_not_enabled': { title: 'Admin mode not enabled', status: 409 },
+  '/problems/no_program_loaded': { title: 'No program loaded', status: 400 },
+  '/problems/program_not_running': { title: 'Program not running', status: 400 },
+  '/problems/program_running': { title: 'A program is running', status: 409 },
+  '/problems/program_loaded': { title: 'Program is loaded', status: 409 },
+  '/problems/start_program_mismatch': { title: 'A different program is loaded', status: 409 },
+  '/problems/program_readonly': { title: 'Program is read-only', status: 409 },
+  '/problems/audio_readonly': { title: 'Audio is read-only', status: 409 },
+  '/problems/audio_in_use': { title: 'Audio is used by the loaded program', status: 409 },
+  '/problems/audio_playing': { title: 'Audio is currently playing', status: 409 },
+  // validation
+  '/problems/program_invalid': { title: 'Invalid program', status: 400 },
+  '/problems/program_id_mismatch': { title: 'Program id does not match the path', status: 400 },
+  '/problems/series_index_invalid': { title: 'Series index out of range', status: 400 },
+  '/problems/start_id_required': { title: 'A program id is required to start', status: 400 },
+  // upload
+  '/problems/upload_missing_file': { title: 'No file uploaded', status: 400 },
+  '/problems/upload_missing_title': { title: 'Missing title', status: 400 },
+  '/problems/audio_format_unsupported': { title: 'Unsupported audio format', status: 400 },
+  // internal
+  '/problems/program_store_failed': { title: 'Could not store program', status: 500 },
+  '/problems/audio_store_failed': { title: 'Could not store audio', status: 500 },
+} satisfies Record<ProblemType, { title: string; status: number }>;
 
 // --- Constants ---
 const API_PREFIX = '/api/v2';
@@ -350,7 +395,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       return true;
     }
 
-    jsonResponse(res, 401, { error: 'Invalid or missing bearer token' });
+    problemResponse(res, '/problems/admin_credentials_required', 'Invalid or missing admin credentials');
     return false;
   }
 
@@ -451,6 +496,23 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     res.end(JSON.stringify(data));
   }
 
+  /**
+   * Answers an RFC 9457 problem detail exactly as the firmware does (D-19):
+   * same type, same title, same status, same `detail` sentence, same media
+   * type. A mock that answers a different document proves the wrong thing.
+   *
+   * `title` and `status` are a table rather than call-site arguments because
+   * that is how `rt::ProblemType` carries them in
+   * `firmware/lib/rt_logic/problem.h` — one status per type, by construction.
+   * `satisfies Record<ProblemType, ...>` makes a type added to the contract
+   * and not to this table a typecheck failure.
+   */
+  function problemResponse(res: ServerResponse, type: ProblemType, detail: string): void {
+    const { title, status } = PROBLEMS[type];
+    res.writeHead(status, { 'Content-Type': 'application/problem+json' });
+    res.end(JSON.stringify({ type, title, status, detail }));
+  }
+
   // --- Simulation ---
 
   function currentSeries(seriesIndex: number) {
@@ -529,9 +591,11 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       const body = await parseBody(req);
 
       if (isAdminEnabled()) {
-        jsonResponse(res, 409, {
-          error: 'Admin mode is already enabled. Log in or disable it before enabling again.',
-        });
+        problemResponse(
+          res,
+          '/problems/admin_mode_already_enabled',
+          'Admin mode is already enabled. Log in or disable it before enabling again.',
+        );
         return;
       }
 
@@ -541,10 +605,10 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
           state.adminModePassword = data.password;
           jsonResponse(res, 200, { token: issueAdminSession(res) });
         } else {
-          jsonResponse(res, 401, { error: 'Invalid password' });
+          problemResponse(res, '/problems/invalid_password', 'Invalid password');
         }
       } catch {
-        jsonResponse(res, 400, { error: 'Invalid JSON' });
+        problemResponse(res, '/problems/invalid_password', 'Invalid password');
       }
       return;
     }
@@ -554,7 +618,11 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       const body = await parseBody(req);
 
       if (!isAdminEnabled()) {
-        jsonResponse(res, 409, { error: 'Admin mode is not enabled. Enable it before logging in.' });
+        problemResponse(
+          res,
+          '/problems/admin_mode_not_enabled',
+          'Admin mode is not enabled. Enable it before logging in.',
+        );
         return;
       }
 
@@ -563,10 +631,10 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         if (typeof data.password === 'string' && data.password === state.adminModePassword) {
           jsonResponse(res, 200, { token: issueAdminSession(res) });
         } else {
-          jsonResponse(res, 401, { error: 'Invalid password' });
+          problemResponse(res, '/problems/invalid_password', 'Invalid password');
         }
       } catch {
-        jsonResponse(res, 400, { error: 'Invalid JSON' });
+        problemResponse(res, '/problems/invalid_password', 'Invalid password');
       }
       return;
     }
@@ -634,7 +702,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       if (!checkAdminAuth(req, res)) return;
       const raw = parseJsonObject(await parseBody(req));
       if (!raw) {
-        jsonResponse(res, 400, { error: 'Invalid program' });
+        problemResponse(res, '/problems/program_invalid', 'Invalid program');
         return;
       }
 
@@ -647,7 +715,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       while (programs[id] !== undefined) id++;
       const program = normalizeProgram(raw, id);
       if (!program) {
-        jsonResponse(res, 400, { error: 'Invalid program' });
+        problemResponse(res, '/problems/program_invalid', 'Invalid program');
         return;
       }
       programs[id] = program;
@@ -661,7 +729,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     if (programGetMatch && req.method === 'GET') {
       const program = programs[parseInt(programGetMatch[1], 10)];
       if (!program) {
-        jsonResponse(res, 404, { error: 'Program not found' });
+        problemResponse(res, '/problems/program_not_found', 'Program not found');
         return;
       }
       jsonResponse(res, 200, program);
@@ -675,32 +743,36 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       const id = parseInt(programGetMatch[1], 10);
       const existing = programs[id];
       if (!existing) {
-        jsonResponse(res, 404, { error: 'Program not found' });
+        problemResponse(res, '/problems/program_not_found', 'Program not found');
         return;
       }
       if (existing.readonly) {
-        jsonResponse(res, 409, { error: 'Program is read-only and cannot be updated' });
+        problemResponse(res, '/problems/program_readonly', 'Program is read-only and cannot be updated');
         return;
       }
       if (state.loadedProgram?.id === id) {
-        jsonResponse(res, 409, { error: 'Program is loaded; unload it before updating' });
+        problemResponse(res, '/problems/program_loaded', 'Program is loaded; unload it before updating');
         return;
       }
 
       const raw = parseJsonObject(await parseBody(req));
       if (!raw) {
-        jsonResponse(res, 400, { error: 'Invalid program' });
+        problemResponse(res, '/problems/program_invalid', 'Invalid program');
         return;
       }
       // Parsed before the id is compared, as `update_uploaded` does: a document
       // that is refused outright is `kInvalid` even when its id also mismatches.
       const replacement = normalizeProgram(raw, id);
       if (!replacement) {
-        jsonResponse(res, 400, { error: 'Invalid program' });
+        problemResponse(res, '/problems/program_invalid', 'Invalid program');
         return;
       }
       if (raw.id !== undefined && raw.id !== null && raw.id !== id) {
-        jsonResponse(res, 400, { error: 'Program id in the document does not match the path' });
+        problemResponse(
+          res,
+          '/problems/program_id_mismatch',
+          'Program id in the document does not match the path',
+        );
         return;
       }
 
@@ -721,11 +793,11 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       const id = parseInt(programDeleteMatch[1], 10);
       const existing = programs[id];
       if (!existing) {
-        jsonResponse(res, 404, { error: 'Program not found' });
+        problemResponse(res, '/problems/program_not_found', 'Program not found');
         return;
       }
       if (existing.readonly) {
-        jsonResponse(res, 409, { error: 'Program is read-only and cannot be deleted' });
+        problemResponse(res, '/problems/program_readonly', 'Program is read-only and cannot be deleted');
         return;
       }
 
@@ -754,7 +826,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       if (!checkAdminAuth(req, res)) return;
       const program = programs[parseInt(programLoadMatch[1], 10)];
       if (!program) {
-        jsonResponse(res, 404, { error: 'Program not found' });
+        problemResponse(res, '/problems/program_not_found', 'Program not found');
         return;
       }
 
@@ -779,7 +851,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     if (endpoint === '/programs/unload' && req.method === 'POST') {
       if (!checkAdminAuth(req, res)) return;
       if (state.programState?.running) {
-        jsonResponse(res, 409, { error: 'A program is running - stop it before unloading' });
+        problemResponse(res, '/problems/program_running', 'A program is running - stop it before unloading');
         return;
       }
       if (!state.loadedProgram) {
@@ -809,12 +881,16 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       const startBody = parseJsonObject(await parseBody(req));
       const requestedId = startBody?.id;
       if (typeof requestedId !== 'number' || !Number.isInteger(requestedId)) {
-        jsonResponse(res, 400, { error: 'Expected a JSON body naming the program to start: {"id": <id>}' });
+        problemResponse(
+          res,
+          '/problems/start_id_required',
+          'Expected a JSON body naming the program to start: {"id": <id>}',
+        );
         return;
       }
 
       if (!state.loadedProgram || !state.programState) {
-        jsonResponse(res, 400, { error: 'No program loaded' });
+        problemResponse(res, '/problems/no_program_loaded', 'No program loaded');
         return;
       }
 
@@ -822,15 +898,17 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         // Checked whether or not a run is in progress, as in the firmware: a
         // start aimed at the wrong program is never answered "fine, it is
         // running". Both ids, so the operator learns what the device holds.
-        jsonResponse(res, 409, {
-          error: `Start refused: the device has program ${state.loadedProgram.id} loaded, not program ${requestedId}`,
-        });
+        problemResponse(
+          res,
+          '/problems/start_program_mismatch',
+          `Start refused: the device has program ${state.loadedProgram.id} loaded, not program ${requestedId}`,
+        );
         return;
       }
 
       const { currentSeriesIndex } = state.programState;
       if (currentSeriesIndex === null) {
-        jsonResponse(res, 400, { error: 'Invalid program state' });
+        problemResponse(res, '/problems/no_program_loaded', 'No program loaded');
         return;
       }
 
@@ -855,7 +933,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     if (endpoint === '/programs/stop' && req.method === 'POST') {
       if (!checkAdminAuth(req, res)) return;
       if (!state.programState?.running) {
-        jsonResponse(res, 400, { error: 'Program not running' });
+        problemResponse(res, '/problems/program_not_running', 'Program not running');
         return;
       }
 
@@ -872,7 +950,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     if (endpoint === '/programs/reset' && req.method === 'POST') {
       if (!checkAdminAuth(req, res)) return;
       if (!state.loadedProgram || !state.programState) {
-        jsonResponse(res, 400, { error: 'No program loaded' });
+        problemResponse(res, '/problems/no_program_loaded', 'No program loaded');
         return;
       }
 
@@ -894,12 +972,20 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       const idx = parseInt(skipToMatch[1], 10);
 
       if (!state.loadedProgram || !state.programState) {
-        jsonResponse(res, 400, { error: 'No program loaded' });
+        problemResponse(
+          res,
+          '/problems/series_index_invalid',
+          'No program loaded or series index out of bounds',
+        );
         return;
       }
 
       if (idx < 0 || idx >= state.loadedProgram.series.length) {
-        jsonResponse(res, 400, { error: 'Series index out of bounds' });
+        problemResponse(
+          res,
+          '/problems/series_index_invalid',
+          'No program loaded or series index out of bounds',
+        );
         return;
       }
 
@@ -953,7 +1039,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       if (!checkAdminAuth(req, res)) return;
       const id = parseInt(audioPlayMatch[1], 10);
       if (!audios.some((a) => a.id === id)) {
-        jsonResponse(res, 404, { error: 'Audio not found' });
+        problemResponse(res, '/problems/audio_not_found', 'Audio not found');
         return;
       }
       state.playingAudioId = id;
@@ -970,7 +1056,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       const body = await parseBodyBuffer(req);
 
       if (body.byteLength > MAX_UPLOAD_BYTES) {
-        // Refused above the handler, so not the JSON error shape:
+        // Refused above the handler, so not a problem detail:
         // `httpd_resp_send_err` labels it `text/html` but sends
         // PsychicUploadHandler's sentence verbatim, markup and all absent.
         res.writeHead(400, { 'Content-Type': 'text/html' });
@@ -980,15 +1066,15 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
 
       const upload = parseMultipart(req, body);
       if (!upload || !upload.filename.toLowerCase().endsWith('.wav')) {
-        jsonResponse(res, 400, { error: 'No file uploaded' });
+        problemResponse(res, '/problems/upload_missing_file', 'No file uploaded');
         return;
       }
       if (!upload.title) {
-        jsonResponse(res, 400, { error: 'Missing title' });
+        problemResponse(res, '/problems/upload_missing_title', 'Missing title');
         return;
       }
       if (!upload.content.subarray(0, 4).equals(Buffer.from('RIFF'))) {
-        jsonResponse(res, 400, { error: 'Unsupported audio format' });
+        problemResponse(res, '/problems/audio_format_unsupported', 'Unsupported audio format');
         return;
       }
 
@@ -1014,15 +1100,15 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       // read-only, which is the reason that never lifts (D-23) and therefore
       // goes ahead of the run-safety conflicts below it.
       if (index === -1) {
-        jsonResponse(res, 404, { error: 'Audio not found' });
+        problemResponse(res, '/problems/audio_not_found', 'Audio not found');
         return;
       }
       if (audios[index].readonly) {
-        jsonResponse(res, 409, { error: 'Audio is read-only and cannot be deleted' });
+        problemResponse(res, '/problems/audio_readonly', 'Audio is read-only and cannot be deleted');
         return;
       }
       if (isPlaying(id)) {
-        jsonResponse(res, 409, { error: 'Audio is currently playing' });
+        problemResponse(res, '/problems/audio_playing', 'Audio is currently playing');
         return;
       }
       audios.splice(index, 1);
@@ -1031,7 +1117,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       return;
     }
 
-    jsonResponse(res, 404, { error: 'Endpoint not found' });
+    problemResponse(res, '/problems/route_not_found', 'Not found');
   }
 
   // --- SSE ---
@@ -1100,7 +1186,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     listen(): Promise<number> {
       return new Promise((resolve, reject) => {
         httpServer = http.createServer((req, res) => {
-          middleware(req, res, () => jsonResponse(res, 404, { error: 'Endpoint not found' }));
+          middleware(req, res, () => problemResponse(res, '/problems/route_not_found', 'Not found'));
         });
         // Without this an EADDRINUSE never settles the promise, and the suite
         // dies to a hook timeout that says nothing about the real cause.

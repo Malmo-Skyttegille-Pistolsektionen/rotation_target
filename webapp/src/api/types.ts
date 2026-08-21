@@ -16,6 +16,28 @@ export type CreatedId = components['schemas']['CreatedId'];
 export type StartupIssue = components['schemas']['StartupIssue'];
 export type DiagnosticsInfo = components['schemas']['DiagnosticsInfo'];
 
+/**
+ * Every problem type the contract knows about, as a union of the `type` URIs —
+ * generated, so a slug renamed in `openapi.yaml` is a `tsc` failure at every
+ * comparison site rather than a branch that quietly stops matching.
+ */
+export type ProblemType = components['schemas']['Problem']['type'];
+
+/**
+ * An RFC 9457 problem detail: the body of every REST failure (D-19).
+ *
+ * `type` is the discriminator and the only member to branch on. It is widened
+ * beyond `ProblemType` on purpose — the contract's enum is open, a client can
+ * be older than the firmware it is talking to, and a problem this app cannot
+ * classify is still one it can show. Fall back to `status` and `detail`.
+ *
+ * `title` is stable per type and says nothing about this occurrence; `detail`
+ * is the sentence to show a user, and its wording is not part of the contract.
+ */
+export interface Problem extends Omit<components['schemas']['Problem'], 'type'> {
+  type: ProblemType | (string & {});
+}
+
 // SSE shapes are specified in `contracts/asyncapi.yaml`, which
 // openapi-typescript does not read (it only generates from `openapi.yaml`).
 // Hand-written, and kept in lock-step with that document's `StateUpdate`,

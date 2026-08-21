@@ -60,12 +60,8 @@ inline std::string json_quote(const std::string &in) {
   return out;
 }
 
-// `{"error":"..."}` / `{"message":"..."}` bodies, which every REST handler
-// returns in one shape or the other.
-inline std::string json_error(const std::string &message) {
-  return "{\"error\":" + json_quote(message) + "}";
-}
-
+// `{"message":"..."}`, the shape every REST handler returns for a plain
+// success. Failures are RFC 9457 problem details instead - see problem.h.
 inline std::string json_message(const std::string &message) {
   return "{\"message\":" + json_quote(message) + "}";
 }
