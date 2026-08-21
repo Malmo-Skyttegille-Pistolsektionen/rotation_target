@@ -177,6 +177,57 @@ test('a program switch during the start delay cancels the start', async ({ page,
   await expect(page.getByTestId('run-ticker')).toHaveCount(0);
 });
 
+/**
+ * D-22, end to end: the operator clears the device's selection, and the
+ * refusal that protects a run in progress is the device's, not the browser's.
+ */
+test('unload clears the loaded program, and is refused while a series runs', async ({ page }) => {
+  await openApp(page);
+  await enableAdminViaUi(page);
+  await page.getByRole('link', { name: 'Run' }).click();
+
+  await expect(page.getByTestId('run-unload')).toBeDisabled();
+
+  await page.getByTestId('run-program-select').selectOption(String(TEST_PROGRAM.id));
+  await expect(page.getByTestId('run-program-id')).toHaveText(String(TEST_PROGRAM.id));
+  await expect(page.getByTestId('run-unload')).toBeEnabled();
+
+  // --- refused while running -------------------------------------------
+  // The settings default is a 10 s delay; "Start Now" is the same POST
+  // without the wait.
+  await page.getByRole('button', { name: 'Start' }).click();
+  await expect(page.getByText('Starting in...')).toBeVisible();
+  await page.getByRole('button', { name: 'Start Now' }).click();
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+
+  await page.getByTestId('run-unload').click();
+  await expect(page.getByTestId('run-start-notice')).toContainText('Stop the program first');
+  // The series is untouched: unloading is bookkeeping and must not end it.
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+  await expect(page.getByTestId('run-program-id')).toHaveText(String(TEST_PROGRAM.id));
+
+  // --- and the escape is one button away --------------------------------
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await expect(page.getByRole('button', { name: 'Start' })).toBeVisible();
+
+  await page.getByTestId('run-unload').click();
+  // Not optimistic: the badge only clears because the device published
+  // `loadedProgramId: null` down the stream this page is listening on.
+  await expect(page.getByTestId('run-program-id')).toHaveText('-');
+  await expect(page.getByTestId('run-start-notice')).toContainText('Nothing is loaded');
+  await expect(page.getByRole('button', { name: 'Start' })).toBeDisabled();
+  await expect(page.getByTestId('run-unload')).toBeDisabled();
+  // The timeline goes with the selection.
+  await expect(page.getByTestId('timeline')).toHaveCount(0);
+
+  // Idempotent: nothing loaded is a 200 with the same message, so a second
+  // press is not an error the operator has to read.
+  await page.getByTestId('run-program-select').selectOption(String(TEST_PROGRAM.id));
+  await expect(page.getByTestId('run-program-id')).toHaveText(String(TEST_PROGRAM.id));
+  await page.getByTestId('run-unload').click();
+  await expect(page.getByTestId('run-program-id')).toHaveText('-');
+});
+
 test('backend_issue is not covered here', () => {
   // The only producers of `backend_issue` are the audio and storage paths
   // (main/io/audio.cpp). QEMU emulates no I2S, so `RT_AUDIO_ENABLED` is off in

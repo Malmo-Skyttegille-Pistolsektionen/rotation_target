@@ -32,9 +32,31 @@ test('the library is the clips the LittleFS image carries, all shipped', async (
 
   // Admin mode is off after `resetDevice`, so the rows are in their
   // controllable state: a Play button on every one, and - because a shipped
-  // clip answers 404 to a delete - a Delete button on none. Asserting only the
-  // second would also pass on a view-only render, where nothing is offered.
+  // clip is refused a delete outright (D-23) - a Delete button on none.
+  // Asserting only the second would also pass on a view-only render, where
+  // nothing is offered.
   await expect(page.locator('[data-testid^="audios-play-"]')).toHaveCount(audios.length);
   await expect(page.getByTestId('audios-view-only')).toHaveCount(0);
   await expect(page.locator('[data-testid^="audios-delete-"]')).toHaveCount(0);
+});
+
+test('a shipped clip is refused a delete, not hidden behind a 404 (D-23)', async ({ request }) => {
+  // The distinction the UI needs and a mock cannot settle: 409 means the clip
+  // is there and the write is refused for a reason that never lifts, so a
+  // client can say so instead of offering a refresh. 404 is left meaning it is
+  // not there.
+  const { audios } = (await (await request.get('/api/v2/audios')).json()) as {
+    audios: { id: number; readonly: boolean }[];
+  };
+  const shipped = audios.find((clip) => clip.readonly)!;
+
+  const refused = await request.delete(`/api/v2/audios/${shipped.id}/delete`);
+  expect(refused.status()).toBe(409);
+  expect(((await refused.json()) as { error: string }).error).toContain('read-only');
+
+  // Refused, not removed.
+  const after = (await (await request.get('/api/v2/audios')).json()) as { audios: { id: number }[] };
+  expect(after.audios.map((clip) => clip.id)).toContain(shipped.id);
+
+  expect((await request.delete('/api/v2/audios/9999/delete')).status()).toBe(404);
 });
