@@ -269,10 +269,12 @@ export interface paths {
         post?: never;
         /**
          * Delete an uploaded program
-         * @description Shipped programs are read-only and answer `404`, the same as a program
-         *     that does not exist — deletability is checked before anything is
+         * @description Shipped programs are read-only and answer `409`, the same refusal
+         *     `PUT /programs/{id}` gives for the same program — a program that does
+         *     not exist is the `404`. Deletability is checked before anything is
          *     unloaded, so a refused delete never disturbs a run in progress. If the
-         *     program being deleted is the loaded one, it is unloaded first and a
+         *     program being deleted is the loaded one, it is unloaded first
+         *     (whatever the run state — see `POST /programs/unload`) and a
          *     `stateUpdate` follows.
          */
         delete: operations["deleteProgram"];
@@ -532,18 +534,19 @@ export interface paths {
         post?: never;
         /**
          * Delete an uploaded clip
-         * @description Shipped clips are read-only and answer `404`, the same as a clip that
-         *     does not exist.
+         * @description Shipped clips are read-only and answer `409`; only a clip that does not
+         *     exist is a `404`.
          *
          *     A clip that matters to a run cannot be deleted: a spoken command that
          *     silently fails mid-exercise is a range-safety problem. Refusal order,
          *     most specific reason first, and existence before all of them so a bogus
          *     id is never reported as a conflict:
          *
-         *     1. no such clip, or a shipped one — `404`
-         *     2. the loaded program plays it — `409`
-         *     3. a run is in progress — `409`
-         *     4. the audio task is reading it right now — `409`
+         *     1. no such clip — `404`
+         *     2. it is shipped with the firmware — `409` (the reason that never lifts)
+         *     3. the loaded program plays it — `409`
+         *     4. a run is in progress — `409`
+         *     5. the audio task is reading it right now — `409`
          */
         delete: operations["deleteAudio"];
         options?: never;
@@ -1115,8 +1118,17 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            /** @description No such program, a read-only (shipped) program (`Program not found`), or a malformed path (`Not found`). */
+            /** @description No such program (`Program not found`), or a malformed path (`Not found`). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description The program is shipped with the firmware and has no writable file behind it (`Program is read-only and cannot be deleted`). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1491,7 +1503,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-            /** @description No such clip or a read-only one (`Audio not found`), or a malformed path (`Not found`). */
+            /** @description No such clip (`Audio not found`), or a malformed path (`Not found`). */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -1501,8 +1513,11 @@ export interface operations {
                 };
             };
             /**
-             * @description The clip still matters to a run, for one of three reasons:
+             * @description The clip is shipped, or it still matters to a run:
              *
+             *     - `Audio is read-only and cannot be deleted` — shipped with the
+             *       firmware, so there is no file of ours to remove. Checked first:
+             *       it is the only one of these reasons that never lifts.
              *     - `Audio is used by the loaded program - unload the program first`
              *       — an event of the loaded program plays it. Refused whether or not
              *       a run is in progress: `stop` is a pause, so a clip deleted
