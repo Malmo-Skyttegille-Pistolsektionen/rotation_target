@@ -215,7 +215,7 @@ void start_http() {
 }  // namespace
 
 void run() {
-  rgb_led::yellow();
+  rgb_led::status_portal();
   start_ap();
 
   // Answers every A query with our own address, so any hostname a phone probes

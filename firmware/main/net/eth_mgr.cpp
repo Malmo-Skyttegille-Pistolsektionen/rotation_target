@@ -54,7 +54,7 @@ void on_event(void *, esp_event_base_t base, int32_t id, void *data) {
   if (base == ETH_EVENT && id == ETHERNET_EVENT_CONNECTED) {
     ESP_LOGI(TAG, "Link up");
   } else if (base == ETH_EVENT && id == ETHERNET_EVENT_DISCONNECTED) {
-    rgb_led::red();
+    rgb_led::status_offline();
     ESP_LOGW(TAG, "Link down");
   } else if (base == IP_EVENT && id == IP_EVENT_ETH_GOT_IP) {
     auto *event = static_cast<ip_event_got_ip_t *>(data);
@@ -65,7 +65,7 @@ void on_event(void *, esp_event_base_t base, int32_t id, void *data) {
       s_ip = buf;
       xSemaphoreGive(s_ip_lock);
     }
-    rgb_led::green();
+    rgb_led::status_online();
     ESP_LOGI(TAG, "Got IP %s", buf);
     xEventGroupSetBits(s_events, kGotIpBit);
   }
