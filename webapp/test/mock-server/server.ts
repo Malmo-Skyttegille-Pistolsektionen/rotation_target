@@ -135,6 +135,11 @@ export interface MockSeed {
    */
   firmwareVersion?: string;
   /**
+   * The address `GET /diagnostics/info` reports. Defaults to the loopback the
+   * mock actually listens on; set it empty to model a device with no network.
+   */
+  ipAddress?: string;
+  /**
    * The flash partition table `GET /diagnostics/info` reports. Defaults to the
    * device's real one (firmware/partitions.csv) with plausible usage; override
    * to put a partition near full, or to leave usage unknown.
@@ -689,7 +694,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         partitions: seed.partitions ?? DEFAULT_PARTITIONS,
         programCount: Object.keys(programs).length,
         audioCount: audios.length,
-        ipAddress: '127.0.0.1',
+        ipAddress: seed.ipAddress ?? '127.0.0.1',
         targetGpio: 4,
         targetGpioLevel: state.targetStatus === 'shown' ? 1 : 0,
         adminModeEnabled: isAdminEnabled(),
