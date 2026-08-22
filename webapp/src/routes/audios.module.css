@@ -92,12 +92,12 @@
 }
 
 .buttonPrimary {
-  background-color: #646cff;
+  background-color: #4338ca;
   color: #fff;
 }
 
 .buttonPrimary:hover {
-  background-color: #535bf2;
+  background-color: #3730a3;
 }
 
 .buttonSecondary {
