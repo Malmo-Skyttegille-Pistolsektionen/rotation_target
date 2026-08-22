@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { useSettings } from '../context/SettingsContext';
 import { initializeBaseUrl } from '../api/client';
 import { ServerUrlSection } from '../components/ServerUrlSection';
+import { NetworkSection } from '../components/NetworkSection';
 import { AdminModeSection } from '../components/AdminModeSection';
 import { StartDelaySection } from '../components/StartDelaySection';
 import { StartupIssuesSection } from '../components/StartupIssuesSection';
@@ -31,6 +32,8 @@ function SettingsPage(): React.ReactNode {
       <h1 className={styles.title}>Settings</h1>
 
       <ServerUrlSection />
+
+      <NetworkSection />
 
       <AdminModeSection />
 
