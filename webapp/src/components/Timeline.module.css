@@ -423,3 +423,53 @@
   margin: 0;
   padding-left: 1.2rem;
 }
+
+/* Optional series are the reshoots - used only after an approved malfunction,
+   so most runs skip them. Dimmed *and* badged: which ones are skippable has to
+   be legible without relying on a single channel. */
+.series.optional {
+  opacity: 0.72;
+}
+
+/* The running series is never dimmed, whatever it is: what is happening now
+   outranks what is usually skipped. */
+.series.optional.active {
+  opacity: 1;
+}
+
+.seriesTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.optionalBadge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #4338ca;
+  background-color: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+}
+
+.skipButton {
+  font: inherit;
+  font-size: 0.85rem;
+  min-height: var(--rt-control-height);
+  padding: 0 0.75rem;
+  margin-left: auto;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background-color: #fff;
+  color: #374151;
+  cursor: pointer;
+}
+
+.skipButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

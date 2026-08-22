@@ -16,6 +16,12 @@ type TimelineProps = {
    * nothing the run page showed before.
    */
   audioTitles?: Record<number, string>;
+  /**
+   * Move the run to `index`. Absent when the operator cannot control the
+   * device, or while a program is running - skipping mid-series is not this
+   * control's job.
+   */
+  onSkipSeries?: (index: number) => void;
 };
 
 /** Which event the detail panel is describing. */
@@ -30,6 +36,7 @@ export function Timeline({
   tickerMs,
   mode = 'auto',
   audioTitles,
+  onSkipSeries,
 }: TimelineProps): React.ReactNode {
   // Two levels, because the chips were introduced for narrow screens and there
   // is no hover on a phone. Pointing at an event previews it; tapping or
@@ -121,11 +128,37 @@ export function Timeline({
                 seriesElementsRef.current.set(sIdx, element);
               }
             }}
-            className={clsx(styles.series, isCurrentSeries && styles.active)}
+            className={clsx(
+              styles.series,
+              isCurrentSeries && styles.active,
+              series.optional === true && styles.optional,
+            )}
             data-testid='timeline-series'
           >
             <div className={styles.seriesTitle}>
-              {series.name} {series.optional ? '(optional)' : ''}
+              <span>{series.name}</span>
+              {/* Badge and dimming together, never dimming alone: which series
+                  are skippable has to be readable at arm's length, on a phone,
+                  in daylight. */}
+              {series.optional === true && <span className={styles.optionalBadge}>Optional</span>}
+
+              {/* Only on optional series, and only on the one the run is
+                  sitting at. Skipping a scoring series by mistake is worse
+                  than the trip back to the dropdown, which still reaches
+                  every series. */}
+              {series.optional === true && isCurrentSeries && onSkipSeries !== undefined && (
+                <button
+                  type='button'
+                  className={styles.skipButton}
+                  data-testid={`timeline-skip-${String(sIdx)}`}
+                  disabled={sIdx + 1 >= program.series.length}
+                  onClick={() => {
+                    onSkipSeries(sIdx + 1);
+                  }}
+                >
+                  Skip
+                </button>
+              )}
             </div>
 
             {type === 'default' ? (
