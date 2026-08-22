@@ -8,6 +8,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { NoticeBanner } from '../components/NoticeBanner';
 import { ProgramDetails } from '../components/ProgramDetails';
 import { ProgramEditor, type EditorTarget } from '../components/ProgramEditor';
+import { downloadJson, programFilename } from '../lib/download';
 import { useSettings } from '../context/SettingsContext';
 import { useAdminStatus } from '../hooks/useAdminStatus';
 import { type DocumentIssue, parseProgramDocument } from '../lib/program-document';
@@ -44,6 +45,7 @@ export function ProgramsView(): React.ReactNode {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ProgramSummary | null>(null);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
   // An upload the device would store differently from the file. Held here until
   // the user has seen what will change — for a replace that write is an
   // irreversible overwrite, so telling them afterwards is telling them too late.
@@ -217,6 +219,19 @@ export function ProgramsView(): React.ReactNode {
     deleteMutation.isPending ||
     createMutation.isPending ||
     updateMutation.isPending;
+  // The table holds summaries, not documents, so the file has to be fetched.
+  const handleDownload = async (program: ProgramSummary): Promise<void> => {
+    setDownloadingId(program.id);
+    try {
+      const document = await programsApi.get(program.id);
+      downloadJson(programFilename(program.id), JSON.stringify(document, null, 2));
+    } catch {
+      setNotice({ kind: 'error', message: `Could not download "${program.title}" from the device.` });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
 
   return (
     <div className={styles.container}>
@@ -338,6 +353,20 @@ export function ProgramsView(): React.ReactNode {
                       </span>
                     </td>
                     <td className={styles.actionsColumn} role='cell' data-label='Actions'>
+                      {/* Outside the canManage guard: downloading is reading,
+                          and it is how a program leaves the device to be
+                          committed to resources/. Shipped programs download
+                          too - promoting a copy starts here. */}
+                      <button
+                        className={styles.button}
+                        data-testid={`program-download-${program.id}`}
+                        onClick={() => {
+                          void handleDownload(program);
+                        }}
+                        disabled={downloadingId === program.id}
+                      >
+                        {downloadingId === program.id ? 'Downloading…' : 'Download'}
+                      </button>
                       {canManage && (
                         <>
                           {/* One button, not a disabled Load beside an extra
