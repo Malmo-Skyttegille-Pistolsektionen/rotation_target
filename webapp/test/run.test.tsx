@@ -703,3 +703,79 @@ describe('D-24: the library changes under an open page', () => {
     expect(stream.frames.filter((frame) => frame.event === 'libraryChanged')).toHaveLength(0);
   });
 });
+
+/**
+ * Captures the IntersectionObserver the view creates, so a test can say the
+ * control board has scrolled out from under the nav. happy-dom has the
+ * constructor but never fires it - nothing lays out, so nothing intersects.
+ */
+function captureIntersectionObserver(): { leave: () => void; enter: () => void } {
+  let callback: IntersectionObserverCallback | null = null;
+  class Stub {
+    constructor(cb: IntersectionObserverCallback) {
+      callback = cb;
+    }
+    observe(): void {
+      /* nothing to observe without layout */
+    }
+    disconnect(): void {
+      /* nothing to disconnect */
+    }
+    unobserve(): void {
+      /* nothing to unobserve */
+    }
+  }
+  vi.stubGlobal('IntersectionObserver', Stub);
+
+  const fire = (isIntersecting: boolean) => () => {
+    act(() => {
+      callback?.([{ isIntersecting } as IntersectionObserverEntry], {} as IntersectionObserver);
+    });
+  };
+  return { leave: fire(false), enter: fire(true) };
+}
+
+describe('#130: the controls stay reachable mid-run', () => {
+  it('costs nothing while the control board is on screen', async () => {
+    captureIntersectionObserver();
+    await ready();
+    await selectProgram(1);
+
+    expect(screen.queryByTestId('run-sticky-bar')).toBeNull();
+  });
+
+  it('appears once the board has scrolled away, carrying the timer and Start', async () => {
+    const observer = captureIntersectionObserver();
+    await ready();
+    await selectProgram(1);
+
+    observer.leave();
+
+    const bar = screen.getByTestId('run-sticky-bar');
+    expect(bar).toBeTruthy();
+    expect(screen.getByTestId('run-sticky-ticker')).toBeTruthy();
+    expect(screen.getByTestId('run-sticky-start')).toBeTruthy();
+  });
+
+  it('goes away again when the board comes back', async () => {
+    const observer = captureIntersectionObserver();
+    await ready();
+    await selectProgram(1);
+
+    observer.leave();
+    expect(screen.getByTestId('run-sticky-bar')).toBeTruthy();
+
+    observer.enter();
+    expect(screen.queryByTestId('run-sticky-bar')).toBeNull();
+  });
+
+  it('stays away when nothing is loaded, however far you scroll', async () => {
+    // A bar with nothing to control is 50px of vertical space spent on
+    // nothing, on the page that space was reclaimed from.
+    const observer = captureIntersectionObserver();
+    await ready();
+
+    observer.leave();
+    expect(screen.queryByTestId('run-sticky-bar')).toBeNull();
+  });
+});

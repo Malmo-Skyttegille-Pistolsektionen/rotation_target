@@ -36,6 +36,7 @@ import {
 import { ConfirmDialog } from './ConfirmDialog';
 import { NoticeBanner } from './NoticeBanner';
 import { Timeline } from './Timeline';
+import { downloadJson, programFilename } from '../lib/download';
 import styles from './ProgramEditor.module.css';
 
 /**
@@ -417,6 +418,7 @@ function ProgramEditorForm({ target, source, sourceError, onClose, onCreated }: 
                 // Not JSON yet; the errors under the textarea already say so.
               }
             }}
+            filename={target.kind === 'edit' ? programFilename(target.id) : 'program.json'}
           />
         )}
       </div>
@@ -988,6 +990,8 @@ interface JsonEditorProps {
   result: ReturnType<typeof parseProgramDocument> | null;
   onChange: (text: string) => void;
   onFormat: () => void;
+  /** What the saved file is called - see `programFilename`. */
+  filename: string;
 }
 
 /**
@@ -999,12 +1003,24 @@ interface JsonEditorProps {
  * `parseProgramDocument` the rest of the app uses, which reports what the
  * device will change as well as what it will refuse.
  */
-function JsonEditor({ text, result, onChange, onFormat }: JsonEditorProps): React.ReactNode {
+function JsonEditor({ text, result, onChange, onFormat, filename }: JsonEditorProps): React.ReactNode {
   return (
     <div className={styles.json}>
       <div className={styles.toolbar}>
         <button className={styles.button} data-testid='editor-json-format' onClick={onFormat}>
           Format
+        </button>
+        {/* Downloads exactly what is in the box, not the parsed draft: if
+            somebody has hand-edited the JSON, that is the document they mean
+            to keep. */}
+        <button
+          className={styles.button}
+          data-testid='editor-json-download'
+          onClick={() => {
+            downloadJson(filename, text);
+          }}
+        >
+          Download
         </button>
         <span className={styles.hint}>
           Applied to the form when the Editor tab is opened, or when the program is saved.

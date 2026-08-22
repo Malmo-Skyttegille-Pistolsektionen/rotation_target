@@ -290,3 +290,166 @@ describe('event detail (#125)', () => {
     expect(detailRow('Ends at')).toMatch(/^[\d.]+ s$/);
   });
 });
+
+describe('centring the running series (#131)', () => {
+  /** happy-dom has no layout, so scrollIntoView is a stub worth recording. */
+  function recordScrolls(): Array<{ index: number; behavior?: ScrollBehavior }> {
+    const calls: Array<{ index: number; behavior?: ScrollBehavior }> = [];
+    Element.prototype.scrollIntoView = function (this: Element, options?: boolean | ScrollIntoViewOptions) {
+      const all = Array.from(document.querySelectorAll('.series'));
+      calls.push({
+        index: all.indexOf(this),
+        behavior: typeof options === 'object' ? options.behavior : undefined,
+      });
+    };
+    return calls;
+  }
+
+  it('does not move the page when a program is first loaded', () => {
+    // The operator is at the top working the controls at that moment; yanking
+    // the page out from under them is not help.
+    const calls = recordScrolls();
+    renderTimeline(PROGRAM_MILITARY_SNABBMATCH, { mode: 'default', currentSeriesIndex: 0 });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('centres the new series when the run moves on', () => {
+    const calls = recordScrolls();
+    const { rerender } = renderTimeline(PROGRAM_MILITARY_SNABBMATCH, {
+      mode: 'default',
+      currentSeriesIndex: 0,
+    });
+
+    rerender(
+      <Timeline
+        program={PROGRAM_MILITARY_SNABBMATCH}
+        currentSeriesIndex={1}
+        currentEventIndex={null}
+        tickerMs={null}
+        mode='default'
+      />,
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].index).toBe(1);
+  });
+
+  it('does not scroll again while the run stays in one series', () => {
+    // Continuous scrolling would drag back an operator who deliberately
+    // scrolled away to look at something else.
+    const calls = recordScrolls();
+    const { rerender } = renderTimeline(PROGRAM_MILITARY_SNABBMATCH, {
+      mode: 'default',
+      currentSeriesIndex: 0,
+    });
+
+    const at = (seriesIndex: number, eventIndex: number) =>
+      rerender(
+        <Timeline
+          program={PROGRAM_MILITARY_SNABBMATCH}
+          currentSeriesIndex={seriesIndex}
+          currentEventIndex={eventIndex}
+          tickerMs={eventIndex * 1000}
+          mode='default'
+        />,
+      );
+
+    at(1, 0);
+    expect(calls).toHaveLength(1);
+
+    at(1, 1);
+    at(1, 2);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('jumps rather than glides when motion is not wanted', () => {
+    const calls = recordScrolls();
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) =>
+      ({ matches: query.includes('prefers-reduced-motion'), media: query }) as MediaQueryList) as typeof window.matchMedia;
+
+    try {
+      const { rerender } = renderTimeline(PROGRAM_MILITARY_SNABBMATCH, {
+        mode: 'default',
+        currentSeriesIndex: 0,
+      });
+      rerender(
+        <Timeline
+          program={PROGRAM_MILITARY_SNABBMATCH}
+          currentSeriesIndex={1}
+          currentEventIndex={null}
+          tickerMs={null}
+          mode='default'
+        />,
+      );
+      expect(calls[0].behavior).toBe('auto');
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+});
+
+describe('optional series (#133)', () => {
+  it('badges the reshoot series so it is obvious before the program starts', () => {
+    // Militar Snabbmatch is 4x10s plus two extra 10s, and the same for 8s and
+    // 6s. The extras are reshoots after an approved malfunction; most runs
+    // skip them, and the operator should know which two before starting.
+    renderTimeline(PROGRAM_MILITARY_SNABBMATCH, { mode: 'default' });
+
+    const badges = screen.getAllByText('Optional');
+    expect(badges.length).toBeGreaterThan(0);
+
+    const optionalSeries = PROGRAM_MILITARY_SNABBMATCH.series.filter((series) => series.optional === true);
+    expect(badges).toHaveLength(optionalSeries.length);
+  });
+
+  it('offers Skip only on the series the run is sitting at', () => {
+    const skipped: number[] = [];
+    const optionalIndex = PROGRAM_MILITARY_SNABBMATCH.series.findIndex((series) => series.optional === true);
+    expect(optionalIndex).toBeGreaterThan(-1);
+
+    render(
+      <Timeline
+        program={PROGRAM_MILITARY_SNABBMATCH}
+        currentSeriesIndex={optionalIndex}
+        currentEventIndex={null}
+        tickerMs={null}
+        mode='default'
+        onSkipSeries={(index) => skipped.push(index)}
+      />,
+    );
+
+    // Exactly one Skip, on the current series - not on every optional one.
+    const buttons = screen.getAllByRole('button', { name: 'Skip' });
+    expect(buttons).toHaveLength(1);
+
+    fireEvent.click(buttons[0]);
+    expect(skipped).toEqual([optionalIndex + 1]);
+  });
+
+  it('never offers Skip on a scoring series', () => {
+    // Skipping a scoring series by mistake is worse than the trip back to the
+    // dropdown, which still reaches every series.
+    const scoringIndex = PROGRAM_MILITARY_SNABBMATCH.series.findIndex((series) => series.optional !== true);
+
+    render(
+      <Timeline
+        program={PROGRAM_MILITARY_SNABBMATCH}
+        currentSeriesIndex={scoringIndex}
+        currentEventIndex={null}
+        tickerMs={null}
+        mode='default'
+        onSkipSeries={() => undefined}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Skip' })).toBeNull();
+  });
+
+  it('offers no Skip at all when the operator cannot control the device', () => {
+    const optionalIndex = PROGRAM_MILITARY_SNABBMATCH.series.findIndex((series) => series.optional === true);
+    renderTimeline(PROGRAM_MILITARY_SNABBMATCH, { mode: 'default', currentSeriesIndex: optionalIndex });
+
+    expect(screen.queryByRole('button', { name: 'Skip' })).toBeNull();
+  });
+});

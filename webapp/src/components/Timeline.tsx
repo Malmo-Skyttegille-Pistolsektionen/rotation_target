@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Program, Series, Event } from '../api/types';
 import { seriesTotalMs } from '../lib/run-position';
 import styles from './Timeline.module.css';
@@ -16,6 +16,12 @@ type TimelineProps = {
    * nothing the run page showed before.
    */
   audioTitles?: Record<number, string>;
+  /**
+   * Move the run to `index`. Absent when the operator cannot control the
+   * device, or while a program is running - skipping mid-series is not this
+   * control's job.
+   */
+  onSkipSeries?: (index: number) => void;
 };
 
 /** Which event the detail panel is describing. */
@@ -30,6 +36,7 @@ export function Timeline({
   tickerMs,
   mode = 'auto',
   audioTitles,
+  onSkipSeries,
 }: TimelineProps): React.ReactNode {
   // Two levels, because the chips were introduced for narrow screens and there
   // is no hover on a phone. Pointing at an event previews it; tapping or
@@ -38,6 +45,35 @@ export function Timeline({
   const [pinned, setPinned] = useState<EventRef | null>(null);
   const [previewed, setPreviewed] = useState<EventRef | null>(null);
   const shown = pinned ?? previewed;
+
+  // Scroll the running series to the middle of the screen so the operator does
+  // not chase it down the page (#131).
+  const seriesElementsRef = useRef(new Map<number, HTMLDivElement>());
+  const lastCentredRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (currentSeriesIndex === null) {
+      lastCentredRef.current = null;
+      return;
+    }
+
+    // On *change* only. Scrolling continuously would drag back an operator who
+    // deliberately scrolled away to look at something else - and the first
+    // non-null index is the program being loaded, when the operator is at the
+    // top working the controls and should be left there.
+    const first = lastCentredRef.current === null;
+    const unchanged = lastCentredRef.current === currentSeriesIndex;
+    lastCentredRef.current = currentSeriesIndex;
+    if (first || unchanged) return;
+
+    const element = seriesElementsRef.current.get(currentSeriesIndex);
+    if (element === undefined) return;
+
+    // Smooth scrolling is motion the operator did not ask for, which is
+    // exactly what prefers-reduced-motion is about. 'auto' jumps instead.
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    element.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+  }, [currentSeriesIndex]);
 
   const togglePin = (ref: EventRef): void => {
     setPinned((current) =>
@@ -85,11 +121,44 @@ export function Timeline({
         return (
           <div
             key={sIdx}
-            className={clsx(styles.series, isCurrentSeries && styles.active)}
+            ref={(element) => {
+              if (element === null) {
+                seriesElementsRef.current.delete(sIdx);
+              } else {
+                seriesElementsRef.current.set(sIdx, element);
+              }
+            }}
+            className={clsx(
+              styles.series,
+              isCurrentSeries && styles.active,
+              series.optional === true && styles.optional,
+            )}
             data-testid='timeline-series'
           >
             <div className={styles.seriesTitle}>
-              {series.name} {series.optional ? '(optional)' : ''}
+              <span>{series.name}</span>
+              {/* Badge and dimming together, never dimming alone: which series
+                  are skippable has to be readable at arm's length, on a phone,
+                  in daylight. */}
+              {series.optional === true && <span className={styles.optionalBadge}>Optional</span>}
+
+              {/* Only on optional series, and only on the one the run is
+                  sitting at. Skipping a scoring series by mistake is worse
+                  than the trip back to the dropdown, which still reaches
+                  every series. */}
+              {series.optional === true && isCurrentSeries && onSkipSeries !== undefined && (
+                <button
+                  type='button'
+                  className={styles.skipButton}
+                  data-testid={`timeline-skip-${String(sIdx)}`}
+                  disabled={sIdx + 1 >= program.series.length}
+                  onClick={() => {
+                    onSkipSeries(sIdx + 1);
+                  }}
+                >
+                  Skip
+                </button>
+              )}
             </div>
 
             {type === 'default' ? (
