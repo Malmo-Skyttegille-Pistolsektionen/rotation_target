@@ -88,6 +88,18 @@ void start_mdns() {
 
 }  // namespace
 
+std::string ssid() {
+  wifi_ap_record_t ap = {};
+  if (esp_wifi_sta_get_ap_info(&ap) != ESP_OK) return "";
+  return std::string(reinterpret_cast<const char *>(ap.ssid));
+}
+
+int rssi() {
+  wifi_ap_record_t ap = {};
+  if (esp_wifi_sta_get_ap_info(&ap) != ESP_OK) return 0;
+  return ap.rssi;
+}
+
 std::string ip_address() {
   if (s_ip_lock == nullptr) return {};
   xSemaphoreTake(s_ip_lock, portMAX_DELAY);

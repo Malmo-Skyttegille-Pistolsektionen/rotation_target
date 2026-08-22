@@ -38,4 +38,11 @@ Result connect();
 // allowlist and GET /api/v2/diagnostics/info, and is read from the httpd task.
 std::string ip_address();
 
+// The SSID currently associated, and its signal strength in dBm. Empty and 0
+// when not associated, and always so on the Ethernet build - QEMU emulates no
+// radio. For the serial console's `status`, where "which of the configured
+// networks did it actually join" is the question at the range.
+std::string ssid();
+int rssi();
+
 }  // namespace net_mgr
