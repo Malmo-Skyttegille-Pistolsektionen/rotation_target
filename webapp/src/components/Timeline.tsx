@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Program, Series, Event } from '../api/types';
 import { seriesTotalMs } from '../lib/run-position';
 import styles from './Timeline.module.css';
@@ -38,6 +38,35 @@ export function Timeline({
   const [pinned, setPinned] = useState<EventRef | null>(null);
   const [previewed, setPreviewed] = useState<EventRef | null>(null);
   const shown = pinned ?? previewed;
+
+  // Scroll the running series to the middle of the screen so the operator does
+  // not chase it down the page (#131).
+  const seriesElementsRef = useRef(new Map<number, HTMLDivElement>());
+  const lastCentredRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (currentSeriesIndex === null) {
+      lastCentredRef.current = null;
+      return;
+    }
+
+    // On *change* only. Scrolling continuously would drag back an operator who
+    // deliberately scrolled away to look at something else - and the first
+    // non-null index is the program being loaded, when the operator is at the
+    // top working the controls and should be left there.
+    const first = lastCentredRef.current === null;
+    const unchanged = lastCentredRef.current === currentSeriesIndex;
+    lastCentredRef.current = currentSeriesIndex;
+    if (first || unchanged) return;
+
+    const element = seriesElementsRef.current.get(currentSeriesIndex);
+    if (element === undefined) return;
+
+    // Smooth scrolling is motion the operator did not ask for, which is
+    // exactly what prefers-reduced-motion is about. 'auto' jumps instead.
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    element.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+  }, [currentSeriesIndex]);
 
   const togglePin = (ref: EventRef): void => {
     setPinned((current) =>
@@ -85,6 +114,13 @@ export function Timeline({
         return (
           <div
             key={sIdx}
+            ref={(element) => {
+              if (element === null) {
+                seriesElementsRef.current.delete(sIdx);
+              } else {
+                seriesElementsRef.current.set(sIdx, element);
+              }
+            }}
             className={clsx(styles.series, isCurrentSeries && styles.active)}
             data-testid='timeline-series'
           >
