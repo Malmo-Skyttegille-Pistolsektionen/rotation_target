@@ -8,7 +8,7 @@ SCHEMA="$(dirname "$0")/../../contracts/program.schema.json"
 # program numbered at or past this sits inside the range add_uploaded()
 # assigns from - that collision is what #129 found: an uploaded program
 # silently shadowed a shipped one landed at the same id.
-FIRST_UPLOAD_ID=100
+FIRST_UPLOAD_ID=1000
 
 status=0
 
@@ -28,11 +28,10 @@ for file in "$(dirname "$0")"/files/*.json; do
     fi
 
     # Every audio_ids entry must resolve to a clip in audios.json. Nothing
-    # checked this, and renumbering a shipped clip for the id-range fix left
-    # "Militar Snabbmatch (med signal)" pointing at 38 events' worth of a clip
-    # that no longer existed - silently, because a program with a dangling
-    # reference still parses, still validates against the schema, and still
-    # runs. It just stops making the noise it is named for.
+    # checked this. A program with a dangling reference still parses, still
+    # validates against the schema, and still runs - it just plays nothing
+    # where the clip should have been, which on a range is a command nobody
+    # hears.
     if ! python3 "$(dirname "$0")/check_audio_refs.py" "$file"; then
         status=1
         continue

@@ -253,7 +253,7 @@ components:
             code: program_id_collision
             message: An uploaded program's id collides with a shipped one; the shipped program was kept
             context:
-              file: /storage/uploads/programs/60.json
+              file: /storage/uploads/programs/1001.json
 
     libraryChanged:
       name: libraryChanged

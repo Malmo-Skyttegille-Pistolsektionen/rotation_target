@@ -379,9 +379,9 @@
       "phrase": "Färdigskjutning 2, 6 sekunder",
       "filename": "89.wav"
     },
-    "90": {
+    "100": {
       "title": "Beep",
       "phrase": "Beep 500 Hz Square 150ms",
-      "filename": "90.wav"
+      "filename": "100.wav"
     }
   }

@@ -75,9 +75,12 @@ constexpr const char *kShippedProgramDir = "/storage/shipped/programs";
 constexpr const char *kUploadAudioDir = "/storage/uploads/audio";
 constexpr const char *kUploadProgramDir = "/storage/uploads/programs";
 
-// Uploaded programs and audio are numbered from here, keeping them clear of
-// the shipped ids.
-constexpr int32_t kFirstUploadId = 100;
+// The id ranges: below this is shipped, at or above it is uploaded. A shipped
+// resource landing inside the upload range is shadowed by an upload at the same
+// id, which #129 found - so the boundary sits well clear of the shipped set
+// rather than just above it. Kept in lock-step with FIRST_UPLOAD_ID in
+// resources/programs/validate_programs.sh, which enforces it.
+constexpr int32_t kFirstUploadId = 1000;
 
 // --- HTTP ------------------------------------------------------------------
 
