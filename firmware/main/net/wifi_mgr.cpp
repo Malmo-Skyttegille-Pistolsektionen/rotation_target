@@ -40,10 +40,9 @@ void on_event(void *, esp_event_base_t base, int32_t id, void *data) {
   if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
     esp_wifi_connect();
   } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
-    rgb_led::red();
-
     if (s_joined_once) {
       ESP_LOGW(TAG, "Link lost - reconnecting");
+      rgb_led::status_joining();
       esp_wifi_connect();
       return;
     }
@@ -51,8 +50,12 @@ void on_event(void *, esp_event_base_t base, int32_t id, void *data) {
     if (s_retries < CONFIG_RT_WIFI_MAX_RETRIES) {
       s_retries++;
       ESP_LOGW(TAG, "Join attempt %d/%d failed", s_retries, CONFIG_RT_WIFI_MAX_RETRIES);
+      rgb_led::status_joining();
       esp_wifi_connect();
     } else {
+      // Out of attempts on this network. Solid red says so until the setup
+      // portal takes over, if that is where we end up.
+      rgb_led::status_offline();
       xEventGroupSetBits(s_events, kFailedBit);
     }
   } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
@@ -66,7 +69,7 @@ void on_event(void *, esp_event_base_t base, int32_t id, void *data) {
     }
     s_retries = 0;
     s_joined_once = true;
-    rgb_led::green();
+    rgb_led::status_online();
     ESP_LOGI(TAG, "Connected, IP %s", buf);
     xEventGroupSetBits(s_events, kConnectedBit);
   }
