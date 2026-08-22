@@ -28,11 +28,23 @@ should work.
 | Take **one control line for all targets** | One line drives every target together. Independently controlled banks are not supported yet ([#144](https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target/issues/144)) |
 | Be safe sitting **face-on** with no power | The targets rest face-on and stay there at boot, deliberately: somebody may be downrange when a board is powered, and a target that turns on its own can injure them (D-31) |
 
-**Electrically**, the prototype switches the circuit with a BC547B — 45 V, 100 mA.
-Anything beyond that, and anything mains or inductive, wants a relay or an
-opto-isolator between the board and the target system. Which level *shows* the
-targets is a build setting (`RT_TARGET_ACTIVE_LOW`), so a system that closes to
-hide is a configuration change rather than a rewiring.
+**Electrically**, the board does not close the circuit itself — an ESP32 pin
+supplies only tens of milliamps and should not meet the target system's voltage
+directly. A BC547B transistor does the switching, driven through a 1 kΩ resistor
+from GPIO5, and the TP2 is reached over a DB9 connector:
+
+```
+ESP32 GPIO5 ----[1kΩ]----|B  BC547B  C|---- DB9 pin 2 (target control)
+                              E
+ESP32 GND --------------------+--------- DB9 pin 5 (ground)
+```
+
+That transistor is rated 45 V and 100 mA and offers no galvanic isolation, so
+anything beyond it — anything mains, or an inductive load — wants a relay or an
+opto-isolator in its place. Which level *shows* the targets is a build setting
+(`RT_TARGET_ACTIVE_LOW`), so a system that closes to hide is a configuration
+change rather than a rewiring. Full wiring is in
+[`firmware/docs/HARDWARE.md`](firmware/docs/HARDWARE.md).
 
 **Optional peripherals**, each switchable off: the I2S audio DAC that plays the
 range commands, and the status LED. Without audio, programs run silently.
