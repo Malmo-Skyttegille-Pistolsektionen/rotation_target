@@ -24,6 +24,10 @@ body {
    line - gets the 44px minimum tap target; a mouse keeps the denser 40px. */
 :root {
   --rt-control-height: 40px;
+  /* The sticky nav's height: 0.5rem padding top and bottom, one control-height
+     link, and the 1px bottom border. Anything else that sticks below the nav
+     offsets by this, so the two cannot drift apart. */
+  --rt-nav-height: calc(var(--rt-control-height) + 1rem + 1px);
 }
 
 @media (pointer: coarse) {

@@ -359,3 +359,35 @@
     gap: 0.75rem;
   }
 }
+
+/* The condensed strip that appears once the control board has scrolled away
+   (#130). Only what is reached for mid-run: the timer, what the targets are
+   doing, and Start/Pause. Everything else stays on the board - a bar carrying
+   the whole control set would just be the board, moved. */
+.stickyBar {
+  position: fixed;
+  top: var(--rt-nav-height);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  background-color: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* The one number an operator looks up for, so it is the largest thing here. */
+.stickyTimer {
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #111827;
+  min-width: 3.5ch;
+}
+
+.stickyBar .button {
+  margin-left: auto;
+}
