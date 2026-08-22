@@ -210,11 +210,13 @@ any other purpose — not for a decorative accent, not for a chart, not for a
 brand flourish. If a new state needs a colour and is not one of those three
 things, it uses indigo or a grey.
 
-**The One Family Rule.** The palette is the Tailwind scale. Two earlier
-families are still present in the code — the Vite starter purple (`#646cff`)
-and the Material greens (`#e8f5e9`, `#a5d6a7`) — and are being retired. Do not
-add to them, and prefer the values above when touching a file that still uses
-them.
+**The One Family Rule.** The palette is the Tailwind scale, and only the
+Tailwind scale. Two earlier families used to be mixed in — the Vite starter
+purple (`#646cff`, never chosen, just the `npm create vite` default) and
+Material's greens and reds on the timeline event boxes. Both are gone. The
+purple mattered because it sits close enough to the accent indigo to look
+intentional and far enough to look wrong beside it, which is the worst distance
+for two colours to be.
 
 **The Readable Signal Rule.** Signal colours are chosen for contrast, not for
 brightness. White text sits on green-700 (`#15803d`), never green-600, because
