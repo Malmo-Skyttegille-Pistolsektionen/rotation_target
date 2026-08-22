@@ -1,8 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import clsx from 'clsx';
 import { useProgramsApi } from '../api/programs';
+import { useAudiosApi } from '../api/audios';
 import type { ProgramSummary, StateUpdatePayload } from '../api/types';
 import { Timeline } from '../components/Timeline';
 import { CountdownModal } from '../components/CountdownModal';
@@ -81,6 +82,7 @@ export function RunView(): React.ReactNode {
   const { adminToken } = useSettings();
   const { startDelaySeconds } = settings;
   const programsApi = useProgramsApi();
+  const audiosApi = useAudiosApi();
   const queryClient = useQueryClient();
 
   // Check if user can control (admin mode off OR authenticated)
@@ -91,6 +93,19 @@ export function RunView(): React.ReactNode {
     queryKey: ['programs'],
     queryFn: programsApi.list,
   });
+
+  // Named clips for the timeline's event detail. The run page did not need
+  // the audio library before; without it the detail panel can only show ids,
+  // and nobody knows what clip 50 is. Cached and shared with the Audios page.
+  const { data: audios } = useQuery({
+    queryKey: ['audios'],
+    queryFn: audiosApi.list,
+  });
+
+  const audioTitles = useMemo(
+    () => Object.fromEntries((audios ?? []).map((audio) => [audio.id, audio.title])),
+    [audios],
+  );
 
   const { data: state } = useQuery<StateUpdatePayload | null>({
     queryKey: ['state'],
@@ -470,6 +485,7 @@ export function RunView(): React.ReactNode {
           currentEventIndex={currentEventIndex ?? null}
           tickerMs={tickerMs ?? null}
           mode={timelineMode}
+          audioTitles={audioTitles}
         />
       )}
 

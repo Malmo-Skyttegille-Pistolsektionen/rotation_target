@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { Timeline } from '../src/components/Timeline';
@@ -13,6 +13,7 @@ type Position = {
   currentEventIndex?: number | null;
   tickerMs?: number | null;
   mode?: 'auto' | 'default' | 'field';
+  audioTitles?: Record<number, string>;
 };
 
 function renderTimeline(program: Program, position: Position = {}) {
@@ -23,8 +24,18 @@ function renderTimeline(program: Program, position: Position = {}) {
       currentEventIndex={position.currentEventIndex ?? null}
       tickerMs={position.tickerMs ?? null}
       mode={position.mode}
+      audioTitles={position.audioTitles}
     />,
   );
+}
+
+/** The detail panel's value for one of its labelled rows. */
+function detailRow(label: string): string {
+  const panel = screen.getByTestId('timeline-event-detail');
+  const terms = Array.from(panel.querySelectorAll('dt'));
+  const term = terms.find((dt) => dt.textContent === label);
+  if (term?.nextElementSibling == null) throw new Error(`no detail row labelled ${label}`);
+  return term.nextElementSibling.textContent ?? '';
 }
 
 /** The boxes/segments of one series, in order. */
@@ -89,10 +100,12 @@ describe('audio_ids badges', () => {
     // Provserie 10s: event 0 has audio_ids [50, 1, 28], event 3 has none.
     const events = eventsOfSeries(0);
     expect(within(events[0]).getByLabelText('Plays audio')).toBeTruthy();
-    expect(events[0].getAttribute('title')).toContain('Audios: 50, 1, 28');
+    fireEvent.click(events[0]);
+    expect(detailRow('Audio')).toBe('clip 50clip 1clip 28');
 
     expect(within(events[3]).queryByLabelText('Plays audio')).toBeNull();
-    expect(events[3].getAttribute('title')).not.toContain('Audios');
+    fireEvent.click(events[3]);
+    expect(detailRow('Audio')).toBe('none');
   });
 
   it('marks an event that carries audio, on the time-scaled timeline', () => {
@@ -125,7 +138,8 @@ describe('audio_ids badges', () => {
   it('does not print "undefined" for an event with no command', () => {
     // Precision's events carry audio only - `command` is absent on the wire.
     renderTimeline(PROGRAM_PRECISION, { mode: 'default' });
-    expect(eventsOfSeries(0)[0].getAttribute('title')).toContain('Command: -');
+    fireEvent.click(eventsOfSeries(0)[0]);
+    expect(detailRow('Targets')).toBe('Unchanged — a timed pause');
   });
 });
 
@@ -211,5 +225,68 @@ describe('the run position', () => {
     // Loaded but not started: `tickerMs` is null until the first tick.
     renderTimeline(PROGRAM_FALT_TRANING, { currentSeriesIndex: 0, currentEventIndex: 0, tickerMs: null });
     expect(document.querySelector<HTMLElement>('.cursor')!.style.left).toBe('0%');
+  });
+});
+
+describe('event detail (#125)', () => {
+  it('says nothing until an event is pointed at', () => {
+    renderTimeline(PROGRAM_MILITARY_SNABBMATCH, { mode: 'default' });
+    expect(screen.queryByTestId('timeline-event-detail')).toBeNull();
+  });
+
+  it('names the audio clips rather than their ids, when it knows them', () => {
+    // The clips an event plays were not visible anywhere on the run page. Ids
+    // are the fallback, not the answer - nobody knows what clip 50 is.
+    renderTimeline(PROGRAM_MILITARY_SNABBMATCH, {
+      mode: 'default',
+      audioTitles: { 50: 'Ready on the firing line', 1: 'Beep', 28: 'Commence fire' },
+    });
+
+    fireEvent.click(eventsOfSeries(0)[0]);
+    // A list, not a comma-joined string: clip titles are things like "1" and
+    // "10 sekunder", which run together unreadably when joined.
+    const clips = screen.getByTestId('timeline-event-detail').querySelectorAll('ol li');
+    expect(Array.from(clips).map((li) => li.textContent)).toEqual([
+      'Ready on the firing line',
+      'Beep',
+      'Commence fire',
+    ]);
+  });
+
+  it('previews on hover and lets go again', () => {
+    renderTimeline(PROGRAM_MILITARY_SNABBMATCH, { mode: 'default' });
+    const event = eventsOfSeries(0)[0];
+
+    fireEvent.mouseEnter(event);
+    expect(screen.getByTestId('timeline-event-detail')).toBeTruthy();
+
+    fireEvent.mouseLeave(event);
+    expect(screen.queryByTestId('timeline-event-detail')).toBeNull();
+  });
+
+  it('keeps the detail up after a tap, because a phone has no hover', () => {
+    // The whole reason clicking pins: on a touch screen the pointer leaves the
+    // instant the finger does, so a hover-only panel would flash and vanish.
+    renderTimeline(PROGRAM_MILITARY_SNABBMATCH, { mode: 'default' });
+    const event = eventsOfSeries(0)[0];
+
+    fireEvent.click(event);
+    fireEvent.mouseLeave(event);
+    expect(screen.getByTestId('timeline-event-detail')).toBeTruthy();
+
+    // Tapping the same event again lets it go.
+    fireEvent.click(event);
+    expect(screen.queryByTestId('timeline-event-detail')).toBeNull();
+  });
+
+  it('places the event within its series, in seconds', () => {
+    renderTimeline(PROGRAM_MILITARY_SNABBMATCH, { mode: 'default' });
+
+    // Event 1 starts where event 0 ended.
+    const events = eventsOfSeries(0);
+    fireEvent.click(events[1]);
+    const startsAt = detailRow('Starts at');
+    expect(startsAt).toContain('s into');
+    expect(detailRow('Ends at')).toMatch(/^[\d.]+ s$/);
   });
 });
