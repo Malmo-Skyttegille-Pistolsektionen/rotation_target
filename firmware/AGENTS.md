@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md — firmware
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -44,10 +44,18 @@ in that MicroPython file are wrong; `RGG_LED_PIN = 48` is the clue that fits.
 ## Build, flash, test
 
 ```bash
-idf.py set-target esp32s3   # once, per clone
+idf.py set-target esp32s3   # ONCE, on a fresh clone only - see the warning below
 idf.py menuconfig           # optional WiFi seed, under "Rotation target backend"
 idf.py build
 ```
+
+> **Never run `idf.py set-target` on a clone that already has an `sdkconfig`.**
+> It regenerates `sdkconfig` from the defaults, and `sdkconfig` is where the
+> WiFi SSID and password live — they are gitignored and exist nowhere else, so
+> regenerating it destroys the only copy. To pick up new Kconfig symbols on an
+> existing clone use `idf.py reconfigure`, which keeps the values. The same goes
+> for `idf.py fullclean`. This command appears in every ESP-IDF tutorial, which
+> is exactly why it is worth a warning here.
 
 - **The shipped audio and programs come from the monorepo's `resources/`
   directory**, found via the `RT_RESOURCES_DIR` cache variable (default
