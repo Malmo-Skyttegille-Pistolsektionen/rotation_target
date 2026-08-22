@@ -100,6 +100,14 @@ config RT_I2S_DOUT_GPIO
 
 endmenu
 
+config RT_CONSOLE_ENABLED
+    bool "Serial command console on the USB serial/JTAG port"
+    default y
+    help
+        A `status` command over USB, for when the device is on a network the
+        laptop cannot reach and HTTP is not an option. Off for the QEMU
+        profile, which has no USB serial/JTAG peripheral.
+
 menu "Network"
 
 config RT_NET_OPENETH

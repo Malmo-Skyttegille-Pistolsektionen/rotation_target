@@ -1,0 +1,63 @@
+---
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - mkdocs.yml
+      - docs/site/**
+      - .github/workflows/docs.yml
+  pull_request:
+    paths:
+      - mkdocs.yml
+      - docs/site/**
+      - .github/workflows/docs.yml
+
+permissions:
+  contents: read
+
+# A superseded run should not keep this going. The group carries a literal
+# prefix as well as `github.workflow`, matching the other workflows here.
+concurrency:
+  group: docs-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: false
+
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.14.7'
+
+      - name: Install MkDocs Material
+        run: pip install mkdocs-material
+
+      - name: Build
+        run: mkdocs build --strict
+
+      - uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: site
+
+  deploy:
+    name: deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5.0.0

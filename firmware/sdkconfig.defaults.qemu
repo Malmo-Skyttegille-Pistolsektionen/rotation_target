@@ -45,3 +45,7 @@ CONFIG_SPIRAM_SPEED_40M=y
 # Flash size, the partition table, the socket budget and everything else are
 # inherited from sdkconfig.defaults unchanged. Keeping them in one place is
 # what makes the simulator a fair stand-in for the board.
+
+# No USB serial/JTAG peripheral under QEMU, so there is nothing to attach a
+# console to.
+CONFIG_RT_CONSOLE_ENABLED=n

@@ -17,6 +17,7 @@
 #include "programs.h"
 #include "rgb_led.h"
 #include "storage.h"
+#include "console.h"
 #include "targets.h"
 #include "web_server.h"
 
@@ -78,6 +79,10 @@ extern "C" void app_main() {
     vTaskDelay(pdMS_TO_TICKS(5000));
     esp_restart();
   }
+
+  // After the server, so `status` can report an address rather than a blank.
+
+  console::init();
   rgb_led::status_serving();
 
   ESP_LOGI(TAG, "Ready on http://%s", net_mgr::ip_address().c_str());

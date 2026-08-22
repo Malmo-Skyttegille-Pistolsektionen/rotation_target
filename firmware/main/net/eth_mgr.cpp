@@ -86,6 +86,15 @@ void start_mdns() {
 
 }  // namespace
 
+// No radio under QEMU, so there is no network to name and no signal to report.
+std::string ssid() {
+  return "";
+}
+
+int rssi() {
+  return 0;
+}
+
 std::string ip_address() {
   if (s_ip_lock == nullptr) return {};
   xSemaphoreTake(s_ip_lock, portMAX_DELAY);
