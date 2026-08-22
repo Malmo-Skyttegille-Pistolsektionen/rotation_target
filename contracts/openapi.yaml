@@ -1463,6 +1463,37 @@ components:
           description: True for clips flashed with the firmware.
       additionalProperties: false
 
+    PartitionInfo:
+      type: object
+      required:
+        - name
+        - kind
+        - sizeBytes
+      properties:
+        name:
+          type: string
+          description: The partition label from `partitions.csv`, e.g. `storage`.
+        kind:
+          type: string
+          enum: [app, data]
+        sizeBytes:
+          type: integer
+          minimum: 0
+          description: The slot's size, from the partition table.
+        usedBytes:
+          type: integer
+          minimum: 0
+          description: >-
+            Absent where the device cannot tell. Present for the app slots (the
+            length of the image on flash, walked from its header), the LittleFS
+            partition, NVS (a whole number of 32-byte entries, so it is
+            granular rather than exact) and the coredump partition (0 when no
+            dump is stored).
+        running:
+          type: boolean
+          description: >-
+            App partitions only — whether this is the slot the device booted
+            from.
     DiagnosticsInfo:
       type: object
       required:
@@ -1478,6 +1509,7 @@ components:
         - coredumpPresent
         - storageTotalBytes
         - storageUsedBytes
+        - partitions
         - programCount
         - audioCount
         - ipAddress
@@ -1540,9 +1572,22 @@ components:
         storageTotalBytes:
           type: integer
           minimum: 0
+          description: >-
+            The `storage` partition's size. Kept alongside `partitions`, which
+            reports the same figure — this pair predates it and clients still
+            read it.
         storageUsedBytes:
           type: integer
           minimum: 0
+        partitions:
+          type: array
+          description: >-
+            Every partition in the flash table, in flash-offset order. `storage`
+            is not the only one that can fill: the app slots decide whether an
+            over-the-air image will fit, and NVS holds the provisioned
+            credentials.
+          items:
+            $ref: "#/components/schemas/PartitionInfo"
         programCount:
           type: integer
           minimum: 0
