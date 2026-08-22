@@ -152,14 +152,20 @@ void Executor::complete_series(int32_t series_index) {
   const int32_t next_index = series_index + 1;
   if (state_.program != nullptr &&
       static_cast<size_t>(next_index) < state_.program->series.size()) {
-    // Another series follows: pause at its start with the targets hidden,
-    // ready for the shooter to be called forward.
+    // Another series follows: select it and wait, leaving the targets exactly
+    // as the last event left them. Only a show or hide event turns them.
+    //
+    // This used to hide here, "ready for the shooter to be called forward".
+    // That is wrong on this range: between series people walk downrange to
+    // patch faces, and a target that turns while somebody is standing at it
+    // can injure them. Face-on is also the resting position for the club's
+    // other disciplines, which shoot these targets static.
     state_.current_series_index.set(next_index);
     state_.current_event_index.set(0);
-    set_targets(false);
   }
-  // The last series finishing leaves it selected and the targets as they are,
-  // so the final state of the program stays on display.
+  // Both branches now leave the targets alone: the last series finishing keeps
+  // the final state of the program on display, and so does every series before
+  // it.
 
   effects_.state_changed();
 }

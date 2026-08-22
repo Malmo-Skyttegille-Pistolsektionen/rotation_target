@@ -167,11 +167,12 @@ void test_events_advance_and_the_series_pauses_at_the_next_one() {
   TEST_ASSERT_EQUAL_INT32(0, h->state.current_event_index.value);
   TEST_ASSERT_FALSE(h->state.ticker_ms.has_value);
 
-  // show (event 0), hide (event 1), hide (series boundary)
-  TEST_ASSERT_EQUAL_size_t(3, h->effects.target_history.size());
+  // show (event 0), hide (event 1) - and nothing at the series boundary. The
+  // boundary used to drive a third, redundant hide; completing a series now
+  // leaves the targets exactly where the last event left them.
+  TEST_ASSERT_EQUAL_size_t(2, h->effects.target_history.size());
   TEST_ASSERT_TRUE(h->effects.target_history[0]);
   TEST_ASSERT_FALSE(h->effects.target_history[1]);
-  TEST_ASSERT_FALSE(h->effects.target_history[2]);
 }
 
 void test_program_completion_leaves_the_last_series_selected() {
@@ -502,6 +503,45 @@ void test_force_unload_drops_a_running_program() {
 
 // --- targets ---------------------------------------------------------------
 
+void test_completing_a_series_leaves_the_targets_where_the_last_event_left_them() {
+  // The shared fixture's first series ends on "hide", so it cannot tell a
+  // deliberate "leave them alone" apart from a hide-on-completion. This one
+  // ends on "show" and there is a series after it - the exact case that used
+  // to turn the targets edge-on while the range waited for the next start.
+  rt::Program p;
+  p.id = kFixtureId;
+  p.title = "Ends shown";
+  p.description = "First series finishes with the targets face-on";
+
+  rt::Series s0;
+  s0.name = "S0";
+  s0.events.push_back(rt::Event{200, "show", {}});
+
+  rt::Series s1;
+  s1.name = "S1";
+  s1.events.push_back(rt::Event{200, "show", {}});
+
+  p.series.push_back(s0);
+  p.series.push_back(s1);
+
+  h->executor.load(&p);
+  h->executor.start(kFixtureId);
+  h->run_to_idle();
+
+  // Waiting at the start of the next series, and still face-on.
+  TEST_ASSERT_EQUAL_INT32(1, h->state.current_series_index.value);
+  TEST_ASSERT_EQUAL_INT32(0, h->state.current_event_index.value);
+  TEST_ASSERT_FALSE(h->state.running);
+  TEST_ASSERT_TRUE(h->state.target_status_shown);
+  TEST_ASSERT_EQUAL_STRING(state("false", "1", "0", "null", "shown").c_str(),
+                           h->effects.broadcasts.back().c_str());
+
+  // And nothing drove the pin after the event that showed them: people walk
+  // downrange between series, so the targets must not move on their own.
+  TEST_ASSERT_EQUAL_size_t(1, h->effects.target_history.size());
+  TEST_ASSERT_TRUE(h->effects.target_history[0]);
+}
+
 void test_toggle_targets_flips_the_published_flag_and_the_pin() {
   TEST_ASSERT_TRUE(h->executor.toggle_targets());
   TEST_ASSERT_TRUE(h->state.target_status_shown);
@@ -556,6 +596,7 @@ int main() {
   RUN_TEST(test_unload_with_nothing_loaded_publishes_nothing);
   RUN_TEST(test_force_unload_drops_a_running_program);
 
+  RUN_TEST(test_completing_a_series_leaves_the_targets_where_the_last_event_left_them);
   RUN_TEST(test_toggle_targets_flips_the_published_flag_and_the_pin);
 
   return UNITY_END();

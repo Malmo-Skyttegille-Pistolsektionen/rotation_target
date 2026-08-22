@@ -542,10 +542,11 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       const nextSeriesIndex = currentSeriesIndex + 1;
 
       if (state.loadedProgram && nextSeriesIndex < state.loadedProgram.series.length) {
-        // Another series follows: pause at its start, targets hidden.
+        // Another series follows: select it and wait, leaving the targets as the
+        // last event left them. Mirrors Executor::complete_series - only a show
+        // or hide event turns them.
         state.programState.currentSeriesIndex = nextSeriesIndex;
         state.programState.currentEventIndex = 0;
-        state.targetStatus = 'hidden';
       }
 
       state.programState.running = false;
@@ -1012,7 +1013,6 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
 
     if (endpoint === '/targets/hide' && req.method === 'POST') {
       if (!checkAdminAuth(req, res)) return;
-      state.targetStatus = 'hidden';
       broadcastState();
       jsonResponse(res, 200, { message: 'Targets hidden' });
       return;
@@ -1174,7 +1174,6 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       restorePrograms();
       state.loadedProgram = null;
       state.programState = null;
-      state.targetStatus = 'hidden';
       state.adminModePassword = null;
       state.adminModeTokens.clear();
       state.seriesStartTime = null;
