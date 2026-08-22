@@ -44,7 +44,7 @@ extern "C" void app_main() {
   init_nvs();
 
   rgb_led::init();
-  rgb_led::red();
+  rgb_led::status_joining();
 
   targets::init();
 
@@ -78,7 +78,7 @@ extern "C" void app_main() {
     vTaskDelay(pdMS_TO_TICKS(5000));
     esp_restart();
   }
-  rgb_led::green();
+  rgb_led::status_serving();
 
   ESP_LOGI(TAG, "Ready on http://%s", net_mgr::ip_address().c_str());
 
