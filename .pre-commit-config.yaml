@@ -33,3 +33,18 @@ repos:
     hooks:
       - id: clang-format
         types_or: [c, c++]
+
+  # A generated sdkconfig holds the WiFi SSID and password and is gitignored -
+  # but `idf.py` also writes sdkconfig.bak-<timestamp>, and one of those reached
+  # a public repository through `git add -A`. Deleting it does not unpublish it,
+  # so the guard is here rather than in a reviewer's attention.
+  #
+  # The defaults files are exempt: they carry the placeholder "changeme" and an
+  # empty password, which is what makes a fresh clone start at the setup portal.
+  - repo: local
+    hooks:
+      - id: no-committed-wifi-credentials
+        name: no WiFi credentials in committed files
+        language: pygrep
+        entry: 'CONFIG_RT_WIFI_(SSID|PASSWORD)(_2)?="(?!changeme"|")'
+        exclude: ^firmware/sdkconfig\.defaults
