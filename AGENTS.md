@@ -65,6 +65,27 @@ knowing before touching a board.
   `sdkconfig`, which holds the WiFi credentials and is gitignored — there is no
   other copy. Use `idf.py reconfigure`.
 
+## Never commit
+
+- **Stage explicit paths. Do not use `git add -A`, `git add .` or `commit -a`.**
+  This is not style. Twice now a generated file has been swept into a commit
+  that way, and one of them — `firmware/sdkconfig.bak-<timestamp>`, written by
+  `idf.py` beside the gitignored `sdkconfig` — carried the WiFi SSID and
+  password into a **public** repository. A `.gitignore` rule cannot save you:
+  it does not apply to a file that is already tracked, and it did not exist
+  when that file first landed.
+- **Credentials of any kind.** The WiFi credentials live in `firmware/sdkconfig`
+  and nowhere else. There is no second copy, which is also why regenerating it
+  destroys them (see below).
+- **Generated build configuration.** `sdkconfig`, `sdkconfig.bak-*`, and any
+  ad-hoc `sdkconfig.<profile>` from `idf.py -D SDKCONFIG=…`. Only
+  `sdkconfig.defaults` and its per-profile siblings are tracked.
+
+A pre-commit hook refuses a file carrying a real `CONFIG_RT_WIFI_SSID` or
+`CONFIG_RT_WIFI_PASSWORD`, but it is the last line, not the first. Removing a
+secret from the tip does not unpublish it — it stays in the pushed history, and
+the credential has to be rotated.
+
 ## Conventions
 
 - Conventional Commits for commit subjects and PR titles.

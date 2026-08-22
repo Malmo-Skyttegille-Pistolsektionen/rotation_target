@@ -57,6 +57,12 @@ idf.py build
 > for `idf.py fullclean`. This command appears in every ESP-IDF tutorial, which
 > is exactly why it is worth a warning here.
 
+> ⚠️ **`idf.py` also writes `sdkconfig.bak-<timestamp>` beside `sdkconfig`**,
+> holding the same credentials. `sdkconfig.*` is gitignored now, but a `git
+> add -A` put one of those backups into this public repository before that rule
+> existed — so **stage explicit paths, never `-A`**. See the root
+> [`AGENTS.md`](../AGENTS.md#never-commit).
+
 - **The shipped audio and programs come from the monorepo's `resources/`
   directory**, found via the `RT_RESOURCES_DIR` cache variable (default
   `../resources`); `CMakeLists.txt` fails the build with an explicit message if
