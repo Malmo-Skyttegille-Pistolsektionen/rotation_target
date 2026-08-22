@@ -2,3 +2,6 @@
 # Impeccable: per-developer overrides and the hook's dedup cache
 **/.impeccable/config.local.json
 **/.impeccable/hook.cache.json
+
+# MkDocs build output
+/site/

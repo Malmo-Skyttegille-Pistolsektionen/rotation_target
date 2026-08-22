@@ -1,0 +1,34 @@
+site_name: Rotation Target
+site_description: Documentation for the Rotation Target shooting-range system
+repo_url: https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target
+repo_name: rotation_target
+docs_dir: docs/site
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Connecting: connecting.md
+  - Running a program: running-a-program.md
+  - Status LED: status-led.md
+  - Troubleshooting: troubleshooting.md
+
+markdown_extensions:
+  - tables
+  - admonition
