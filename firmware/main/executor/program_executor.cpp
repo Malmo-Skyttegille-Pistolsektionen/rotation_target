@@ -96,18 +96,21 @@ void run_task(void *) {
 
 }  // namespace
 
-void init() {
+void init(bool targets_shown) {
   // Recursive: set_targets() is reached both directly and from inside the
   // executor's own locked section.
   s_lock = xSemaphoreCreateRecursiveMutex();
   configASSERT(s_lock != nullptr);
 
-  // The pin powers up low, which is the *shown* position. Drive it to match
-  // the hidden state a client is told about on connect - without this the
-  // hardware and the first stateUpdate disagree until something moves.
+  // Adopt the state targets::init() already drove onto the pin, so the run
+  // state and the hardware agree from the first moment a client can ask. This
+  // used to hardcode hidden, from when hidden was the boot state; D-31 changed
+  // that and the correction was bolted on in app_main() instead, which pulsed
+  // the line hidden and back on every boot (#145). Writing the level it is
+  // already at is a register write with no edge.
   {
     Lock lock;
-    s_executor.set_targets(false);
+    s_executor.set_targets(targets_shown);
     s_effects.pending_broadcast = false;
   }
 
