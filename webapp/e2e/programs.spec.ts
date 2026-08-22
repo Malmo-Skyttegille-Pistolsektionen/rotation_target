@@ -61,25 +61,26 @@ test('an upload through the UI lands on the id the device chose', async ({ page,
     buffer: Buffer.from(JSON.stringify({ ...documentWith('E2E Upload'), id: 9999 })),
   });
 
-  // 100 and 101 are shipped, so the first free id from 100 up is 102.
-  await expect(page.getByTestId('programs-notice')).toContainText('as program 102');
-  await expect(page.getByTestId('program-row-102')).toContainText('E2E Upload');
-  await expect(page.getByTestId('program-row-102')).toContainText('Uploaded');
+  // Uploads are numbered from kFirstUploadId (1000); nothing shipped is in
+  // that range, so the first free id is 1000 itself.
+  await expect(page.getByTestId('programs-notice')).toContainText('as program 1000');
+  await expect(page.getByTestId('program-row-1000')).toContainText('E2E Upload');
+  await expect(page.getByTestId('program-row-1000')).toContainText('Uploaded');
   await expect(page.getByTestId('program-row-9999')).toHaveCount(0);
 
-  const stored = (await (await request.get(`${API}/programs/102`)).json()) as { id: number; readonly: boolean };
-  expect(stored).toMatchObject({ id: 102, readonly: false });
+  const stored = (await (await request.get(`${API}/programs/1000`)).json()) as { id: number; readonly: boolean };
+  expect(stored).toMatchObject({ id: 1000, readonly: false });
 });
 
 test('a freed id is handed back out, not stepped past', async ({ request }) => {
-  expect(await upload(request, 'Gap A')).toBe(102);
-  expect(await upload(request, 'Gap B')).toBe(103);
-  expect(await upload(request, 'Gap C')).toBe(104);
+  expect(await upload(request, 'Gap A')).toBe(1000);
+  expect(await upload(request, 'Gap B')).toBe(1001);
+  expect(await upload(request, 'Gap C')).toBe(1002);
 
-  expect((await request.delete(`${API}/programs/103/delete`)).status()).toBe(200);
+  expect((await request.delete(`${API}/programs/1001/delete`)).status()).toBe(200);
 
-  // Highest-in-use + 1 would answer 105 here. The device scans up from 100.
-  expect(await upload(request, 'Gap D')).toBe(103);
+  // Highest-in-use + 1 would answer 1003 here. The device scans up from 1000.
+  expect(await upload(request, 'Gap D')).toBe(1001);
 });
 
 test('a command the firmware does not recognise is refused, on upload and on replace', async ({ request }) => {
@@ -91,7 +92,7 @@ test('a command the firmware does not recognise is refused, on upload and on rep
 
   // Nothing was stored, so the id it would have taken is still free.
   const id = await upload(request, 'Good command', 'show');
-  expect(id).toBe(102);
+  expect(id).toBe(1000);
 
   // And a replace is refused the same way, leaving the stored program alone.
   const put = await request.put(`${API}/programs/${id}`, { data: documentWith('Odd command', 'diagonally') });
@@ -130,18 +131,18 @@ test('an upload by another client reaches an open page over SSE (D-24)', async (
   await openApp(page);
   await page.getByRole('link', { name: 'Programs' }).click();
   await expect(page.getByTestId('programs-table')).toBeVisible();
-  await expect(page.getByTestId('program-row-102')).toHaveCount(0);
+  await expect(page.getByTestId('program-row-1000')).toHaveCount(0);
 
   const id = await upload(request, 'From the other client');
-  expect(id).toBe(102);
+  expect(id).toBe(1000);
 
   // No reload, no navigation, no polling: the device said the library changed
   // and this page re-read the list.
-  await expect(page.getByTestId('program-row-102')).toContainText('From the other client');
+  await expect(page.getByTestId('program-row-1000')).toContainText('From the other client');
 
   // ...and the same in reverse when it goes away.
   expect((await request.delete(`${API}/programs/${id}/delete`)).status()).toBe(200);
-  await expect(page.getByTestId('program-row-102')).toHaveCount(0);
+  await expect(page.getByTestId('program-row-1000')).toHaveCount(0);
 });
 
 /**
@@ -170,12 +171,13 @@ test('a program authored in the editor is stored and loaded by the device', asyn
 
   await page.getByTestId('editor-save').click();
 
-  // 100 and 101 are shipped, so the first free id from 100 up is 102.
-  await expect(page.getByTestId('programs-notice')).toContainText('as program 102');
+  // Uploads are numbered from kFirstUploadId (1000); nothing shipped is in
+  // that range, so the first free id is 1000 itself.
+  await expect(page.getByTestId('programs-notice')).toContainText('as program 1000');
 
-  const stored = (await (await request.get(`${API}/programs/102`)).json()) as Record<string, unknown>;
+  const stored = (await (await request.get(`${API}/programs/1000`)).json()) as Record<string, unknown>;
   expect(stored).toMatchObject({
-    id: 102,
+    id: 1000,
     title: 'E2E Editor',
     description: 'authored in the browser',
     readonly: false,
@@ -193,6 +195,6 @@ test('a program authored in the editor is stored and loaded by the device', asyn
 
   // Loadable, which is the part a stored-but-unparseable document would fail:
   // the badge is driven by `loadedProgramId` arriving over SSE from the device.
-  await page.getByTestId('program-load-102').click();
-  await expect(page.getByTestId('program-row-102')).toContainText('Loaded');
+  await page.getByTestId('program-load-1000').click();
+  await expect(page.getByTestId('program-row-1000')).toContainText('Loaded');
 });
