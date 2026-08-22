@@ -61,13 +61,10 @@ extern "C" void app_main() {
 
   if (!audio::init()) ESP_LOGE(TAG, "Audio unavailable - programs will run silently");
 
-  // Starts the run loop and drives the targets to the hidden position, which
-  // is what the first stateUpdate a client receives will say.
-  executor::init();
-  // The pin was already driven in targets::init(); this is what makes the
-  // reported state agree with it, so a client connecting before the first
-  // program is not told the opposite of what it can see downrange.
-  executor::set_targets(kTargetsShownAtBoot);
+  // Starts the run loop, adopting the target state targets::init() already
+  // drove onto the pin - so the first stateUpdate a client receives says what
+  // it can see downrange, and nothing moves in between.
+  executor::init(kTargetsShownAtBoot);
 
   if (net_mgr::connect() == net_mgr::Result::kSetupPortal) {
     // No usable network. Serving the setup AP is the useful thing to do -
