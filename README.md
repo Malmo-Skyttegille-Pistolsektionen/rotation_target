@@ -33,10 +33,25 @@ supplies only tens of milliamps and should not meet the target system's voltage
 directly. A BC547B transistor does the switching, driven through a 1 kΩ resistor
 from GPIO5, and the TP2 is reached over a DB9 connector:
 
-```
-ESP32 GPIO5 ----[1kΩ]----|B  BC547B  C|---- DB9 pin 2 (target control)
-                              E
-ESP32 GND --------------------+--------- DB9 pin 5 (ground)
+```mermaid
+flowchart LR
+    subgraph ESP["ESP32-S3"]
+        GPIO["GPIO5"]
+        GND["GND"]
+    end
+
+    R["1 kΩ"]
+    Q["BC547B<br/>NPN · 45 V · 100 mA"]
+
+    subgraph TS["Target system (DB9)"]
+        P2["pin 2 — target control"]
+        P5["pin 5 — ground"]
+    end
+
+    GPIO --> R --> Q
+    Q -- collector --> P2
+    Q -- emitter --> GND
+    GND --- P5
 ```
 
 That transistor is rated 45 V and 100 mA and offers no galvanic isolation, so

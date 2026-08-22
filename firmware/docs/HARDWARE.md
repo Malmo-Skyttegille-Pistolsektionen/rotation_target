@@ -60,10 +60,25 @@ clips, they simply do not play.
 | GPIO10 / GPIO12 / GPIO11 | PCM5102A BCK / LRCK / DIN | I2S audio |
 | GPIO48 | onboard WS2812 (devkit only) | Status LED |
 
-```
-ESP32 GPIO5 ----[1kΩ]----|B  BC547B  C|---- DB9 pin 2 (target control)
-                              E
-ESP32 GND --------------------+--------- DB9 pin 5 (ground)
+```mermaid
+flowchart LR
+    subgraph ESP["ESP32-S3"]
+        GPIO["GPIO5"]
+        GND["GND"]
+    end
+
+    R["1 kΩ"]
+    Q["BC547B<br/>NPN · 45 V · 100 mA"]
+
+    subgraph TS["Target system (DB9)"]
+        P2["pin 2 — target control"]
+        P5["pin 5 — ground"]
+    end
+
+    GPIO --> R --> Q
+    Q -- collector --> P2
+    Q -- emitter --> GND
+    GND --- P5
 ```
 
 The status LED, where fitted: **blinking red** while joining a network, **solid
