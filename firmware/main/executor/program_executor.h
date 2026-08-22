@@ -14,7 +14,10 @@
 namespace executor {
 
 // Starts the run-loop task and drives the targets to the hidden position.
-void init();
+// `targets_shown` is the state the pin was already driven to by targets::init().
+// The executor adopts it rather than picking its own, so no boot drives an edge
+// onto the target line that is immediately corrected (#145).
+void init(bool targets_shown);
 
 // `program_id` is looked up in the program repository; false means no such
 // program, which the caller turns into a 404.
