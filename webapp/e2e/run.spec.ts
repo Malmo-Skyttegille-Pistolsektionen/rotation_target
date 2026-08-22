@@ -40,7 +40,10 @@ test('load, start, watch the timeline advance off real SSE, stop', async ({ page
   // payload, so this asserting means the POST reached the device and the
   // device pushed its new state back down the stream.
   await expect(page.getByTestId('run-program-id')).toHaveText(String(TEST_PROGRAM.id));
-  await expect(page.getByTestId('run-target-status')).toHaveText('hidden');
+  // Shown, not hidden: the device rests face-on and loading a program does not
+  // move the targets. Turning them is the exception on this range, not the
+  // resting state - see RT_TARGETS_HIDE_AT_BOOT.
+  await expect(page.getByTestId('run-target-status')).toHaveText('shown');
   // The timeline renders once the loaded program has been fetched back: four
   // series for program 40, the first of them named by the shipped JSON.
   await expect(page.getByTestId('timeline-series')).toHaveCount(4);

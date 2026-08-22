@@ -9,6 +9,17 @@ const char *TAG = "targets";
 }
 
 void init() {
+  // The latch first, while the output driver is still off. gpio_config() turns
+  // the driver on with the latch at its reset value of 0, which on an active-low
+  // board is kTargetLevelShown - so configuring first drives "shown" for the gap
+  // before set() lands. Harmless when that is the boot state anyway, wrong when
+  // it is not.
+  //
+  // gpio_set_level() writes the output register whether or not the pad is an
+  // output yet, so the value is already correct the moment the driver is
+  // enabled and the pin never drives shown at all.
+  gpio_set_level(kTargetPin, kTargetsShownAtBoot ? kTargetLevelShown : kTargetLevelHidden);
+
   gpio_config_t cfg = {};
   cfg.pin_bit_mask = 1ULL << kTargetPin;
   // INPUT_OUTPUT, not OUTPUT: with the input buffer left on, gpio_get_level()
@@ -21,12 +32,9 @@ void init() {
   cfg.intr_type = GPIO_INTR_DISABLE;
   ESP_ERROR_CHECK(gpio_config(&cfg));
 
-  // Immediately, not once the executor starts. gpio_config() enables the driver
-  // with the output latch at its reset value of 0 - which is kTargetLevelShown.
-  // Between here and executor::init() the firmware mounts LittleFS, scans both
-  // repositories and brings up I2S; the targets faced the shooters for that
-  // whole window on every boot and every watchdog reboot.
-  set(false);
+  // Redundant against the pre-config write above, and kept: it is the call that
+  // logs, so the boot record still says what the pin was told to do.
+  set(kTargetsShownAtBoot);
 }
 
 int level() {

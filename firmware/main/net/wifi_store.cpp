@@ -48,7 +48,9 @@ Credentials load() {
 namespace {
 
 // "changeme" is the Kconfig default and means "nothing configured here".
-bool is_set(const std::string &ssid) { return !ssid.empty() && ssid != "changeme"; }
+bool is_set(const std::string &ssid) {
+  return !ssid.empty() && ssid != "changeme";
+}
 
 void append_unique(std::vector<Credentials> &out, const Credentials &candidate) {
   if (!is_set(candidate.ssid)) return;
