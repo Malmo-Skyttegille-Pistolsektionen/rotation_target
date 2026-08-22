@@ -29,6 +29,14 @@ constexpr gpio_num_t kTargetPin = static_cast<gpio_num_t>(CONFIG_RT_TARGET_GPIO)
 // whose low state opens the connection; a board that inverts or buffers the
 // signal sets CONFIG_RT_TARGET_ACTIVE_LOW=n instead of patching this.
 #if CONFIG_RT_TARGET_ACTIVE_LOW
+// The state the firmware puts the targets in at boot. Reported to clients as
+// well as driven onto the pin, so the two cannot disagree.
+#ifdef CONFIG_RT_TARGETS_HIDE_AT_BOOT
+constexpr bool kTargetsShownAtBoot = false;
+#else
+constexpr bool kTargetsShownAtBoot = true;
+#endif
+
 constexpr int kTargetLevelShown = 0;
 constexpr int kTargetLevelHidden = 1;
 #else

@@ -12,6 +12,30 @@ config RT_TARGET_GPIO
         Drives the transistor on DB9 pin 2 that turns the targets. On the
         prototype this is GPIO5 via a 1k resistor into a BC547B.
 
+config RT_TARGETS_HIDE_AT_BOOT
+    bool "Hide the targets at boot"
+    default n
+    help
+        Whether the firmware turns the targets edge-on as soon as it starts.
+
+        Off (the default) leaves them face-on, which is where an unpowered
+        board already leaves them, so the targets do not move at all on
+        power-up. Two reasons, both from the club:
+
+        - Face-on is the resting position. The other disciplines shoot these
+          targets static, so showing is the normal state and turning is the
+          exception.
+        - A target that turns can injure somebody standing at it. Power-up and
+          watchdog reboots happen while people are downrange changing faces,
+          and the firmware has no way to know whether anyone is there.
+
+        On turns them edge-on about a second into boot. Do not enable it
+        without deciding that an unattended reboot moving the targets is
+        acceptable on this range.
+
+        Either way the boot state is reported to clients, so the web app never
+        disagrees with the hardware.
+
 config RT_TARGET_ACTIVE_LOW
     bool "Target GPIO is active low (low = targets shown)"
     default y

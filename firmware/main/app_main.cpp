@@ -3,6 +3,7 @@
 //  Boot order: hardware, storage, repositories, network, server.
 // ============================================================================
 #include "audio.h"
+#include "config.h"
 #include "audios.h"
 #include "esp_app_desc.h"
 #include "esp_log.h"
@@ -63,6 +64,10 @@ extern "C" void app_main() {
   // Starts the run loop and drives the targets to the hidden position, which
   // is what the first stateUpdate a client receives will say.
   executor::init();
+  // The pin was already driven in targets::init(); this is what makes the
+  // reported state agree with it, so a client connecting before the first
+  // program is not told the opposite of what it can see downrange.
+  executor::set_targets(kTargetsShownAtBoot);
 
   if (net_mgr::connect() == net_mgr::Result::kSetupPortal) {
     // No usable network. Serving the setup AP is the useful thing to do -
