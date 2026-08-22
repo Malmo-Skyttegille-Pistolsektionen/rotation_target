@@ -290,3 +290,101 @@ describe('event detail (#125)', () => {
     expect(detailRow('Ends at')).toMatch(/^[\d.]+ s$/);
   });
 });
+
+describe('centring the running series (#131)', () => {
+  /** happy-dom has no layout, so scrollIntoView is a stub worth recording. */
+  function recordScrolls(): Array<{ index: number; behavior?: ScrollBehavior }> {
+    const calls: Array<{ index: number; behavior?: ScrollBehavior }> = [];
+    Element.prototype.scrollIntoView = function (this: Element, options?: boolean | ScrollIntoViewOptions) {
+      const all = Array.from(document.querySelectorAll('.series'));
+      calls.push({
+        index: all.indexOf(this),
+        behavior: typeof options === 'object' ? options.behavior : undefined,
+      });
+    };
+    return calls;
+  }
+
+  it('does not move the page when a program is first loaded', () => {
+    // The operator is at the top working the controls at that moment; yanking
+    // the page out from under them is not help.
+    const calls = recordScrolls();
+    renderTimeline(PROGRAM_MILITARY_SNABBMATCH, { mode: 'default', currentSeriesIndex: 0 });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('centres the new series when the run moves on', () => {
+    const calls = recordScrolls();
+    const { rerender } = renderTimeline(PROGRAM_MILITARY_SNABBMATCH, {
+      mode: 'default',
+      currentSeriesIndex: 0,
+    });
+
+    rerender(
+      <Timeline
+        program={PROGRAM_MILITARY_SNABBMATCH}
+        currentSeriesIndex={1}
+        currentEventIndex={null}
+        tickerMs={null}
+        mode='default'
+      />,
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].index).toBe(1);
+  });
+
+  it('does not scroll again while the run stays in one series', () => {
+    // Continuous scrolling would drag back an operator who deliberately
+    // scrolled away to look at something else.
+    const calls = recordScrolls();
+    const { rerender } = renderTimeline(PROGRAM_MILITARY_SNABBMATCH, {
+      mode: 'default',
+      currentSeriesIndex: 0,
+    });
+
+    const at = (seriesIndex: number, eventIndex: number) =>
+      rerender(
+        <Timeline
+          program={PROGRAM_MILITARY_SNABBMATCH}
+          currentSeriesIndex={seriesIndex}
+          currentEventIndex={eventIndex}
+          tickerMs={eventIndex * 1000}
+          mode='default'
+        />,
+      );
+
+    at(1, 0);
+    expect(calls).toHaveLength(1);
+
+    at(1, 1);
+    at(1, 2);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('jumps rather than glides when motion is not wanted', () => {
+    const calls = recordScrolls();
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) =>
+      ({ matches: query.includes('prefers-reduced-motion'), media: query }) as MediaQueryList) as typeof window.matchMedia;
+
+    try {
+      const { rerender } = renderTimeline(PROGRAM_MILITARY_SNABBMATCH, {
+        mode: 'default',
+        currentSeriesIndex: 0,
+      });
+      rerender(
+        <Timeline
+          program={PROGRAM_MILITARY_SNABBMATCH}
+          currentSeriesIndex={1}
+          currentEventIndex={null}
+          tickerMs={null}
+          mode='default'
+        />,
+      );
+      expect(calls[0].behavior).toBe('auto');
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+});
