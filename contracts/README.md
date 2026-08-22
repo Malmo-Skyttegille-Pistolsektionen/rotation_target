@@ -32,9 +32,18 @@ about which one was true.
 ## Versioning
 
 The contract is versioned by its **path prefix** — `/api/v2`, `/sse/v2` — and
-that is the only version clients need to look at. `info.version` in each
-document tracks the contract itself, not the firmware: it moves when the shapes
-move, and it is unrelated to the product's release tags.
+that is the only version clients need to look at.
+
+`info.version` in each document is **pinned at `1.0.0` and does not move.** It
+had been tracking the shape history of the documents themselves, which produced
+two numbers nobody consumes and one of them — AsyncAPI's `3.1.1` — a digit away
+from the AsyncAPI spec version on the line above it. Nothing reads either field:
+clients branch on the path prefix, and the product ships under one bare-semver
+tag covering firmware, webapp and resources (D-29). A number that no consumer
+reads and no rule governs is a number that goes stale.
+
+So: do not bump `info.version` when the contract changes. If a change is
+breaking, it moves the path prefix, which is the version that means something.
 
 Within a major version, changes must be **additive**: a new endpoint, a new
 optional field, a new enum member a client can ignore. Anything a deployed
@@ -48,7 +57,7 @@ replaced by `tickerMs` in the `stateUpdate` payload without moving to
 `POST /programs/start` grew a **required** body; and every error body changed
 from `{"error": "prose"}` to an RFC 9457 problem detail served as
 `application/problem+json` — the last three without moving to `/api/v3`
-(`openapi.yaml` `info.version` → `5.0.0`). The webapp ships inside the firmware
+The webapp ships inside the firmware
 image, so client and server are deployed atomically and there is no deployed
 client to break; no release has ever been cut. See
 `docs/DECISIONS.md`. The rule stands for everything after this — the exceptions
