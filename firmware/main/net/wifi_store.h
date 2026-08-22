@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 // WiFi credentials in NVS.
 //
@@ -18,6 +19,16 @@ struct Credentials {
 
 // NVS if a network has been provisioned, otherwise the Kconfig defaults.
 Credentials load();
+
+// Every network worth trying, in the order to try them: the provisioned one
+// first, then the Kconfig seeds. Duplicates and unset entries are dropped, so
+// the result may be empty.
+//
+// The order is what makes a second site work. Provisioning at the range writes
+// the range network to NVS, and the home network stays behind it as a seed, so
+// the device joins whichever of the two it can currently see instead of
+// forgetting one every time it moves.
+std::vector<Credentials> load_all();
 
 bool save(const std::string &ssid, const std::string &password);
 
