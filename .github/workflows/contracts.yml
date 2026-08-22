@@ -1,0 +1,69 @@
+---
+name: contracts
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - contracts/**
+      - resources/**
+      - .github/workflows/contracts.yml
+  pull_request:
+    paths:
+      - contracts/**
+      - resources/**
+      - .github/workflows/contracts.yml
+
+  # Called by release.yml so the release is gated on the same checks that guard
+  # main, run at the exact commit that gets tagged.
+  workflow_call:
+
+permissions:
+  contents: read
+
+# A superseded run should not keep this going. The group carries a literal
+# prefix as well as `github.workflow`, because `github.workflow` is the *caller*
+# name when release.yml calls this workflow - without the prefix, two workflows
+# called from the same release run would land in one group and cancel each
+# other.
+concurrency:
+  group: contracts-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: contract and program validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: false
+
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.13'
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24.19.0
+
+      # Pinned like every other tool here: an unpinned CLI can turn main red
+      # from an upstream rule change with no commit of ours behind it.
+      - name: Install check-jsonschema
+        run: pip install check-jsonschema==0.38.0
+
+      # Lints openapi.yaml and asyncapi.yaml, checks program.schema.json is a
+      # valid schema, and validates every shipped program against it.
+      - name: Validate the contracts
+        run: ./contracts/validate.sh
+
+      # The program-side rules the contracts do not cover: shipped ids stay out
+      # of the upload range, and every audio_ids entry resolves to a clip that
+      # exists.
+      - name: Validate the shipped programs
+        run: ./resources/programs/validate_programs.sh
+
+      # The same boundary on the audio side, plus every entry naming a file that
+      # is actually there.
+      - name: Validate the shipped audio
+        run: ./resources/audios/validate_audios.sh
