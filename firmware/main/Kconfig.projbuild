@@ -119,12 +119,34 @@ config RT_WIFI_PASSWORD
     default ""
     depends on !RT_NET_OPENETH
 
+config RT_WIFI_SSID_2
+    string "Second WiFi SSID (first-boot seed only, optional)"
+    default "changeme"
+    depends on !RT_NET_OPENETH
+    help
+        A second network to fall back to, tried after the provisioned network
+        and RT_WIFI_SSID. Leave at the default to configure only one.
+
+        This exists so a device can move between two sites - the range and a
+        workshop - without being reprovisioned every time it moves. It is tried
+        in order, so put the site the device usually lives at first.
+
+        Credentials belong in sdkconfig, which is gitignored. Never put a real
+        SSID or password in sdkconfig.defaults, which is committed.
+
+config RT_WIFI_PASSWORD_2
+    string "Second WiFi password (first-boot seed only, optional)"
+    default ""
+    depends on !RT_NET_OPENETH
+
 config RT_WIFI_MAX_RETRIES
     int "Initial WiFi association attempts before falling back to the setup portal"
     default 10
     depends on !RT_NET_OPENETH
     help
-        Bounds the *initial* join only. Once associated, reconnection is
+        Bounds the *initial* join, per configured network: with two networks
+        configured the device makes up to this many attempts at each before
+        falling back to the setup portal. Once associated, reconnection is
         unbounded - a device that gave up mid-session would sit powered on and
         unreachable.
 

@@ -214,6 +214,30 @@ describe('unloading (D-22)', () => {
     expect(screen.queryByTestId(`program-unload-${SHIPPED.id}`)).toBeNull();
   });
 
+  it('replaces Load rather than joining it, so the row keeps one control', async () => {
+    renderPrograms();
+    await ready();
+
+    const before = screen.getByTestId(`program-load-${UPLOADED.id}`);
+    expect(before.textContent).toBe('Load');
+
+    await loadedOnDevice(UPLOADED.id);
+
+    // The same control, relabelled - not a disabled Load with an Unload added
+    // beside it, which both moved every later button along the row and said the
+    // action was unavailable when the opposite action was the available one.
+    expect(screen.queryByTestId(`program-load-${UPLOADED.id}`)).toBeNull();
+    const after = screen.getByTestId(`program-unload-${UPLOADED.id}`);
+    expect(after.textContent).toBe('Unload');
+    expect((after as HTMLButtonElement).disabled).toBe(false);
+
+    // The row's action count is what keeps the columns aligned down the table.
+    const row = screen.getByTestId(`program-row-${UPLOADED.id}`);
+    expect(within(row).getAllByRole('button').length).toBe(
+      within(screen.getByTestId(`program-row-${SHIPPED.id}`)).getAllByRole('button').length + 2,
+    );
+  });
+
   it('clears the selection, which is what unblocks the replace this page refuses', async () => {
     renderPrograms();
     await ready();

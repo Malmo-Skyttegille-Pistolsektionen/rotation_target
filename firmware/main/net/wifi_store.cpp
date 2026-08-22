@@ -45,6 +45,44 @@ Credentials load() {
   return out;
 }
 
+namespace {
+
+// "changeme" is the Kconfig default and means "nothing configured here".
+bool is_set(const std::string &ssid) { return !ssid.empty() && ssid != "changeme"; }
+
+void append_unique(std::vector<Credentials> &out, const Credentials &candidate) {
+  if (!is_set(candidate.ssid)) return;
+  for (const auto &existing : out) {
+    if (existing.ssid == candidate.ssid) return;
+  }
+  out.push_back(candidate);
+}
+
+}  // namespace
+
+std::vector<Credentials> load_all() {
+  std::vector<Credentials> out;
+
+  // The provisioned network first: it is the most recent human decision about
+  // where this device lives, and at a new site it is the only one that can be
+  // right.
+  nvs_handle_t handle;
+  if (nvs_open(kNamespace, NVS_READONLY, &handle) == ESP_OK) {
+    std::string ssid;
+    if (read_key(handle, kSsidKey, ssid) && !ssid.empty()) {
+      std::string password;
+      append_unique(out, {ssid, read_key(handle, kPassKey, password) ? password : ""});
+    }
+    nvs_close(handle);
+  }
+
+  append_unique(out, {CONFIG_RT_WIFI_SSID, CONFIG_RT_WIFI_PASSWORD});
+  append_unique(out, {CONFIG_RT_WIFI_SSID_2, CONFIG_RT_WIFI_PASSWORD_2});
+
+  ESP_LOGI(TAG, "%d network(s) to try", static_cast<int>(out.size()));
+  return out;
+}
+
 bool save(const std::string &ssid, const std::string &password) {
   if (ssid.empty()) return false;
 

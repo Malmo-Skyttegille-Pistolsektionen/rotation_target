@@ -1,6 +1,7 @@
 #include "net_mgr.h"
 
 #include <cstring>
+#include <vector>
 
 #include "config.h"
 #include "esp_event.h"
@@ -93,11 +94,11 @@ std::string ip_address() {
 }
 
 Result connect() {
-  const wifi_store::Credentials creds = wifi_store::load();
+  const std::vector<wifi_store::Credentials> networks = wifi_store::load_all();
 
-  // Nothing provisioned and no compiled-in default worth trying: go straight
-  // to the portal rather than burning the retry budget on a placeholder.
-  if (creds.ssid.empty() || creds.ssid == "changeme") {
+  // Nothing configured anywhere: go straight to the portal rather than burning
+  // the retry budget on a placeholder.
+  if (networks.empty()) {
     ESP_LOGW(TAG, "No network configured - starting the setup portal");
     return Result::kSetupPortal;
   }
@@ -118,42 +119,66 @@ Result connect() {
   ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &on_event,
                                                       nullptr, nullptr));
 
-  wifi_config_t wifi_cfg = {};
-  // sizeof, not sizeof-1: the struct is zero-initialised and the field is not
-  // required to be NUL-terminated, so an SSID of exactly 32 bytes is legal.
-  strncpy(reinterpret_cast<char *>(wifi_cfg.sta.ssid), creds.ssid.c_str(),
-          sizeof(wifi_cfg.sta.ssid));
-  strncpy(reinterpret_cast<char *>(wifi_cfg.sta.password), creds.password.c_str(),
-          sizeof(wifi_cfg.sta.password));
-
-  // The club's network is hidden, which means it never answers a passive scan.
-  // An all-channel active scan puts the SSID in the probe request, which is
-  // what makes a hidden AP respond at all. WIFI_FAST_SCAN (the default) stops
-  // at the first matching AP found passively and would never find it.
-  wifi_cfg.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
-  wifi_cfg.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
-
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
   // Maximum performance rather than the default modem sleep: the SSE stream is
   // long-lived and power saving adds latency to every state update.
   ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
-  ESP_ERROR_CHECK(esp_wifi_start());
 
-  ESP_LOGI(TAG, "Joining '%s'", creds.ssid.c_str());
-  const EventBits_t bits =
-      xEventGroupWaitBits(s_events, kConnectedBit | kFailedBit, pdFALSE, pdFALSE, portMAX_DELAY);
+  // Each configured network gets the full retry budget in turn. The radio is
+  // started once and reconfigured between attempts - stopping and restarting it
+  // per network would tear down the netif the DHCP client is bound to.
+  bool radio_started = false;
 
-  if ((bits & kConnectedBit) == 0) {
-    ESP_LOGE(TAG, "Could not join '%s' - starting the setup portal", creds.ssid.c_str());
-    // Torn down so the portal can bring the radio up as an AP cleanly.
-    esp_wifi_stop();
-    esp_wifi_deinit();
-    return Result::kSetupPortal;
+  for (size_t i = 0; i < networks.size(); i++) {
+    const wifi_store::Credentials &creds = networks[i];
+
+    wifi_config_t wifi_cfg = {};
+    // sizeof, not sizeof-1: the struct is zero-initialised and the field is not
+    // required to be NUL-terminated, so an SSID of exactly 32 bytes is legal.
+    strncpy(reinterpret_cast<char *>(wifi_cfg.sta.ssid), creds.ssid.c_str(),
+            sizeof(wifi_cfg.sta.ssid));
+    strncpy(reinterpret_cast<char *>(wifi_cfg.sta.password), creds.password.c_str(),
+            sizeof(wifi_cfg.sta.password));
+
+    // The club's network is hidden, which means it never answers a passive scan.
+    // An all-channel active scan puts the SSID in the probe request, which is
+    // what makes a hidden AP respond at all. WIFI_FAST_SCAN (the default) stops
+    // at the first matching AP found passively and would never find it.
+    wifi_cfg.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+    wifi_cfg.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
+
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
+
+    s_retries = 0;
+    xEventGroupClearBits(s_events, kConnectedBit | kFailedBit);
+
+    ESP_LOGI(TAG, "Joining '%s' (%d of %d)", creds.ssid.c_str(), static_cast<int>(i + 1),
+             static_cast<int>(networks.size()));
+
+    if (!radio_started) {
+      // STA_START triggers the first esp_wifi_connect() from the event handler.
+      ESP_ERROR_CHECK(esp_wifi_start());
+      radio_started = true;
+    } else {
+      ESP_ERROR_CHECK(esp_wifi_connect());
+    }
+
+    const EventBits_t bits =
+        xEventGroupWaitBits(s_events, kConnectedBit | kFailedBit, pdFALSE, pdFALSE, portMAX_DELAY);
+
+    if ((bits & kConnectedBit) != 0) {
+      start_mdns();
+      return Result::kConnected;
+    }
+
+    ESP_LOGW(TAG, "Could not join '%s'", creds.ssid.c_str());
   }
 
-  start_mdns();
-  return Result::kConnected;
+  ESP_LOGE(TAG, "No configured network could be joined - starting the setup portal");
+  // Torn down so the portal can bring the radio up as an AP cleanly.
+  esp_wifi_stop();
+  esp_wifi_deinit();
+  return Result::kSetupPortal;
 }
 
 void run_setup_portal() {
