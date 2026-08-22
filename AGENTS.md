@@ -48,9 +48,32 @@ path prefix, not a version bump. `docs/DECISIONS.md` records four exceptions
 (D-16, D-19, D-23, D-27) taken while no release had been cut; **they stop being
 available once 1.0.0 ships**, because from then on there is a deployed client.
 
+**An API change reaches the release version only through the commit type.**
+The product tag is semver, and git-cliff derives it from the Conventional
+Commits since the last tag: `feat:` bumps the minor, `fix:` the patch,
+`!`/`BREAKING CHANGE:` the major (see `docs/RELEASING.md`). So a contract
+change has to be carried upstream twice, by hand:
+
+1. **In the contract** — a breaking change moves the path prefix (`/api/v3`),
+   because that is what a deployed client branches on.
+2. **In the commit** — that same change is committed with `!` or
+   `BREAKING CHANGE:`, because that is the only thing the release version is
+   computed from.
+
+Miss the second and a breaking API change ships under a minor bump. Nothing
+checks that the commit type matches the change the spec actually describes.
+
+> Below 1.0 git-cliff bumps the **minor** for a breaking change, not the major.
+> The repository has no tag yet, so that is today's behaviour — it stops
+> applying the moment 1.0.0 is cut, which is also when the additive rule starts
+> having a deployed client to protect.
+
 Nothing enforces the additive rule today — it is prose. `contracts/validate.sh`
 lints both documents (Redocly and the AsyncAPI CLI) but is not wired into CI,
-and lint is not breaking-change detection.
+and lint is not breaking-change detection. Tools that would close this exist
+(`oasdiff` for OpenAPI, the AsyncAPI CLI's `diff --type=breaking`); both can
+fail a PR on a breaking change, which is the check that would tie the two steps
+above together.
 
 `contracts/history/` holds the v1 documents as an archaeological record. They
 are unmaintained and nothing implements them.
