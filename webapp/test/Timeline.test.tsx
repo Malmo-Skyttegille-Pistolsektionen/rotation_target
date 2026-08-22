@@ -83,36 +83,43 @@ describe('audio_ids badges', () => {
   // fixtures, and the firmware) say `audio_ids`, so the badge and the tooltip
   // were empty for every program that has audio - silently, because an event
   // with no audio renders perfectly well.
-  it('marks an event that carries audio with an A, on the event-based timeline', () => {
+  it('marks an event that carries audio, on the event-based timeline', () => {
     renderTimeline(PROGRAM_MILITARY_SNABBMATCH, { mode: 'default' });
 
     // Provserie 10s: event 0 has audio_ids [50, 1, 28], event 3 has none.
     const events = eventsOfSeries(0);
-    expect(within(events[0]).getByText('A')).toBeTruthy();
+    expect(within(events[0]).getByLabelText('Plays audio')).toBeTruthy();
     expect(events[0].getAttribute('title')).toContain('Audios: 50, 1, 28');
 
-    expect(within(events[3]).queryByText('A')).toBeNull();
+    expect(within(events[3]).queryByLabelText('Plays audio')).toBeNull();
     expect(events[3].getAttribute('title')).not.toContain('Audios');
   });
 
-  it('marks an event that carries audio with an A, on the time-scaled timeline', () => {
+  it('marks an event that carries audio, on the time-scaled timeline', () => {
     renderTimeline(PROGRAM_MILITARY_SNABBMATCH, { mode: 'field' });
 
+    // A word rather than the icon here: the scaled label ellipsises, and event 0
+    // is a `show` that also carries audio, so the command is what it leads with.
     const events = eventsOfSeries(0);
-    expect(events[0].textContent).toContain('A');
+    expect(events[0].textContent).toContain('Show');
     expect(events[0].getAttribute('title')).toContain('Audios: 50, 1, 28');
   });
 
-  it('shows the audio badge in preference to the show/hide label', () => {
+  it('shows the command and the audio together, not one instead of the other', () => {
     renderTimeline(PROGRAM_MILITARY_SNABBMATCH, { mode: 'default' });
 
     const events = eventsOfSeries(0);
-    // Event 0 is `command: show` AND carries audio: the A wins.
-    expect(within(events[0]).queryByText('Show')).toBeNull();
-    // Event 3 is a plain show.
-    expect(within(events[3]).getByText('Show')).toBeTruthy();
-    // Event 4 is a plain hide.
-    expect(within(events[4]).getByText('Hide')).toBeTruthy();
+    // Event 0 is `command: show` AND carries audio. The audio badge used to win
+    // and hide the command, which mattered most on the events that have both -
+    // Militär Snabbmatch's "Load!" carries audio and presents the targets, and
+    // read on the card as audio only.
+    expect(within(events[0]).getByLabelText('Targets shown')).toBeTruthy();
+    expect(within(events[0]).getByLabelText('Plays audio')).toBeTruthy();
+    // Event 3 is a plain show, event 4 a plain hide. The words live in the
+    // aria-labels now: the card shows what the target does, a disc face-on and
+    // the same disc turned edge-on.
+    expect(within(events[3]).getByLabelText('Targets shown')).toBeTruthy();
+    expect(within(events[4]).getByLabelText('Targets hidden')).toBeTruthy();
   });
 
   it('does not print "undefined" for an event with no command', () => {

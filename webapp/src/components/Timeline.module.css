@@ -38,10 +38,16 @@
 }
 
 /* --- Default Timeline (Box based) --- */
+/* A grid at every width, not wrapping flex. Flex sizes each item to its own
+   content and packs them left, so a 7-event series on an 820px tablet fitted
+   six and orphaned the seventh onto a row of its own with the rest of the width
+   empty. auto-fit spreads the columns across the row instead, so a series is
+   one row wherever it fits, and the columns line up down the page. */
 .defaultSeries {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
   gap: 6px;
-  flex-wrap: wrap;
+  justify-content: start;
 }
 
 .eventBox {
@@ -55,14 +61,23 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  flex: 1;
   max-width: 120px;
 }
 
+/* The running event has to be findable at a glance from behind the line. The
+   old 1px #646cff border with a 15%-alpha ring read as "slightly different
+   red" next to a hide event, which is the one thing it must not look like.
+   Indigo is the app's "this is the one running" colour and is not spoken for
+   by show or hide. */
 .eventBox.active {
-  border-color: #646cff;
-  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.15);
-  background-color: #fff;
+  border: 2px solid #4338ca;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.28);
+  position: relative;
+  z-index: 1;
+}
+
+.eventBox.active .duration {
+  color: #312e81;
 }
 
 .eventBox.show {
@@ -75,14 +90,10 @@
   border-color: #ef9a9a;
 }
 
-.eventBox.active.show {
-  border-color: #4caf50;
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
-}
-
+.eventBox.active.show,
 .eventBox.active.hide {
-  border-color: #f44336;
-  box-shadow: 0 0 0 3px rgba(244, 67, 54, 0.2);
+  border-color: #4338ca;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.28);
 }
 
 .duration {
@@ -92,6 +103,10 @@
 }
 
 .symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
   font-size: 0.85rem;
   color: #666;
   text-transform: uppercase;
@@ -261,20 +276,25 @@
     margin-bottom: 0.5rem;
   }
 
+  /* A real grid, not wrapping flex: every cell is the same width, so the
+     events line up in columns and rows. */
   .defaultSeries {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
     gap: 4px;
   }
 
   .eventBox {
-    flex: 0 1 auto;
-    flex-direction: row;
-    align-items: baseline;
-    gap: 0.35rem;
+    flex: initial;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
     min-width: 0;
     max-width: none;
-    min-height: 34px;
-    padding: 0.3rem 0.5rem;
-    text-align: left;
+    min-height: 60px;
+    padding: 0.3rem 0.15rem;
+    text-align: center;
   }
 
   .duration {
@@ -292,11 +312,12 @@
      what stopped "10 SHOW 30" reading as three unrelated numbers once the
      card's horizontal rule went. */
   .accumulated {
-    margin-top: 0;
-    padding: 0 0 0 0.35rem;
-    border-top: none;
-    border-left: 1px solid #e0e0e0;
+    margin-top: 1px;
+    padding: 1px 0 0;
+    border-top: 1px solid #eee;
+    border-left: none;
     font-size: 0.875rem;
+    width: 100%;
   }
 
   .fieldContainer {
@@ -313,4 +334,17 @@
   .axis .tick:last-child .tickLabel {
     display: inline;
   }
+}
+
+/* Muted against the word beside it: the icon says "there is audio here", it is
+   not the point of the card. */
+.audioIcon {
+  flex: none;
+  opacity: 0.75;
+}
+
+/* Sized with the label it replaces, so a card with an icon and a card with a
+   dash are the same height. */
+.commandIcon {
+  flex: none;
 }
