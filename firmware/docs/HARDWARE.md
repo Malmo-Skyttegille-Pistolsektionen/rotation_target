@@ -42,8 +42,9 @@ stale — the pin numbers beside them are correct, the chip name is not.
 > ⚠️ **`RT_TARGET_ACTIVE_LOW` is a safety setting, not a preference.** It says
 > which level *shows* the targets. On the prototype the GPIO drives a BC547B
 > whose low state opens the connection. A board that buffers, inverts, or
-> switches a relay directly needs it off — and if it is wrong, the boot-time
-> "drive to hidden" in `targets::init()` presents the targets instead.
+> switches a relay directly needs it off — and if it is wrong, the boot state in
+> `targets::init()` is inverted, so the targets face away when they should be
+> face-on (D-31).
 
 Disabling `RT_RGB_LED_ENABLED` or `RT_AUDIO_ENABLED` compiles the driver out
 entirely rather than failing at runtime. A target that only turns, with no
@@ -59,14 +60,32 @@ clips, they simply do not play.
 | GPIO10 / GPIO12 / GPIO11 | PCM5102A BCK / LRCK / DIN | I2S audio |
 | GPIO48 | onboard WS2812 (devkit only) | Status LED |
 
-```
-ESP32 GPIO5 ----[1kΩ]----|B  BC547B  C|---- DB9 pin 2 (target control)
-                              E
-ESP32 GND --------------------+--------- DB9 pin 5 (ground)
+```mermaid
+flowchart LR
+    subgraph ESP["ESP32-S3"]
+        GPIO["GPIO5"]
+        GND["GND"]
+    end
+
+    R["1 kΩ"]
+    Q["BC547B<br/>NPN · 45 V · 100 mA"]
+
+    subgraph TS["Target system (DB9)"]
+        P2["pin 2 — target control"]
+        P5["pin 5 — ground"]
+    end
+
+    GPIO --> R --> Q
+    Q -- collector --> P2
+    Q -- emitter --> GND
+    GND --- P5
 ```
 
-The status LED, where fitted: **red** while joining WiFi, **yellow** in the
-setup portal, **green** once serving.
+The status LED, where fitted: **blinking red** while joining a network, **solid
+red** once it has given up, **yellow** on the network but not serving yet,
+**green** serving, **blue** on the setup portal's own access point. Yellow is
+milliseconds wide on a healthy boot, so a device sitting on it means the network
+is fine and the HTTP server is not.
 
 ## Flashing
 
