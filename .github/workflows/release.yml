@@ -412,6 +412,42 @@ jobs:
             exit 1
           }
 
+      # A seeded network is a convenience for flashing a device by hand, and it
+      # is compiled in: the SSID and password would be readable in any binary
+      # published here. A clean container has no `sdkconfig`, so the seeds come
+      # out at their Kconfig defaults - but that is a property of the
+      # environment, not a guarantee, and a committed `sdkconfig`, an edited
+      # `sdkconfig.defaults` or a cached workspace would each quietly break it.
+      - name: Assert the image carries no WiFi credentials
+        shell: bash
+        working-directory: firmware
+        run: |
+          fail=0
+          while IFS= read -r line; do
+            key="${line%%=*}"
+            value="${line#*=}"
+            case "$key:$value" in
+              *:'""'|*:'"changeme"') ;;
+              *) echo "::error::$key is set in this build - a release must not carry a network"
+                 fail=1 ;;
+            esac
+          done < <(grep -E '^CONFIG_RT_WIFI_(SSID|PASSWORD)[0-9_]*=' sdkconfig || true)
+          # The setup-AP password is compiled in too, but unlike the station
+          # credentials it is *meant* to be: its Kconfig default is committed and
+          # public. Assert it is still that default, which catches a private one
+          # substituted locally without failing on the intended value.
+          expected="$(sed -n '/^config RT_SETUP_AP_PASSWORD$/,/^config /p' main/Kconfig.projbuild \
+                      | sed -nE 's/^ *default "(.*)"$/\1/p' | head -1)"
+          actual="$(sed -nE 's/^CONFIG_RT_SETUP_AP_PASSWORD="(.*)"$/\1/p' sdkconfig | head -1)"
+          if [ -z "$expected" ]; then
+            echo "::error::could not read the RT_SETUP_AP_PASSWORD default from Kconfig"
+            fail=1
+          elif [ "$actual" != "$expected" ]; then
+            echo "::error::CONFIG_RT_SETUP_AP_PASSWORD differs from the committed default"
+            fail=1
+          fi
+          exit "$fail"
+
       # The real assertion, and the reason the tag exists before the build: the
       # version on the release page comes from the tag, while the version inside
       # the image comes from `git describe` at configure time. Read it back out
