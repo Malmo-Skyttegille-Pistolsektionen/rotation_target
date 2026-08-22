@@ -27,6 +27,17 @@ for file in "$(dirname "$0")"/files/*.json; do
         continue
     fi
 
+    # Every audio_ids entry must resolve to a clip in audios.json. Nothing
+    # checked this, and renumbering a shipped clip for the id-range fix left
+    # "Militar Snabbmatch (med signal)" pointing at 38 events' worth of a clip
+    # that no longer existed - silently, because a program with a dangling
+    # reference still parses, still validates against the schema, and still
+    # runs. It just stops making the noise it is named for.
+    if ! python3 "$(dirname "$0")/check_audio_refs.py" "$file"; then
+        status=1
+        continue
+    fi
+
     echo "$file: VALID"
 done
 
