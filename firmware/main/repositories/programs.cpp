@@ -8,6 +8,7 @@
 #include "backend_issue.h"
 #include "config.h"
 #include "esp_log.h"
+#include "id_range.h"
 #include "sse_hub.h"
 #include "storage.h"
 
@@ -114,6 +115,23 @@ void load_dir(const char *dir, bool readonly) {
     // The filename is the authority on the id, not the document: that is what
     // keeps delete (which removes `<id>.json`) consistent with the store.
     program.id = id;
+
+    // Shipped loads before uploads (see load_all()), so an existing entry
+    // here can only be shipped. #129: the two ranges are meant to be
+    // disjoint (kFirstUploadId in config.h); if they are not, keep the
+    // shipped program rather than let the upload silently replace it.
+    auto existing = s_programs.find(id);
+    if (existing != s_programs.end() &&
+        rt::would_shadow_shipped(existing->second.readonly, readonly)) {
+      ESP_LOGW(TAG, "Program %d in %s collides with a shipped program; keeping the shipped one",
+               static_cast<int>(id), file.c_str());
+      sse_hub::broadcast_issue(rt::issue_code::kProgramIdCollision,
+                               "An uploaded program's id collides with a shipped one; the "
+                               "shipped program was kept",
+                               {{"file", file}});
+      continue;
+    }
+
     s_programs[id] = program;
     loaded++;
   }
@@ -146,8 +164,8 @@ int32_t add_uploaded(const char *json, size_t len) {
     return -1;
   }
 
-  int32_t id = kFirstUploadId;
-  while (s_programs.count(id) > 0) id++;
+  const int32_t id = rt::next_free_id(
+      kFirstUploadId, [](int32_t candidate) { return s_programs.count(candidate) > 0; });
   program.id = id;
 
   if (!write_program(id, program)) return -1;

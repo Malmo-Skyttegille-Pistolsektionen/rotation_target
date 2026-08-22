@@ -81,6 +81,19 @@ One LittleFS partition (`storage`, 9.75 MB — see `partitions.csv`), built from
 read from the file — an uploader must not be able to claim its program is
 shipped and thereby undeletable. `host_test/test_program_json` asserts this.
 
+**Shipped and uploaded ids are two disjoint ranges, not one shared space
+(#129).** `kFirstUploadId` (`main/config.h`) is where `add_uploaded()` starts
+assigning; every shipped id must sit below it —
+`resources/programs/validate_programs.sh` enforces that on the program side.
+Both `programs::load_all()` and `audios::load_all()` load the shipped
+directory first, so if the ranges were ever violated an uploaded id landing on
+a shipped one would silently win the collision — the shipped copy is what the
+loader keeps instead, logging the collision and raising a
+`program_id_collision`/`audio_id_collision` `backend_issue` (into
+`startupIssues`, since this can only be discovered before the server exists).
+`lib/rt_logic/id_range.h` is the host-tested logic behind both the id
+assignment and the collision check.
+
 The filename is the authority on a program's id, not the `id` field inside it;
 that is what keeps delete (which removes `<id>.json`) consistent with the
 in-memory store.

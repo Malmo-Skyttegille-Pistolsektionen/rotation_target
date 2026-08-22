@@ -518,7 +518,7 @@ describe('the hand-written validator against contracts/program.schema.json', () 
 });
 
 describe('every shipped program, against both descriptions', () => {
-  const files = ['1.json', '2.json', '20.json', '40.json', '50.json', '100.json', '101.json'];
+  const files = ['1.json', '2.json', '20.json', '40.json', '50.json', '60.json', '70.json'];
 
   it.each(files)('%s', (name) => {
     const text = readFileSync(new URL(name, PROGRAMS_DIR), 'utf8');

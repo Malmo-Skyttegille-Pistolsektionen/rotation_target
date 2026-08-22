@@ -5,11 +5,14 @@
 #include <cstdio>
 
 #include "audio.h"
+#include "backend_issue.h"
 #include "config.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "id_range.h"
 #include "json_util.h"
+#include "sse_hub.h"
 #include "storage.h"
 
 namespace audios {
@@ -74,6 +77,22 @@ void load_index(const char *dir, bool readonly) {
   auto add = [&](int32_t id, JsonObjectConst entry) {
     const char *filename = entry["filename"] | "";
     if (filename[0] == '\0') return;
+
+    // Shipped loads before uploads (see load_all()), so an existing entry
+    // here can only be shipped. #129: the two ranges are meant to be
+    // disjoint (kFirstUploadId in config.h); if they are not, keep the
+    // shipped clip rather than let the upload silently replace it.
+    auto existing = s_audios.find(id);
+    if (existing != s_audios.end() &&
+        rt::would_shadow_shipped(existing->second.readonly, readonly)) {
+      ESP_LOGW(TAG, "Audio %d in %s collides with a shipped clip; keeping the shipped one",
+               static_cast<int>(id), dir);
+      sse_hub::broadcast_issue(rt::issue_code::kAudioIdCollision,
+                               "An uploaded audio clip's id collides with a shipped one; the "
+                               "shipped clip was kept",
+                               {{"file", index_path(dir)}});
+      return;
+    }
 
     Audio audio;
     audio.id = id;
@@ -193,8 +212,8 @@ std::string list_json() {
 int32_t add_uploaded(const std::string &title, const std::string &staged_path) {
   Lock lock;
 
-  int32_t id = kFirstUploadId;
-  while (s_audios.count(id) > 0) id++;
+  const int32_t id = rt::next_free_id(
+      kFirstUploadId, [](int32_t candidate) { return s_audios.count(candidate) > 0; });
 
   const std::string final_path = std::string(kUploadAudioDir) + "/" + std::to_string(id) + ".wav";
   if (rename(staged_path.c_str(), final_path.c_str()) != 0) {

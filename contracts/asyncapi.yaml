@@ -244,6 +244,16 @@ components:
             message: Program file is malformed and was skipped
             context:
               file: /storage/uploads/programs/20.json
+        - name: program-id-collides-with-shipped
+          summary: >-
+            An uploaded program landed on an id a shipped one already used -
+            see #129. The shipped program is kept; the uploaded file is left
+            on disk, unloaded.
+          payload:
+            code: program_id_collision
+            message: An uploaded program's id collides with a shipped one; the shipped program was kept
+            context:
+              file: /storage/uploads/programs/60.json
 
     libraryChanged:
       name: libraryChanged
@@ -391,6 +401,15 @@ components:
               this stream: it is served by `GET /api/v2/diagnostics/info` as
               `startupIssues` instead. The code is specified here because the
               payload is the same and a rescan added later would emit it.
+            - `program_id_collision` — an uploaded program's id already
+              belongs to a shipped one (#129). The shipped program is kept and
+              the uploaded file is left on disk, unloaded. Raised by the same
+              boot scan as `program_invalid`, so it is likewise only ever seen
+              through `startupIssues`.
+            - `audio_id_collision` — the audio equivalent of
+              `program_id_collision`: an uploaded clip's id already belongs to
+              a shipped one, the shipped clip is kept, and the uploaded entry
+              is left unloaded.
 
             `program_invalid` is also a REST problem type,
             `/problems/program_invalid` in `openapi.yaml` — one failure, one
@@ -399,6 +418,8 @@ components:
           x-extensible-enum:
             - audio_playback_failed
             - program_invalid
+            - program_id_collision
+            - audio_id_collision
         message:
           type: string
           description: >-
@@ -422,8 +443,10 @@ components:
             file:
               type: string
               description: >-
-                `program_invalid`: the program file's path on the device
-                filesystem.
+                `program_invalid` and `program_id_collision`: the program
+                file's path on the device filesystem. `audio_id_collision`:
+                the audio index's path instead, since the collision is a
+                shipped/uploaded id pair rather than one bad file.
 
     LibraryChanged:
       type: object
