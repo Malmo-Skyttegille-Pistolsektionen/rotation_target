@@ -106,6 +106,18 @@ const MAX_DURATION_MS = 3600000;
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(here, '../data');
 
+// The device's real partition table (firmware/partitions.csv), with plausible
+// usage. otadata reports a size and no usage because the device cannot tell
+// either - the shape has to match, gaps included.
+const DEFAULT_PARTITIONS: DiagnosticsInfo['partitions'] = [
+  { name: 'nvs', kind: 'data', sizeBytes: 24_576, usedBytes: 4_160 },
+  { name: 'otadata', kind: 'data', sizeBytes: 8_192 },
+  { name: 'ota_0', kind: 'app', sizeBytes: 3_145_728, usedBytes: 1_096_480, running: true },
+  { name: 'ota_1', kind: 'app', sizeBytes: 3_145_728, usedBytes: 0, running: false },
+  { name: 'storage', kind: 'data', sizeBytes: 10_223_616, usedBytes: 8_163_328 },
+  { name: 'coredump', kind: 'data', sizeBytes: 131_072, usedBytes: 0 },
+];
+
 // --- Seed data ---
 
 export interface MockSeed {
@@ -122,6 +134,12 @@ export interface MockSeed {
    * Settings has something to disagree with unless a test says otherwise.
    */
   firmwareVersion?: string;
+  /**
+   * The flash partition table `GET /diagnostics/info` reports. Defaults to the
+   * device's real one (firmware/partitions.csv) with plausible usage; override
+   * to put a partition near full, or to leave usage unknown.
+   */
+  partitions?: DiagnosticsInfo['partitions'];
 }
 
 /**
@@ -668,6 +686,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         coredumpPresent: false,
         storageTotalBytes: 12_582_912,
         storageUsedBytes: 4_194_304,
+        partitions: seed.partitions ?? DEFAULT_PARTITIONS,
         programCount: Object.keys(programs).length,
         audioCount: audios.length,
         ipAddress: '127.0.0.1',

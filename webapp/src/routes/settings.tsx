@@ -6,6 +6,7 @@ import { ServerUrlSection } from '../components/ServerUrlSection';
 import { AdminModeSection } from '../components/AdminModeSection';
 import { StartDelaySection } from '../components/StartDelaySection';
 import { StartupIssuesSection } from '../components/StartupIssuesSection';
+import { StorageSection } from '../components/StorageSection';
 import { VersionSection } from '../components/VersionSection';
 import styles from './settings.module.css';
 
@@ -36,6 +37,8 @@ function SettingsPage(): React.ReactNode {
       <StartDelaySection />
 
       <StartupIssuesSection />
+
+      <StorageSection />
 
       <VersionSection />
     </div>
