@@ -2,6 +2,12 @@
 build*/
 sdkconfig
 sdkconfig.old
+# Ad-hoc build configs (idf.py -D SDKCONFIG=sdkconfig.portal ...) are generated
+# and local. sdkconfig.defaults and its per-profile siblings are the tracked
+# ones and stay tracked.
+sdkconfig.*
+!sdkconfig.defaults
+!sdkconfig.defaults.*
 managed_components/
 
 # dependencies.lock IS committed - it pins the managed component versions

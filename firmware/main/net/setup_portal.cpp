@@ -227,6 +227,12 @@ void run() {
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
   static dns_server_config_t dns_cfg = DNS_SERVER_CONFIG_SINGLE("*", "WIFI_AP_DEF");
 #pragma GCC diagnostic pop
+  // The vendored server logs "Waiting for data" once per loop turn. Upstream
+  // that is once per query; our local SO_RCVTIMEO of 250 ms - added so the task
+  // can be stopped without deadlocking lwIP - makes it four lines a second,
+  // forever. The portal is the recovery path, so the console has to stay
+  // readable while it is up (#157). Errors and the address still print.
+  esp_log_level_set("example_dns_redirect_server", ESP_LOG_WARN);
   start_dns_server(&dns_cfg);
 
   start_http();
