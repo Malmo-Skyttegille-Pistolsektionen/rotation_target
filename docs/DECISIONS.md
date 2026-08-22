@@ -38,6 +38,8 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-27 | A start names the program it is for | Decided | 2026-08-21 |
 | D-28 | The start delay is a run-page control, and 0 is a value | Decided | 2026-08-21 |
 | D-29 | One version for the whole product; bare tags; no external release workflows | Decided | 2026-08-21 |
+| D-30 | The webapp has written visual rules, derived from the shipped code | Decided | 2026-08-21 |
+| D-31 | Targets show at boot, and stay shown between series | Decided | 2026-08-22 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
 
@@ -1056,6 +1058,60 @@ selected by `--tag-pattern`* — verified to work on the pinned git-cliff 2.13.1
 and no longer needed once there is one tag line. *A standalone webapp release
 (a dev-server bundle, an offline-flashing archive)* — nobody asked for either,
 and inventing a consumer to justify a version line is how the drift starts.
+
+## D-30 — The webapp has written visual rules, derived from the shipped code *(Decided 2026-08-21)*
+
+**Decision:** `webapp/DESIGN.md` is the design system of record for the web app,
+with `webapp/.impeccable/design.json` as its machine-readable sidecar. It was
+written by scanning what the app actually renders rather than by specifying what
+it ought to render, and it carries named rules that a review can cite: the Three
+Signals Rule, One Family Rule, Readable Signal Rule, Arm's Length Rule, Tabular
+Rule, No Nested Scroller Rule, Flat-By-Default Rule and Side-Tab Ban. The north
+star is "equipment, not software" — the app is operated at arm's length, on a
+range, by someone who is not looking at it closely.
+
+**Why:** the scan found twelve files defining a `.button` and two colour families
+living side by side. No reviewer could have called that out, because there was
+nothing to call it against. Deriving the document from the shipped artifact
+rather than from intentions means it describes a system that demonstrably
+exists; the two strays it turned up are named in it as being retired rather than
+quietly blessed.
+
+**Consequence:** a new colour, elevation or type decision cites a rule or amends
+one. Where the code and a rule disagree, one of them is a bug — the Impeccable
+detector reports the difference rather than leaving it to be noticed.
+
+**Rejected:** *an aspirational style guide* — it would have described an app
+nobody had built, and the drift it was meant to prevent had already happened.
+*Leaving it implicit* — the drift is the evidence that implicit did not work.
+
+## D-31 — Targets show at boot, and stay shown between series *(Decided 2026-08-22)*
+
+**Decision:** the resting state of the targets is **shown**. The GPIO latch is
+written before `gpio_config()` so the pin never presents an intermediate level,
+`complete_series()` leaves the targets where the last event put them, and the
+mock server matches the executor. `CONFIG_RT_TARGETS_HIDE_AT_BOOT` exists for
+the opposite behaviour and defaults off.
+
+**Why:** two reasons, and the safety one governs. Someone may be downrange at
+the targets when a board is powered or reset, and a target that turns of its own
+accord at that moment can injure them. Separately, the club shoots disciplines
+that use a static face, so shown is the state a device should sit in between
+programs — hiding at the end of a series left the range dark until the next
+start, which is not what an operator asks for by finishing a series.
+
+**On the diagnosis:** the behaviour was first read as inverted signalling. It was
+not. Both this firmware and the MicroPython one it replaced hide at boot; they
+differ in *when*, which is why identical wiring behaved differently. The answer
+came from reading the archived MicroPython source, not from reasoning about the
+symptoms — two earlier explanations built that way were both wrong, and the
+second one recommended a hardware change that would have been unnecessary. The
+residual present-then-hide window at power-on is a separate defect.
+
+**Rejected:** *hiding at boot and documenting it* — it puts the decision on
+whoever reads the docs, and the person at risk is downrange, not at the laptop.
+*Making it a device setting* — a safety default that can be turned off from a
+phone is not a safety default.
 
 ## Open questions
 
