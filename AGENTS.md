@@ -26,6 +26,35 @@ web app consumes. A route, payload or status code changes in `contracts/` **in
 the same PR** as the implementation. The web app's `src/api/generated.d.ts` is
 generated from those files and CI fails on drift.
 
+### How the contracts are versioned
+
+Three numbers exist and only one of them is a version anybody should read:
+
+- **The path prefix — `/api/v2`, `/sse/v2` — is the contract version.** It is
+  what clients branch on, and the only one that carries meaning.
+- **`info.version` in each document is pinned at `1.0.0` and does not move.**
+  Nothing reads it: it is not emitted into the webapp's generated types, no
+  workflow inspects it, and the firmware never sees it. Both specs require the
+  field to exist, so it stays — pinned, so it cannot drift. It previously
+  tracked the shape history of the documents and reached 5.0.0 and 3.1.1, the
+  latter a digit away from the AsyncAPI spec version on the line above it.
+- **The product ships under one bare-semver git tag** covering firmware, webapp
+  and resources together (D-29). That is the number a release is called.
+
+**Changes within a major must be additive** — a new endpoint, a new optional
+field, a new enum member a client can ignore. Anything a deployed client could
+break on (a removed field, a narrowed type, a changed status code) is a new
+path prefix, not a version bump. `docs/DECISIONS.md` records four exceptions
+(D-16, D-19, D-23, D-27) taken while no release had been cut; **they stop being
+available once 1.0.0 ships**, because from then on there is a deployed client.
+
+Nothing enforces the additive rule today — it is prose. `contracts/validate.sh`
+lints both documents (Redocly and the AsyncAPI CLI) but is not wired into CI,
+and lint is not breaking-change detection.
+
+`contracts/history/` holds the v1 documents as an archaeological record. They
+are unmaintained and nothing implements them.
+
 **The mock server mirrors the executor.** `webapp/test/mock-server/server.ts`
 reimplements `rt::Executor` behaviour so that webapp tests mean something
 without a device. When run behaviour changes in
