@@ -143,6 +143,18 @@
   margin-left: 0.35rem;
 }
 
+/* The two buttons every row has are given a fixed width so the actions after
+   them line up down the table. Without this, "Edit a copy…" on a shipped row
+   and "Edit…" on an uploaded one start at different offsets, and Replace and
+   Delete inherit the shift. */
+.actionToggle {
+  min-width: 5.75rem;
+}
+
+.actionEdit {
+  min-width: 8rem;
+}
+
 .description {
   color: #555;
 }
@@ -252,6 +264,12 @@
 
   .actionsColumn button + button {
     margin-left: 0;
+  }
+
+  /* Alignment down a column stops meaning anything once each row is a block. */
+  .actionToggle,
+  .actionEdit {
+    min-width: 0;
   }
 
   /* The buttons are the row's reason for existing on a phone: give them the

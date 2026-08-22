@@ -340,31 +340,28 @@ export function ProgramsView(): React.ReactNode {
                     <td className={styles.actionsColumn} role='cell' data-label='Actions'>
                       {canManage && (
                         <>
+                          {/* One button, not a disabled Load beside an extra
+                            Unload: the device holds one program, so this is a
+                            state the row is in, and a control that toggles a
+                            state should stay in one place. A disabled Load also
+                            said the wrong thing - the action was unavailable,
+                            when in fact the opposite action was the available
+                            one. */}
                           <button
-                            className={styles.button}
-                            data-testid={`program-load-${program.id}`}
-                            onClick={() => loadMutation.mutate(program)}
-                            disabled={busy || isLoaded}
+                            className={clsx(styles.button, styles.actionToggle)}
+                            data-testid={isLoaded ? `program-unload-${program.id}` : `program-load-${program.id}`}
+                            onClick={() => (isLoaded ? unloadMutation.mutate() : loadMutation.mutate(program))}
+                            disabled={busy}
                           >
-                            Load
+                            {isLoaded ? 'Unload' : 'Load'}
                           </button>
-                          {isLoaded && (
-                            <button
-                              className={styles.button}
-                              data-testid={`program-unload-${program.id}`}
-                              onClick={() => unloadMutation.mutate()}
-                              disabled={busy}
-                            >
-                              Unload
-                            </button>
-                          )}
                           {/* A shipped program cannot be written back, so editing
                             one means editing a copy the device will store under
                             a new id. The legacy app offered no Edit at all on
                             these rows; downloading the JSON and uploading it
                             again was the whole flow. */}
                           <button
-                            className={styles.button}
+                            className={clsx(styles.button, styles.actionEdit)}
                             data-testid={`program-edit-${program.id}`}
                             onClick={() => {
                               setNotice(null);
