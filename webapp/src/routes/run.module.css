@@ -168,7 +168,7 @@
   border-radius: 6px;
   border: none;
   cursor: pointer;
-  background-color: #646cff;
+  background-color: #4338ca;
   color: white;
   transition:
     background-color 0.2s,
@@ -180,7 +180,7 @@
 }
 
 .button:hover {
-  background-color: #535bf2;
+  background-color: #3730a3;
 }
 
 .buttonSecondary {
