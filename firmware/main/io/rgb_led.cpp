@@ -19,9 +19,11 @@ namespace rgb_led {
 void init() {}
 void set(uint8_t, uint8_t, uint8_t) {}
 void off() {}
-void red() {}
-void green() {}
-void yellow() {}
+void status_joining() {}
+void status_offline() {}
+void status_online() {}
+void status_serving() {}
+void status_portal() {}
 
 #else
 
@@ -63,6 +65,8 @@ void set(uint8_t r, uint8_t g, uint8_t b) {
 void off() {
   set(0, 0, 0);
 }
+
+namespace {
 void red() {
   set(100, 0, 0);
 }
@@ -71,6 +75,48 @@ void green() {
 }
 void yellow() {
   set(60, 60, 0);
+}
+void blue() {
+  set(0, 0, 60);
+}
+
+// Latched rather than asked of the server, so the policy stays here and the
+// LED does not depend on the web server's lifetime.
+bool s_serving = false;
+}  // namespace
+
+void status_joining() {
+  // Starts false so the first call - app_main, before any join attempt - lands
+  // on red rather than off. Getting this backwards leaves the device dark for
+  // the whole of boot, which reads as "no power".
+  static bool on = false;
+  on = !on;
+  if (on) {
+    red();
+  } else {
+    off();
+  }
+}
+
+void status_offline() {
+  red();
+}
+
+void status_online() {
+  if (s_serving) {
+    green();
+  } else {
+    yellow();
+  }
+}
+
+void status_serving() {
+  s_serving = true;
+  green();
+}
+
+void status_portal() {
+  blue();
 }
 
 #endif  // CONFIG_RT_RGB_LED_ENABLED
