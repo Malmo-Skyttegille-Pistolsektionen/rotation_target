@@ -563,6 +563,15 @@ export function RunView(): React.ReactNode {
           tickerMs={tickerMs ?? null}
           mode={timelineMode}
           audioTitles={audioTitles}
+          // Absent while a run is in progress: Skip is for the pause between
+          // series, not for cutting one short - that is what Pause is for.
+          onSkipSeries={
+            canControl && !isRunning
+              ? (index) => {
+                  skipToSeriesMutation.mutate(index);
+                }
+              : undefined
+          }
         />
       )}
 

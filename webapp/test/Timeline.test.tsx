@@ -388,3 +388,68 @@ describe('centring the running series (#131)', () => {
     }
   });
 });
+
+describe('optional series (#133)', () => {
+  it('badges the reshoot series so it is obvious before the program starts', () => {
+    // Militar Snabbmatch is 4x10s plus two extra 10s, and the same for 8s and
+    // 6s. The extras are reshoots after an approved malfunction; most runs
+    // skip them, and the operator should know which two before starting.
+    renderTimeline(PROGRAM_MILITARY_SNABBMATCH, { mode: 'default' });
+
+    const badges = screen.getAllByText('Optional');
+    expect(badges.length).toBeGreaterThan(0);
+
+    const optionalSeries = PROGRAM_MILITARY_SNABBMATCH.series.filter((series) => series.optional === true);
+    expect(badges).toHaveLength(optionalSeries.length);
+  });
+
+  it('offers Skip only on the series the run is sitting at', () => {
+    const skipped: number[] = [];
+    const optionalIndex = PROGRAM_MILITARY_SNABBMATCH.series.findIndex((series) => series.optional === true);
+    expect(optionalIndex).toBeGreaterThan(-1);
+
+    render(
+      <Timeline
+        program={PROGRAM_MILITARY_SNABBMATCH}
+        currentSeriesIndex={optionalIndex}
+        currentEventIndex={null}
+        tickerMs={null}
+        mode='default'
+        onSkipSeries={(index) => skipped.push(index)}
+      />,
+    );
+
+    // Exactly one Skip, on the current series - not on every optional one.
+    const buttons = screen.getAllByRole('button', { name: 'Skip' });
+    expect(buttons).toHaveLength(1);
+
+    fireEvent.click(buttons[0]);
+    expect(skipped).toEqual([optionalIndex + 1]);
+  });
+
+  it('never offers Skip on a scoring series', () => {
+    // Skipping a scoring series by mistake is worse than the trip back to the
+    // dropdown, which still reaches every series.
+    const scoringIndex = PROGRAM_MILITARY_SNABBMATCH.series.findIndex((series) => series.optional !== true);
+
+    render(
+      <Timeline
+        program={PROGRAM_MILITARY_SNABBMATCH}
+        currentSeriesIndex={scoringIndex}
+        currentEventIndex={null}
+        tickerMs={null}
+        mode='default'
+        onSkipSeries={() => undefined}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Skip' })).toBeNull();
+  });
+
+  it('offers no Skip at all when the operator cannot control the device', () => {
+    const optionalIndex = PROGRAM_MILITARY_SNABBMATCH.series.findIndex((series) => series.optional === true);
+    renderTimeline(PROGRAM_MILITARY_SNABBMATCH, { mode: 'default', currentSeriesIndex: optionalIndex });
+
+    expect(screen.queryByRole('button', { name: 'Skip' })).toBeNull();
+  });
+});
