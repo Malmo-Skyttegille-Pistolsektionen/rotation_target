@@ -729,6 +729,18 @@ export interface components {
             /** @description True for clips flashed with the firmware. */
             readonly: boolean;
         };
+        PartitionInfo: {
+            /** @description The partition label from `partitions.csv`, e.g. `storage`. */
+            name: string;
+            /** @enum {string} */
+            kind: "app" | "data";
+            /** @description The slot's size, from the partition table. */
+            sizeBytes: number;
+            /** @description Absent where the device cannot tell. Present for the app slots (the length of the image on flash, walked from its header), the LittleFS partition, NVS (a whole number of 32-byte entries, so it is granular rather than exact) and the coredump partition (0 when no dump is stored). */
+            usedBytes?: number;
+            /** @description App partitions only — whether this is the slot the device booted from. */
+            running?: boolean;
+        };
         DiagnosticsInfo: {
             /** @description `git describe` output, e.g. `2.0.0-3-gab12cde`. */
             version: string;
@@ -747,8 +759,11 @@ export interface components {
             runningPartition: string;
             /** @description Whether a coredump image is waiting to be pulled out of band. The dump itself is never served. */
             coredumpPresent: boolean;
+            /** @description The `storage` partition's size. Kept alongside `partitions`, which reports the same figure — this pair predates it and clients still read it. */
             storageTotalBytes: number;
             storageUsedBytes: number;
+            /** @description Every partition in the flash table, in flash-offset order. `storage` is not the only one that can fill: the app slots decide whether an over-the-air image will fit, and NVS holds the provisioned credentials. */
+            partitions: components["schemas"]["PartitionInfo"][];
             programCount: number;
             audioCount: number;
             /** @description The device's current address, or empty when it has none. */
