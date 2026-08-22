@@ -24,15 +24,16 @@ idf_component_register(
          "storage/storage.cpp"
          "repositories/programs.cpp" "repositories/audios.cpp"
          "executor/program_executor.cpp"
+         "diagnostics/partitions.cpp" "console/console.cpp"
          ${RT_NET_SRCS}
          "net/web_server.cpp" "net/sse_hub.cpp"
-    INCLUDE_DIRS "." "io" "storage" "repositories" "executor" "net"
+    INCLUDE_DIRS "." "io" "storage" "repositories" "executor" "net" "diagnostics" "console"
     REQUIRES rt_logic arduinojson psychic_http
              nvs_flash esp_netif esp_event esp_timer esp_system
              esp_http_server app_update espcoredump
              esp_driver_gpio esp_driver_i2s
              joltwallet__littlefs espressif__led_strip espressif__mdns
-             esp_wifi dns_server esp_eth
+             esp_wifi dns_server esp_eth esp_driver_usb_serial_jtag
 )
 
 # The tested half (host_test/) builds with -Wall -Wextra -Werror; without this
