@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import clsx from 'clsx';
 import { useProgramsApi } from '../api/programs';
 import { useAudiosApi } from '../api/audios';
@@ -12,6 +12,14 @@ import { useSettings } from '../context/SettingsContext';
 import { useAdminStatus } from '../hooks/useAdminStatus';
 import { unloadFailureNotice } from '../lib/program-notices';
 import styles from './run.module.css';
+
+/** The sticky nav's height in pixels, read from the token that sets it. */
+function navHeightPx(): number {
+  if (typeof window === 'undefined') return 0;
+  const value = getComputedStyle(document.documentElement).getPropertyValue('--rt-nav-height');
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 export const Route = createFileRoute('/run')({
   component: RunView,
@@ -66,6 +74,13 @@ function refuseStart(queryClient: QueryClient, expectedProgramId: number): strin
 /** Exported for the unit tests; the route renders it through `Route`. */
 export function RunView(): React.ReactNode {
   const [timelineMode, setTimelineMode] = useState<'auto' | 'default' | 'field'>('auto');
+
+  // A sticky bar permanently spends ~50px of vertical space, which is the space
+  // the responsive work was about reclaiming - so it only appears once the real
+  // controls have actually scrolled away (#130). While they are on screen it
+  // costs nothing.
+  const controlBoardRef = useRef<HTMLDivElement>(null);
+  const [controlsOffScreen, setControlsOffScreen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   // The program the device had loaded when Start was pressed. Non-null only
   // while a countdown is running.
@@ -251,6 +266,25 @@ export function RunView(): React.ReactNode {
     startProgram(expectedProgramId);
   };
 
+  useEffect(() => {
+    const board = controlBoardRef.current;
+    if (board === null) return;
+
+    // Offset by the nav so the board counts as gone when it slides under it,
+    // not when it leaves the viewport entirely - otherwise the bar arrives a
+    // nav's height too late.
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setControlsOffScreen(!entry.isIntersecting);
+      },
+      { rootMargin: `-${String(navHeightPx())}px 0px 0px 0px`, threshold: 0 },
+    );
+    observer.observe(board);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
   const handleStart = (): void => {
     if (!programConfirmed) return;
     setNotice(null);
@@ -306,7 +340,7 @@ export function RunView(): React.ReactNode {
 
   return (
     <div className={styles.container}>
-      <div className={styles.controlBoard}>
+      <div className={styles.controlBoard} ref={controlBoardRef}>
         <div className={styles.boardHeader}>
           <div className={styles.headerLeft}>
             <h2 className={styles.title}>Run Program</h2>
@@ -477,6 +511,49 @@ export function RunView(): React.ReactNode {
           </div>
         </div>
       </div>
+
+      {/* Fixed, not sticky: a sticky element inserted mid-document would shove
+          the timeline down the moment it appeared, which is a jump on the page
+          you are watching. Fixed takes no layout space, so it lies over the
+          timeline instead - and #131 centres the running series, so it is not
+          what ends up underneath. */}
+      {controlsOffScreen && programConfirmed && (
+        <div className={styles.stickyBar} data-testid='run-sticky-bar'>
+          <div className={styles.stickyTimer} data-testid='run-sticky-ticker'>
+            {tickerMs != null ? `${String(Math.floor(tickerMs / 1000))}s` : '--'}
+          </div>
+
+          <div
+            className={clsx(styles.infoBadge, {
+              [styles.badgeGreen]: state?.targetStatus === 'shown',
+              [styles.badgeRed]: state?.targetStatus === 'hidden',
+            })}
+          >
+            <span className={styles.badgeLabel}>Targets:</span>
+            <strong>{state?.targetStatus ?? '-'}</strong>
+          </div>
+
+          {canControl &&
+            (!isRunning ? (
+              <button
+                className={clsx(styles.button, styles.buttonStart)}
+                onClick={handleStart}
+                disabled={!programConfirmed}
+                data-testid='run-sticky-start'
+              >
+                Start
+              </button>
+            ) : (
+              <button
+                className={clsx(styles.button, styles.buttonPause)}
+                onClick={handlePause}
+                data-testid='run-sticky-pause'
+              >
+                Pause
+              </button>
+            ))}
+        </div>
+      )}
 
       {activeProgram && (
         <Timeline
