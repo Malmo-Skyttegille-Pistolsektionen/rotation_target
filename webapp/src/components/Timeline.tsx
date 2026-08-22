@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { Program, Series, Event } from '../api/types';
 import { seriesTotalMs } from '../lib/run-position';
 import styles from './Timeline.module.css';
@@ -10,7 +10,16 @@ type TimelineProps = {
   currentEventIndex: number | null;
   tickerMs: number | null; // Total milliseconds elapsed in current series
   mode?: 'auto' | 'default' | 'field';
+  /**
+   * Clip id to title, for naming the audio an event plays. Optional: without
+   * it the detail panel falls back to ids, which is still better than the
+   * nothing the run page showed before.
+   */
+  audioTitles?: Record<number, string>;
 };
+
+/** Which event the detail panel is describing. */
+type EventRef = { seriesIndex: number; eventIndex: number };
 
 const FIELD_TIMELINE_THRESHOLD_MS = 30000; // 30s
 
@@ -20,7 +29,21 @@ export function Timeline({
   currentEventIndex,
   tickerMs,
   mode = 'auto',
+  audioTitles,
 }: TimelineProps): React.ReactNode {
+  // Two levels, because the chips were introduced for narrow screens and there
+  // is no hover on a phone. Pointing at an event previews it; tapping or
+  // clicking pins it so it survives the pointer leaving - which is the only
+  // interaction a touch screen has. Pinned wins over previewed.
+  const [pinned, setPinned] = useState<EventRef | null>(null);
+  const [previewed, setPreviewed] = useState<EventRef | null>(null);
+  const shown = pinned ?? previewed;
+
+  const togglePin = (ref: EventRef): void => {
+    setPinned((current) =>
+      current?.seriesIndex === ref.seriesIndex && current.eventIndex === ref.eventIndex ? null : ref,
+    );
+  };
   // Determine timeline type
   let type: 'default' | 'field' = 'default';
 
@@ -70,13 +93,35 @@ export function Timeline({
             </div>
 
             {type === 'default' ? (
-              <DefaultTimelineSeries series={series} activeEventIndex={isCurrentSeries ? currentEventIndex : null} />
+              <DefaultTimelineSeries
+                series={series}
+                activeEventIndex={isCurrentSeries ? currentEventIndex : null}
+                seriesIndex={sIdx}
+                selected={shown}
+                onPreview={setPreviewed}
+                onTogglePin={togglePin}
+              />
             ) : (
               <FieldTimelineSeries
                 series={series}
                 activeEventIndex={isCurrentSeries ? currentEventIndex : null}
                 elapsedMs={elapsedMs}
                 showCursor={isCurrentSeries}
+              />
+            )}
+            {/* Inside the series, not after the timeline: a program can be
+                twenty series and several thousand pixels long, so a panel at
+                the bottom would describe an event that is nowhere near it. */}
+            {shown?.seriesIndex === sIdx && (
+              <EventDetail
+                program={program}
+                reference={shown}
+                pinned={pinned !== null}
+                audioTitles={audioTitles}
+                onDismiss={() => {
+                  setPinned(null);
+                  setPreviewed(null);
+                }}
               />
             )}
           </div>
@@ -89,9 +134,20 @@ export function Timeline({
 type DefaultTimelineSeriesProps = {
   series: Series;
   activeEventIndex: number | null;
+  seriesIndex: number;
+  selected: EventRef | null;
+  onPreview: (reference: EventRef | null) => void;
+  onTogglePin: (reference: EventRef) => void;
 };
 
-function DefaultTimelineSeries({ series, activeEventIndex }: DefaultTimelineSeriesProps): React.ReactNode {
+function DefaultTimelineSeries({
+  series,
+  activeEventIndex,
+  seriesIndex,
+  selected,
+  onPreview,
+  onTogglePin,
+}: DefaultTimelineSeriesProps): React.ReactNode {
   const eventsWithAccumulated = series.events.reduce(
     (acc, event) => {
       const previousAccumulated = acc.length > 0 ? acc[acc.length - 1].accumulated : 0;
@@ -105,16 +161,41 @@ function DefaultTimelineSeries({ series, activeEventIndex }: DefaultTimelineSeri
       {eventsWithAccumulated.map((event, eIdx) => {
         const isActive = eIdx === activeEventIndex;
 
+        const isSelected = selected?.seriesIndex === seriesIndex && selected.eventIndex === eIdx;
+        const reference = { seriesIndex, eventIndex: eIdx };
+
         return (
-          <div
+          // A button, not a div with a title attribute. The native tooltip it
+          // replaces never appeared on a touch screen, took a second to show on
+          // one that has a pointer, and could not be reached from the keyboard
+          // at all - so the audio an event plays was effectively invisible.
+          <button
+            type='button'
             key={eIdx}
             className={clsx(
               styles.eventBox,
               isActive && styles.active,
+              isSelected && styles.selected,
               event.command === 'show' && styles.show,
               event.command === 'hide' && styles.hide,
             )}
-            title={`Duration: ${Math.round(event.duration / 1000)}s\nCommand: ${event.command ?? '-'}${event.audio_ids ? '\nAudios: ' + event.audio_ids.join(', ') : ''}`}
+            aria-pressed={isSelected}
+            data-testid={`timeline-event-${String(seriesIndex)}-${String(eIdx)}`}
+            onMouseEnter={() => {
+              onPreview(reference);
+            }}
+            onMouseLeave={() => {
+              onPreview(null);
+            }}
+            onFocus={() => {
+              onPreview(reference);
+            }}
+            onBlur={() => {
+              onPreview(null);
+            }}
+            onClick={() => {
+              onTogglePin(reference);
+            }}
           >
             <span className={styles.duration}>{Math.round(event.duration / 1000)}</span>
 
@@ -123,11 +204,101 @@ function DefaultTimelineSeries({ series, activeEventIndex }: DefaultTimelineSeri
               {hasAudio(event) && <AudioIcon />}
             </span>
             <span className={styles.accumulated}>{Math.round(event.accumulated / 1000)}</span>
-          </div>
+          </button>
         );
       })}
     </div>
   );
+}
+
+type EventDetailProps = {
+  program: Program;
+  reference: EventRef;
+  pinned: boolean;
+  audioTitles?: Record<number, string>;
+  onDismiss: () => void;
+};
+
+/**
+ * Everything an event holds, including the audio clips it plays - which were
+ * not visible anywhere on the run page.
+ *
+ * A panel under the timeline rather than a floating tooltip. A popover has to
+ * be positioned, and on a phone there is nowhere to put one beside a chip that
+ * is already most of the screen width; it would cover the very events it is
+ * describing. A panel in the flow needs no positioning maths, cannot be
+ * clipped by the viewport, and is legible at arm's length, which is how this
+ * page is read.
+ */
+function EventDetail({ program, reference, pinned, audioTitles, onDismiss }: EventDetailProps): ReactNode {
+  const series = program.series?.[reference.seriesIndex];
+  const event = series?.events[reference.eventIndex];
+  if (series === undefined || event === undefined) return null;
+
+  const startsAtMs = series.events
+    .slice(0, reference.eventIndex)
+    .reduce((total, previous) => total + previous.duration, 0);
+
+  const audioIds = event.audio_ids ?? [];
+
+  return (
+    <div className={styles.detail} data-testid='timeline-event-detail'>
+      <div className={styles.detailHead}>
+        <span className={styles.detailTitle}>
+          {series.name} · event {reference.eventIndex + 1} of {series.events.length}
+        </span>
+        {pinned && (
+          <button type='button' className={styles.detailDismiss} onClick={onDismiss}>
+            Close
+          </button>
+        )}
+      </div>
+
+      <dl className={styles.detailRows}>
+        <dt>Targets</dt>
+        <dd>{commandDescription(event.command)}</dd>
+
+        <dt>Duration</dt>
+        <dd>{formatSeconds(event.duration)}</dd>
+
+        <dt>Starts at</dt>
+        <dd>
+          {formatSeconds(startsAtMs)} into {series.name}
+        </dd>
+
+        <dt>Ends at</dt>
+        <dd>{formatSeconds(startsAtMs + event.duration)}</dd>
+
+        <dt>Audio</dt>
+        <dd>
+          {audioIds.length === 0 ? (
+            <span className={styles.detailNone}>none</span>
+          ) : (
+            // Listed, not joined with commas: clip titles are things like
+            // "Provserie", "1" and "10 sekunder", and a comma-separated string
+            // of those reads as one title rather than three.
+            <ol className={styles.detailClips}>
+              {audioIds.map((id, index) => (
+                <li key={`${String(id)}-${String(index)}`}>{audioTitles?.[id] ?? `clip ${String(id)}`}</li>
+              ))}
+            </ol>
+          )}
+        </dd>
+      </dl>
+    </div>
+  );
+}
+
+/** Said in words, because the chip says it in colour and an icon. */
+function commandDescription(command?: string): string {
+  if (command === 'show') return 'Show';
+  if (command === 'hide') return 'Hide';
+  return 'Unchanged — a timed pause';
+}
+
+function formatSeconds(ms: number): string {
+  const seconds = ms / 1000;
+  return `${Number.isInteger(seconds) ? String(seconds) : seconds.toFixed(1)} s`;
 }
 
 type FieldTimelineSeriesProps = {

@@ -348,3 +348,78 @@
 .commandIcon {
   flex: none;
 }
+
+/* The event chips became buttons so the detail is reachable by tap and by
+   keyboard, not only by hovering a pointer the phone does not have. Strip the
+   button chrome; the chip's own styling is the affordance. */
+.eventBox {
+  font: inherit;
+  cursor: pointer;
+  appearance: none;
+}
+
+.eventBox.selected {
+  outline: 2px solid #4338ca;
+  outline-offset: 2px;
+}
+
+.detail {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background-color: #fff;
+}
+
+.detailHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.detailTitle {
+  font-weight: 600;
+  color: #374151;
+}
+
+.detailDismiss {
+  font: inherit;
+  font-size: 0.85rem;
+  background: none;
+  border: none;
+  color: #4338ca;
+  cursor: pointer;
+  padding: 0;
+}
+
+.detailRows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 1rem;
+  margin: 0;
+}
+
+.detailRows dt {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.detailRows dd {
+  margin: 0;
+  color: #111827;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.detailNone {
+  color: #6b7280;
+  font-style: italic;
+}
+
+/* Numbered, because the order they play in is part of the information. */
+.detailClips {
+  margin: 0;
+  padding-left: 1.2rem;
+}
