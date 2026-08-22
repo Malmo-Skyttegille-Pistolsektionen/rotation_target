@@ -101,6 +101,23 @@ else()
     message(STATUS "No webapp at ${RT_WEBAPP_DIR} - building without one (API only)")
 endif()
 
+# Same reasoning, one step earlier: a warm tree does not reconfigure when
+# `webapp/src` changes either, so the staleness check has to run every build.
+# Without it a firmware build after a webapp change silently ships the previous
+# bundle, and the flash verifies (issue #139).
+set(RT_ALLOW_STALE_WEBAPP OFF CACHE BOOL
+    "Skip the webapp/dist freshness check (iterating on firmware only)")
+
+if(RT_WEBAPP_STAGE_DIR AND NOT RT_ALLOW_STALE_WEBAPP)
+    add_custom_target(rt_webapp_fresh ALL
+        COMMAND "${CMAKE_COMMAND}"
+                -D "RT_WEBAPP_DIR=${RT_WEBAPP_STAGE_DIR}"
+                -D "RT_WEBAPP_SRC=${CMAKE_CURRENT_LIST_DIR}/../webapp"
+                -P "${CMAKE_CURRENT_LIST_DIR}/cmake/check_webapp_fresh.cmake"
+        COMMENT "Checking webapp/dist is not older than webapp/src"
+        VERBATIM)
+endif()
+
 # Staging is a build-time step, not a configure-time one: `idf.py build` on a
 # warm tree does not reconfigure because `webapp/dist` was rebuilt, so copying
 # here at configure time shipped the *previous* bundle (issue #39).
@@ -118,6 +135,10 @@ add_custom_command(
     VERBATIM)
 
 add_custom_target(rt_littlefs_stage DEPENDS "${LITTLEFS_STAGE_STAMP}")
+if(TARGET rt_webapp_fresh)
+    # Ordering only: fail before staging copies a stale bundle, not after.
+    add_dependencies(rt_littlefs_stage rt_webapp_fresh)
+endif()
 
 # The image target always re-runs (the component cannot watch the base dir), so
 # the stamp is only ordering: stage first, then pack what staging produced.
