@@ -54,19 +54,15 @@ the other way round, but only over a serial cable — see [Settings](settings.md
   a browser open.
 - [Troubleshooting](troubleshooting.md) — common problems and what to check.
 
-## Program editor
-
-[**Open the program editor**](editor/){ .md-button } — write and edit programs
-in a browser with **no device attached**, then download the file or open a pull
-request. Also the easiest way to read a shipped program without a board in
-front of you.
-
 ## Write a program without a device
 
-The **[program editor](https://malmo-skyttegille-pistolsektionen.github.io/rotation_target/editor/)** runs entirely in a browser tab, with no board
-attached. Open a program from this repository, edit it, and either download the
-file or open a pull request with it. [Writing your own
+The program editor runs entirely in a browser tab, with no board attached. Open
+a program from this repository, edit it, and either download the file or open a
+pull request with it. It is also the easiest way to read a shipped program
+without a board in front of you. [Writing your own
 program](writing-a-program.md) walks through building one from nothing.
+
+[Open the program editor](editor/){ .md-button }
 
 ## Source
 
