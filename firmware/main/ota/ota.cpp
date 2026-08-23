@@ -1,6 +1,7 @@
 #include "ota.h"
 
 #include <cstring>
+#include <string>
 
 #include "esp_app_desc.h"
 #include "esp_log.h"
@@ -27,6 +28,10 @@ uint64_t s_written = 0;
 // Set when the image is accepted; the reboot happens from its own task so the
 // HTTP response is actually delivered before the chip restarts.
 volatile bool s_reboot_pending = false;
+
+// Why the last upload was refused, so onRequest can answer with the status the
+// contract declares rather than a blanket 400.
+rt::ota::Refusal s_refusal = rt::ota::Refusal::kNone;
 
 // Reset the bookkeeping. Does NOT touch the driver - call only after the handle
 // has been released, by esp_ota_end or esp_ota_abort.
@@ -65,10 +70,12 @@ bool in_progress() {
 void register_routes(PsychicHttpServer &server) {
   static PsychicUploadHandler upload;
 
-  upload.onUpload([](PsychicRequest *, const char *filename, uint64_t index, uint8_t *data,
+  upload.onUpload([](PsychicRequest *request, const char *filename, uint64_t index, uint8_t *data,
                      size_t len, bool final) -> esp_err_t {
     if (index == 0) {
       ESP_LOGI(TAG, "Upload '%s' starting", filename == nullptr ? "(unnamed)" : filename);
+      s_refusal = rt::ota::Refusal::kNone;
+      s_reboot_pending = false;
 
       // Reclaim a handle a previous upload leaked. A client that vanishes
       // mid-transfer never delivers a final chunk, so nothing else closes it.
@@ -77,13 +84,27 @@ void register_routes(PsychicHttpServer &server) {
       const rt::ota::Refusal refusal = rt::ota::check_start(executor::is_running());
       if (refusal != rt::ota::Refusal::kNone) {
         ESP_LOGW(TAG, "Refused: %s", rt::ota::message(refusal));
+        s_refusal = refusal;
         raise(refusal);
         return ESP_FAIL;
       }
 
       s_partition = esp_ota_get_next_update_partition(nullptr);
-      if (s_partition == nullptr ||
-          esp_ota_begin(s_partition, OTA_SIZE_UNKNOWN, &s_handle) != ESP_OK) {
+
+      // Sized from Content-Length rather than OTA_SIZE_UNKNOWN. Unknown makes
+      // esp_ota_begin erase the whole 3 MB slot before the first byte is
+      // written, synchronously, on this HTTP task - measured on hardware as the
+      // server going unresponsive for long enough that the client gave up and
+      // the device looked hung. Erasing only what the image needs takes a
+      // fraction of that. The multipart envelope makes Content-Length slightly
+      // larger than the image, which is harmless: a little over is still far
+      // under the slot.
+      size_t erase_size = OTA_SIZE_UNKNOWN;
+      const size_t declared =
+          request == nullptr ? 0 : static_cast<size_t>(request->contentLength());
+      if (declared > 0 && declared <= s_partition->size) erase_size = declared;
+
+      if (s_partition == nullptr || esp_ota_begin(s_partition, erase_size, &s_handle) != ESP_OK) {
         ESP_LOGE(TAG, "Could not open the inactive slot");
         s_handle = 0;  // a failed begin leaves nothing to abort
         clear();
@@ -116,6 +137,7 @@ void register_routes(PsychicHttpServer &server) {
     if (refusal != rt::ota::Refusal::kNone) {
       ESP_LOGE(TAG, "Refused: %s (image '%s', running '%s')", rt::ota::message(refusal),
                readable ? written.project_name : "unreadable", running->project_name);
+      s_refusal = refusal;
       raise(refusal);
       abort_upload("image refused");
       return ESP_FAIL;
@@ -143,10 +165,25 @@ void register_routes(PsychicHttpServer &server) {
 
   upload.onRequest([](PsychicRequest *req, PsychicResponse *res) -> esp_err_t {
     (void)req;
-    res->setCode(s_reboot_pending ? 200 : 400);
-    res->setContentType("application/json");
-    res->setContent(s_reboot_pending ? "{\"status\":\"accepted\",\"restarting\":true}"
-                                     : "{\"status\":\"refused\"}");
+    if (s_reboot_pending) {
+      res->setCode(200);
+      res->setContentType("application/json");
+      res->setContent("{\"status\":\"accepted\",\"restarting\":true}");
+      return res->send();
+    }
+
+    // A refusal is a problem detail like every other error (D-19), and the
+    // status distinguishes them: a running program is a conflict that clears on
+    // its own, a bad image never will. onUpload cannot answer for itself -
+    // returning ESP_FAIL is how it reports - so the reason is carried here.
+    const rt::ota::Refusal refusal =
+        s_refusal == rt::ota::Refusal::kNone ? rt::ota::Refusal::kEmptyImage : s_refusal;
+    const auto &type = refusal == rt::ota::Refusal::kProgramRunning ? rt::problem::kProgramRunning
+                                                                    : rt::problem::kOtaImageRefused;
+    const std::string body = rt::problem_json(type, rt::ota::message(refusal));
+    res->setCode(type.status);
+    res->setContentType("application/problem+json");
+    res->setContent(body.c_str());
     return res->send();
   });
 

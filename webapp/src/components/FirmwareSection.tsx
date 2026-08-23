@@ -57,7 +57,7 @@ export function FirmwareSection(): React.ReactNode {
         ref={fileInputRef}
         type='file'
         accept='.bin'
-        className={styles.fileInputRef}
+        className={styles.fileInput}
         data-testid='firmware-file-input'
         disabled={!canManage || state !== 'idle'}
         onChange={(event) => {

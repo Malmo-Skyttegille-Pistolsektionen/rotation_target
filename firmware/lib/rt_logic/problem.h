@@ -58,6 +58,8 @@ struct ProblemType {
   X(kAudioReadonly, "audio_readonly", "Audio is read-only", 409)                                \
   X(kAudioInUse, "audio_in_use", "Audio is used by the loaded program", 409)                    \
   X(kAudioPlaying, "audio_playing", "Audio is currently playing", 409)                          \
+  /* firmware update */                                                                         \
+  X(kOtaImageRefused, "ota_image_refused", "Firmware image refused", 400)                       \
   /* validation */                                                                              \
   X(kProgramInvalid, "program_invalid", "Invalid program", 400)                                 \
   X(kProgramIdMismatch, "program_id_mismatch", "Program id does not match the path", 400)       \
