@@ -5,7 +5,13 @@
   "description": "A rotation target program document, as stored in resources/programs/files/<id>.json and as returned by GET /api/v2/programs/{id}. Canonical: written from firmware/lib/rt_logic/program.cpp. Three fields are not the uploader's to assert. `id` is ignored on upload (the device assigns the next free id from 100) and, for a shipped program, comes from the filename rather than the document. `readonly` follows from the directory the file was loaded from - shipped programs are read-only, uploaded ones are not - and is overwritten on parse. Unknown fields are ignored by the firmware and dropped when it rewrites the document, so a program uploaded with extra keys does not come back with them; this schema rejects them outright instead, to catch typos while authoring. The webapp does not use this schema at runtime: webapp/src/lib/program-document.ts checks an uploaded file against what firmware/lib/rt_logic/program.cpp actually does, and its header lists where the two deliberately differ.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "title", "description", "readonly", "series"],
+  "required": [
+    "id",
+    "title",
+    "description",
+    "readonly",
+    "series"
+  ],
   "properties": {
     "id": {
       "type": "integer",
@@ -32,7 +38,11 @@
     "Series": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "optional", "events"],
+      "required": [
+        "name",
+        "optional",
+        "events"
+      ],
       "properties": {
         "name": {
           "type": "string"
@@ -47,13 +57,21 @@
           "items": {
             "$ref": "#/$defs/Event"
           }
+        },
+        "timer_start_index": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Index into this series' `events` of the event where the run timer reaches zero. Everything before it is preamble - the audio announcing the series, the count, the loading period - and should not be counted as shooting time. `stateUpdate.tickerMs` is measured relative to the start of this event: negative while counting down to it, zero as it begins, positive after. Defaults to 0, which makes the ticker identical to elapsed-since-series-start, so a program without this field behaves exactly as before. Must be a valid index into `events`."
         }
       }
     },
     "Event": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["duration"],
+      "required": [
+        "duration"
+      ],
       "properties": {
         "duration": {
           "type": "integer",
@@ -63,7 +81,10 @@
         "command": {
           "type": "string",
           "description": "What to do with the targets on entering this event. Optional: omit it for a timed pause that leaves the targets where they are. When present it must be \"show\" or \"hide\" - the firmware refuses the whole program otherwise, so a typo fails at upload rather than becoming a target that silently never turns. The firmware additionally accepts null and \"\" on upload as spellings of omission (the legacy editor writes null); it never writes either, so no stored file carries them and this schema does not allow them.",
-          "enum": ["show", "hide"]
+          "enum": [
+            "show",
+            "hide"
+          ]
         },
         "audio_ids": {
           "type": "array",

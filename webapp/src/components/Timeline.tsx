@@ -101,15 +101,15 @@ export function Timeline({
 
   if (!program?.series) return null;
 
-  // Straight from the wire: `tickerMs` is already elapsed milliseconds in the
-  // series. It used to be whole seconds multiplied back up by 1000, which put
+  // Straight from the wire otherwise: `tickerMs` is millisecond-precise. It used to be whole seconds multiplied back up by 1000, which put
   // the playhead up to a second - a whole event, on a field program - behind
   // where the targets actually were.
   const calculateElapsedMs = (seriesIdx: number): number => {
     if (seriesIdx !== currentSeriesIndex || tickerMs === null) {
       return 0;
     }
-    return tickerMs;
+    const series = program.series?.[seriesIdx];
+    return series === undefined ? tickerMs : tickerMs + anchorMs(series);
   };
 
   return (
@@ -173,6 +173,7 @@ export function Timeline({
             ) : (
               <FieldTimelineSeries
                 series={series}
+                seriesIndex={sIdx}
                 activeEventIndex={isCurrentSeries ? currentEventIndex : null}
                 elapsedMs={elapsedMs}
                 showCursor={isCurrentSeries}
@@ -225,10 +226,16 @@ function DefaultTimelineSeries({
     [] as Array<Event & { accumulated: number }>,
   );
 
+  // Where the run clock reaches zero (#126). Index 0 is the default and means
+  // "the clock starts with the series", which is what every program did before
+  // the field existed - nothing to point out, so nothing is drawn.
+  const anchorIndex = series.timer_start_index ?? 0;
+
   return (
     <div className={styles.defaultSeries}>
       {eventsWithAccumulated.map((event, eIdx) => {
         const isActive = eIdx === activeEventIndex;
+        const isAnchor = anchorIndex > 0 && eIdx === anchorIndex;
 
         const isSelected = selected?.seriesIndex === seriesIndex && selected.eventIndex === eIdx;
         const reference = { seriesIndex, eventIndex: eIdx };
@@ -244,6 +251,7 @@ function DefaultTimelineSeries({
             className={clsx(
               styles.eventBox,
               isActive && styles.active,
+              isAnchor && styles.anchor,
               isSelected && styles.selected,
               event.command === 'show' && styles.show,
               event.command === 'hide' && styles.hide,
@@ -272,7 +280,21 @@ function DefaultTimelineSeries({
               <CommandIcon command={event.command} />
               {hasAudio(event) && <AudioIcon />}
             </span>
-            <span className={styles.accumulated}>{Math.round(event.accumulated / 1000)}</span>
+            <span
+              className={styles.accumulated}
+              data-testid={`timeline-cumulative-${String(seriesIndex)}-${String(eIdx)}`}
+            >
+              {anchorRelativeSeconds(series, event.accumulated)}
+            </span>
+            {isAnchor && (
+              <span
+                className={styles.anchorMark}
+                data-testid={`timeline-anchor-${String(seriesIndex)}`}
+                title='The run clock reaches zero here'
+              >
+                0:00
+              </span>
+            )}
           </button>
         );
       })}
@@ -332,11 +354,12 @@ function EventDetail({ program, reference, pinned, audioTitles, onDismiss }: Eve
 
         <dt>Starts at</dt>
         <dd>
-          {formatSeconds(startsAtMs)} into {series.name}
+          {anchorRelativeSeconds(series, startsAtMs)} s{' '}
+          {anchorMs(series) === 0 ? `into ${series.name}` : 'on the run clock'}
         </dd>
 
         <dt>Ends at</dt>
-        <dd>{formatSeconds(startsAtMs + event.duration)}</dd>
+        <dd>{formatRunClock(series, startsAtMs + event.duration)}</dd>
 
         <dt>Audio</dt>
         <dd>
@@ -365,6 +388,49 @@ function commandDescription(command?: string): string {
   return 'Unchanged — a timed pause';
 }
 
+/**
+ * Milliseconds from the start of a series to the event its run clock starts on
+ * (#126). A series without `timer_start_index` anchors at 0, which is what
+ * every program meant before the field existed, so this is the identity for
+ * all of them.
+ *
+ * Mirrors `rt::Series::timer_anchor_ms`.
+ */
+function anchorMs(series: Series): number {
+  const index = series.timer_start_index ?? 0;
+  return series.events.slice(0, index).reduce((total, event) => total + event.duration, 0);
+}
+
+/** Signed milliseconds from the series' run-clock zero: negative before it. */
+function anchorRelativeMs(series: Series, msFromSeriesStart: number): number {
+  return msFromSeriesStart - anchorMs(series);
+}
+
+/**
+ * A whole-second run-clock figure for an event card. Written with an explicit
+ * `+` once a series has an anchor, so a positive number cannot be read as
+ * "seconds into the series" when the two disagree; unsigned without one,
+ * because then they agree and a `+` on every card is noise.
+ */
+function anchorRelativeSeconds(series: Series, msFromSeriesStart: number): string {
+  const seconds = Math.round(anchorRelativeMs(series, msFromSeriesStart) / 1000);
+  if (anchorMs(series) === 0) return String(seconds);
+  return seconds > 0 ? `+${String(seconds)}` : String(seconds);
+}
+
+/**
+ * The same figure for the detail panel, which keeps the tenth of a second
+ * `formatSeconds` does - a 2.5 s event rounded to 3 in the one place that
+ * exists to be precise would be a worse answer than the one it replaced.
+ */
+function formatRunClock(series: Series, msFromSeriesStart: number): string {
+  const ms = anchorRelativeMs(series, msFromSeriesStart);
+  const text = formatSeconds(Math.abs(ms));
+  if (anchorMs(series) === 0) return text;
+  if (ms === 0) return text;
+  return `${ms > 0 ? '+' : '-'}${text}`;
+}
+
 function formatSeconds(ms: number): string {
   const seconds = ms / 1000;
   return `${Number.isInteger(seconds) ? String(seconds) : seconds.toFixed(1)} s`;
@@ -372,6 +438,7 @@ function formatSeconds(ms: number): string {
 
 type FieldTimelineSeriesProps = {
   series: Series;
+  seriesIndex: number;
   activeEventIndex: number | null;
   elapsedMs: number;
   showCursor: boolean;
@@ -379,6 +446,7 @@ type FieldTimelineSeriesProps = {
 
 function FieldTimelineSeries({
   series,
+  seriesIndex,
   activeEventIndex,
   elapsedMs,
   showCursor,
@@ -400,9 +468,23 @@ function FieldTimelineSeries({
   const cursorPercent = (elapsedMs / totalDurationMs) * 100;
   const totalDurationSec = totalDurationMs / 1000;
 
+  // Same as the card view: only drawn when an anchor was actually chosen.
+  const anchorIndex = series.timer_start_index ?? 0;
+  const anchorPercent = anchorIndex > 0 ? (eventsWithPosition[anchorIndex]?.leftPercent ?? null) : null;
+
   return (
     <div className={styles.fieldContainer}>
       <div className={styles.centerLine} />
+      {anchorPercent !== null && (
+        <div
+          className={styles.anchorLine}
+          style={{ left: `${String(anchorPercent)}%` }}
+          data-testid={`timeline-anchor-line-${String(seriesIndex)}`}
+          title='The run clock reaches zero here'
+        >
+          <span className={styles.anchorLineLabel}>0:00</span>
+        </div>
+      )}
       {/* Events */}
       {eventsWithPosition.map((event, eIdx) => {
         const isActive = eIdx === activeEventIndex;
@@ -483,18 +565,31 @@ function commandLabel(event: Event): string {
 function CommandIcon({ command }: { command?: string }): ReactNode {
   if (command === 'show') {
     return (
-      <svg className={styles.commandIcon} viewBox="0 0 16 16" width="13" height="13"
-           aria-label="Targets shown" role="img">
-        <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.6" />
-        <circle cx="8" cy="8" r="2.2" fill="currentColor" />
+      <svg
+        className={styles.commandIcon}
+        viewBox='0 0 16 16'
+        width='13'
+        height='13'
+        aria-label='Targets shown'
+        role='img'
+      >
+        <circle cx='8' cy='8' r='6.2' fill='none' stroke='currentColor' strokeWidth='1.6' />
+        <circle cx='8' cy='8' r='2.2' fill='currentColor' />
       </svg>
     );
   }
   if (command === 'hide') {
     return (
-      <svg className={styles.commandIcon} viewBox="0 0 16 16" width="13" height="13"
-           aria-label="Targets hidden" role="img" fill="currentColor">
-        <rect x="6.9" y="2" width="2.2" height="12" rx="1.1" />
+      <svg
+        className={styles.commandIcon}
+        viewBox='0 0 16 16'
+        width='13'
+        height='13'
+        aria-label='Targets hidden'
+        role='img'
+        fill='currentColor'
+      >
+        <rect x='6.9' y='2' width='2.2' height='12' rx='1.1' />
       </svg>
     );
   }
@@ -516,15 +611,15 @@ function AudioIcon(): ReactNode {
   return (
     <svg
       className={styles.audioIcon}
-      viewBox="0 0 16 16"
-      width="12"
-      height="12"
-      aria-label="Plays audio"
-      role="img"
-      fill="currentColor"
+      viewBox='0 0 16 16'
+      width='12'
+      height='12'
+      aria-label='Plays audio'
+      role='img'
+      fill='currentColor'
     >
-      <path d="M8 2.5v11a.6.6 0 0 1-1 .43L4.2 11.2H2.4a.9.9 0 0 1-.9-.9V5.7a.9.9 0 0 1 .9-.9h1.8L7 2.07A.6.6 0 0 1 8 2.5Z" />
-      <path d="M10.6 5.3a.7.7 0 0 1 1-.06 4 4 0 0 1 0 5.52.7.7 0 1 1-1-.94 2.6 2.6 0 0 0 0-3.64.7.7 0 0 1 0-.88Z" />
+      <path d='M8 2.5v11a.6.6 0 0 1-1 .43L4.2 11.2H2.4a.9.9 0 0 1-.9-.9V5.7a.9.9 0 0 1 .9-.9h1.8L7 2.07A.6.6 0 0 1 8 2.5Z' />
+      <path d='M10.6 5.3a.7.7 0 0 1 1-.06 4 4 0 0 1 0 5.52.7.7 0 1 1-1-.94 2.6 2.6 0 0 0 0-3.64.7.7 0 0 1 0-.88Z' />
     </svg>
   );
 }

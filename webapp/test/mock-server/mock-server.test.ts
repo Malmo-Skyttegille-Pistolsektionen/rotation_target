@@ -295,6 +295,36 @@ describe('program storage', () => {
     });
   });
 
+  // The anchor has to survive a round trip through storage. It is the field
+  // the firmware parsed but did not serialise, so a mock that drops it would
+  // agree with that bug rather than with the fix.
+  it('carries timer_start_index through an upload, and refuses one past the end', async () => {
+    const anchored = (timer_start_index: unknown) => ({
+      title: 'Anchored',
+      series: [
+        {
+          name: 'Serie 1',
+          timer_start_index,
+          events: [
+            { duration: 7000, command: 'hide' },
+            { duration: 4000, command: 'show' },
+          ],
+        },
+      ],
+    });
+
+    const { id } = await (await upload(anchored(1))).json();
+    expect((await (await api(`/programs/${id}`)).json()).series[0].timer_start_index).toBe(1);
+
+    // Absent stays absent rather than becoming an explicit 0.
+    const { id: plain } = await (await upload(anchored(undefined))).json();
+    expect((await (await api(`/programs/${plain}`)).json()).series[0]).not.toHaveProperty('timer_start_index');
+
+    // Refused rather than clamped: 2 names an event this series does not have.
+    expect((await upload(anchored(2))).status).toBe(400);
+    expect((await upload(anchored(-1))).status).toBe(400);
+  });
+
   it('rejects an upload that is not a JSON object', async () => {
     expect((await upload('[]')).status).toBe(400);
     expect((await api('/programs', { method: 'POST' })).status).toBe(400);

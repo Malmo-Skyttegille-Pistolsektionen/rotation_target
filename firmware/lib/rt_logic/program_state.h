@@ -78,6 +78,22 @@ inline std::string nullable_json(const Nullable &n) {
 // The one payload run state is published on. There is no /status endpoint: a
 // client connects to /sse/v2, gets this immediately, and gets it again after
 // every mutation.
+// `ticker_ms` measured from the current series' anchor event rather than from
+// the series start. Zero-anchored series - which is every series without a
+// `timer_start_index` - come back unchanged, so this is a no-op for programs
+// that predate the field.
+inline Nullable relative_ticker_ms(const ProgramState &s) {
+  if (!s.ticker_ms.has_value || s.program == nullptr || !s.current_series_index.has_value) {
+    return s.ticker_ms;
+  }
+  const size_t index = static_cast<size_t>(s.current_series_index.value);
+  if (s.current_series_index.value < 0 || index >= s.program->series.size()) return s.ticker_ms;
+
+  Nullable out;
+  out.set(s.ticker_ms.value - s.program->series[index].timer_anchor_ms());
+  return out;
+}
+
 inline std::string state_update_json(const ProgramState &s) {
   std::string out = "{\"loadedProgramId\":";
   out += s.program ? std::to_string(s.program->id) : "null";
@@ -89,8 +105,13 @@ inline std::string state_update_json(const ProgramState &s) {
     out += nullable_json(s.current_series_index);
     out += ",\"currentEventIndex\":";
     out += nullable_json(s.current_event_index);
+    // Published relative to the current series' timer anchor, so a client sees
+    // a countdown through the preamble and a count-up once shooting starts
+    // (#126). `ticker_ms` stays absolute elapsed internally - it is also the
+    // resume point, and `start` reads it back - so the conversion happens here
+    // and nowhere else.
     out += ",\"tickerMs\":";
-    out += nullable_json(s.ticker_ms);
+    out += nullable_json(relative_ticker_ms(s));
     out += '}';
   } else {
     out += "null";

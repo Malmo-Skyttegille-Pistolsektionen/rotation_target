@@ -357,11 +357,18 @@ components:
         tickerMs:
           type: [integer, "null"]
           format: int32
-          minimum: 0
           description: |
-            Milliseconds elapsed in the current series, and also the resume
+            Milliseconds relative to the series' timer anchor — the event named
+            by `timer_start_index` in the program document — and also the resume
             point: `stop` keeps it, `reset` and `skip_to` clear it, `load`
             leaves it unset.
+
+            **Signed.** Negative while the run is in the preamble counting down
+            to the anchor, zero as that event begins, positive after. A series
+            without `timer_start_index` anchors at event 0, which makes this
+            identical to elapsed-since-series-start — what it has always meant —
+            so no existing program changes shape and no client that ignores the
+            sign breaks.
 
             **Sent at millisecond precision, not at millisecond cadence.** A
             frame goes out once a second and on every event boundary, exactly

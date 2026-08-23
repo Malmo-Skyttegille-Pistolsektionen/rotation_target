@@ -405,3 +405,91 @@ describe('what the validator says about a draft on its way out', () => {
     expect(authoringIssues(program).map((issue) => issue.path)).toEqual(['/series/0/name', '/series/1/events']);
   });
 });
+
+describe('the timer anchor in the editor (#196)', () => {
+  const anchoredProgram: Program = {
+    id: 1,
+    title: 'Anchored',
+    description: '',
+    readonly: false,
+    series: [
+      {
+        name: 'Serie 1',
+        optional: false,
+        timer_start_index: 2,
+        events: [
+          { duration: 5000, command: 'show' },
+          { duration: 60000, command: 'show' },
+          { duration: 10000, command: 'show' },
+        ],
+      },
+    ],
+  };
+
+  // The editor used to drop the field entirely: open an anchored program in
+  // the form, save, and the anchor was gone with nothing said.
+  it('round-trips an anchor through the form', () => {
+    const state = createEditorState(anchoredProgram);
+    expect(toDocument(state.draft)).toMatchObject({
+      series: [{ timer_start_index: 2 }],
+    });
+  });
+
+  // The whole reason the draft holds a key rather than an index.
+  it('keeps the anchor on its own event when the events are reordered', () => {
+    let state = createEditorState(anchoredProgram);
+    // Dragged to the top, the anchor is still on the same event - and an
+    // anchor at index 0 is the absent case, so the document says nothing.
+    state = editorReducer(state, { type: 'moveEvent', series: 0, from: 2, to: 0 });
+    expect(toDocument(state.draft).series).toEqual([
+      expect.not.objectContaining({ timer_start_index: expect.anything() }),
+    ]);
+
+    state = editorReducer(state, { type: 'moveEvent', series: 0, from: 0, to: 2 });
+    expect(toDocument(state.draft)).toMatchObject({ series: [{ timer_start_index: 2 }] });
+  });
+
+  it('follows the anchored event when an earlier one is deleted', () => {
+    let state = createEditorState(anchoredProgram);
+    state = editorReducer(state, { type: 'removeEvent', series: 0, event: 0 });
+    expect(toDocument(state.draft)).toMatchObject({ series: [{ timer_start_index: 1 }] });
+  });
+
+  // Degrades to "starts with the series" rather than pointing at whichever
+  // event inherited the position.
+  it('drops the anchor when the event it named is deleted', () => {
+    let state = createEditorState(anchoredProgram);
+    state = editorReducer(state, { type: 'removeEvent', series: 0, event: 2 });
+    expect(toDocument(state.draft).series).toEqual([
+      expect.not.objectContaining({ timer_start_index: expect.anything() }),
+    ]);
+  });
+
+  it('sets and clears the anchor from the event control', () => {
+    let state = createEditorState(anchoredProgram);
+    const firstEventKey = state.draft.series[0].events[0].key;
+
+    state = editorReducer(state, { type: 'setSeriesTimerStart', series: 0, eventKey: firstEventKey });
+    // Index 0 is the absent case, so naming the first event emits nothing.
+    expect(toDocument(state.draft).series).toEqual([
+      expect.not.objectContaining({ timer_start_index: expect.anything() }),
+    ]);
+
+    const lastEventKey = state.draft.series[0].events[2].key;
+    state = editorReducer(state, { type: 'setSeriesTimerStart', series: 0, eventKey: lastEventKey });
+    expect(toDocument(state.draft)).toMatchObject({ series: [{ timer_start_index: 2 }] });
+
+    state = editorReducer(state, { type: 'setSeriesTimerStart', series: 0, eventKey: null });
+    expect(toDocument(state.draft).series).toEqual([
+      expect.not.objectContaining({ timer_start_index: expect.anything() }),
+    ]);
+  });
+
+  it('carries the anchor into a duplicated series, by position', () => {
+    let state = createEditorState(anchoredProgram);
+    state = editorReducer(state, { type: 'duplicateSeries', series: 0 });
+    expect(toDocument(state.draft)).toMatchObject({
+      series: [{ timer_start_index: 2 }, { timer_start_index: 2 }],
+    });
+  });
+});

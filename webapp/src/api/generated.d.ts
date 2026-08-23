@@ -715,6 +715,8 @@ export interface components {
             name: string;
             /** @description Carried through the API but not acted on by the run loop: the executor runs one series at a time and never skips one by itself. */
             optional: boolean;
+            /** @description Index into this series' `events` of the event where the run timer reaches zero. Everything before it is preamble — the audio announcing the series, the count, the loading period — and is not shooting time. `stateUpdate.tickerMs` is measured from the start of this event: negative counting down to it, zero as it begins, positive after. Defaults to 0, which makes the ticker identical to elapsed-since-series-start, so a program without the field is unchanged. An index outside `events` is refused. */
+            timer_start_index?: number;
             events: components["schemas"]["Event"][];
         };
         /** @description One step: hold for `duration`, moving the targets and playing audio on entry. On the wire, `command` and `audio_ids` are omitted when empty. */
