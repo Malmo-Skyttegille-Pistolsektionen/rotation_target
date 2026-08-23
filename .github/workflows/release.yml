@@ -339,6 +339,13 @@ jobs:
     uses: ./.github/workflows/contracts.yml
     permissions:
       contents: read
+      # contracts.yml's `breaking-changes` job asks for this so oasdiff can post
+      # its review link as a PR comment. It is `if: github.event_name ==
+      # 'pull_request'`, so it never runs from a release - but a called
+      # workflow may not *request* more than its caller grants, and that is
+      # checked when the run starts, before any `if` is evaluated. Withholding
+      # it fails the whole release at startup with no logs and no job list.
+      pull-requests: write
 
   # THE APPROVAL GATE, and the only job that builds what ships. `environment:
   # release` is what makes it sit pending until a required reviewer approves.
