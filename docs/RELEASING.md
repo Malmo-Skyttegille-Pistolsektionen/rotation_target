@@ -143,5 +143,5 @@ the shipped programs and audio.
 other repository. The two helpers it needs are local composite actions —
 `.github/actions/setup-git-cliff` (a pinned, checksum-verified binary) and
 `.github/actions/check-version` (bare-semver shape check, with a named error for
-the `v` and component-prefix mistakes). `cliff.toml` at the repository root is the
+the `v` and component-prefix mistakes). `.github/cliff.toml` is the
 single git-cliff config: one product, one tag line, one config.

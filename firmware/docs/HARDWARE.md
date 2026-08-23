@@ -91,10 +91,25 @@ is fine and the HTTP server is not.
 
 ### Use `--no-stub`
 
-**esptool's stub flasher fails on this hardware.** It dies with
-`Packet content transfer stopped` at a specific address (0xDA000 reproduced
-0/3), while the ROM loader reads the identical sector 3/3 and handles a 1 MB
-transfer in one call that the stub could not manage in 256 KB pieces.
+**esptool's stub flasher fails on this hardware above about 256 KB per
+transfer.** It dies with `Packet content transfer stopped`. Measured on the
+DevKitC-1 over the native USB port, reading the same address each time:
+
+| Transfer | Stub | Result |
+|---|---|---|
+| 256 KB | yes | works |
+| 512 KB | yes | fails |
+| 1 MB | yes | fails 3/3 |
+| 1 MB | `--no-stub` | works |
+
+It is the *size* that decides it, not the address and not the port: the
+address it happens to die at is wherever the transfer had got to. The app
+binary (~1.1 MB) and the LittleFS image (10 MB) are both well over the
+threshold, which is why a full flash needs the ROM loader.
+
+The stub is roughly 2.4x faster when it does work, so this costs real time on
+a large write — it is not a precaution to drop, it is the difference between a
+flash that completes and one that does not.
 
 ```bash
 # flash arguments are printed at the end of `idf.py build`
@@ -110,9 +125,8 @@ python -m esptool --chip esp32s3 --port /dev/ttyACM0 --no-stub \
 
 **This presents exactly like a bad flash sector and is not one.** Running the
 same read with and without `--no-stub` is the test that tells them apart —
-chasing it as failing hardware, or as a cable, port or chunk-size problem,
-wastes a lot of time. `idf.py flash` uses the stub, so prefer the explicit
-invocation above.
+chasing it as failing hardware, or as a cable or port problem, wastes a lot of
+time. `idf.py flash` uses the stub, so prefer the explicit invocation above.
 
 ### Ports
 
@@ -132,21 +146,14 @@ after every hard reset, so back-to-back esptool invocations are less reliable
 than one long call; `--before no-reset --after no-reset` holds it in the
 bootloader. This firmware does not use native USB and does not do that.
 
-### Back up before reflashing
+### Reflashing discards uploaded programs and audio
 
-A board may still hold the MicroPython backend, whose layout is `factory`
-(1984K) + `vfs` (14M FAT). That FAT partition holds club-uploaded programs,
-audio and `wifi_credentials.py`, and this firmware's partition table destroys
-all of it. Take a full image first — it is the only way back:
+`idf.py flash` rewrites the LittleFS image, so anything a club uploaded to the
+device goes with it. Use `idf.py app-flash` to update only the firmware and
+leave the uploaded files alone.
 
-```bash
-python -m esptool --port /dev/ttyACM0 --no-stub read-flash 0 0x1000000 backup.bin
-```
-
-Restore with the same arguments and `write-flash 0x0 backup.bin`.
-
-`idf.py flash` also rewrites the LittleFS image, discarding anything uploaded to
-the device. Use `idf.py app-flash` to update only the firmware.
+The `nvs` partition survives either way, so the WiFi credentials and the
+hardware configuration outlive a reflash.
 
 ## Partitions
 
