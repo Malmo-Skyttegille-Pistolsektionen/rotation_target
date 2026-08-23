@@ -1,5 +1,10 @@
 # Contributing
 
+> The rules that apply everywhere — branching, commits, sign-off, what never
+> gets committed, and the seams between components — are in the root
+> [`CONTRIBUTING.md`](../CONTRIBUTING.md). This file is the firmware-specific
+> half: the safety rules, the hardware, and where firmware code goes.
+
 Thanks for helping out. This firmware runs on a live shooting range, so a few
 of the rules below are stricter than they would be for an ordinary hobby
 project — please read the safety note before changing run or target behaviour.

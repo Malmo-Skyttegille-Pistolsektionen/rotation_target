@@ -90,6 +90,12 @@ cd webapp && npm run build     # produces webapp/dist
 cd ../firmware && idf.py build
 ```
 
+## Contributing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to work on this, and
+[`firmware/CONTRIBUTING.md`](firmware/CONTRIBUTING.md) for the firmware in
+particular.
+
 ## History
 
 This repository was assembled from three separate repositories, whose full
