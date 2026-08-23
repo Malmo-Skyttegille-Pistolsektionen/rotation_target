@@ -842,13 +842,19 @@ std::string hardware_config_json(const rt::HardwareConfig &config) {
   out += rt::json_quote(config.hostname);
   out += ",\"displayName\":";
   out += rt::json_quote(config.display_name);
+  out += ",\"targetsShownAtBoot\":";
+  out += config.targets_shown_at_boot ? "true" : "false";
   out += "}";
   return out;
 }
 
 bool same_config(const rt::HardwareConfig &a, const rt::HardwareConfig &b) {
+  // targets_shown_at_boot included even though HTTP cannot change it: the
+  // serial console can, and that needs a restart to take effect too. Leaving it
+  // out would report restartRequired false right after `boot-targets hidden`.
   return a.target_gpio == b.target_gpio && a.target_active_low == b.target_active_low &&
-         a.hostname == b.hostname && a.display_name == b.display_name;
+         a.hostname == b.hostname && a.display_name == b.display_name &&
+         a.targets_shown_at_boot == b.targets_shown_at_boot;
 }
 
 void register_config_routes() {
@@ -885,6 +891,16 @@ void register_config_routes() {
       return send_problem(
           res, rt::problem::kHardwareConfigInvalid,
           "Expected a JSON object with targetGpio, targetActiveLow, hostname and displayName");
+    }
+
+    // Refused, not ignored (D-31, #144). Where the targets rest at boot is
+    // what protects somebody standing downrange, so it changes only from the
+    // serial console - and an operator who believes they changed it is worse
+    // off than one who was told they could not.
+    if (!doc["targetsShownAtBoot"].isNull()) {
+      return send_problem(res, rt::problem::kHardwareConfigSerialOnly,
+                          "targetsShownAtBoot changes only from the serial console: "
+                          "'boot-targets shown' or 'boot-targets hidden'");
     }
 
     // Absent fields keep what is stored rather than reverting to a compiled

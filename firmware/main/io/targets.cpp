@@ -16,6 +16,7 @@ const char *TAG = "targets";
 gpio_num_t s_pin = static_cast<gpio_num_t>(CONFIG_RT_TARGET_GPIO);
 int s_level_shown = 0;
 int s_level_hidden = 1;
+bool s_shown_at_boot = true;
 
 }  // namespace
 
@@ -25,6 +26,7 @@ void init() {
   // Active low means a low level opens the BC547B and shows the targets.
   s_level_shown = hw.target_active_low ? 0 : 1;
   s_level_hidden = hw.target_active_low ? 1 : 0;
+  s_shown_at_boot = hw.targets_shown_at_boot;
 
   // The latch first, while the output driver is still off. gpio_config() turns
   // the driver on with the latch at its reset value of 0, which on an active-low
@@ -35,7 +37,7 @@ void init() {
   // gpio_set_level() writes the output register whether or not the pad is an
   // output yet, so the value is already correct the moment the driver is
   // enabled and the pin never drives shown at all.
-  gpio_set_level(s_pin, kTargetsShownAtBoot ? s_level_shown : s_level_hidden);
+  gpio_set_level(s_pin, s_shown_at_boot ? s_level_shown : s_level_hidden);
 
   gpio_config_t cfg = {};
   cfg.pin_bit_mask = 1ULL << s_pin;
@@ -51,7 +53,7 @@ void init() {
 
   // Redundant against the pre-config write above, and kept: it is the call that
   // logs, so the boot record still says what the pin was told to do.
-  set(kTargetsShownAtBoot);
+  set(s_shown_at_boot);
 }
 
 int level() {

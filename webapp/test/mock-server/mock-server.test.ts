@@ -983,3 +983,49 @@ describe('hardware configuration', () => {
     expect((await api('/config/hardware/reset', { method: 'POST' })).status).toBe(401);
   });
 });
+
+/**
+ * Where the targets rest at boot changes only from the serial console (D-31,
+ * #144). Pinned in the mock because the webapp will grow a form for the rest of
+ * this configuration, and the one field that form must not offer is this one.
+ */
+describe('the boot target state is serial-only', () => {
+  it('is reported, so a client can show it', async () => {
+    const state = (await (await api('/config/hardware')).json()) as { active: { targetsShownAtBoot: boolean } };
+    expect(state.active.targetsShownAtBoot).toBe(true);
+  });
+
+  // Refused rather than ignored: a change an operator believes they made is
+  // worse than one they were told they could not.
+  it('is refused by PUT, whatever its value, and changes nothing', async () => {
+    for (const targetsShownAtBoot of [true, false]) {
+      const refused = await api('/config/hardware', {
+        method: 'PUT',
+        body: JSON.stringify({ targetsShownAtBoot }),
+      });
+      await expectProblem(refused, {
+        type: '/problems/hardware_config_serial_only',
+        title: 'That setting changes only from the serial console',
+        status: 400,
+        detail:
+          "targetsShownAtBoot changes only from the serial console: 'boot-targets shown' or 'boot-targets hidden'",
+      });
+    }
+
+    const state = (await (await api('/config/hardware')).json()) as { overridden: boolean };
+    expect(state.overridden).toBe(false);
+  });
+
+  // Even alongside fields that would otherwise be accepted: the whole request
+  // is refused, so nothing is half-applied.
+  it('takes the rest of the request down with it', async () => {
+    const refused = await api('/config/hardware', {
+      method: 'PUT',
+      body: JSON.stringify({ targetGpio: 7, targetsShownAtBoot: false }),
+    });
+    expect(refused.status).toBe(400);
+
+    const state = (await (await api('/config/hardware')).json()) as { saved: { targetGpio: number } };
+    expect(state.saved.targetGpio).toBe(HARDWARE_DEFAULTS.targetGpio);
+  });
+});

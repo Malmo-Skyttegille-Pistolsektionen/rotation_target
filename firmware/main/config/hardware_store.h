@@ -48,6 +48,14 @@ bool overridden();
 // old pin latched in whatever state it was last driven to.
 rt::ConfigRefusal save(const rt::HardwareConfig &config);
 
+// The one setting `save()` cannot touch (D-31, #144). Which position is safe at
+// rest is a property of the target system - another system may be the opposite
+// of ours - so it has to be configurable; but it is also what protects somebody
+// standing downrange when a board is powered, so it changes only from the
+// serial console. Anyone at the USB port can already reflash the device, so
+// requiring physical access costs nothing and rules out the remote mistake.
+bool save_boot_targets(bool shown);
+
 // Drop every override, so the next boot comes up on the compiled defaults.
 // The escape hatch for a configuration that made the device unreachable -
 // though reaching this over HTTP assumes it is still reachable, which is why

@@ -522,6 +522,11 @@ export interface paths {
          *     - a hostname that is not a legal DNS label, since it is also the setup
          *       access point's SSID prefix
          *
+         *     `targetsShownAtBoot` is refused outright, whatever its value: it is
+         *     serial-only (D-31). Refused rather than ignored, because an operator
+         *     who believes they changed where the targets rest is worse off than one
+         *     who was told they could not.
+         *
          *     Survives a firmware update: `idf.py flash` leaves the `nvs` partition
          *     alone, so a club's configuration outlives the image it was set on.
          */
@@ -763,6 +768,29 @@ export interface components {
             hostname: string;
             /** @description Free text shown in the web app. Cosmetic, and the only field here that cannot break anything - hence no format rule beyond a length. Empty on a device that has never been named. */
             displayName: string;
+            /**
+             * @description Where the targets rest at boot.
+             *
+             *     **Read-only here: it changes only from the serial console.** Which
+             *     position is safe at rest is a property of the target system — one
+             *     wired the opposite way round to ours needs the opposite value — so
+             *     it has to be configurable. But it is also the setting that protects
+             *     somebody standing downrange when a board is powered (D-31), and a
+             *     web form is the wrong place to change that.
+             *
+             *     Requiring physical access costs nothing in security: anyone at the
+             *     USB port can already reflash the device. It rules out the remote
+             *     mistake, which is the whole point.
+             *
+             *     `boot-targets shown` / `boot-targets hidden` on the console, or
+             *     `boot-targets` alone to read it back.
+             *
+             *     Sending it to `PUT` is refused with
+             *     `/problems/hardware_config_serial_only` rather than ignored — a
+             *     change an operator believes they made is worse than one they were
+             *     told they could not.
+             */
+            readonly targetsShownAtBoot: boolean;
         };
         /**
          * @description Three views of one configuration, because they can legitimately differ.
@@ -806,7 +834,7 @@ export interface components {
              *     `program_invalid` `backend_issue` code in `asyncapi.yaml`.
              * @enum {string}
              */
-            type: "/problems/admin_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/admin_mode_already_enabled" | "/problems/admin_mode_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/hardware_config_invalid" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed";
+            type: "/problems/admin_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/admin_mode_already_enabled" | "/problems/admin_mode_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/hardware_config_invalid" | "/problems/hardware_config_serial_only" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed";
             /**
              * @description A short summary of the type, identical for every occurrence of it. Not for display — it does not describe this occurrence.
              * @example Program is read-only
@@ -1835,6 +1863,8 @@ export interface operations {
              * @description - `/problems/hardware_config_invalid` — a value the device refuses.
              *       `detail` names which and why, because the operator has to decide
              *       what to type instead.
+             *     - `/problems/hardware_config_serial_only` — the body carried
+             *       `targetsShownAtBoot`, which changes only from the serial console.
              */
             400: {
                 headers: {

@@ -81,6 +81,10 @@ const PROBLEMS = {
   '/problems/upload_missing_title': { title: 'Missing title', status: 400 },
   '/problems/audio_format_unsupported': { title: 'Unsupported audio format', status: 400 },
   '/problems/hardware_config_invalid': { title: 'Invalid hardware configuration', status: 400 },
+  '/problems/hardware_config_serial_only': {
+    title: 'That setting changes only from the serial console',
+    status: 400,
+  },
   // internal
   '/problems/program_store_failed': { title: 'Could not store program', status: 500 },
   '/problems/audio_store_failed': { title: 'Could not store audio', status: 500 },
@@ -123,6 +127,7 @@ export const HARDWARE_DEFAULTS: HardwareConfig = {
   targetActiveLow: true,
   hostname: 'rotation-target',
   displayName: '',
+  targetsShownAtBoot: true,
 };
 
 // --- Constants ---
@@ -845,12 +850,24 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       }
       // Absent fields keep what is stored: a client that knows about fewer
       // fields than this firmware must not silently undo the rest.
+      // Refused, not ignored (D-31): where the targets rest at boot changes
+      // only from the serial console, and an operator who believes they
+      // changed it is worse off than one who was told they could not.
+      if (parsed.targetsShownAtBoot !== undefined) {
+        problemResponse(
+          res,
+          '/problems/hardware_config_serial_only',
+          "targetsShownAtBoot changes only from the serial console: 'boot-targets shown' or 'boot-targets hidden'",
+        );
+        return;
+      }
       const patch = parsed as Partial<HardwareConfig>;
       const candidate: HardwareConfig = {
         targetGpio: patch.targetGpio ?? savedHardware.targetGpio,
         targetActiveLow: patch.targetActiveLow ?? savedHardware.targetActiveLow,
         hostname: patch.hostname ?? savedHardware.hostname,
         displayName: patch.displayName ?? savedHardware.displayName,
+        targetsShownAtBoot: savedHardware.targetsShownAtBoot,
       };
       const refusal = hardwareConfigRefusal(candidate);
       if (refusal !== null) {

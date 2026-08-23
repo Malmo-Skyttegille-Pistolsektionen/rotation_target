@@ -22,6 +22,7 @@ constexpr const char *kGpioKey = "hw_tgt_gpio";
 constexpr const char *kActiveLowKey = "hw_tgt_alow";
 constexpr const char *kHostnameKey = "hw_hostname";
 constexpr const char *kDisplayNameKey = "hw_disp_name";
+constexpr const char *kBootShownKey = "hw_boot_shown";
 
 rt::HardwareConfig s_current;
 bool s_overridden = false;
@@ -48,6 +49,11 @@ rt::HardwareConfig defaults() {
   config.target_active_low = false;
 #endif
   config.hostname = CONFIG_RT_HOSTNAME;
+#ifdef CONFIG_RT_TARGETS_HIDE_AT_BOOT
+  config.targets_shown_at_boot = false;
+#else
+  config.targets_shown_at_boot = true;
+#endif
   // No compiled default: a device that has never been named has no name to
   // show, and inventing one would put the same string on every device.
   config.display_name = "";
@@ -87,6 +93,12 @@ bool overlay_from_nvs(rt::HardwareConfig &out) {
   }
   if (read_str(handle, kDisplayNameKey, text)) {
     out.display_name = text;
+    found = true;
+  }
+
+  int8_t boot_shown = 0;
+  if (nvs_get_i8(handle, kBootShownKey, &boot_shown) == ESP_OK) {
+    out.targets_shown_at_boot = boot_shown != 0;
     found = true;
   }
 
@@ -155,6 +167,10 @@ rt::ConfigRefusal save(const rt::HardwareConfig &config) {
     return rt::ConfigRefusal::kNone;
   }
 
+  // `targets_shown_at_boot` is deliberately absent. This is the path an HTTP
+  // request reaches, and that setting is serial-only (D-31, #144) - so it is
+  // not written here *by construction*, rather than by every caller
+  // remembering to strip it. save_boot_targets() is the only way in.
   nvs_set_i32(handle, kGpioKey, config.target_gpio);
   nvs_set_i8(handle, kActiveLowKey, config.target_active_low ? 1 : 0);
   nvs_set_str(handle, kHostnameKey, config.hostname.c_str());
@@ -170,6 +186,23 @@ rt::ConfigRefusal save(const rt::HardwareConfig &config) {
   return rt::ConfigRefusal::kNone;
 }
 
+bool save_boot_targets(bool shown) {
+  nvs_handle_t handle;
+  if (nvs_open(kNamespace, NVS_READWRITE, &handle) != ESP_OK) {
+    ESP_LOGE(TAG, "Could not open NVS for writing");
+    return false;
+  }
+  nvs_set_i8(handle, kBootShownKey, shown ? 1 : 0);
+  nvs_commit(handle);
+  nvs_close(handle);
+
+  // WARN, not INFO: this is the setting that decides what the targets do while
+  // somebody may be standing downrange, so the boot record should carry it
+  // whatever the log level is set to.
+  ESP_LOGW(TAG, "Boot target state set to %s; takes effect on restart", shown ? "shown" : "hidden");
+  return true;
+}
+
 bool reset() {
   nvs_handle_t handle;
   if (nvs_open(kNamespace, NVS_READWRITE, &handle) != ESP_OK) return false;
@@ -177,7 +210,7 @@ bool reset() {
   // Erased individually rather than with nvs_erase_all: the namespace is shared
   // with wifi_store, and taking the WiFi credentials out with the pin mapping
   // would turn "undo my hardware change" into "and now find the setup portal".
-  for (const char *key : {kGpioKey, kActiveLowKey, kHostnameKey, kDisplayNameKey}) {
+  for (const char *key : {kGpioKey, kActiveLowKey, kHostnameKey, kDisplayNameKey, kBootShownKey}) {
     const esp_err_t err = nvs_erase_key(handle, key);
     if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
       nvs_close(handle);

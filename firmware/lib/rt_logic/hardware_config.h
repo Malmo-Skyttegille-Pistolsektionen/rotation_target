@@ -40,6 +40,10 @@ struct HardwareConfig {
   // that cannot break anything - which is why it has no format rule beyond a
   // length.
   std::string display_name;
+  // Where the targets rest at boot. Both values are legal - which one is safe
+  // depends on the target system - so there is nothing for `validate` to say
+  // about it. Serial-only; see the note above.
+  bool targets_shown_at_boot = true;
 };
 
 // Why a configuration was refused. `kNone` means it was accepted.
