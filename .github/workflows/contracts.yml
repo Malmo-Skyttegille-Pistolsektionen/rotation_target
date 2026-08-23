@@ -192,24 +192,42 @@ jobs:
       # made yet. check-semantic-pr.yml already enforces the title is a
       # well-formed Conventional Commit; this only checks it is marked
       # breaking, since the diff above already proved it is one.
-      - name: Check the PR title marks this as breaking
+      - name: Check the change is marked breaking where the version is computed
         if: steps.openapi.outcome == 'failure' || steps.asyncapi.outcome == 'failure'
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
           set -uo pipefail
+
+          # This repo squash-merges with squash_merge_commit_title=PR_TITLE and
+          # squash_merge_commit_message=COMMIT_MESSAGES, so the commit git-cliff
+          # eventually reads is the PR title plus this branch's commit messages.
+          # Those are the only two places a breaking marker survives the merge.
+          # The PR *body* is not one of them - a footer written only there is
+          # dropped by the squash, and the release still ships under a minor
+          # bump.
           if printf '%s' "$PR_TITLE" | grep -qE '^[a-zA-Z]+(\([^)]*\))?!:'; then
             echo "PR title marks this as a breaking change."
-          elif printf '%s' "$PR_BODY" | grep -q 'BREAKING CHANGE:'; then
-            echo "PR body carries a BREAKING CHANGE footer."
-          else
-            echo "::error::The contract diff above is breaking, but the PR title does not mark it as"
-            echo "::error::breaking. Use '!' after the type (e.g. 'feat!:') or add a 'BREAKING CHANGE:'"
-            echo "::error::footer to the PR body - otherwise git-cliff ships this under a minor bump."
-            echo "::error::See AGENTS.md, 'How the contracts are versioned'."
-            exit 1
+            exit 0
           fi
+
+          # A footer begins a line; matching the string anywhere would accept a
+          # PR that merely mentions "BREAKING CHANGE:" in prose. Conventional
+          # Commits makes BREAKING-CHANGE synonymous with BREAKING CHANGE.
+          if git log --format=%B "$BASE_SHA..HEAD" | grep -qE '^BREAKING[ -]CHANGE:'; then
+            echo "A commit on this branch carries a BREAKING CHANGE footer."
+            exit 0
+          fi
+
+          echo "::error::The contract diff above is breaking, but nothing that survives the squash"
+          echo "::error::says so. Either mark the PR title with '!' after the type (e.g. 'feat!:'),"
+          echo "::error::which becomes the squashed commit's subject, or add a 'BREAKING CHANGE:'"
+          echo "::error::footer to a commit on this branch. A footer in the PR body does not count:"
+          echo "::error::the squash takes its body from the commit messages, not from the PR."
+          echo "::error::Without one, git-cliff ships this under a minor bump."
+          echo "::error::See AGENTS.md, 'How the contracts are versioned'."
+          exit 1
 
       - name: Verdict
         if: always()
