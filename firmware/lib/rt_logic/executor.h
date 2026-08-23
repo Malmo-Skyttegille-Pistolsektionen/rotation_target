@@ -37,6 +37,19 @@ enum class StartResult {
   kMismatch,
 };
 
+// What a client-driven skip_to did. Same shape as StartResult, and for the
+// same reason (#105): the caller names the program it decided the series
+// index was for, so `kMismatch` is a skip for a program the device no longer
+// holds.
+enum class SkipResult {
+  kSkipped,
+  // Nothing loaded, or the index is outside the loaded program's series:
+  // both leave nothing to select, and the contract answers one `400` for
+  // them, unchanged from before #105.
+  kInvalid,
+  kMismatch,
+};
+
 class Clock {
  public:
   virtual ~Clock() = default;
@@ -80,7 +93,9 @@ class Executor {
   // Rewind to the start of the current series.
   bool reset();
   // Select a series, paused at its first event.
-  bool skip_to_series(int32_t series_index);
+  // `expected_program_id` is the program the caller decided the index was
+  // for; anything else being loaded is refused rather than selected (#105).
+  SkipResult skip_to_series(int32_t series_index, int32_t expected_program_id);
   // Clear the selection. Refused while running: unloading mid-series would end
   // a range run from a call that reads as bookkeeping, so the client stops
   // first. Nothing loaded is success with nothing published - the payload would

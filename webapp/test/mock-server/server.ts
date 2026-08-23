@@ -63,6 +63,7 @@ const PROBLEMS = {
   '/problems/program_running': { title: 'A program is running', status: 409 },
   '/problems/program_loaded': { title: 'Program is loaded', status: 409 },
   '/problems/start_program_mismatch': { title: 'A different program is loaded', status: 409 },
+  '/problems/skip_program_mismatch': { title: 'A different program is loaded', status: 409 },
   '/problems/program_readonly': { title: 'Program is read-only', status: 409 },
   '/problems/audio_readonly': { title: 'Audio is read-only', status: 409 },
   '/problems/audio_in_use': { title: 'Audio is used by the loaded program', status: 409 },
@@ -72,6 +73,7 @@ const PROBLEMS = {
   '/problems/program_id_mismatch': { title: 'Program id does not match the path', status: 400 },
   '/problems/series_index_invalid': { title: 'Series index out of range', status: 400 },
   '/problems/start_id_required': { title: 'A program id is required to start', status: 400 },
+  '/problems/skip_id_required': { title: 'A program id is required to skip to a series', status: 400 },
   // upload
   '/problems/upload_missing_file': { title: 'No file uploaded', status: 400 },
   '/problems/upload_missing_title': { title: 'Missing title', status: 400 },
@@ -990,17 +992,43 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       return;
     }
 
-    // POST /programs/series/{idx}/skip_to - Requires auth
+    // POST /programs/series/{idx}/skip_to - Requires auth. The body names the
+    // program the caller decided the index was for (D-27, #105); the device
+    // refuses a skip for one it no longer holds. Order mirrors
+    // `rt::Executor::skip_to_series`: a malformed body is rejected before
+    // anything is read, then "nothing loaded" (the more precise diagnosis,
+    // and the answer this endpoint always gave), then the id, then bounds -
+    // a mismatch is refused before its series count is even consulted.
     const skipToMatch = endpoint.match(/^\/programs\/series\/(\d+)\/skip_to$/);
     if (skipToMatch && req.method === 'POST') {
       if (!checkAdminAuth(req, res)) return;
       const idx = parseInt(skipToMatch[1], 10);
+
+      const skipBody = parseJsonObject(await parseBody(req));
+      const requestedId = skipBody?.id;
+      if (typeof requestedId !== 'number' || !Number.isInteger(requestedId)) {
+        problemResponse(
+          res,
+          '/problems/skip_id_required',
+          'Expected a JSON body naming the program to skip: {"id": <id>}',
+        );
+        return;
+      }
 
       if (!state.loadedProgram || !state.programState) {
         problemResponse(
           res,
           '/problems/series_index_invalid',
           'No program loaded or series index out of bounds',
+        );
+        return;
+      }
+
+      if (state.loadedProgram.id !== requestedId) {
+        problemResponse(
+          res,
+          '/problems/skip_program_mismatch',
+          `Skip refused: the device has program ${state.loadedProgram.id} loaded, not program ${requestedId}`,
         );
         return;
       }

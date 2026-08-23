@@ -136,10 +136,11 @@ std::string password_from(PsychicRequest *req) {
   return doc["password"] | "";
 }
 
-// The program id from a `{"id": N}` body. False when the body is absent, is not
-// JSON, or carries no integer `id` - the caller turns that into a `400`. The id
-// is required rather than optional: an id-less start is exactly the ambiguity
-// #95 removes, and accepting one would keep a way to ask the device to run
+// The program id from a `{"id": N}` body, shared by `start` (#95) and
+// `skip_to` (#105). False when the body is absent, is not JSON, or carries no
+// integer `id` - the caller turns that into a `400`. The id is required
+// rather than optional: an id-less call is exactly the ambiguity these two
+// remove, and accepting one would keep a way to ask the device to act on
 // whatever it happens to hold.
 bool body_program_id(PsychicRequest *req, int32_t &out) {
   const char *body = req->body();
@@ -302,20 +303,43 @@ void register_program_routes() {
     return send_message(res, "Program unloaded");
   });
 
-  s_server.on("/api/v2/programs/series/*", HTTP_POST,
-              [](PsychicRequest *req, PsychicResponse *res) {
-                if (!require_admin(req, res)) return ESP_OK;
+  // #105: same shape as #95's start above - the body names the program the
+  // index is for, and a device holding a different one refuses. skip_to arms
+  // rather than runs, so the immediate consequence is a confusing UI state
+  // rather than targets moving; the id check still closes it, for one rule on
+  // run control rather than two.
+  s_server.on(
+      "/api/v2/programs/series/*", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
+        if (!require_admin(req, res)) return ESP_OK;
 
-                int32_t index = 0;
-                if (!path_id(req->uri(), "/api/v2/programs/series/", "/skip_to", index)) {
-                  return send_problem(res, rt::problem::kRouteNotFound, "Not found");
-                }
-                if (!executor::skip_to_series(index)) {
-                  return send_problem(res, rt::problem::kSeriesIndexInvalid,
-                                      "No program loaded or series index out of bounds");
-                }
-                return send_message(res, "Skipped to series " + std::to_string(index));
-              });
+        int32_t index = 0;
+        if (!path_id(req->uri(), "/api/v2/programs/series/", "/skip_to", index)) {
+          return send_problem(res, rt::problem::kRouteNotFound, "Not found");
+        }
+
+        int32_t expected_id = 0;
+        if (!body_program_id(req, expected_id)) {
+          return send_problem(res, rt::problem::kSkipIdRequired,
+                              "Expected a JSON body naming the program to skip: {\"id\": <id>}");
+        }
+
+        const executor::SkipOutcome outcome = executor::skip_to_series(index, expected_id);
+        switch (outcome.result) {
+          case rt::SkipResult::kInvalid:
+            return send_problem(res, rt::problem::kSeriesIndexInvalid,
+                                "No program loaded or series index out of bounds");
+          case rt::SkipResult::kMismatch:
+            // Both ids, same reasoning as start's 409: the operator has
+            // to know what the device actually holds.
+            return send_problem(res, rt::problem::kSkipProgramMismatch,
+                                "Skip refused: the device has program " +
+                                    std::to_string(outcome.loaded_program_id) +
+                                    " loaded, not program " + std::to_string(expected_id));
+          case rt::SkipResult::kSkipped:
+            break;
+        }
+        return send_message(res, "Skipped to series " + std::to_string(index));
+      });
 
   s_server.on("/api/v2/programs", HTTP_GET, [](PsychicRequest *, PsychicResponse *res) {
     std::string out = "[";

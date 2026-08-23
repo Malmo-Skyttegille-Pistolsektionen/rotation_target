@@ -177,7 +177,7 @@ void test_events_advance_and_the_series_pauses_at_the_next_one() {
 
 void test_program_completion_leaves_the_last_series_selected() {
   h->executor.load(&g_program);
-  h->executor.skip_to_series(1);
+  h->executor.skip_to_series(1, kFixtureId);
   h->executor.start(kFixtureId);
 
   h->run_to_idle();
@@ -265,7 +265,7 @@ void test_reset_without_a_program_is_refused() {
 
 void test_reset_rewinds_the_current_series() {
   h->executor.load(&g_program);
-  h->executor.skip_to_series(1);
+  h->executor.skip_to_series(1, kFixtureId);
   h->state.current_event_index.set(3);
   h->state.ticker_ms.set(7000);
 
@@ -283,7 +283,7 @@ void test_skip_to_a_valid_series() {
   h->executor.load(&g_program);
   h->effects.clear();
 
-  TEST_ASSERT_TRUE(h->executor.skip_to_series(1));
+  TEST_ASSERT_EQUAL(rt::SkipResult::kSkipped, h->executor.skip_to_series(1, kFixtureId));
 
   TEST_ASSERT_EQUAL_INT32(1, h->state.current_series_index.value);
   TEST_ASSERT_EQUAL_INT32(0, h->state.current_event_index.value);
@@ -295,23 +295,75 @@ void test_skip_to_a_valid_series() {
 void test_skip_out_of_bounds_leaves_the_state_alone() {
   h->executor.load(&g_program);
 
-  TEST_ASSERT_FALSE(h->executor.skip_to_series(2));
+  TEST_ASSERT_EQUAL(rt::SkipResult::kInvalid, h->executor.skip_to_series(2, kFixtureId));
   TEST_ASSERT_EQUAL_INT32(0, h->state.current_series_index.value);
 }
 
 void test_skip_without_a_program_is_refused() {
-  TEST_ASSERT_FALSE(h->executor.skip_to_series(0));
+  TEST_ASSERT_EQUAL(rt::SkipResult::kInvalid, h->executor.skip_to_series(0, kFixtureId));
 }
 
 void test_skip_stops_a_running_series() {
   h->executor.load(&g_program);
   h->executor.start(kFixtureId);
 
-  h->executor.skip_to_series(1);
+  h->executor.skip_to_series(1, kFixtureId);
 
   TEST_ASSERT_FALSE(h->state.running);
   TEST_ASSERT_EQUAL_INT32(1, h->state.current_series_index.value);
   TEST_ASSERT_EQUAL_INT32(rt::Executor::kIdleSleepMs, h->executor.tick());
+}
+
+// --- #105: a skip names the program the index is for ------------------------
+
+void test_skip_for_another_program_is_refused() {
+  h->executor.load(&g_program);
+  h->effects.clear();
+
+  TEST_ASSERT_EQUAL(rt::SkipResult::kMismatch, h->executor.skip_to_series(1, kFixtureId + 1));
+
+  // Nothing moved: no selection change and no stateUpdate that would tell
+  // clients something had happened.
+  TEST_ASSERT_EQUAL_INT32(0, h->state.current_series_index.value);
+  TEST_ASSERT_EQUAL_size_t(0, h->effects.broadcasts.size());
+}
+
+void test_skip_for_another_program_is_refused_while_one_is_running() {
+  h->executor.load(&g_program);
+  h->executor.start(kFixtureId);
+  h->effects.clear();
+
+  // Ahead of the bounds check: a skip aimed at the wrong program must not be
+  // answered "index valid" against a program it was never decided for.
+  TEST_ASSERT_EQUAL(rt::SkipResult::kMismatch, h->executor.skip_to_series(1, kFixtureId + 1));
+
+  TEST_ASSERT_TRUE(h->state.running);
+  TEST_ASSERT_EQUAL_size_t(0, h->effects.broadcasts.size());
+}
+
+void test_mismatch_outranks_an_out_of_bounds_index() {
+  h->executor.load(&g_program);
+
+  // Mirrors start's "nothing loaded outranks the id check" - here the id
+  // check is what runs first, ahead of a bounds check that would otherwise be
+  // evaluated against a program the caller never named.
+  TEST_ASSERT_EQUAL(rt::SkipResult::kMismatch, h->executor.skip_to_series(99, kFixtureId + 1));
+}
+
+void test_a_refused_skip_leaves_the_right_program_skippable() {
+  h->executor.load(&g_program);
+  TEST_ASSERT_EQUAL(rt::SkipResult::kMismatch, h->executor.skip_to_series(1, kFixtureId + 1));
+
+  TEST_ASSERT_EQUAL(rt::SkipResult::kSkipped, h->executor.skip_to_series(1, kFixtureId));
+  TEST_ASSERT_EQUAL_INT32(1, h->state.current_series_index.value);
+}
+
+void test_nothing_loaded_outranks_the_skip_id_check() {
+  // Same precedence as start's equivalent case: "nothing is loaded" is the
+  // more precise diagnosis, and the contract keeps it a plain `400` regardless
+  // of what id was sent.
+  TEST_ASSERT_EQUAL(rt::SkipResult::kInvalid, h->executor.skip_to_series(0, kFixtureId));
+  TEST_ASSERT_EQUAL(rt::SkipResult::kInvalid, h->executor.skip_to_series(0, kFixtureId + 1));
 }
 
 // --- the stateUpdate stream ------------------------------------------------
@@ -583,6 +635,11 @@ int main() {
   RUN_TEST(test_skip_out_of_bounds_leaves_the_state_alone);
   RUN_TEST(test_skip_without_a_program_is_refused);
   RUN_TEST(test_skip_stops_a_running_series);
+  RUN_TEST(test_skip_for_another_program_is_refused);
+  RUN_TEST(test_skip_for_another_program_is_refused_while_one_is_running);
+  RUN_TEST(test_mismatch_outranks_an_out_of_bounds_index);
+  RUN_TEST(test_a_refused_skip_leaves_the_right_program_skippable);
+  RUN_TEST(test_nothing_loaded_outranks_the_skip_id_check);
 
   RUN_TEST(test_a_series_streams_one_state_update_per_transition);
   RUN_TEST(test_a_long_event_publishes_once_a_second_not_once_a_tick);

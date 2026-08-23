@@ -39,7 +39,18 @@ StartOutcome start(int32_t expected_program_id);
 
 bool stop();
 bool reset();
-bool skip_to_series(int32_t series_index);
+
+// What a skip_to did, together with the program the device actually holds -
+// same shape as StartOutcome and for the same reason (#105).
+struct SkipOutcome {
+  static constexpr int32_t kNoProgram = -1;
+
+  rt::SkipResult result;
+  int32_t loaded_program_id;
+};
+
+// Selects `series_index`, but only if `expected_program_id` is loaded (#105).
+SkipOutcome skip_to_series(int32_t series_index, int32_t expected_program_id);
 
 void set_targets(bool shown);
 // Returns the resulting state.

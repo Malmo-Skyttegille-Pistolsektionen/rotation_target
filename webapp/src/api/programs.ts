@@ -38,7 +38,14 @@ export function useProgramsApi() {
       client.request<void>('/programs/start', { method: 'POST', body: JSON.stringify({ id }) }),
     stop: () => client.request<void>('/programs/stop', { method: 'POST' }),
     reset: () => client.request<void>('/programs/reset', { method: 'POST' }),
-    skipToSeries: (index: number) => client.request<void>(`/programs/series/${index}/skip_to`, { method: 'POST' }),
+    // The id is required (D-27, #105): the device refuses with 409 when it
+    // holds a different program - skip_to arms the next start, so the same
+    // race start closed applies here too.
+    skipToSeries: (index: number, id: number) =>
+      client.request<void>(`/programs/series/${index}/skip_to`, {
+        method: 'POST',
+        body: JSON.stringify({ id }),
+      }),
 
     // Targets
     showTargets: () => client.request<void>('/targets/show', { method: 'POST' }),
@@ -61,7 +68,11 @@ export const programsApi = {
   start: (id: number) => directClient<void>('/programs/start', { method: 'POST', body: JSON.stringify({ id }) }),
   stop: () => directClient<void>('/programs/stop', { method: 'POST' }),
   reset: () => directClient<void>('/programs/reset', { method: 'POST' }),
-  skipToSeries: (index: number) => directClient<void>(`/programs/series/${index}/skip_to`, { method: 'POST' }),
+  skipToSeries: (index: number, id: number) =>
+    directClient<void>(`/programs/series/${index}/skip_to`, {
+      method: 'POST',
+      body: JSON.stringify({ id }),
+    }),
 
   // Targets
   showTargets: () => directClient<void>('/targets/show', { method: 'POST' }),

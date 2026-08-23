@@ -40,6 +40,7 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-29 | One version for the whole product; bare tags; no external release workflows | Decided | 2026-08-21 |
 | D-30 | The webapp has written visual rules, derived from the shipped code | Decided | 2026-08-21 |
 | D-31 | Targets show at boot, and stay shown between series | Decided | 2026-08-22 |
+| D-32 | A skip names the program it is for; reset and stop do not | Decided | 2026-08-23 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
 
@@ -943,7 +944,7 @@ has the same shape of ambiguity — it selects a series on whatever is loaded, a
 a program switched underneath it silently re-aims the next start at a series of
 a program nobody chose. It is a lesser instance (it arms rather than runs, and
 the `start` that follows is now itself checked), so it is a separate issue
-rather than scope creep here.
+rather than scope creep here. Done in D-32.
 ## D-28 — The start delay is a run-page control, and 0 is a value *(Decided 2026-08-21)*
 
 **Decision:** the start delay is editable beside Start on the run page, not only
@@ -1112,6 +1113,60 @@ residual present-then-hide window at power-on is a separate defect.
 whoever reads the docs, and the person at risk is downrange, not at the laptop.
 *Making it a device setting* — a safety default that can be turned off from a
 phone is not a safety default.
+
+## D-32 — A skip names the program it is for; reset and stop do not *(Decided 2026-08-23)*
+
+**Decision:** `POST /api/v2/programs/series/{index}/skip_to` takes a
+**required** body `{"id": N}`, exactly D-27's shape. A device holding a
+different program refuses with **`409`** and names both:
+`Skip refused: the device has program 1 loaded, not program 40`. A malformed
+or absent body is `400`. "Nothing is loaded, or the index is out of range"
+stays `400 /problems/series_index_invalid`, checked after the id and unchanged
+from before this decision. The comparison happens inside
+`rt::Executor::skip_to_series(int32_t, int32_t)`, so the check and the
+selection are one locked section, the same reasoning D-27 gives for `start`.
+
+**Why:** filed as #105, a follow-up D-27 named but deliberately left out of its
+own PR (#95) as a lesser instance: `skip_to` selects a series on whatever is
+loaded, and a program switched underneath it silently re-aims the next `start`
+at a series of a program nobody chose. It is lesser because it arms rather than
+runs — nothing moves on the range at the moment it lands — and because the
+`start` that follows is now itself id-checked (D-27), so the wrong-program case
+is caught one call later, before anything runs. The failure without this
+change is a confusing UI state, not targets moving on a sequence nobody chose.
+Left alone anyway, because it is the same class of window D-27 closed: between
+a client's last `stateUpdate` and its `skip_to` arriving, another client on the
+range can load something else, and no client-side check can be airtight about
+that.
+
+**Why `reset` and `stop` do not get an id:** both are recoverable in one call
+and neither decides what runs next. `stop` only pauses whatever is currently
+running; `reset` only rewinds whatever is currently loaded to the start of its
+current series. Neither can aim a run at a program the operator did not
+choose, because neither picks a program or a series — they act on whatever is
+already selected, and the worst a stale one can do is pause or rewind the
+wrong thing, which is visible and one more call away from fixed. `start` and
+`skip_to` are different: each is a call that *decides where execution goes
+next*, which is exactly the decision a race can make on the caller's behalf.
+Requiring an id on every control verb would cost more in client complexity
+than it buys — it would keep asking every client to prove which program it
+means for calls where the device was never going to be confused about what to
+do.
+
+**Contract:** another breaking change to an operation — a new required body —
+which is a new path prefix under `contracts/README.md`. Taken as a further
+exception on D-16/D-23/D-27's grounds: the webapp still ships inside the
+firmware image, producer and consumer still deploy atomically, and no release
+has been cut. `/api/v2` stays. `info.version` is not touched — it is pinned at
+`1.0.0` per the root `AGENTS.md` and reads nothing.
+
+**Rejected:** *leaving `skip_to` unchecked, on the grounds that `start`'s check
+already catches it* — true that nothing runs on a mismatched `skip_to` alone,
+but the operator still sees the wrong series selected and armed, which is a
+confusing state worth refusing outright rather than deferring to the next
+call. *An id on `reset` and `stop` too, for one rule covering every run-control
+verb* — rejected above; the ambiguity D-27 and this decision close is specific
+to calls that choose where execution goes, and `reset`/`stop` do not.
 
 ## Open questions
 
