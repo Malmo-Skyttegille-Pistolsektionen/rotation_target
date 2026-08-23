@@ -4,6 +4,7 @@
 //  Ported route-for-route from src/backend/apis/api.py of the MicroPython
 //  backend; Microdot's API swapped for PsychicHttp's.
 // ============================================================================
+#include "config/hardware_store.h"
 #include "web_server.h"
 
 #include "ota.h"
@@ -166,7 +167,7 @@ bool body_program_id(PsychicRequest *req, int32_t &out) {
 // development origin. Anything else gets no CORS headers, so the browser
 // blocks the response.
 bool origin_allowed(const std::string &origin) {
-  const std::string host = std::string(CONFIG_RT_HOSTNAME);
+  const std::string host = hardware_store::current().hostname;
   if (origin == "http://" + host + ".local" || origin == "https://" + host + ".local") return true;
 
   const std::string ip = net_mgr::ip_address();
@@ -828,6 +829,90 @@ bool s_webapp_bundled = false;
 
 // Serves the built webapp from LittleFS when one has been uploaded. Kept last
 // so it never shadows an API route.
+// --- Hardware configuration (#144) ----------------------------------------
+
+// The three views the contract promises, plus the two booleans a client needs
+// to say anything useful about them.
+std::string hardware_config_json(const rt::HardwareConfig &config) {
+  std::string out = "{\"targetGpio\":";
+  out += std::to_string(config.target_gpio);
+  out += ",\"targetActiveLow\":";
+  out += config.target_active_low ? "true" : "false";
+  out += ",\"hostname\":";
+  out += rt::json_quote(config.hostname);
+  out += ",\"displayName\":";
+  out += rt::json_quote(config.display_name);
+  out += "}";
+  return out;
+}
+
+bool same_config(const rt::HardwareConfig &a, const rt::HardwareConfig &b) {
+  return a.target_gpio == b.target_gpio && a.target_active_low == b.target_active_low &&
+         a.hostname == b.hostname && a.display_name == b.display_name;
+}
+
+void register_config_routes() {
+  s_server.on("/api/v2/config/hardware", HTTP_GET, [](PsychicRequest *, PsychicResponse *res) {
+    // `active` is what boot latched; `saved` is what NVS holds now. They differ
+    // exactly between a write and the restart that adopts it, which is the one
+    // thing a client must not hide - a pin change that appears to have done
+    // nothing is how somebody ends up reflashing a working device.
+    const rt::HardwareConfig &active = hardware_store::current();
+    const rt::HardwareConfig saved = hardware_store::saved();
+    const rt::HardwareConfig defaults = hardware_store::defaults();
+
+    std::string out = "{\"active\":";
+    out += hardware_config_json(active);
+    out += ",\"saved\":";
+    out += hardware_config_json(saved);
+    out += ",\"defaults\":";
+    out += hardware_config_json(defaults);
+    out += ",\"overridden\":";
+    out += hardware_store::overridden() ? "true" : "false";
+    out += ",\"restartRequired\":";
+    out += same_config(active, saved) ? "false" : "true";
+    out += "}";
+    return send_json(res, 200, out);
+  });
+
+  s_server.on("/api/v2/config/hardware", HTTP_PUT, [](PsychicRequest *req, PsychicResponse *res) {
+    if (!require_admin(req, res)) return ESP_OK;
+
+    const char *body = req->body();
+    JsonDocument doc;
+    if (body == nullptr || deserializeJson(doc, body) != DeserializationError::Ok ||
+        !doc.is<JsonObject>()) {
+      return send_problem(
+          res, rt::problem::kHardwareConfigInvalid,
+          "Expected a JSON object with targetGpio, targetActiveLow, hostname and displayName");
+    }
+
+    // Absent fields keep what is stored rather than reverting to a compiled
+    // default: a client that knows about fewer fields than this firmware must
+    // not silently undo the ones it cannot see.
+    rt::HardwareConfig config = hardware_store::saved();
+    if (!doc["targetGpio"].isNull()) config.target_gpio = doc["targetGpio"] | config.target_gpio;
+    if (!doc["targetActiveLow"].isNull())
+      config.target_active_low = doc["targetActiveLow"] | config.target_active_low;
+    if (!doc["hostname"].isNull()) config.hostname = doc["hostname"] | config.hostname;
+    if (!doc["displayName"].isNull())
+      config.display_name = doc["displayName"] | config.display_name;
+
+    const rt::ConfigRefusal refusal = hardware_store::save(config);
+    if (refusal != rt::ConfigRefusal::kNone) {
+      return send_problem(res, rt::problem::kHardwareConfigInvalid, rt::refusal_message(refusal));
+    }
+    return send_message(res, "Hardware configuration saved - restart the device to apply it");
+  });
+
+  s_server.on(
+      "/api/v2/config/hardware/reset", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
+        if (!require_admin(req, res)) return ESP_OK;
+        hardware_store::reset();
+        return send_message(res, "Hardware configuration reset - restart the device to apply it");
+      });
+}
+
 void register_static_routes() {
   // Only .gz survives the build for the text assets (firmware/CMakeLists.txt),
   // so the uncompressed name is not the one to probe for.
@@ -929,6 +1014,7 @@ bool start() {
   register_diagnostics_routes();
   register_target_routes();
   register_audio_routes();
+  register_config_routes();
   // Lives in its own translation unit: the ESP-IDF OTA calls have a lifetime
   // discipline of their own (a handle that must be aborted, not ended, before
   // it is finalised) and do not belong mixed into the request handlers here.

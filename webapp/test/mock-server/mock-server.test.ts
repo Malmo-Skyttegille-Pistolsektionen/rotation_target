@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AudioFile, DiagnosticsInfo, LibraryChangedPayload, StateUpdatePayload } from '../../src/api/types';
 import { PROGRAM_FALT_TRANING } from '../fixtures';
 import { createFakeClock, type FakeClock } from './clock';
-import { createMockServer, loadSeedFromDisk, type MockServer } from './server';
+import { HARDWARE_DEFAULTS, createMockServer, loadSeedFromDisk, type MockServer } from './server';
 import { flushIO, openSSE, type SSEReader } from './sse-reader';
 
 /** The app's tsconfig targets ES2020, so no `Array.prototype.at`. */
@@ -357,11 +357,11 @@ describe('program storage', () => {
       // Not the id-mismatch error, though the body still carries the fixture's
       // id 7: `update_uploaded` parses before it compares ids.
       await expectProblem(replaced, {
-      type: '/problems/program_invalid',
-      title: 'Invalid program',
-      status: 400,
-      detail: 'Invalid program',
-    });
+        type: '/problems/program_invalid',
+        title: 'Invalid program',
+        status: 400,
+        detail: 'Invalid program',
+      });
 
       // And the stored program is untouched by the refused replace.
       expect((await (await api(`/programs/${id}`)).json()).series[0].events[0]).toEqual({ duration: 1000 });
@@ -863,5 +863,123 @@ describe('disk seed', () => {
     // `RT_UPLOADS_AUDIO_DIR` in firmware/main/config.h — the mock used to say
     // `/storage/uploaded/`, which exists nowhere on the device.
     expect(writable.every((a) => a.filename.startsWith('/storage/uploads/audio/'))).toBe(true);
+  });
+});
+
+/**
+ * Hardware configuration (#144).
+ *
+ * The refusals here are the ones whose recovery needs a USB cable, so they are
+ * worth pinning in the mock as well as the firmware - a value the device
+ * refuses and the mock accepts is a webapp test that passes against a device
+ * that would have said no.
+ */
+describe('hardware configuration', () => {
+  async function put(body: unknown): Promise<Response> {
+    return api('/config/hardware', { method: 'PUT', body: JSON.stringify(body) });
+  }
+
+  async function read(): Promise<Record<string, never>> {
+    return (await (await api('/config/hardware')).json()) as Record<string, never>;
+  }
+
+  it('starts on the compiled defaults, with nothing overridden', async () => {
+    const state = await read();
+    expect(state).toMatchObject({
+      active: HARDWARE_DEFAULTS,
+      saved: HARDWARE_DEFAULTS,
+      defaults: HARDWARE_DEFAULTS,
+      overridden: false,
+      restartRequired: false,
+    });
+  });
+
+  // The gap between a save and the reboot that adopts it is the one thing a
+  // client must not hide: a pin change that appears to have done nothing is
+  // how somebody ends up reflashing a working device.
+  it('reports restartRequired between a save and the restart that adopts it', async () => {
+    expect((await put({ targetGpio: 7 })).status).toBe(200);
+
+    const afterSave = await read();
+    expect(afterSave).toMatchObject({
+      active: { targetGpio: HARDWARE_DEFAULTS.targetGpio },
+      saved: { targetGpio: 7 },
+      overridden: true,
+      restartRequired: true,
+    });
+
+    server.restart();
+    const afterRestart = await read();
+    expect(afterRestart).toMatchObject({
+      active: { targetGpio: 7 },
+      saved: { targetGpio: 7 },
+      restartRequired: false,
+    });
+  });
+
+  it('keeps the fields a request does not mention', async () => {
+    expect((await put({ displayName: 'Bana 1' })).status).toBe(200);
+    expect((await put({ targetGpio: 9 })).status).toBe(200);
+
+    const state = await read();
+    expect(state).toMatchObject({ saved: { targetGpio: 9, displayName: 'Bana 1' } });
+  });
+
+  // 26-32 are the module's own flash and PSRAM; driving one does not fail to
+  // move a target, it stops the device booting.
+  it('refuses a GPIO that would stop the device booting, without storing anything', async () => {
+    for (const gpio of [26, 30, 32, 22, 25]) {
+      const refused = await put({ targetGpio: gpio });
+      await expectProblem(refused, {
+        type: '/problems/hardware_config_invalid',
+        title: 'Invalid hardware configuration',
+        status: 400,
+        detail:
+          "That GPIO is wired to the module's flash or PSRAM, or does not exist on this chip. Driving it stops the device booting.",
+      });
+    }
+    expect(await read()).toMatchObject({ saved: HARDWARE_DEFAULTS, overridden: false });
+  });
+
+  it('refuses a GPIO off the chip, and one that cannot drive an output', async () => {
+    expect((await put({ targetGpio: 49 })).status).toBe(400);
+    expect((await put({ targetGpio: -1 })).status).toBe(400);
+    expect((await put({ targetGpio: 46 })).status).toBe(400);
+  });
+
+  // The hostname is the setup AP's SSID prefix as well as the mDNS name, so a
+  // value that is not a legal DNS label makes the device harder to reach.
+  it('refuses a hostname that is not a legal label', async () => {
+    for (const hostname of ['', 'Rotation', 'has space', '-leading', 'trailing-', 'a'.repeat(21)]) {
+      expect((await put({ hostname })).status).toBe(400);
+    }
+    expect((await put({ hostname: 'bana-1' })).status).toBe(200);
+  });
+
+  it('takes any display name up to its length', async () => {
+    expect((await put({ displayName: 'Malmö Skyttegille — bana 1' })).status).toBe(200);
+    expect((await put({ displayName: 'x'.repeat(41) })).status).toBe(400);
+  });
+
+  it('resets to the compiled defaults, and says a restart is needed', async () => {
+    expect((await put({ targetGpio: 7, displayName: 'Bana 1' })).status).toBe(200);
+    server.restart();
+
+    expect((await api('/config/hardware/reset', { method: 'POST' })).status).toBe(200);
+    expect(await read()).toMatchObject({
+      saved: HARDWARE_DEFAULTS,
+      overridden: false,
+      restartRequired: true,
+    });
+  });
+
+  it('gates writes on the admin token, but not the read', async () => {
+    expect((await api('/admin-mode/enable', { method: 'POST', body: JSON.stringify({ password: 'pw' }) })).status).toBe(
+      200,
+    );
+
+    expect((await api('/config/hardware')).status).toBe(200);
+    expect((await put({ targetGpio: 7 })).status).toBe(401);
+    expect((await api('/config/hardware/reset', { method: 'POST' })).status).toBe(401);
   });
 });

@@ -14,6 +14,7 @@
 // ============================================================================
 #include <cstdio>
 
+#include "config/hardware_store.h"
 #include "config.h"
 #include "esp_eth.h"
 #include "esp_eth_mac_openeth.h"
@@ -79,7 +80,7 @@ void start_mdns() {
     ESP_LOGW(TAG, "mDNS unavailable");
     return;
   }
-  mdns_hostname_set(CONFIG_RT_HOSTNAME);
+  mdns_hostname_set(hardware_store::current().hostname.c_str());
   mdns_instance_name_set("Rotation target");
   mdns_service_add(nullptr, "_http", "_tcp", kHttpPort, nullptr, 0);
 }
@@ -112,7 +113,7 @@ Result connect() {
 
   esp_netif_config_t netif_cfg = ESP_NETIF_DEFAULT_ETH();
   esp_netif_t *netif = esp_netif_new(&netif_cfg);
-  esp_netif_set_hostname(netif, CONFIG_RT_HOSTNAME);
+  esp_netif_set_hostname(netif, hardware_store::current().hostname.c_str());
 
   eth_mac_config_t mac_cfg = ETH_MAC_DEFAULT_CONFIG();
   esp_eth_mac_t *mac = esp_eth_mac_new_openeth(&mac_cfg);

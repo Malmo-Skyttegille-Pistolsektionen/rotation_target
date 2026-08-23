@@ -20,6 +20,7 @@ endif()
 
 idf_component_register(
     SRCS "app_main.cpp"
+         "config/hardware_store.cpp"
          "io/targets.cpp" "io/audio.cpp" "io/rgb_led.cpp"
          "storage/storage.cpp"
          "repositories/programs.cpp" "repositories/audios.cpp"
@@ -28,7 +29,7 @@ idf_component_register(
          "diagnostics/partitions.cpp" "console/console.cpp"
          ${RT_NET_SRCS}
          "net/web_server.cpp" "net/sse_hub.cpp"
-    INCLUDE_DIRS "." "io" "storage" "repositories" "executor" "net" "diagnostics" "console" "ota"
+    INCLUDE_DIRS "." "config" "io" "storage" "repositories" "executor" "net" "diagnostics" "console" "ota"
     REQUIRES rt_logic arduinojson psychic_http
              nvs_flash esp_netif esp_event esp_timer esp_system
              esp_http_server app_update espcoredump

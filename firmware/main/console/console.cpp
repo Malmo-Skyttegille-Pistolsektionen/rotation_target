@@ -106,7 +106,7 @@ std::string status_text() {
 
   // Both halves: what the firmware drove, and what is actually on the pad.
   snprintf(line, sizeof(line), "targets    %s (gpio %d, level %d)\r\n",
-           targets::level() == kTargetLevelShown ? "shown" : "hidden", targets::pin(),
+           targets::level() == targets::level_shown() ? "shown" : "hidden", targets::pin(),
            targets::level());
   out += line;
 
