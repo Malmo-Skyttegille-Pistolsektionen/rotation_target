@@ -89,6 +89,12 @@ constexpr uint16_t kHttpPort = CONFIG_RT_HTTP_PORT;
 constexpr int kSseHeartbeatSeconds = 10;
 // Ceiling on an uploaded program document or audio file.
 constexpr size_t kMaxUploadBytes = 1024 * 1024;
+
+// Firmware is the one upload that legitimately exceeds the ceiling above: the
+// app image is already past 1 MB and the slot it goes into is 3 MB. Sized to
+// the slot, so the limit that rejects an oversized upload is the same limit
+// that would have run out of flash anyway.
+constexpr size_t kMaxFirmwareUploadBytes = 3 * 1024 * 1024;
 // How many boot-time backend_issues GET /api/v2/diagnostics/info keeps. They
 // are raised before the SSE hub has a server and would otherwise be dropped;
 // beyond this many the oldest is discarded. Sized for "a handful of stored

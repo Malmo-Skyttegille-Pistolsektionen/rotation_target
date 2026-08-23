@@ -6,6 +6,8 @@
 // ============================================================================
 #include "web_server.h"
 
+#include "ota.h"
+
 #include <ArduinoJson.h>
 #include <PsychicHttp.h>
 
@@ -54,6 +56,10 @@ constexpr const char *kStagedUploadPath = "/storage/uploads/audio/.staging";
 // the handler's onRequest. Still set outside a request means the last upload
 // died mid-body.
 bool s_upload_in_flight = false;
+
+// Bytes taken by the upload in flight, counted against kMaxUploadBytes. The
+// server-wide ceiling is sized for firmware, so audio bounds itself.
+size_t s_upload_bytes = 0;
 
 // Drops whatever a previous upload left staged. Safe to call outside a
 // request: every completion path either renames the staging file into the
@@ -250,6 +256,14 @@ void register_program_routes() {
   // client only explains.
   s_server.on("/api/v2/programs/start", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
     if (!require_admin(req, res)) return ESP_OK;
+
+    // The reciprocal of the OTA's own refusal: an upload is in flight and a
+    // restart is moments away, so a program started now would be cut off
+    // part-way through a sequence with targets already moving.
+    if (ota::in_progress()) {
+      return send_problem(res, rt::problem::kProgramRunning,
+                          "A firmware update is in progress - wait for the device to restart");
+    }
 
     int32_t expected_id = 0;
     if (!body_program_id(req, expected_id)) {
@@ -711,7 +725,19 @@ void register_audio_routes() {
       // Marks the body as streaming so the middleware can tell, next time
       // round, that this request never reached onRequest.
       s_upload_in_flight = true;
+      s_upload_bytes = 0;
       storage::make_dirs(kUploadAudioDir);
+    }
+
+    // The server-wide ceiling is sized for firmware now, so a clip has to be
+    // bounded here or it is bounded by the size of the partition.
+    s_upload_bytes += len;
+    if (s_upload_bytes > kMaxUploadBytes) {
+      ESP_LOGW(TAG, "Rejected upload '%s': past the %u-byte ceiling", filename,
+               static_cast<unsigned>(kMaxUploadBytes));
+      s_upload_in_flight = false;
+      ::remove(kStagedUploadPath);
+      return ESP_FAIL;
     }
 
     FILE *f = fopen(kStagedUploadPath, index == 0 ? "wb" : "ab");
@@ -825,8 +851,13 @@ bool start() {
   // The documented 1 MB ceiling was only ever consulted when reading files
   // *back* off flash. Without these the real limits were PsychicHttp's
   // defaults - 16 KB for a JSON body and 2 MB for an upload.
-  s_server.maxUploadSize = kMaxUploadBytes;
-  s_server.maxRequestBodySize = kMaxUploadBytes;
+  // The server-wide ceiling has to admit the largest legitimate upload, which
+  // is firmware: a 1 MB cap rejected every real app image outright. Raising it
+  // here would leave audio and programs unbounded, so each now counts its own
+  // bytes against kMaxUploadBytes - the ceiling that used to do that job for
+  // them.
+  s_server.maxUploadSize = kMaxFirmwareUploadBytes;
+  s_server.maxRequestBodySize = kMaxFirmwareUploadBytes;
   // Every connected client holds a socket open indefinitely for /sse/v2 on top
   // of its REST traffic. Bounded by LWIP: httpd requires
   // max_open_sockets <= CONFIG_LWIP_MAX_SOCKETS - 3, and sdkconfig.defaults
@@ -898,6 +929,10 @@ bool start() {
   register_diagnostics_routes();
   register_target_routes();
   register_audio_routes();
+  // Lives in its own translation unit: the ESP-IDF OTA calls have a lifetime
+  // discipline of their own (a handle that must be aborted, not ended, before
+  // it is finalised) and do not belong mixed into the request handlers here.
+  ota::register_routes(s_server);
 
   sse_hub::attach(s_server, "/sse/v2");
 
