@@ -24,10 +24,11 @@ idf_component_register(
          "storage/storage.cpp"
          "repositories/programs.cpp" "repositories/audios.cpp"
          "executor/program_executor.cpp"
+         "ota/ota.cpp"
          "diagnostics/partitions.cpp" "console/console.cpp"
          ${RT_NET_SRCS}
          "net/web_server.cpp" "net/sse_hub.cpp"
-    INCLUDE_DIRS "." "io" "storage" "repositories" "executor" "net" "diagnostics" "console"
+    INCLUDE_DIRS "." "io" "storage" "repositories" "executor" "net" "diagnostics" "console" "ota"
     REQUIRES rt_logic arduinojson psychic_http
              nvs_flash esp_netif esp_event esp_timer esp_system
              esp_http_server app_update espcoredump

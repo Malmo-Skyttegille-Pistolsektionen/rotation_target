@@ -470,6 +470,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ota": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload new firmware
+         * @description A `multipart/form-data` body with one file part: an ESP-IDF
+         *     application image (`rotation_target_backend.bin`).
+         *
+         *     The image is streamed into the **inactive** app slot, so the running
+         *     firmware is never overwritten. Once it has landed the device compares
+         *     the image's `project_name` against its own and refuses anything that
+         *     is not this project — secure boot is off, so that check is the only
+         *     thing between an admin session and arbitrary firmware. A refused image
+         *     is aborted rather than finalised, so it is never the boot partition
+         *     even for an instant.
+         *
+         *     On success the device answers `200` and **restarts about 1.5 seconds
+         *     later** — long enough for this response to reach the client. The client
+         *     should expect the connection to drop and the device to be briefly
+         *     unreachable.
+         *
+         *     **Rollback is automatic.** The bootloader has
+         *     `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` and the firmware marks itself
+         *     valid only once it is serving; an image that boots but cannot get that
+         *     far is rolled back to the slot it replaced, with no cable involved.
+         *
+         *     **This replaces the application only.** The web app, the shipped
+         *     programs and the audio live in the LittleFS image and are not touched,
+         *     so a device updated this way serves the bundle it already had.
+         *
+         *     Refused with `409` while a program is running: the targets are
+         *     mid-sequence and somebody may be downrange acting on what the sequence
+         *     is doing.
+         */
+        post: operations["uploadFirmware"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/audios": {
         parameters: {
             query?: never;
@@ -1572,6 +1619,73 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    uploadFirmware: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description The application image.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /**
+             * @description Accepted and set as the boot partition. The device restarts
+             *     shortly; there is no further call to make.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "accepted";
+                        restarting: boolean;
+                    };
+                };
+            };
+            /**
+             * @description The upload was empty, too small to be an image, or not for this
+             *     project.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Admin mode is on and the request carried no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description A program is running. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     listAudios: {

@@ -6,6 +6,8 @@
 // ============================================================================
 #include "web_server.h"
 
+#include "ota.h"
+
 #include <ArduinoJson.h>
 #include <PsychicHttp.h>
 
@@ -249,6 +251,14 @@ void register_program_routes() {
   // client only explains.
   s_server.on("/api/v2/programs/start", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
     if (!require_admin(req, res)) return ESP_OK;
+
+    // The reciprocal of the OTA's own refusal: an upload is in flight and a
+    // restart is moments away, so a program started now would be cut off
+    // part-way through a sequence with targets already moving.
+    if (ota::in_progress()) {
+      return send_problem(res, rt::problem::kProgramRunning,
+                          "A firmware update is in progress - wait for the device to restart");
+    }
 
     int32_t expected_id = 0;
     if (!body_program_id(req, expected_id)) {
@@ -874,6 +884,10 @@ bool start() {
   register_diagnostics_routes();
   register_target_routes();
   register_audio_routes();
+  // Lives in its own translation unit: the ESP-IDF OTA calls have a lifetime
+  // discipline of their own (a handle that must be aborted, not ended, before
+  // it is finalised) and do not belong mixed into the request handlers here.
+  ota::register_routes(s_server);
 
   sse_hub::attach(s_server, "/sse/v2");
 
