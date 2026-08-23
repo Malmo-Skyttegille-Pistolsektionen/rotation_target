@@ -1,3 +1,4 @@
+#include "config/hardware_store.h"
 #include "rgb_led.h"
 
 #include "config.h"
@@ -34,7 +35,8 @@ led_strip_handle_t s_strip = nullptr;
 
 void init() {
   led_strip_config_t strip_cfg = {};
-  strip_cfg.strip_gpio_num = kRgbLedPin;
+  // From the store, not config.h: the LED's pin is configurable (#144).
+  strip_cfg.strip_gpio_num = hardware_store::current().led_gpio;
   strip_cfg.max_leds = 1;
   strip_cfg.led_model = LED_MODEL_WS2812;
   strip_cfg.color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB;

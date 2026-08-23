@@ -10,10 +10,15 @@
 
 /* Visibly not an ordinary settings card (#144). Everything else on this page is
    recoverable from the page you broke it on; a wrong pin here needs a USB
-   cable. The amber edge is the same language the app already uses for "this one
-   is different" — the start delay's no-delay state, the version mismatch. */
+   cable.
+
+   A full amber-tinted border rather than an accent stripe down one side: it is
+   the language this app already uses for "pay attention" - the version
+   mismatch banner, the no-delay start control, `.pending` below - so the
+   section reads as part of the same vocabulary instead of a decoration. */
 .expert {
-  border-left: 4px solid #b45309;
+  border: 1px solid #fcd34d;
+  background-color: #fffbeb;
 }
 
 .head {
@@ -162,4 +167,25 @@
   color: #3730a3;
   font-size: 0.85rem;
   line-height: 1.5;
+}
+
+/* One block per peripheral. Somebody in here is adapting the firmware to a
+   board in front of them and works through it a peripheral at a time, so the
+   pins are grouped the way the wiring is rather than listed flat. */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #fde68a;
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #92400e;
 }

@@ -82,7 +82,8 @@ void start_mdns() {
   }
   mdns_hostname_set(hardware_store::current().hostname.c_str());
   mdns_instance_name_set("Rotation target");
-  mdns_service_add(nullptr, "_http", "_tcp", kHttpPort, nullptr, 0);
+  mdns_service_add(nullptr, "_http", "_tcp",
+                   static_cast<uint16_t>(hardware_store::current().http_port), nullptr, 0);
 }
 
 }  // namespace

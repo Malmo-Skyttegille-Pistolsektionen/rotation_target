@@ -41,6 +41,18 @@ async function open(): Promise<void> {
   });
 }
 
+/** The testid a field is rendered with, to the config key it edits. */
+const TESTID_TO_KEY: Record<string, 'targetGpio' | 'ledGpio' | 'i2sPort' | 'i2sBckGpio' | 'i2sWsGpio' | 'i2sDoutGpio' | 'httpPort' | 'wifiMaxRetries'> = {
+  'hardware-target-gpio': 'targetGpio',
+  'hardware-led-gpio': 'ledGpio',
+  'hardware-i2s-port': 'i2sPort',
+  'hardware-i2s-bck': 'i2sBckGpio',
+  'hardware-i2s-ws': 'i2sWsGpio',
+  'hardware-i2s-dout': 'i2sDoutGpio',
+  'hardware-http-port': 'httpPort',
+  'hardware-wifi-retries': 'wifiMaxRetries',
+};
+
 function field(testId: string): HTMLInputElement {
   return screen.getByTestId(testId) as HTMLInputElement;
 }
@@ -177,6 +189,62 @@ describe('the hardware section', () => {
       fireEvent.click(screen.getByTestId('hardware-reset'));
     });
     await waitFor(() => expect((screen.getByTestId('hardware-reset') as HTMLButtonElement).disabled).toBe(true));
+  });
+
+  // The reason this section exists is a club adapting a stock release image to
+  // their own board, so every pin the firmware reads has to be reachable here -
+  // not just the target one.
+  it('exposes every configurable pin, grouped by peripheral', async () => {
+    await device();
+    renderSection();
+    await open();
+
+    for (const testId of [
+      'hardware-target-gpio',
+      'hardware-led-gpio',
+      'hardware-i2s-port',
+      'hardware-i2s-bck',
+      'hardware-i2s-ws',
+      'hardware-i2s-dout',
+      'hardware-http-port',
+      'hardware-wifi-retries',
+    ]) {
+      expect(field(testId).value).toBe(String(HARDWARE_DEFAULTS[TESTID_TO_KEY[testId]]));
+    }
+
+    for (const group of ['hardware-group-targets', 'hardware-group-led', 'hardware-group-audio', 'hardware-group-network']) {
+      expect(screen.getByTestId(group)).toBeTruthy();
+    }
+  });
+
+  // Two peripherals on one pad passes every per-pin check and still does not
+  // work: whichever is set up last takes the pin and the other goes quiet.
+  it('refuses two peripherals on the same pin', async () => {
+    await device();
+    renderSection();
+    await open();
+
+    await type('hardware-led-gpio', String(HARDWARE_DEFAULTS.i2sBckGpio));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('hardware-save'));
+    });
+
+    await waitFor(() => expect(screen.getByTestId('hardware-notice').textContent).toContain('same GPIO'));
+  });
+
+  // The serial console is the way back from a bad pin, so a configuration that
+  // would take it away is refused rather than saved.
+  it('refuses a pin that would remove the serial console', async () => {
+    await device();
+    renderSection();
+    await open();
+
+    await type('hardware-target-gpio', '19');
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('hardware-save'));
+    });
+
+    await waitFor(() => expect(screen.getByTestId('hardware-notice').textContent).toContain('USB serial'));
   });
 
   // Shown because an operator needs to know it; not editable because it is what

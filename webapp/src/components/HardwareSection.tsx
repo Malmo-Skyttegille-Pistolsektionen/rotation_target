@@ -26,7 +26,75 @@ import styles from './HardwareSection.module.css';
  *  - **Where the targets rest at boot is not editable here.** It is shown,
  *    because an operator needs to know it, and it changes only from the serial
  *    console (D-31).
+ *
+ * Grouped by the thing each pin belongs to rather than listed flat: somebody
+ * here is adapting the firmware to a board they have in front of them, and they
+ * work through it one peripheral at a time.
  */
+
+/** Every numeric field is a GPIO or a port, and they behave identically. */
+type NumericField = {
+  key: keyof HardwareConfigPatch & ('targetGpio' | 'ledGpio' | 'i2sPort' | 'i2sBckGpio' | 'i2sWsGpio' | 'i2sDoutGpio' | 'httpPort' | 'wifiMaxRetries');
+  testId: string;
+  label: string;
+  hint: React.ReactNode;
+};
+
+const TARGET_FIELDS: NumericField[] = [
+  {
+    key: 'targetGpio',
+    testId: 'hardware-target-gpio',
+    label: 'Target GPIO',
+    hint: 'The pin wired to the target circuit. 22–32 are refused: they are absent from this chip or belong to its flash and PSRAM, and driving one stops the device booting.',
+  },
+];
+
+const LED_FIELDS: NumericField[] = [
+  {
+    key: 'ledGpio',
+    testId: 'hardware-led-gpio',
+    label: 'Status LED GPIO',
+    hint: 'The addressable LED’s data pin — 48 on a stock DevKitC-1. Kept even on a firmware built without the LED, so the value survives being flashed onto one that has it.',
+  },
+];
+
+const AUDIO_FIELDS: NumericField[] = [
+  {
+    key: 'i2sPort',
+    testId: 'hardware-i2s-port',
+    label: 'I2S port',
+    hint: 'Which of the chip’s two I2S peripherals drives the DAC. 0 or 1 — a peripheral, not a pin.',
+  },
+  { key: 'i2sBckGpio', testId: 'hardware-i2s-bck', label: 'I2S bit clock (BCK)', hint: 'To BCLK on the amplifier board.' },
+  {
+    key: 'i2sWsGpio',
+    testId: 'hardware-i2s-ws',
+    label: 'I2S word select (WS/LRCK)',
+    hint: 'To LRC on the amplifier board.',
+  },
+  {
+    key: 'i2sDoutGpio',
+    testId: 'hardware-i2s-dout',
+    label: 'I2S data out (DOUT)',
+    hint: 'To DIN on the amplifier board — the names cross over, which is the usual way to wire this wrong.',
+  },
+];
+
+const NETWORK_FIELDS: NumericField[] = [
+  {
+    key: 'httpPort',
+    testId: 'hardware-http-port',
+    label: 'HTTP port',
+    hint: 'Where the web app is served. Leave at 80 unless something else on the device needs it — mDNS advertises the port, but a browser typed at by hand does not, so a moved port has to be remembered.',
+  },
+  {
+    key: 'wifiMaxRetries',
+    testId: 'hardware-wifi-retries',
+    label: 'WiFi join attempts',
+    hint: 'How many times to try the stored network before raising the setup portal. About 2.4 seconds each, so 10 is roughly half a minute of trying.',
+  },
+];
+
 export function HardwareSection(): React.ReactNode {
   const { adminToken } = useSettings();
   const { adminModeEnabled } = useAdminStatus();
@@ -100,6 +168,34 @@ export function HardwareSection(): React.ReactNode {
   /** Marks a field whose stored value is not the compiled default. */
   const overridden = (key: keyof HardwareConfig): boolean => saved[key] !== state.defaults[key];
 
+  const numeric = (field: NumericField): React.ReactNode => (
+    <label className={styles.field} key={field.key}>
+      <span className={styles.label}>
+        {field.label}
+        {overridden(field.key) && <span className={styles.badge}>changed</span>}
+      </span>
+      <input
+        className={styles.input}
+        type='text'
+        inputMode='numeric'
+        data-testid={field.testId}
+        disabled={!canManage || busy}
+        value={String(value(field.key))}
+        onChange={(e) => {
+          set(field.key, Number(e.target.value));
+        }}
+      />
+      <span className={styles.hint}>{field.hint}</span>
+    </label>
+  );
+
+  const group = (title: string, testId: string, children: React.ReactNode): React.ReactNode => (
+    <div className={styles.group} data-testid={testId}>
+      <h3 className={styles.groupTitle}>{title}</h3>
+      <div className={styles.fields}>{children}</div>
+    </div>
+  );
+
   return (
     <section className={clsx(styles.section, styles.expert)} data-testid='hardware-section'>
       <div className={styles.head}>
@@ -117,7 +213,7 @@ export function HardwareSection(): React.ReactNode {
       </div>
 
       <p className={styles.explain}>
-        Which pin drives the targets, which way round it is wired, and what this device calls itself.{' '}
+        Which pins this board uses, what this device calls itself, and how it joins the network.{' '}
         <strong>Getting these wrong can make the device stop working, and the way back is a USB cable.</strong> Most
         clubs never need to change them.
       </p>
@@ -131,105 +227,104 @@ export function HardwareSection(): React.ReactNode {
 
       {open && (
         <>
-          <div className={styles.fields}>
-            <label className={styles.field}>
-              <span className={styles.label}>
-                Target GPIO
-                {overridden('targetGpio') && <span className={styles.badge}>changed</span>}
-              </span>
-              <input
-                className={styles.input}
-                type='text'
-                inputMode='numeric'
-                data-testid='hardware-target-gpio'
-                disabled={!canManage || busy}
-                value={String(value('targetGpio'))}
-                onChange={(e) => {
-                  set('targetGpio', Number(e.target.value));
-                }}
-              />
-              <span className={styles.hint}>
-                The pin wired to the target circuit. 22–32 are refused: they are absent from this chip or belong to its
-                flash and PSRAM, and driving one stops the device booting.
-              </span>
-            </label>
+          {group(
+            'Targets',
+            'hardware-group-targets',
+            <>
+              {TARGET_FIELDS.map(numeric)}
 
-            <label className={styles.field}>
-              <span className={styles.label}>
-                Targets shown when the pin is low
-                {overridden('targetActiveLow') && <span className={styles.badge}>changed</span>}
-              </span>
-              <span className={styles.checkboxRow}>
+              <label className={styles.field}>
+                <span className={styles.label}>
+                  Targets shown when the pin is low
+                  {overridden('targetActiveLow') && <span className={styles.badge}>changed</span>}
+                </span>
+                <span className={styles.checkboxRow}>
+                  <input
+                    type='checkbox'
+                    data-testid='hardware-active-low'
+                    disabled={!canManage || busy}
+                    checked={value('targetActiveLow')}
+                    onChange={(e) => {
+                      set('targetActiveLow', e.target.checked);
+                    }}
+                  />
+                  <span className={styles.hint}>
+                    Off for a board that buffers or inverts the signal. If the targets do the opposite of what the app
+                    says, this is the setting.
+                  </span>
+                </span>
+              </label>
+
+              {/* Shown, not editable. An operator needs to know where the
+                  targets rest at boot; changing it needs physical access,
+                  because it is what protects somebody standing downrange
+                  (D-31). */}
+              <div className={styles.field}>
+                <span className={styles.label}>Targets at boot</span>
+                <p className={styles.readOnlyValue} data-testid='hardware-boot-targets'>
+                  {state.active.targetsShownAtBoot ? 'Shown' : 'Hidden'}
+                </p>
+                <span className={styles.hint}>
+                  Set from the serial console only — <code>boot-targets shown</code> or <code>boot-targets hidden</code>
+                  . It decides what the targets do while somebody may be downrange, so changing it needs a cable rather
+                  than a web page.
+                </span>
+              </div>
+            </>,
+          )}
+
+          {group('Status LED', 'hardware-group-led', LED_FIELDS.map(numeric))}
+
+          {group('Audio', 'hardware-group-audio', AUDIO_FIELDS.map(numeric))}
+
+          {group(
+            'Network',
+            'hardware-group-network',
+            <>
+              <label className={styles.field}>
+                <span className={styles.label}>
+                  Hostname
+                  {overridden('hostname') && <span className={styles.badge}>changed</span>}
+                </span>
                 <input
-                  type='checkbox'
-                  data-testid='hardware-active-low'
+                  className={styles.input}
+                  type='text'
+                  data-testid='hardware-hostname'
                   disabled={!canManage || busy}
-                  checked={value('targetActiveLow')}
+                  value={value('hostname')}
                   onChange={(e) => {
-                    set('targetActiveLow', e.target.checked);
+                    set('hostname', e.target.value);
                   }}
                 />
                 <span className={styles.hint}>
-                  Off for a board that buffers or inverts the signal. If the targets do the opposite of what the app
-                  says, this is the setting.
+                  Reached at <code>{value('hostname') || '…'}.local</code>, and the setup network appears as{' '}
+                  <code>{value('hostname') || '…'}-setup-XXXX</code>. Lower-case letters, digits and hyphens.
                 </span>
-              </span>
-            </label>
+              </label>
 
-            <label className={styles.field}>
-              <span className={styles.label}>
-                Hostname
-                {overridden('hostname') && <span className={styles.badge}>changed</span>}
-              </span>
-              <input
-                className={styles.input}
-                type='text'
-                data-testid='hardware-hostname'
-                disabled={!canManage || busy}
-                value={value('hostname')}
-                onChange={(e) => {
-                  set('hostname', e.target.value);
-                }}
-              />
-              <span className={styles.hint}>
-                Reached at <code>{value('hostname') || '…'}.local</code>, and the setup network appears as{' '}
-                <code>{value('hostname') || '…'}-setup-XXXX</code>. Lower-case letters, digits and hyphens.
-              </span>
-            </label>
+              <label className={styles.field}>
+                <span className={styles.label}>
+                  Display name
+                  {overridden('displayName') && <span className={styles.badge}>changed</span>}
+                </span>
+                <input
+                  className={styles.input}
+                  type='text'
+                  data-testid='hardware-display-name'
+                  disabled={!canManage || busy}
+                  value={value('displayName')}
+                  onChange={(e) => {
+                    set('displayName', e.target.value);
+                  }}
+                />
+                <span className={styles.hint}>
+                  What to call this device — “Bana 1”. Cosmetic; nothing depends on it.
+                </span>
+              </label>
 
-            <label className={styles.field}>
-              <span className={styles.label}>
-                Display name
-                {overridden('displayName') && <span className={styles.badge}>changed</span>}
-              </span>
-              <input
-                className={styles.input}
-                type='text'
-                data-testid='hardware-display-name'
-                disabled={!canManage || busy}
-                value={value('displayName')}
-                onChange={(e) => {
-                  set('displayName', e.target.value);
-                }}
-              />
-              <span className={styles.hint}>What to call this device — “Bana 1”. Cosmetic; nothing depends on it.</span>
-            </label>
-
-            {/* Shown, not editable. An operator needs to know where the targets
-                rest at boot; changing it needs physical access, because it is
-                what protects somebody standing downrange (D-31). */}
-            <div className={styles.field}>
-              <span className={styles.label}>Targets at boot</span>
-              <p className={styles.readOnlyValue} data-testid='hardware-boot-targets'>
-                {state.active.targetsShownAtBoot ? 'Shown' : 'Hidden'}
-              </p>
-              <span className={styles.hint}>
-                Set from the serial console only — <code>boot-targets shown</code> or <code>boot-targets hidden</code>.
-                It decides what the targets do while somebody may be downrange, so changing it needs a cable rather than
-                a web page.
-              </span>
-            </div>
-          </div>
+              {NETWORK_FIELDS.map(numeric)}
+            </>,
+          )}
 
           <div className={styles.actions}>
             <button

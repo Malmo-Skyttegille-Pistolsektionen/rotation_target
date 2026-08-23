@@ -747,10 +747,11 @@ export interface components {
          *
          *     Deliberately not everything in `main/config.h`. The `*_ENABLED` flags
          *     compile whole subsystems in or out, so making them runtime would mean
-         *     always carrying the code for hardware that may not be present. And
-         *     `RT_TARGETS_HIDE_AT_BOOT` stays compile-time on purpose: it exists so
-         *     somebody standing downrange when a board is powered is not hit by a
-         *     target turning on its own (D-31), and a safety default a remote UI can
+         *     always carrying the code for hardware that may not be present.
+         *
+         *     `targetsShownAtBoot` is here but read-only: it is configurable, because
+         *     which resting position is safe is a property of the target system, but
+         *     only from the serial console (D-31). A safety default a remote UI can
          *     switch off is not one.
          *
          *     Bank count is absent for the same reason it is fixed at one: banks are
@@ -791,6 +792,41 @@ export interface components {
              *     told they could not.
              */
             readonly targetsShownAtBoot: boolean;
+            /**
+             * Format: int32
+             * @description The status LED's data pin. Carried even by a firmware built without the LED, so the value survives being flashed onto one that has it.
+             */
+            ledGpio: number;
+            /**
+             * Format: int32
+             * @description Which of the chip's two I2S peripherals drives the DAC. A peripheral instance, not a pin, hence its own bounds.
+             */
+            i2sPort: number;
+            /**
+             * Format: int32
+             * @description The I2S bit clock pin.
+             */
+            i2sBckGpio: number;
+            /**
+             * Format: int32
+             * @description The I2S word select (left/right clock) pin.
+             */
+            i2sWsGpio: number;
+            /**
+             * Format: int32
+             * @description The I2S serial data output pin, into the amplifier.
+             */
+            i2sDoutGpio: number;
+            /**
+             * Format: int32
+             * @description The port the web app and API are served on. mDNS advertises the host and not the port, so a device moved off 80 reports the port on the serial console — there is nothing else to ask.
+             */
+            httpPort: number;
+            /**
+             * Format: int32
+             * @description How many times to try the stored network before raising the setup portal. At roughly 2.4 s an attempt, 60 is about two and a half minutes; beyond that a device that cannot join looks broken rather than busy.
+             */
+            wifiMaxRetries: number;
         };
         /**
          * @description Three views of one configuration, because they can legitimately differ.

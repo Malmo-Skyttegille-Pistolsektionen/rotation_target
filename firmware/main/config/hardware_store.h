@@ -20,6 +20,10 @@
 // to be configured when they arrive.
 namespace hardware_store {
 
+// Which optional peripherals this firmware was built with. Compile-time facts,
+// reported so a client can hide the pins for hardware that is not there.
+rt::Peripherals peripherals();
+
 // Read once at boot. Callers use this in place of the `config.h` constants,
 // which is why it returns a reference to a value that never changes afterwards:
 // re-reading NVS mid-run would let a pin move under a running program.
