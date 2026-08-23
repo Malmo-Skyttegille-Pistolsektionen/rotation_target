@@ -126,6 +126,22 @@ straight through and the gate silently does nothing. Configure it under
 
 ### Release assets
 
+Two of them are what somebody actually reaches for:
+
+| Asset | What it is for |
+|---|---|
+| `rotation_target-<version>-factory.bin` | A new board, or one being put back to a known state. Everything at its offset in one file, written at `0x0`. **Discards uploaded programs and audio**, because the LittleFS image is part of it. ~16 MB. |
+| `rotation_target-<version>-ota.bin` | An already-configured device. The app alone — this is what `POST /api/v2/ota` accepts, and it leaves NVS and the uploaded files alone. |
+
+Flashing the factory image needs no offsets:
+
+```bash
+python -m esptool --chip esp32s3 --port /dev/ttyACM0 --no-stub \
+  write-flash 0x0 rotation_target-<version>-factory.bin
+```
+
+The individual images are published beneath them, for a partial flash:
+
 | Asset | Flash offset |
 |---|---|
 | `bootloader.bin` | `0x0` |
@@ -134,8 +150,16 @@ straight through and the gate silently does nothing. Configure it under
 | `rotation_target_backend.bin` | `0x20000` |
 | `storage.bin` | `0x620000` |
 
-`SHA256SUMS.txt` covers all five. `storage.bin` carries the webapp bundle and
+They are kept because they are the only way to update the app over a cable
+without also erasing the club's files — `app-flash` territory.
+
+`SHA256SUMS.txt` covers everything. `storage.bin` carries the webapp bundle and
 the shipped programs and audio.
+
+`merge-bin` exiting 0 means it wrote a file, not that the file is flashable, so
+`firmware/scripts/check_merged.py` asserts the app is present at `0x20000` —
+once on the built image and again on the published one, since a truncated
+upload still writes and boots whatever was on the board before.
 
 ## The workflows
 
