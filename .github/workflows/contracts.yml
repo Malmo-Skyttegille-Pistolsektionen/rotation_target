@@ -177,29 +177,13 @@ jobs:
 
           exit "$status"
 
-      - name: Verdict
-        if: always()
-        run: |
-          set -uo pipefail
-          failed=false
-          if [ "${{ steps.openapi.outcome }}" = "failure" ]; then
-            echo "::error::contracts/openapi.yaml has a breaking change against the merge base on main."
-            failed=true
-          fi
-          if [ "${{ steps.asyncapi.outcome }}" = "failure" ]; then
-            echo "::error::contracts/asyncapi.yaml has a breaking change against the merge base on main."
-            failed=true
-          fi
-          if [ "$failed" = "true" ]; then
-            echo "::error::A breaking change is allowed here - it just cannot ship under the current path"
-            echo "::error::prefix. Move it (/api/v2 -> /api/v3, /sse/v2 -> /sse/v3) and mark the commit"
-            echo "::error::'!' or with a 'BREAKING CHANGE:' footer, so the release version bumps"
-            echo "::error::correctly - see contracts/README.md and AGENTS.md. If both are already done,"
-            echo "::error::this failure is expected: merging past it is a decision for a human to make,"
-            echo "::error::not something this check can grant on its own."
-            exit 1
-          fi
-
+      # Ordered before the Verdict step, which exits 1. A custom `if` that
+      # names no status function carries an implicit `success()`, so once the
+      # job is failing this step is skipped - which is precisely when it has
+      # something to say. Proved by a live run before this ordering: with a
+      # breaking diff present, Verdict failed and this step reported
+      # `skipped`.
+      #
       # Catches the half the diff above cannot: a change that moved the path
       # prefix correctly but was still committed as `feat:`, which would ship
       # under a minor bump instead of a major one. This repo squash-merges
@@ -224,5 +208,28 @@ jobs:
             echo "::error::breaking. Use '!' after the type (e.g. 'feat!:') or add a 'BREAKING CHANGE:'"
             echo "::error::footer to the PR body - otherwise git-cliff ships this under a minor bump."
             echo "::error::See AGENTS.md, 'How the contracts are versioned'."
+            exit 1
+          fi
+
+      - name: Verdict
+        if: always()
+        run: |
+          set -uo pipefail
+          failed=false
+          if [ "${{ steps.openapi.outcome }}" = "failure" ]; then
+            echo "::error::contracts/openapi.yaml has a breaking change against the merge base on main."
+            failed=true
+          fi
+          if [ "${{ steps.asyncapi.outcome }}" = "failure" ]; then
+            echo "::error::contracts/asyncapi.yaml has a breaking change against the merge base on main."
+            failed=true
+          fi
+          if [ "$failed" = "true" ]; then
+            echo "::error::A breaking change is allowed here - it just cannot ship under the current path"
+            echo "::error::prefix. Move it (/api/v2 -> /api/v3, /sse/v2 -> /sse/v3) and mark the commit"
+            echo "::error::'!' or with a 'BREAKING CHANGE:' footer, so the release version bumps"
+            echo "::error::correctly - see contracts/README.md and AGENTS.md. If both are already done,"
+            echo "::error::this failure is expected: merging past it is a decision for a human to make,"
+            echo "::error::not something this check can grant on its own."
             exit 1
           fi
