@@ -388,7 +388,6 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   // what closes the gap - the mock's stand-in for a reboot.
   let activeHardware: HardwareConfig = { ...HARDWARE_DEFAULTS, ...(seed.hardware ?? {}) };
   let savedHardware: HardwareConfig = { ...activeHardware };
-  let hardwareOverridden = seed.hardware !== undefined;
 
   const state: ServerState = {
     loadedProgram: null,
@@ -830,7 +829,9 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         active: { ...activeHardware },
         saved: { ...savedHardware },
         defaults: { ...HARDWARE_DEFAULTS },
-        overridden: hardwareOverridden,
+        // "differs from the defaults", not "a key was written" - saving a
+        // value equal to its default leaves nothing for a reset to undo.
+        overridden: JSON.stringify(savedHardware) !== JSON.stringify(HARDWARE_DEFAULTS),
         restartRequired: JSON.stringify(activeHardware) !== JSON.stringify(savedHardware),
       };
       jsonResponse(res, 200, payload);
@@ -875,7 +876,6 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         return;
       }
       savedHardware = candidate;
-      hardwareOverridden = true;
       jsonResponse(res, 200, { message: 'Hardware configuration saved - restart the device to apply it' });
       return;
     }
@@ -883,7 +883,6 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     if (endpoint === '/config/hardware/reset' && req.method === 'POST') {
       if (!checkAdminAuth(req, res)) return;
       savedHardware = { ...HARDWARE_DEFAULTS };
-      hardwareOverridden = false;
       jsonResponse(res, 200, { message: 'Hardware configuration reset - restart the device to apply it' });
       return;
     }
@@ -1419,7 +1418,6 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       audios.splice(0, audios.length, ...seed.audios);
       activeHardware = { ...HARDWARE_DEFAULTS, ...(seed.hardware ?? {}) };
       savedHardware = { ...activeHardware };
-      hardwareOverridden = seed.hardware !== undefined;
     },
 
     restart(): void {

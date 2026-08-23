@@ -108,6 +108,16 @@ bool overlay_from_nvs(rt::HardwareConfig &out) {
 
 }  // namespace
 
+namespace {
+
+bool same_as(const rt::HardwareConfig &a, const rt::HardwareConfig &b) {
+  return a.target_gpio == b.target_gpio && a.target_active_low == b.target_active_low &&
+         a.hostname == b.hostname && a.display_name == b.display_name &&
+         a.targets_shown_at_boot == b.targets_shown_at_boot;
+}
+
+}  // namespace
+
 rt::HardwareConfig saved() {
   // Re-read rather than served from the cache: between a write and the restart
   // that adopts it, this is the only thing that knows what the device has been
@@ -149,12 +159,18 @@ const rt::HardwareConfig &current() {
 }
 
 bool overridden() {
-  // Re-read, like saved(), rather than answering from the boot cache. This
-  // means "NVS holds an override right now", so a save made since boot counts -
-  // the cached flag would answer for the configuration the device came up on
-  // and report false immediately after a successful write.
-  rt::HardwareConfig probe = defaults();
-  return overlay_from_nvs(probe);
+  // "Differs from the compiled defaults", not "NVS holds a key".
+  //
+  // The two come apart: writing a value that happens to equal the default
+  // leaves a key behind, and the key-presence reading then reports `true` with
+  // nothing for a reset to undo - a UI marking overridden values would mark
+  // none of them while claiming some. This is the reading the Settings page
+  // needs, and the one that cannot be wrong.
+  //
+  // A future arm-on-first-write password (#144) wants a different signal
+  // anyway: whether a password has been set, not whether configuration was
+  // ever written. It should carry its own state rather than borrow this.
+  return !same_as(saved(), defaults());
 }
 
 rt::ConfigRefusal save(const rt::HardwareConfig &config) {

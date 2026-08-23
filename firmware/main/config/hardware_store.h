@@ -34,10 +34,13 @@ rt::HardwareConfig saved();
 // `current()` so the UI can say which values have been overridden.
 rt::HardwareConfig defaults();
 
-// Whether NVS holds an override *now* - so a save made since boot counts, even
-// though the device is still running the configuration it booted on. False on
-// an out-of-box device, which is what #144 proposes should arm the
-// configuration password later.
+// Whether the stored configuration differs from the compiled defaults - so a
+// save made since boot counts, even though the device is still running what it
+// booted on. False out of the box, and false again after a reset.
+//
+// Deliberately not "NVS holds a key": writing a value equal to the default
+// would leave one behind, and a UI marking overridden values would then mark
+// none while claiming some.
 bool overridden();
 
 // Validates, then persists. Refuses without writing anything on a bad value,
