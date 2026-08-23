@@ -12,9 +12,10 @@ check-jsonschema --check-metaschema program.schema.json || status=1
 # Every shipped program must validate against the schema.
 check-jsonschema --schemafile program.schema.json ../resources/programs/files/*.json || status=1
 
-# npx will use local or global @redocly/cli; redocly.yaml configures the rules.
-npx --yes @redocly/cli lint openapi.yaml || status=1
+# Pinned: an unpinned CLI can turn main red from an upstream rule change with
+# no commit of ours behind it. redocly.yaml configures the rules.
+npx --yes @redocly/cli@2.47.0 lint openapi.yaml || status=1
 
-npx --yes @asyncapi/cli validate asyncapi.yaml || status=1
+npx --yes @asyncapi/cli@6.0.2 validate asyncapi.yaml || status=1
 
 exit "$status"

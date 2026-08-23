@@ -332,6 +332,14 @@ jobs:
     permissions:
       contents: read
 
+  contracts-checks:
+    name: checks
+    needs: prepare
+    if: ${{ !inputs.dry-run }}
+    uses: ./.github/workflows/contracts.yml
+    permissions:
+      contents: read
+
   # THE APPROVAL GATE, and the only job that builds what ships. `environment:
   # release` is what makes it sit pending until a required reviewer approves.
   #
@@ -345,7 +353,7 @@ jobs:
   # been checked.
   build:
     name: build the release image
-    needs: [prepare, firmware-checks, webapp-checks, e2e-checks, lint-checks]
+    needs: [prepare, firmware-checks, webapp-checks, e2e-checks, lint-checks, contracts-checks]
     if: ${{ !inputs.dry-run }}
     runs-on: ubuntu-latest
     environment: release
