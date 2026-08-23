@@ -64,3 +64,187 @@ jobs:
       # is actually there.
       - name: Validate the shipped audio
         run: ./resources/audios/validate_audios.sh
+
+  # Answers "does this PR break the contract?" by diffing openapi.yaml and
+  # asyncapi.yaml against the merge base on main. The other question worth
+  # asking - "does this release break the contract?", against the last
+  # released tag - is not answerable yet: no tag has been cut. See #176.
+  #
+  # PR-only, deliberately: on push (post-merge on main) and workflow_call
+  # (release.yml, before tagging), HEAD is already on/ahead of main, so
+  # merge-base(HEAD, main) is HEAD itself and the diff would be against
+  # itself - not a bug, just not a question this baseline can answer there.
+  #
+  # A breaking change is not refused outright: contracts/README.md and
+  # AGENTS.md say breaking changes are allowed - they move the path prefix
+  # (/api/v3) instead of bumping info.version. This job fails on one anyway,
+  # because "allowed" still means "a human decides on purpose", not "silent".
+  breaking-changes:
+    name: breaking change detection
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Lets oasdiff-action post its side-by-side review link as a PR comment
+      # instead of only the job summary.
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: false
+          # Need history back to the merge base with main, not just this PR's
+          # commits.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24.19.0
+
+      - name: Find the merge base with main
+        id: base
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          git fetch origin "$BASE_REF" --quiet
+          SHA="$(git merge-base HEAD "origin/$BASE_REF")"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+          # A spec this PR introduces has no baseline to diff against - that
+          # is a new file, not a breaking change to an existing one.
+          if git cat-file -e "$SHA:contracts/openapi.yaml" 2>/dev/null; then
+            echo "openapi-existed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "openapi-existed=false" >> "$GITHUB_OUTPUT"
+          fi
+          if git cat-file -e "$SHA:contracts/asyncapi.yaml" 2>/dev/null; then
+            echo "asyncapi-existed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "asyncapi-existed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # continue-on-error: both specs get diffed even if one already failed,
+      # so a reviewer sees the whole picture in one run. The job is failed
+      # explicitly by the verdict step below.
+      - name: OpenAPI - breaking changes (oasdiff)
+        id: openapi
+        if: steps.base.outputs.openapi-existed == 'true'
+        continue-on-error: true
+        uses: oasdiff/oasdiff-action/breaking@2649ebe137aeb72a95707671204e829f86e091fc  # v0.1.13
+        with:
+          base: "${{ steps.base.outputs.sha }}:contracts/openapi.yaml"
+          revision: "HEAD:contracts/openapi.yaml"
+          fail-on: WARN
+          github-token: ${{ github.token }}
+
+      - name: AsyncAPI - breaking changes (AsyncAPI CLI)
+        id: asyncapi
+        if: steps.base.outputs.asyncapi-existed == 'true'
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          git show "${{ steps.base.outputs.sha }}:contracts/asyncapi.yaml" \
+            > "$RUNNER_TEMP/asyncapi-base.yaml"
+
+          # Pinned to the same release contracts/validate.sh pins for
+          # `validate`, so CI does not carry two versions of the same CLI.
+          npx --yes @asyncapi/cli@6.0.2 diff \
+            "$RUNNER_TEMP/asyncapi-base.yaml" contracts/asyncapi.yaml \
+            --type breaking
+          status=$?
+
+          # `unclassified` is a third bucket the CLI can't place in either
+          # one. Measured empirically against this repo's asyncapi.yaml: it is
+          # dominated by parser bookkeeping (x-parser-schema-id churns on any
+          # edit at all, breaking or not) - a purely additive change produced
+          # dozens of unclassified entries and zero breaking ones. Failing on
+          # it would turn every additive change red too, so it is surfaced as
+          # a warning instead.
+          npx --yes @asyncapi/cli@6.0.2 diff \
+            "$RUNNER_TEMP/asyncapi-base.yaml" contracts/asyncapi.yaml \
+            --type unclassified --format json --no-error \
+            --save-output "$RUNNER_TEMP/asyncapi-unclassified.json"
+          # Filtered to a single --type, the CLI's JSON output is a bare
+          # array - it's only wrapped in {"changes": [...]} for --type all.
+          COUNT="$(python3 -c \
+            "import json; print(len(json.load(open('$RUNNER_TEMP/asyncapi-unclassified.json'))))")"
+          if [ "$COUNT" -gt 0 ]; then
+            echo "::warning::asyncapi.yaml: $COUNT unclassified change(s), not failed on (see step source)."
+          fi
+
+          exit "$status"
+
+      # Ordered before the Verdict step, which exits 1. A custom `if` that
+      # names no status function carries an implicit `success()`, so once the
+      # job is failing this step is skipped - which is precisely when it has
+      # something to say. Proved by a live run before this ordering: with a
+      # breaking diff present, Verdict failed and this step reported
+      # `skipped`.
+      #
+      # Catches the half the diff above cannot: a change that moved the path
+      # prefix correctly but was still committed as `feat:`, which would ship
+      # under a minor bump instead of a major one. This repo squash-merges
+      # (see cliff.toml), and the PR title becomes the squashed commit's
+      # subject by default, so it stands in for the commit that has not been
+      # made yet. check-semantic-pr.yml already enforces the title is a
+      # well-formed Conventional Commit; this only checks it is marked
+      # breaking, since the diff above already proved it is one.
+      - name: Check the change is marked breaking where the version is computed
+        if: steps.openapi.outcome == 'failure' || steps.asyncapi.outcome == 'failure'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        run: |
+          set -uo pipefail
+
+          # This repo squash-merges with squash_merge_commit_title=PR_TITLE and
+          # squash_merge_commit_message=COMMIT_MESSAGES, so the commit git-cliff
+          # eventually reads is the PR title plus this branch's commit messages.
+          # Those are the only two places a breaking marker survives the merge.
+          # The PR *body* is not one of them - a footer written only there is
+          # dropped by the squash, and the release still ships under a minor
+          # bump.
+          if printf '%s' "$PR_TITLE" | grep -qE '^[a-zA-Z]+(\([^)]*\))?!:'; then
+            echo "PR title marks this as a breaking change."
+            exit 0
+          fi
+
+          # A footer begins a line; matching the string anywhere would accept a
+          # PR that merely mentions "BREAKING CHANGE:" in prose. Conventional
+          # Commits makes BREAKING-CHANGE synonymous with BREAKING CHANGE.
+          if git log --format=%B "$BASE_SHA..HEAD" | grep -qE '^BREAKING[ -]CHANGE:'; then
+            echo "A commit on this branch carries a BREAKING CHANGE footer."
+            exit 0
+          fi
+
+          echo "::error::The contract diff above is breaking, but nothing that survives the squash"
+          echo "::error::says so. Either mark the PR title with '!' after the type (e.g. 'feat!:'),"
+          echo "::error::which becomes the squashed commit's subject, or add a 'BREAKING CHANGE:'"
+          echo "::error::footer to a commit on this branch. A footer in the PR body does not count:"
+          echo "::error::the squash takes its body from the commit messages, not from the PR."
+          echo "::error::Without one, git-cliff ships this under a minor bump."
+          echo "::error::See AGENTS.md, 'How the contracts are versioned'."
+          exit 1
+
+      - name: Verdict
+        if: always()
+        run: |
+          set -uo pipefail
+          failed=false
+          if [ "${{ steps.openapi.outcome }}" = "failure" ]; then
+            echo "::error::contracts/openapi.yaml has a breaking change against the merge base on main."
+            failed=true
+          fi
+          if [ "${{ steps.asyncapi.outcome }}" = "failure" ]; then
+            echo "::error::contracts/asyncapi.yaml has a breaking change against the merge base on main."
+            failed=true
+          fi
+          if [ "$failed" = "true" ]; then
+            echo "::error::A breaking change is allowed here - it just cannot ship under the current path"
+            echo "::error::prefix. Move it (/api/v2 -> /api/v3, /sse/v2 -> /sse/v3) and mark the commit"
+            echo "::error::'!' or with a 'BREAKING CHANGE:' footer, so the release version bumps"
+            echo "::error::correctly - see contracts/README.md and AGENTS.md. If both are already done,"
+            echo "::error::this failure is expected: merging past it is a decision for a human to make,"
+            echo "::error::not something this check can grant on its own."
+            exit 1
+          fi
