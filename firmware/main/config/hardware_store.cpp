@@ -89,7 +89,12 @@ rt::HardwareConfig defaults() {
   config.i2s_dout_gpio = CONFIG_RT_I2S_DOUT_GPIO;
 #endif
   config.http_port = CONFIG_RT_HTTP_PORT;
+  // The QEMU profile builds without WiFi, so the symbol does not exist there.
+  // The struct's own default stands in - nothing reads it on a build with no
+  // radio to retry on.
+#ifdef CONFIG_RT_WIFI_MAX_RETRIES
   config.wifi_max_retries = CONFIG_RT_WIFI_MAX_RETRIES;
+#endif
 
   // No compiled default: a device that has never been named has no name to
   // show, and inventing one would put the same string on every device.

@@ -958,7 +958,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/HardwareConfig"
+              $ref: "#/components/schemas/HardwareConfigPatch"
       responses:
         "200":
           description: Stored. Applies at the next restart.
@@ -1537,6 +1537,52 @@ components:
             portal. At roughly 2.4 s an attempt, 60 is about two and a half
             minutes; beyond that a device that cannot join looks broken rather
             than busy.
+
+    HardwareConfigPatch:
+      type: object
+      description: |
+        A partial hardware configuration: every field is optional and any field
+        the body omits keeps its stored value.
+
+        Separate from `HardwareConfig` rather than reusing it, because the two
+        have opposite obligations. A response has to carry every field, so
+        `HardwareConfig` requires them all; a request may carry one, so
+        requiring anything here would break every client that sends less than
+        the whole object - including this repository's own web app, which sends
+        only what the operator touched so that a form left open cannot overwrite
+        a value somebody else set in the meantime.
+
+        `targetsShownAtBoot` is absent by construction: it is serial-only
+        (D-31), and sending it is refused with
+        `/problems/hardware_config_serial_only`.
+
+        Kept in step with `HardwareConfig` by the web app's generated types -
+        `HardwareConfigPatch` there is derived from this schema, so a field
+        added to one and not the other stops compiling.
+      additionalProperties: false
+      properties:
+        targetGpio:
+          $ref: "#/components/schemas/HardwareConfig/properties/targetGpio"
+        targetActiveLow:
+          $ref: "#/components/schemas/HardwareConfig/properties/targetActiveLow"
+        hostname:
+          $ref: "#/components/schemas/HardwareConfig/properties/hostname"
+        displayName:
+          $ref: "#/components/schemas/HardwareConfig/properties/displayName"
+        ledGpio:
+          $ref: "#/components/schemas/HardwareConfig/properties/ledGpio"
+        i2sPort:
+          $ref: "#/components/schemas/HardwareConfig/properties/i2sPort"
+        i2sBckGpio:
+          $ref: "#/components/schemas/HardwareConfig/properties/i2sBckGpio"
+        i2sWsGpio:
+          $ref: "#/components/schemas/HardwareConfig/properties/i2sWsGpio"
+        i2sDoutGpio:
+          $ref: "#/components/schemas/HardwareConfig/properties/i2sDoutGpio"
+        httpPort:
+          $ref: "#/components/schemas/HardwareConfig/properties/httpPort"
+        wifiMaxRetries:
+          $ref: "#/components/schemas/HardwareConfig/properties/wifiMaxRetries"
 
     HardwareConfigState:
       type: object

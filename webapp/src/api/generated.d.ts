@@ -829,6 +829,39 @@ export interface components {
             wifiMaxRetries: number;
         };
         /**
+         * @description A partial hardware configuration: every field is optional and any field
+         *     the body omits keeps its stored value.
+         *
+         *     Separate from `HardwareConfig` rather than reusing it, because the two
+         *     have opposite obligations. A response has to carry every field, so
+         *     `HardwareConfig` requires them all; a request may carry one, so
+         *     requiring anything here would break every client that sends less than
+         *     the whole object - including this repository's own web app, which sends
+         *     only what the operator touched so that a form left open cannot overwrite
+         *     a value somebody else set in the meantime.
+         *
+         *     `targetsShownAtBoot` is absent by construction: it is serial-only
+         *     (D-31), and sending it is refused with
+         *     `/problems/hardware_config_serial_only`.
+         *
+         *     Kept in step with `HardwareConfig` by the web app's generated types -
+         *     `HardwareConfigPatch` there is derived from this schema, so a field
+         *     added to one and not the other stops compiling.
+         */
+        HardwareConfigPatch: {
+            targetGpio?: components["schemas"]["HardwareConfig"]["targetGpio"];
+            targetActiveLow?: components["schemas"]["HardwareConfig"]["targetActiveLow"];
+            hostname?: components["schemas"]["HardwareConfig"]["hostname"];
+            displayName?: components["schemas"]["HardwareConfig"]["displayName"];
+            ledGpio?: components["schemas"]["HardwareConfig"]["ledGpio"];
+            i2sPort?: components["schemas"]["HardwareConfig"]["i2sPort"];
+            i2sBckGpio?: components["schemas"]["HardwareConfig"]["i2sBckGpio"];
+            i2sWsGpio?: components["schemas"]["HardwareConfig"]["i2sWsGpio"];
+            i2sDoutGpio?: components["schemas"]["HardwareConfig"]["i2sDoutGpio"];
+            httpPort?: components["schemas"]["HardwareConfig"]["httpPort"];
+            wifiMaxRetries?: components["schemas"]["HardwareConfig"]["wifiMaxRetries"];
+        };
+        /**
          * @description Three views of one configuration, because they can legitimately differ.
          *
          *     `active` is what the device is running on, latched at boot. `saved` is
@@ -1882,7 +1915,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["HardwareConfig"];
+                "application/json": components["schemas"]["HardwareConfigPatch"];
             };
         };
         responses: {
