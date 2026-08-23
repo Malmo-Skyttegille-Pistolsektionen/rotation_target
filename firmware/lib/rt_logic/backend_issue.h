@@ -18,6 +18,11 @@ namespace rt {
 namespace issue_code {
 constexpr const char *kAudioPlaybackFailed = "audio_playback_failed";
 constexpr const char *kProgramInvalid = "program_invalid";
+// Raised by the boot scan (see #129): an uploaded program or audio clip's id
+// already belongs to a shipped one. The shipped entry is kept; the uploaded
+// file is left on disk, unloaded, for an operator to clean up.
+constexpr const char *kProgramIdCollision = "program_id_collision";
+constexpr const char *kAudioIdCollision = "audio_id_collision";
 }  // namespace issue_code
 
 // Ordered because the emitted JSON should be stable across builds, and because

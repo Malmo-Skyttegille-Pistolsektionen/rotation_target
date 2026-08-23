@@ -776,10 +776,13 @@ export interface components {
             /**
              * @description The `backend_issue` events raised during boot, before the HTTP
              *     server was listening — today that is `program_invalid` from the
-             *     program scan, which runs several steps ahead of the server. The SSE
+             *     program scan, and `program_id_collision`/`audio_id_collision` from
+             *     either scan finding an uploaded id that already belongs to a
+             *     shipped one, which run several steps ahead of the server. The SSE
              *     stream is fire-and-forget (see `contracts/asyncapi.yaml`), so those
-             *     frames reached nobody: a stored program that would not parse simply
-             *     disappeared from `GET /programs`, explained only on the serial
+             *     frames reached nobody: a stored program that would not parse
+             *     simply disappeared from `GET /programs`, and a shadowed upload
+             *     simply never took effect, both explained only on the serial
              *     console.
              *
              *     Empty on a clean boot, which is the normal case. **At most 8
@@ -800,18 +803,23 @@ export interface components {
              * @description The machine-readable identifier, from the same open set as
              *     `backend_issue.code` — tolerate a value this document does not
              *     list. Only codes that can be raised before the server exists appear
-             *     here, which today is one:
+             *     here:
              *
              *     - `program_invalid` — a file in a program directory could not be
              *       read or did not parse and was skipped, so the program is absent
              *       from `GET /programs`.
+             *     - `program_id_collision` — an uploaded program's id already
+             *       belongs to a shipped one (#129); the shipped program is kept and
+             *       the uploaded file is left unloaded.
+             *     - `audio_id_collision` — the audio equivalent of
+             *       `program_id_collision`.
              */
             code: string;
             /** @description English prose describing the failure, suitable for a banner. Not stable across releases and not to be parsed. */
             message: string;
             /** @description What failed. Present whenever the emitter has something to name; keys depend on `code`. */
             context?: {
-                /** @description `program_invalid`: the program file's path on the device filesystem. */
+                /** @description `program_invalid` and `program_id_collision`: the program file's path on the device filesystem. `audio_id_collision`: the audio index's path instead, since the collision is a shipped/uploaded id pair rather than one bad file. */
                 file?: string;
             } & {
                 [key: string]: string;
