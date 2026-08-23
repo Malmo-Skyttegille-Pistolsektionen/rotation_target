@@ -958,7 +958,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/HardwareConfig"
+              $ref: "#/components/schemas/HardwareConfigPatch"
       responses:
         "200":
           description: Stored. Applies at the next restart.
@@ -1401,15 +1401,30 @@ components:
 
         Deliberately not everything in `main/config.h`. The `*_ENABLED` flags
         compile whole subsystems in or out, so making them runtime would mean
-        always carrying the code for hardware that may not be present. And
-        `RT_TARGETS_HIDE_AT_BOOT` stays compile-time on purpose: it exists so
-        somebody standing downrange when a board is powered is not hit by a
-        target turning on its own (D-31), and a safety default a remote UI can
+        always carrying the code for hardware that may not be present.
+
+        `targetsShownAtBoot` is here but read-only: it is configurable, because
+        which resting position is safe is a property of the target system, but
+        only from the serial console (D-31). A safety default a remote UI can
         switch off is not one.
 
         Bank count is absent for the same reason it is fixed at one: banks are
         a contract change (D-08, D-20), not a configuration key.
-      required: [targetGpio, targetActiveLow, hostname, displayName, targetsShownAtBoot]
+      required:
+        [
+          targetGpio,
+          targetActiveLow,
+          hostname,
+          displayName,
+          targetsShownAtBoot,
+          ledGpio,
+          i2sPort,
+          i2sBckGpio,
+          i2sWsGpio,
+          i2sDoutGpio,
+          httpPort,
+          wifiMaxRetries,
+        ]
       additionalProperties: false
       properties:
         targetGpio:
@@ -1469,6 +1484,105 @@ components:
             `/problems/hardware_config_serial_only` rather than ignored — a
             change an operator believes they made is worse than one they were
             told they could not.
+        ledGpio:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 48
+          description: >-
+            The status LED's data pin. Carried even by a firmware built without
+            the LED, so the value survives being flashed onto one that has it.
+        i2sPort:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 1
+          description: >-
+            Which of the chip's two I2S peripherals drives the DAC. A
+            peripheral instance, not a pin, hence its own bounds.
+        i2sBckGpio:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 48
+          description: The I2S bit clock pin.
+        i2sWsGpio:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 48
+          description: The I2S word select (left/right clock) pin.
+        i2sDoutGpio:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 48
+          description: The I2S serial data output pin, into the amplifier.
+        httpPort:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 65535
+          description: >-
+            The port the web app and API are served on. mDNS advertises the
+            host and not the port, so a device moved off 80 reports the port on
+            the serial console — there is nothing else to ask.
+        wifiMaxRetries:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 60
+          description: >-
+            How many times to try the stored network before raising the setup
+            portal. At roughly 2.4 s an attempt, 60 is about two and a half
+            minutes; beyond that a device that cannot join looks broken rather
+            than busy.
+
+    HardwareConfigPatch:
+      type: object
+      description: |
+        A partial hardware configuration: every field is optional and any field
+        the body omits keeps its stored value.
+
+        Separate from `HardwareConfig` rather than reusing it, because the two
+        have opposite obligations. A response has to carry every field, so
+        `HardwareConfig` requires them all; a request may carry one, so
+        requiring anything here would break every client that sends less than
+        the whole object - including this repository's own web app, which sends
+        only what the operator touched so that a form left open cannot overwrite
+        a value somebody else set in the meantime.
+
+        `targetsShownAtBoot` is absent by construction: it is serial-only
+        (D-31), and sending it is refused with
+        `/problems/hardware_config_serial_only`.
+
+        Kept in step with `HardwareConfig` by the web app's generated types -
+        `HardwareConfigPatch` there is derived from this schema, so a field
+        added to one and not the other stops compiling.
+      additionalProperties: false
+      properties:
+        targetGpio:
+          $ref: "#/components/schemas/HardwareConfig/properties/targetGpio"
+        targetActiveLow:
+          $ref: "#/components/schemas/HardwareConfig/properties/targetActiveLow"
+        hostname:
+          $ref: "#/components/schemas/HardwareConfig/properties/hostname"
+        displayName:
+          $ref: "#/components/schemas/HardwareConfig/properties/displayName"
+        ledGpio:
+          $ref: "#/components/schemas/HardwareConfig/properties/ledGpio"
+        i2sPort:
+          $ref: "#/components/schemas/HardwareConfig/properties/i2sPort"
+        i2sBckGpio:
+          $ref: "#/components/schemas/HardwareConfig/properties/i2sBckGpio"
+        i2sWsGpio:
+          $ref: "#/components/schemas/HardwareConfig/properties/i2sWsGpio"
+        i2sDoutGpio:
+          $ref: "#/components/schemas/HardwareConfig/properties/i2sDoutGpio"
+        httpPort:
+          $ref: "#/components/schemas/HardwareConfig/properties/httpPort"
+        wifiMaxRetries:
+          $ref: "#/components/schemas/HardwareConfig/properties/wifiMaxRetries"
 
     HardwareConfigState:
       type: object
@@ -1492,9 +1606,12 @@ components:
         overridden:
           type: boolean
           description: >-
-            Whether anything has ever been written. False out of the box, which
-            is the state #144 proposes should later arm a configuration
-            password.
+            Whether `saved` differs from `defaults`. False out of the box, and
+            false again after a reset - so a client can use it to decide
+            whether a "reset to defaults" action would do anything. Note this
+            is *not* "a value has ever been written": saving a value equal to
+            its default leaves `overridden` false, because there is then
+            nothing to put back.
         restartRequired:
           type: boolean
           description: >-

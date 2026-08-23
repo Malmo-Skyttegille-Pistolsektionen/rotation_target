@@ -20,6 +20,10 @@
 // to be configured when they arrive.
 namespace hardware_store {
 
+// Which optional peripherals this firmware was built with. Compile-time facts,
+// reported so a client can hide the pins for hardware that is not there.
+rt::Peripherals peripherals();
+
 // Read once at boot. Callers use this in place of the `config.h` constants,
 // which is why it returns a reference to a value that never changes afterwards:
 // re-reading NVS mid-run would let a pin move under a running program.
@@ -34,10 +38,13 @@ rt::HardwareConfig saved();
 // `current()` so the UI can say which values have been overridden.
 rt::HardwareConfig defaults();
 
-// Whether NVS holds an override *now* - so a save made since boot counts, even
-// though the device is still running the configuration it booted on. False on
-// an out-of-box device, which is what #144 proposes should arm the
-// configuration password later.
+// Whether the stored configuration differs from the compiled defaults - so a
+// save made since boot counts, even though the device is still running what it
+// booted on. False out of the box, and false again after a reset.
+//
+// Deliberately not "NVS holds a key": writing a value equal to the default
+// would leave one behind, and a UI marking overridden values would then mark
+// none while claiming some.
 bool overridden();
 
 // Validates, then persists. Refuses without writing anything on a bad value,

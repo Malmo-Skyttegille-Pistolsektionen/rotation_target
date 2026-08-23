@@ -1,3 +1,4 @@
+#include "config/hardware_store.h"
 #include "audio.h"
 
 #include <cstdio>
@@ -195,7 +196,10 @@ bool init() {
   s_queue = xQueueCreate(1, sizeof(Playlist *));
   if (s_i2s_lock == nullptr || s_queue == nullptr) return false;
 
-  i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(kI2sPort, I2S_ROLE_MASTER);
+  // The port and the three pins come from the store (#144); a club whose board
+  // wires the DAC differently says so rather than rebuilding.
+  const rt::HardwareConfig &hw = hardware_store::current();
+  i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(hw.i2s_port, I2S_ROLE_MASTER);
   chan_cfg.auto_clear = true;
   if (i2s_new_channel(&chan_cfg, &s_tx, nullptr) != ESP_OK) {
     ESP_LOGE(TAG, "i2s_new_channel failed");
@@ -209,9 +213,9 @@ bool init() {
       .gpio_cfg =
           {
               .mclk = I2S_GPIO_UNUSED,
-              .bclk = kI2sBckPin,
-              .ws = kI2sLckPin,
-              .dout = kI2sDinPin,
+              .bclk = static_cast<gpio_num_t>(hw.i2s_bck_gpio),
+              .ws = static_cast<gpio_num_t>(hw.i2s_ws_gpio),
+              .dout = static_cast<gpio_num_t>(hw.i2s_dout_gpio),
               .din = I2S_GPIO_UNUSED,
               .invert_flags = {false, false, false},
           },
@@ -228,7 +232,9 @@ bool init() {
     return false;
   }
 
-  ESP_LOGI(TAG, "I2S ready (BCK=%d WS=%d DIN=%d)", kI2sBckPin, kI2sLckPin, kI2sDinPin);
+  ESP_LOGI(TAG, "I2S ready (port=%d BCK=%d WS=%d DIN=%d)", static_cast<int>(hw.i2s_port),
+           static_cast<int>(hw.i2s_bck_gpio), static_cast<int>(hw.i2s_ws_gpio),
+           static_cast<int>(hw.i2s_dout_gpio));
   return true;
 }
 

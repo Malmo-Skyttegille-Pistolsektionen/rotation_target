@@ -23,6 +23,13 @@ constexpr const char *kActiveLowKey = "hw_tgt_alow";
 constexpr const char *kHostnameKey = "hw_hostname";
 constexpr const char *kDisplayNameKey = "hw_disp_name";
 constexpr const char *kBootShownKey = "hw_boot_shown";
+constexpr const char *kLedGpioKey = "hw_led_gpio";
+constexpr const char *kI2sPortKey = "hw_i2s_port";
+constexpr const char *kI2sBckKey = "hw_i2s_bck";
+constexpr const char *kI2sWsKey = "hw_i2s_ws";
+constexpr const char *kI2sDoutKey = "hw_i2s_dout";
+constexpr const char *kHttpPortKey = "hw_http_port";
+constexpr const char *kWifiRetryKey = "hw_wifi_retry";
 
 rt::HardwareConfig s_current;
 bool s_overridden = false;
@@ -40,6 +47,21 @@ bool read_str(nvs_handle_t handle, const char *key, std::string &out) {
 
 }  // namespace
 
+rt::Peripherals peripherals() {
+  rt::Peripherals present;
+#if CONFIG_RT_AUDIO_ENABLED
+  present.audio = true;
+#else
+  present.audio = false;
+#endif
+#if CONFIG_RT_RGB_LED_ENABLED
+  present.led = true;
+#else
+  present.led = false;
+#endif
+  return present;
+}
+
 rt::HardwareConfig defaults() {
   rt::HardwareConfig config;
   config.target_gpio = CONFIG_RT_TARGET_GPIO;
@@ -54,6 +76,26 @@ rt::HardwareConfig defaults() {
 #else
   config.targets_shown_at_boot = true;
 #endif
+
+  // Carried whether or not the peripheral is compiled in, so a value set on a
+  // build that had it survives one that does not.
+#if CONFIG_RT_RGB_LED_ENABLED
+  config.led_gpio = CONFIG_RT_RGB_LED_GPIO;
+#endif
+#if CONFIG_RT_AUDIO_ENABLED
+  config.i2s_port = CONFIG_RT_I2S_PORT;
+  config.i2s_bck_gpio = CONFIG_RT_I2S_BCK_GPIO;
+  config.i2s_ws_gpio = CONFIG_RT_I2S_WS_GPIO;
+  config.i2s_dout_gpio = CONFIG_RT_I2S_DOUT_GPIO;
+#endif
+  config.http_port = CONFIG_RT_HTTP_PORT;
+  // The QEMU profile builds without WiFi, so the symbol does not exist there.
+  // The struct's own default stands in - nothing reads it on a build with no
+  // radio to retry on.
+#ifdef CONFIG_RT_WIFI_MAX_RETRIES
+  config.wifi_max_retries = CONFIG_RT_WIFI_MAX_RETRIES;
+#endif
+
   // No compiled default: a device that has never been named has no name to
   // show, and inventing one would put the same string on every device.
   config.display_name = "";
@@ -102,8 +144,37 @@ bool overlay_from_nvs(rt::HardwareConfig &out) {
     found = true;
   }
 
+  const struct {
+    const char *key;
+    int32_t *field;
+  } pins[] = {
+      {kLedGpioKey, &out.led_gpio},           {kI2sPortKey, &out.i2s_port},
+      {kI2sBckKey, &out.i2s_bck_gpio},        {kI2sWsKey, &out.i2s_ws_gpio},
+      {kI2sDoutKey, &out.i2s_dout_gpio},      {kHttpPortKey, &out.http_port},
+      {kWifiRetryKey, &out.wifi_max_retries},
+  };
+  for (const auto &pin : pins) {
+    int32_t value = 0;
+    if (nvs_get_i32(handle, pin.key, &value) == ESP_OK) {
+      *pin.field = value;
+      found = true;
+    }
+  }
+
   nvs_close(handle);
   return found;
+}
+
+}  // namespace
+
+namespace {
+
+bool same_as(const rt::HardwareConfig &a, const rt::HardwareConfig &b) {
+  return a.target_gpio == b.target_gpio && a.target_active_low == b.target_active_low &&
+         a.hostname == b.hostname && a.display_name == b.display_name &&
+         a.targets_shown_at_boot == b.targets_shown_at_boot && a.led_gpio == b.led_gpio &&
+         a.i2s_port == b.i2s_port && a.i2s_bck_gpio == b.i2s_bck_gpio &&
+         a.i2s_ws_gpio == b.i2s_ws_gpio && a.i2s_dout_gpio == b.i2s_dout_gpio;
 }
 
 }  // namespace
@@ -117,7 +188,7 @@ rt::HardwareConfig saved() {
   // A stored value this build refuses is reported as the default it will
   // actually boot on, matching init()'s fallback - so the API never claims the
   // device is about to use something it would reject.
-  if (rt::validate(out) != rt::ConfigRefusal::kNone) return defaults();
+  if (rt::validate(out, peripherals()) != rt::ConfigRefusal::kNone) return defaults();
   return out;
 }
 
@@ -128,7 +199,7 @@ void init() {
   // A configuration written by an older firmware, or corrupted in place, must
   // not brick the device: fall back rather than driving a pin this build does
   // not consider safe.
-  const rt::ConfigRefusal refusal = rt::validate(s_current);
+  const rt::ConfigRefusal refusal = rt::validate(s_current, peripherals());
   if (refusal != rt::ConfigRefusal::kNone) {
     ESP_LOGE(TAG, "Stored configuration refused (%s); using compiled defaults",
              rt::refusal_message(refusal));
@@ -149,16 +220,22 @@ const rt::HardwareConfig &current() {
 }
 
 bool overridden() {
-  // Re-read, like saved(), rather than answering from the boot cache. This
-  // means "NVS holds an override right now", so a save made since boot counts -
-  // the cached flag would answer for the configuration the device came up on
-  // and report false immediately after a successful write.
-  rt::HardwareConfig probe = defaults();
-  return overlay_from_nvs(probe);
+  // "Differs from the compiled defaults", not "NVS holds a key".
+  //
+  // The two come apart: writing a value that happens to equal the default
+  // leaves a key behind, and the key-presence reading then reports `true` with
+  // nothing for a reset to undo - a UI marking overridden values would mark
+  // none of them while claiming some. This is the reading the Settings page
+  // needs, and the one that cannot be wrong.
+  //
+  // A future arm-on-first-write password (#144) wants a different signal
+  // anyway: whether a password has been set, not whether configuration was
+  // ever written. It should carry its own state rather than borrow this.
+  return !same_as(saved(), defaults());
 }
 
 rt::ConfigRefusal save(const rt::HardwareConfig &config) {
-  const rt::ConfigRefusal refusal = rt::validate(config);
+  const rt::ConfigRefusal refusal = rt::validate(config, peripherals());
   if (refusal != rt::ConfigRefusal::kNone) return refusal;
 
   nvs_handle_t handle;
@@ -175,6 +252,13 @@ rt::ConfigRefusal save(const rt::HardwareConfig &config) {
   nvs_set_i8(handle, kActiveLowKey, config.target_active_low ? 1 : 0);
   nvs_set_str(handle, kHostnameKey, config.hostname.c_str());
   nvs_set_str(handle, kDisplayNameKey, config.display_name.c_str());
+  nvs_set_i32(handle, kLedGpioKey, config.led_gpio);
+  nvs_set_i32(handle, kI2sPortKey, config.i2s_port);
+  nvs_set_i32(handle, kI2sBckKey, config.i2s_bck_gpio);
+  nvs_set_i32(handle, kI2sWsKey, config.i2s_ws_gpio);
+  nvs_set_i32(handle, kI2sDoutKey, config.i2s_dout_gpio);
+  nvs_set_i32(handle, kHttpPortKey, config.http_port);
+  nvs_set_i32(handle, kWifiRetryKey, config.wifi_max_retries);
   nvs_commit(handle);
   nvs_close(handle);
 
@@ -210,7 +294,9 @@ bool reset() {
   // Erased individually rather than with nvs_erase_all: the namespace is shared
   // with wifi_store, and taking the WiFi credentials out with the pin mapping
   // would turn "undo my hardware change" into "and now find the setup portal".
-  for (const char *key : {kGpioKey, kActiveLowKey, kHostnameKey, kDisplayNameKey, kBootShownKey}) {
+  for (const char *key :
+       {kGpioKey, kActiveLowKey, kHostnameKey, kDisplayNameKey, kBootShownKey, kLedGpioKey,
+        kI2sPortKey, kI2sBckKey, kI2sWsKey, kI2sDoutKey, kHttpPortKey, kWifiRetryKey}) {
     const esp_err_t err = nvs_erase_key(handle, key);
     if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
       nvs_close(handle);

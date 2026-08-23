@@ -190,6 +190,19 @@ jobs:
           . "$IDF_PATH/export.sh"
           scripts/run-qemu.sh --build-only
 
+      # Something already on 8080 makes hostfwd fail to bind, and the symptom
+      # is identical to a device that never booted (#204, and #110 is the same
+      # shape from the other side). Checked before we start, so the failure
+      # names itself instead of costing a timeout.
+      - name: Check the forwarded port is free
+        shell: bash
+        run: |
+          if curl -sf -o /dev/null --max-time 2 http://127.0.0.1:8080/; then
+            echo "::error::Something is already serving on 127.0.0.1:8080 - QEMU's hostfwd cannot bind."
+            exit 1
+          fi
+          echo "127.0.0.1:8080 is free"
+
       - name: Boot QEMU headless
         shell: bash
         run: |
@@ -202,18 +215,50 @@ jobs:
           scripts/run-qemu.sh --no-build --headless > qemu-serial.log 2>&1 &
           echo "$!" > qemu.pid
 
+      # Three failures used to end in the same "did not serve within 30s":
+      # the emulator died, the firmware panicked, or the host was merely slow.
+      # They need different responses - the first two are real, the third is a
+      # re-run - so each is now reported as itself.
       - name: Wait for the API to answer
         shell: bash
         run: |
-          for _ in $(seq 1 30); do
+          QEMU_PID="$(cat qemu.pid)"
+          for i in $(seq 1 60); do
             if curl -sf -o /dev/null http://127.0.0.1:8080/api/v2/version; then
               echo "Serving after ${SECONDS}s"
               exit 0
             fi
+
+            # A dead emulator will never answer, so waiting out the rest of the
+            # timeout only delays the report.
+            if ! kill -0 "$QEMU_PID" 2>/dev/null; then
+              echo "::error::QEMU exited after ${SECONDS}s without serving the API."
+              echo "--- qemu-serial.log ---"
+              cat qemu-serial.log
+              exit 1
+            fi
+
+            # The firmware says this once it is listening. Seeing it while the
+            # API stays unreachable means the guest is up and the *host* cannot
+            # reach it - a forwarding problem, not a boot failure.
+            if [ "$i" -ge 20 ] && grep -q 'HTTP server listening' qemu-serial.log; then
+              echo "::error::The guest is serving but 127.0.0.1:8080 does not answer after ${SECONDS}s."
+              echo "::error::This is QEMU's port forwarding, not the firmware - re-running usually clears it (#204)."
+              echo "--- qemu-serial.log ---"
+              tail -60 qemu-serial.log
+              exit 1
+            fi
             sleep 1
           done
-          echo "::error::QEMU did not serve /api/v2/version within 30s"
-          tail -40 qemu-serial.log
+
+          echo "::error::QEMU did not serve /api/v2/version within 60s."
+          if grep -q 'HTTP server listening' qemu-serial.log; then
+            echo "::error::The guest reached 'HTTP server listening', so the firmware booted - suspect port forwarding."
+          else
+            echo "::error::The guest never reached 'HTTP server listening' - suspect the firmware."
+          fi
+          echo "--- qemu-serial.log ---"
+          tail -60 qemu-serial.log
           exit 1
 
       - name: GET /api/v2/version
