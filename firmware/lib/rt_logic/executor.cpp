@@ -100,10 +100,17 @@ bool Executor::reset() {
   return true;
 }
 
-bool Executor::skip_to_series(int32_t series_index) {
-  if (!state_.is_loaded()) return false;
+SkipResult Executor::skip_to_series(int32_t series_index, int32_t expected_program_id) {
+  if (!state_.is_loaded()) return SkipResult::kInvalid;
+
+  // #105: same ambiguity as #95's start - the request names the program the
+  // index is for, and the device is the only place the check can be
+  // airtight. Ahead of the bounds check, mirroring start's ordering: a
+  // mismatched program is refused before its series count is even consulted.
+  if (state_.program->id != expected_program_id) return SkipResult::kMismatch;
+
   if (series_index < 0 || static_cast<size_t>(series_index) >= state_.program->series.size()) {
-    return false;
+    return SkipResult::kInvalid;
   }
 
   state_.running = false;
@@ -113,7 +120,7 @@ bool Executor::skip_to_series(int32_t series_index) {
   clear_run_anchor();
 
   effects_.state_changed();
-  return true;
+  return SkipResult::kSkipped;
 }
 
 UnloadResult Executor::unload() {

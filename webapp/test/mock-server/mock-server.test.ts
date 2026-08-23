@@ -30,6 +30,18 @@ async function start(id: number, init?: RequestInit): Promise<Response> {
 }
 
 /**
+ * `POST /programs/series/{index}/skip_to` for a named program - the body is
+ * required, same shape as `start` (D-27, #105).
+ */
+async function skipTo(index: number, id: number, init?: RequestInit): Promise<Response> {
+  return api(`/programs/series/${String(index)}/skip_to`, {
+    method: 'POST',
+    body: JSON.stringify({ id }),
+    ...init,
+  });
+}
+
+/**
  * Asserts the whole RFC 9457 problem document, media type included (D-19).
  *
  * The whole document rather than just the `type`: `title` and `status` are
@@ -143,8 +155,70 @@ describe('REST surface', () => {
 
   it('bounds-checks skip_to', async () => {
     await api('/programs/40/load', { method: 'POST' });
-    expect((await api('/programs/series/1/skip_to', { method: 'POST' })).status).toBe(200);
-    expect((await api('/programs/series/99/skip_to', { method: 'POST' })).status).toBe(400);
+    expect((await skipTo(1, 40)).status).toBe(200);
+    expect((await skipTo(99, 40)).status).toBe(400);
+  });
+
+  // --- #105: a skip names the program the index is for, mirroring D-27 -----
+
+  it('rejects a skip_to with no body, a non-object body or a non-integer id', async () => {
+    await api('/programs/40/load', { method: 'POST' });
+    const malformed = 'Expected a JSON body naming the program to skip: {"id": <id>}';
+
+    for (const body of [undefined, '', 'not json', '[]', '{}', '{"id":null}', '{"id":"40"}', '{"id":40.5}']) {
+      const res = await api('/programs/series/1/skip_to', { method: 'POST', body });
+      expect(res.status, `body: ${String(body)}`).toBe(400);
+      expect(await res.json()).toMatchObject({
+        type: '/problems/skip_id_required',
+        status: 400,
+        detail: malformed,
+      });
+    }
+  });
+
+  it('refuses a skip for a program the device no longer holds, naming both', async () => {
+    await api('/programs/40/load', { method: 'POST' });
+
+    const res = await skipTo(1, 1);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      type: '/problems/skip_program_mismatch',
+      status: 409,
+      detail: 'Skip refused: the device has program 40 loaded, not program 1',
+    });
+  });
+
+  it('leaves the selection untouched when a skip refuses, and the right id still skips', async () => {
+    await api('/programs/40/load', { method: 'POST' });
+    const sse = await openSSE(server.port);
+    const before = sse.payloads<StateUpdatePayload>('stateUpdate').length;
+
+    expect((await skipTo(1, 1)).status).toBe(409);
+    await flushIO();
+    // A refused skip publishes nothing: nothing about the device changed.
+    expect(sse.payloads<StateUpdatePayload>('stateUpdate')).toHaveLength(before);
+    expect(last(sse.payloads<StateUpdatePayload>('stateUpdate')).programState?.currentSeriesIndex).toBe(0);
+
+    expect((await skipTo(1, 40)).status).toBe(200);
+    await flushIO();
+    expect(last(sse.payloads<StateUpdatePayload>('stateUpdate')).programState?.currentSeriesIndex).toBe(1);
+
+    sse.close();
+  });
+
+  it('answers 400 rather than 409 when nothing is loaded at all', async () => {
+    // The more precise diagnosis wins, same precedence as start's.
+    expect((await skipTo(0, 1)).status).toBe(400);
+  });
+
+  it('refuses a mismatched skip ahead of an out-of-bounds index', async () => {
+    await api('/programs/40/load', { method: 'POST' });
+
+    // The id check runs before the bounds check, so a wrong program and an
+    // out-of-range index both being true still answers the mismatch.
+    const res = await skipTo(99, 1);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ type: '/problems/skip_program_mismatch' });
   });
 
   it('gates writes on a token once admin mode is enabled', async () => {
@@ -564,7 +638,7 @@ describe('libraryChanged (D-24)', () => {
     await call('/programs/start', { method: 'POST', body: JSON.stringify({ id: 40 }) });
     await call('/programs/stop', { method: 'POST' });
     await call('/programs/reset', { method: 'POST' });
-    await call('/programs/series/1/skip_to', { method: 'POST' });
+    await call('/programs/series/1/skip_to', { method: 'POST', body: JSON.stringify({ id: 40 }) });
     await call('/programs/unload', { method: 'POST' });
     await call('/targets/toggle', { method: 'POST' });
     await flushIO();

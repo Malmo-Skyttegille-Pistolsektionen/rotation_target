@@ -54,6 +54,7 @@ struct ProblemType {
   X(kProgramRunning, "program_running", "A program is running", 409)                            \
   X(kProgramLoaded, "program_loaded", "Program is loaded", 409)                                 \
   X(kStartProgramMismatch, "start_program_mismatch", "A different program is loaded", 409)      \
+  X(kSkipProgramMismatch, "skip_program_mismatch", "A different program is loaded", 409)        \
   X(kProgramReadonly, "program_readonly", "Program is read-only", 409)                          \
   X(kAudioReadonly, "audio_readonly", "Audio is read-only", 409)                                \
   X(kAudioInUse, "audio_in_use", "Audio is used by the loaded program", 409)                    \
@@ -63,6 +64,7 @@ struct ProblemType {
   X(kProgramIdMismatch, "program_id_mismatch", "Program id does not match the path", 400)       \
   X(kSeriesIndexInvalid, "series_index_invalid", "Series index out of range", 400)              \
   X(kStartIdRequired, "start_id_required", "A program id is required to start", 400)            \
+  X(kSkipIdRequired, "skip_id_required", "A program id is required to skip to a series", 400)   \
   /* upload */                                                                                  \
   X(kUploadMissingFile, "upload_missing_file", "No file uploaded", 400)                         \
   X(kUploadMissingTitle, "upload_missing_title", "Missing title", 400)                          \

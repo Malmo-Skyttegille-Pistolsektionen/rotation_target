@@ -189,7 +189,11 @@ export function RunView(): React.ReactNode {
   const programConfirmed = loadedProgramId != null && pendingLoad === null;
 
   const skipToSeriesMutation = useMutation({
-    mutationFn: programsApi.skipToSeries,
+    mutationFn: ({ index, id }: { index: number; id: number }) => programsApi.skipToSeries(index, id),
+    // Same reasoning as start's onError (D-27, #105): the device's refusal
+    // names the program it actually holds, and that is the fact the operator
+    // has to act on.
+    onError: (error: Error) => setNotice(error.message),
   });
 
   // Only `mutate` is ever used, and destructuring it keeps the countdown
@@ -243,8 +247,10 @@ export function RunView(): React.ReactNode {
 
   const handleSeriesChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
     const index = Number(e.target.value);
-    if (!isNaN(index)) {
-      skipToSeriesMutation.mutate(index);
+    // The select only renders once a program is loaded, but the id is read
+    // fresh here rather than assumed, same as skipToSeries needing one at all.
+    if (!isNaN(index) && loadedProgramId !== null) {
+      skipToSeriesMutation.mutate({ index, id: loadedProgramId });
     }
   };
 
@@ -566,9 +572,9 @@ export function RunView(): React.ReactNode {
           // Absent while a run is in progress: Skip is for the pause between
           // series, not for cutting one short - that is what Pause is for.
           onSkipSeries={
-            canControl && !isRunning
+            canControl && !isRunning && loadedProgramId !== null
               ? (index) => {
-                  skipToSeriesMutation.mutate(index);
+                  skipToSeriesMutation.mutate({ index, id: loadedProgramId });
                 }
               : undefined
           }

@@ -137,7 +137,7 @@ different reasons.
 | `start` | Resumes from `tickerMs`, or runs the series from 0; `409` for another program |
 | `stop` | Pauses and keeps the position |
 | `reset` | Rewinds to the start of the current series |
-| `skip_to` | Selects a series, paused at its first event |
+| `skip_to` | Selects a series, paused at its first event; `409` for another program |
 | `unload` | Clears the selection; `409` while running |
 
 When a series finishes and another follows, execution pauses at the start of the
@@ -158,6 +158,23 @@ audio-delete guard and the strict `command` vocabulary. A refused start
 publishes nothing and changes nothing. Nothing loaded stays `400`
 (`No program loaded`): it is the more precise diagnosis, and it tells the client
 to load rather than to re-read what is loaded.
+
+`skip_to` carries `{"id": N}` too, for the same reason and in the same shape
+(D-27, #105): it decides where the next `start` begins, so a program switched
+underneath it would silently re-aim that start at a series of a program nobody
+chose. A device holding a different program answers
+`409 /problems/skip_program_mismatch`, naming both ids; a body that does not
+name an integer id is `400 /problems/skip_id_required`. "Nothing is loaded, or
+the index is out of range" still answers `400 /problems/series_index_invalid`,
+checked after the id and unchanged by #105.
+
+`reset` and `stop` do **not** take an id. Both are recoverable in one call and
+neither decides what runs next: `stop` only pauses whatever is running, and
+`reset` only rewinds whatever is loaded to the start of its current series -
+neither can aim a run at a program the operator did not choose. `start` and
+`skip_to` are id-checked because each is the one call that decides where
+execution goes next; `reset` and `stop` never make that decision, so an id on
+them would only add client complexity without closing a window that exists.
 
 `unload` is the one control call that can be refused for reasons other than
 "nothing is loaded". A run in progress answers `409` (`A program is running -

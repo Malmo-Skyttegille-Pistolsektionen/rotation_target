@@ -164,14 +164,18 @@ bool reset() {
   return ok;
 }
 
-bool skip_to_series(int32_t series_index) {
-  bool ok = false;
+SkipOutcome skip_to_series(int32_t series_index, int32_t expected_program_id) {
+  SkipOutcome outcome{rt::SkipResult::kInvalid, SkipOutcome::kNoProgram};
   {
+    // Same reasoning as start(): the comparison, the bounds check and the
+    // selection are one locked section, and the id the refusal reports is
+    // read inside it too.
     Lock lock;
-    ok = s_executor.skip_to_series(series_index);
+    outcome.result = s_executor.skip_to_series(series_index, expected_program_id);
+    if (s_state.program != nullptr) outcome.loaded_program_id = s_state.program->id;
   }
   flush(true);
-  return ok;
+  return outcome;
 }
 
 void set_targets(bool shown) {

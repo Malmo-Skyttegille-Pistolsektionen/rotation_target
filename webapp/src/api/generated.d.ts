@@ -406,8 +406,17 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Jump to a series
-         * @description Stops the run and selects the series, paused at its first event with `tickerMs` cleared.
+         * Jump to a series, if it belongs to the program loaded
+         * @description Stops the run and selects the series, paused at its first event with
+         *     `tickerMs` cleared.
+         *
+         *     The body names the program the caller decided the index was for, and
+         *     the device refuses with `409` if it holds a different one — the same
+         *     rule `POST /programs/start` applies (D-27), extended here because
+         *     `skip_to` is what decides where the next `start` begins (#105). The id
+         *     is **required**, for the same reason it is on `start`: an id-less skip
+         *     would keep a way to select a series of whatever the device happens to
+         *     hold.
          */
         post: operations["skipToSeries"];
         delete?: never;
@@ -622,7 +631,7 @@ export interface components {
              *     `program_invalid` `backend_issue` code in `asyncapi.yaml`.
              * @enum {string}
              */
-            type: "/problems/admin_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/admin_mode_already_enabled" | "/problems/admin_mode_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/start_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed";
+            type: "/problems/admin_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/admin_mode_already_enabled" | "/problems/admin_mode_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed";
             /**
              * @description A short summary of the type, identical for every occurrence of it. Not for display — it does not describe this occurrence.
              * @example Program is read-only
@@ -652,6 +661,14 @@ export interface components {
             /**
              * Format: int32
              * @description The program the client last saw loaded and armed the start for.
+             */
+            id: number;
+        };
+        /** @description The program the caller decided the series index was for. Required, and required to be an integer, same shape as `StartRequest` (D-27, #105): a skip with no id, or with an `id` of another type, is a `400` rather than a selection on whatever happens to be loaded. */
+        SkipRequest: {
+            /**
+             * Format: int32
+             * @description The program the client last saw loaded and armed the skip for.
              */
             id: number;
         };
@@ -1472,7 +1489,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SkipRequest"];
+            };
+        };
         responses: {
             /** @description Skipped to series <index>. */
             200: {
@@ -1486,7 +1507,10 @@ export interface operations {
             /**
              * @description - `/problems/series_index_invalid` — nothing is loaded, or the
              *       index is outside the loaded program. The firmware does not
-             *       distinguish the two.
+             *       distinguish the two. Unchanged by #105: it is checked after the
+             *       id, but stays a `400` either way.
+             *     - `/problems/skip_id_required` — no body, unparseable JSON, or no
+             *       integer `id`.
              */
             400: {
                 headers: {
@@ -1502,6 +1526,20 @@ export interface operations {
              *       decimal integer.
              */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description - `/problems/skip_program_mismatch` — a different program is
+             *       loaded. `detail` names both ids, same reasoning as `start`'s
+             *       `409`. The run state is untouched and no `stateUpdate` is
+             *       published.
+             */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
