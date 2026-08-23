@@ -62,7 +62,7 @@ export type ProgramDocumentResult =
   | { ok: false; errors: DocumentIssue[] };
 
 const KNOWN_PROGRAM_KEYS = ['id', 'title', 'description', 'readonly', 'series'];
-const KNOWN_SERIES_KEYS = ['name', 'optional', 'events'];
+const KNOWN_SERIES_KEYS = ['name', 'optional', 'events', 'timer_start_index'];
 const KNOWN_EVENT_KEYS = ['duration', 'command', 'audio_ids'];
 
 /**
@@ -220,7 +220,38 @@ function parseSeries(collector: Collector, path: string, raw: unknown): Series |
     if (event) events.push(event);
   });
 
-  return { name: raw.name, optional, events };
+  // Validated after the events are parsed, because the bound is their count.
+  // Refused rather than clamped, matching the firmware: an index past the end
+  // names an event that is not there, and anchoring somewhere else would start
+  // the clock at a moment nobody chose.
+  // Only carried through when the document actually had it. Emitting a default
+  // would make `document` differ from the file it came from, and this output is
+  // what round-trips back to the device.
+  let timerStartIndex: number | undefined;
+  if (raw.timer_start_index !== undefined) {
+    if (!isInteger(raw.timer_start_index) || raw.timer_start_index < 0) {
+      collector.errors.push({
+        path: `${path}/timer_start_index`,
+        message: '"timer_start_index" must be a whole number of 0 or more.',
+      });
+      return null;
+    }
+    if (raw.timer_start_index >= events.length) {
+      collector.errors.push({
+        path: `${path}/timer_start_index`,
+        message: `"timer_start_index" is ${String(raw.timer_start_index)}, but this series has ${String(events.length)} event${events.length === 1 ? '' : 's'}.`,
+      });
+      return null;
+    }
+    timerStartIndex = raw.timer_start_index;
+  }
+
+  return {
+    name: raw.name,
+    optional,
+    events,
+    ...(timerStartIndex === undefined ? {} : { timer_start_index: timerStartIndex }),
+  };
 }
 
 /**

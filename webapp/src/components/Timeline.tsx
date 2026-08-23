@@ -101,15 +101,24 @@ export function Timeline({
 
   if (!program?.series) return null;
 
-  // Straight from the wire: `tickerMs` is already elapsed milliseconds in the
-  // series. It used to be whole seconds multiplied back up by 1000, which put
+  // `tickerMs` arrives measured from the series' timer anchor, so it is negative
+  // through the preamble (#126). The playhead needs elapsed-since-series-start,
+  // so the anchor goes back on. A series without `timer_start_index` anchors at
+  // 0 and this is the identity it always was.
+  const anchorMs = (series: Series): number => {
+    const index = series.timer_start_index ?? 0;
+    return series.events.slice(0, index).reduce((total, event) => total + event.duration, 0);
+  };
+
+  // Straight from the wire otherwise: `tickerMs` is millisecond-precise. It used to be whole seconds multiplied back up by 1000, which put
   // the playhead up to a second - a whole event, on a field program - behind
   // where the targets actually were.
   const calculateElapsedMs = (seriesIdx: number): number => {
     if (seriesIdx !== currentSeriesIndex || tickerMs === null) {
       return 0;
     }
-    return tickerMs;
+    const series = program.series?.[seriesIdx];
+    return series === undefined ? tickerMs : tickerMs + anchorMs(series);
   };
 
   return (

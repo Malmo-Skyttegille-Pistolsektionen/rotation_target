@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -39,10 +40,29 @@ struct Series {
   bool optional = false;
   std::vector<Event> events;
 
+  // The event where the run timer reaches zero. Everything before it is
+  // preamble - the audio announcing the series, the count, the loading period -
+  // and is not shooting time. 0 means the series has no preamble, which is what
+  // every program meant before the field existed (#126).
+  int32_t timer_start_index = 0;
+
   int32_t total_ms() const {
     int32_t total = 0;
     for (const Event &e : events) total += e.duration_ms;
     return total;
+  }
+
+  // Milliseconds from the start of the series to the start of the anchor event.
+  // Subtracted from elapsed time to give the signed ticker clients publish as a
+  // countdown. Out-of-range indices yield 0 rather than reading past the end:
+  // the parser rejects them, and a state that cannot be represented should not
+  // become a crash here.
+  int32_t timer_anchor_ms() const {
+    if (timer_start_index <= 0) return 0;
+    int32_t anchor = 0;
+    const size_t limit = std::min(static_cast<size_t>(timer_start_index), events.size());
+    for (size_t i = 0; i < limit; i++) anchor += events[i].duration_ms;
+    return anchor;
   }
 };
 

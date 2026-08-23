@@ -337,10 +337,42 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
 
   // --- Helpers ---
 
+  /**
+   * `rt::Series::timer_anchor_ms` — milliseconds from the start of a series to
+   * the start of its timer anchor event.
+   */
+  function timerAnchorMs(series: Program['series'][number]): number {
+    const index = series.timer_start_index ?? 0;
+    return series.events.slice(0, index).reduce((total, event) => total + event.duration, 0);
+  }
+
+  /**
+   * `rt::relative_ticker_ms` — the ticker is stored as elapsed-in-series (it is
+   * also the resume point) and published relative to the series' anchor, so a
+   * client sees a countdown through the preamble and a count-up after (#126).
+   * The conversion happens here and nowhere else, exactly as in the firmware.
+   */
   function getStateUpdatePayload(): StateUpdatePayload {
+    const programState = state.programState;
+    const seriesIndex = programState?.currentSeriesIndex;
+    let published = programState;
+
+    if (
+      programState !== null &&
+      programState.tickerMs !== null &&
+      seriesIndex !== null &&
+      seriesIndex !== undefined &&
+      state.loadedProgram !== null
+    ) {
+      const series = state.loadedProgram.series[seriesIndex];
+      if (series !== undefined) {
+        published = { ...programState, tickerMs: programState.tickerMs - timerAnchorMs(series) };
+      }
+    }
+
     return {
       loadedProgramId: state.loadedProgram?.id ?? null,
-      programState: state.programState,
+      programState: published,
       targetStatus: state.targetStatus,
     };
   }

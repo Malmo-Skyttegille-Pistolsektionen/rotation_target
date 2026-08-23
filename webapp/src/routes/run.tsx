@@ -347,10 +347,15 @@ export function RunView(): React.ReactNode {
 
             {tickerMs != null && (
               <div className={clsx(styles.infoBadge, styles.badgeTime)}>
-                <span className={styles.badgeLabel}>Time:</span>
-                {/* Seconds are the client's derivation now - the wire carries ms. */}
+                <span className={styles.badgeLabel}>{tickerMs < 0 ? 'Starts in:' : 'Time:'}</span>
+                {/* Seconds are the client's derivation now - the wire carries ms.
+                    A negative ticker is the preamble counting down to the series'
+                    timer anchor (#126); it is shown as a plain countdown rather
+                    than a minus sign, because "3" is what an operator calling the
+                    line would say. Math.floor is right for both directions: it
+                    holds "3" for the whole of the third second. */}
                 <span className={styles.timerValue} data-testid='run-ticker'>
-                  {Math.floor(tickerMs / 1000)}s
+                  {Math.abs(Math.floor(tickerMs / 1000))}s
                 </span>
               </div>
             )}
@@ -519,8 +524,9 @@ export function RunView(): React.ReactNode {
           what ends up underneath. */}
       {controlsOffScreen && programConfirmed && (
         <div className={styles.stickyBar} data-testid='run-sticky-bar'>
+          {/* Same countdown treatment as the board's timer above. */}
           <div className={styles.stickyTimer} data-testid='run-sticky-ticker'>
-            {tickerMs != null ? `${String(Math.floor(tickerMs / 1000))}s` : '--'}
+            {tickerMs != null ? `${tickerMs < 0 ? '−' : ''}${String(Math.abs(Math.floor(tickerMs / 1000)))}s` : '--'}
           </div>
 
           <div

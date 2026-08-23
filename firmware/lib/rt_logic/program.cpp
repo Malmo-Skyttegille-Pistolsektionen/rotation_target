@@ -59,6 +59,17 @@ bool parse_series(JsonObjectConst src, Series &s) {
     if (!parse_event(e, event)) return false;
     s.events.push_back(std::move(event));
   }
+
+  // Refused rather than clamped: an index past the end means the author meant
+  // an event that is not there, and silently anchoring somewhere else would
+  // start the clock at a moment nobody chose. Absent is 0, which is what every
+  // program meant before this field existed.
+  s.timer_start_index = src["timer_start_index"] | 0;
+  if (s.timer_start_index < 0 || static_cast<size_t>(s.timer_start_index) >= s.events.size()) {
+    // An empty series has no event to anchor to; 0 on an empty series is the
+    // absent case and stays legal.
+    if (!(s.timer_start_index == 0 && s.events.empty())) return false;
+  }
   return true;
 }
 
