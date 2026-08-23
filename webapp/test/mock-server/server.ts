@@ -20,6 +20,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import type {
+  HardwareConfig,
+  HardwareConfigState,
   Program,
   StateUpdatePayload,
   ProgramState,
@@ -78,10 +80,55 @@ const PROBLEMS = {
   '/problems/upload_missing_file': { title: 'No file uploaded', status: 400 },
   '/problems/upload_missing_title': { title: 'Missing title', status: 400 },
   '/problems/audio_format_unsupported': { title: 'Unsupported audio format', status: 400 },
+  '/problems/hardware_config_invalid': { title: 'Invalid hardware configuration', status: 400 },
+  '/problems/hardware_config_serial_only': {
+    title: 'That setting changes only from the serial console',
+    status: 400,
+  },
   // internal
   '/problems/program_store_failed': { title: 'Could not store program', status: 500 },
   '/problems/audio_store_failed': { title: 'Could not store audio', status: 500 },
 } satisfies Record<ProblemType, { title: string; status: number }>;
+
+/**
+ * `rt::validate` from firmware/lib/rt_logic/hardware_config.cpp (#144).
+ *
+ * 22-25 are absent from the ESP32-S3 and 26-32 are the module's own flash and
+ * PSRAM; driving one stops the device booting, so both are refused rather than
+ * warned about. 46 cannot drive an output.
+ */
+function hardwareConfigRefusal(config: HardwareConfig): string | null {
+  if (!Number.isInteger(config.targetGpio) || config.targetGpio < 0 || config.targetGpio > 48) {
+    return 'The target GPIO must be between 0 and 48.';
+  }
+  if ((config.targetGpio >= 22 && config.targetGpio <= 25) || (config.targetGpio >= 26 && config.targetGpio <= 32)) {
+    return "That GPIO is wired to the module's flash or PSRAM, or does not exist on this chip. Driving it stops the device booting.";
+  }
+  if (config.targetGpio === 46) return 'That GPIO cannot drive an output on this chip.';
+  if (config.hostname.length === 0) return 'The hostname cannot be empty - it is how the device is reached.';
+  if (config.hostname.length > 20) return 'The hostname is too long; 20 characters at most.';
+  if (config.hostname.startsWith('-') || config.hostname.endsWith('-')) {
+    return 'The hostname cannot start or end with a hyphen.';
+  }
+  if (!/^[a-z0-9-]+$/.test(config.hostname)) {
+    return 'The hostname may contain only lower-case letters, digits and hyphens.';
+  }
+  if (config.displayName.length > 40) return 'The display name is too long; 40 characters at most.';
+  return null;
+}
+
+/**
+ * The firmware's compiled defaults (#144) - Kconfig's `RT_TARGET_GPIO`,
+ * `RT_TARGET_ACTIVE_LOW` and `RT_HOSTNAME`. Kept here so a test can assert
+ * what a reset restores without hardcoding the numbers at every call site.
+ */
+export const HARDWARE_DEFAULTS: HardwareConfig = {
+  targetGpio: 5,
+  targetActiveLow: true,
+  hostname: 'rotation-target',
+  displayName: '',
+  targetsShownAtBoot: true,
+};
 
 // --- Constants ---
 const API_PREFIX = '/api/v2';
@@ -125,6 +172,11 @@ const DEFAULT_PARTITIONS: DiagnosticsInfo['partitions'] = [
 export interface MockSeed {
   programs: Record<number, Program>;
   audios: AudioFile[];
+  /**
+   * The hardware configuration the device booted on (#144). Absent means the
+   * compiled defaults and `overridden: false`, which is an out-of-box device.
+   */
+  hardware?: HardwareConfig;
   /**
    * What the boot scan complained about, served by `GET /diagnostics/info`
    * (D-25). Defaults to none, which is what a clean boot reports.
@@ -284,6 +336,12 @@ export interface MockServer {
   middleware(req: IncomingMessage, res: ServerResponse, next: () => void): void;
   /** Back to a freshly booted device, without rebinding the socket. */
   reset(): void;
+  /**
+   * Adopt the saved hardware configuration, as a reboot would (#144). The mock
+   * has no boot of its own, and `restartRequired` is only meaningful if
+   * something can clear it.
+   */
+  restart(): void;
   /** Bind a real socket (for tests that want to speak HTTP). Resolves to the bound port. */
   listen(): Promise<number>;
   /** Stop timers, drop SSE clients, close the socket if one was opened. */
@@ -324,6 +382,13 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     }
   }
   restorePrograms();
+
+  // Two copies, because a save takes effect at the next boot: `active` is what
+  // the device came up on, `saved` is what it has been told. `restart()` is
+  // what closes the gap - the mock's stand-in for a reboot.
+  let activeHardware: HardwareConfig = { ...HARDWARE_DEFAULTS, ...(seed.hardware ?? {}) };
+  let savedHardware: HardwareConfig = { ...activeHardware };
+  let hardwareOverridden = seed.hardware !== undefined;
 
   const state: ServerState = {
     loadedProgram: null,
@@ -755,6 +820,74 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       return;
     }
 
+    // --- Hardware configuration (#144) ---
+
+    // A save takes effect at the next restart, so `saved` and `active` differ
+    // between the two - which is what `restartRequired` reports. The mock has
+    // no restart, so `restart()` on the handle is what adopts a saved value.
+    if (endpoint === '/config/hardware' && req.method === 'GET') {
+      const payload: HardwareConfigState = {
+        active: { ...activeHardware },
+        saved: { ...savedHardware },
+        defaults: { ...HARDWARE_DEFAULTS },
+        overridden: hardwareOverridden,
+        restartRequired: JSON.stringify(activeHardware) !== JSON.stringify(savedHardware),
+      };
+      jsonResponse(res, 200, payload);
+      return;
+    }
+
+    if (endpoint === '/config/hardware' && req.method === 'PUT') {
+      if (!checkAdminAuth(req, res)) return;
+      const parsed = parseJsonObject(await parseBody(req));
+      if (parsed === null) {
+        problemResponse(
+          res,
+          '/problems/hardware_config_invalid',
+          'Expected a JSON object with targetGpio, targetActiveLow, hostname and displayName',
+        );
+        return;
+      }
+      // Absent fields keep what is stored: a client that knows about fewer
+      // fields than this firmware must not silently undo the rest.
+      // Refused, not ignored (D-31): where the targets rest at boot changes
+      // only from the serial console, and an operator who believes they
+      // changed it is worse off than one who was told they could not.
+      if (parsed.targetsShownAtBoot !== undefined) {
+        problemResponse(
+          res,
+          '/problems/hardware_config_serial_only',
+          "targetsShownAtBoot changes only from the serial console: 'boot-targets shown' or 'boot-targets hidden'",
+        );
+        return;
+      }
+      const patch = parsed as Partial<HardwareConfig>;
+      const candidate: HardwareConfig = {
+        targetGpio: patch.targetGpio ?? savedHardware.targetGpio,
+        targetActiveLow: patch.targetActiveLow ?? savedHardware.targetActiveLow,
+        hostname: patch.hostname ?? savedHardware.hostname,
+        displayName: patch.displayName ?? savedHardware.displayName,
+        targetsShownAtBoot: savedHardware.targetsShownAtBoot,
+      };
+      const refusal = hardwareConfigRefusal(candidate);
+      if (refusal !== null) {
+        problemResponse(res, '/problems/hardware_config_invalid', refusal);
+        return;
+      }
+      savedHardware = candidate;
+      hardwareOverridden = true;
+      jsonResponse(res, 200, { message: 'Hardware configuration saved - restart the device to apply it' });
+      return;
+    }
+
+    if (endpoint === '/config/hardware/reset' && req.method === 'POST') {
+      if (!checkAdminAuth(req, res)) return;
+      savedHardware = { ...HARDWARE_DEFAULTS };
+      hardwareOverridden = false;
+      jsonResponse(res, 200, { message: 'Hardware configuration reset - restart the device to apply it' });
+      return;
+    }
+
     // --- Programs Endpoints ---
 
     // GET /programs - No auth required (read-only)
@@ -841,11 +974,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         return;
       }
       if (raw.id !== undefined && raw.id !== null && raw.id !== id) {
-        problemResponse(
-          res,
-          '/problems/program_id_mismatch',
-          'Program id in the document does not match the path',
-        );
+        problemResponse(res, '/problems/program_id_mismatch', 'Program id in the document does not match the path');
         return;
       }
 
@@ -1062,11 +1191,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       }
 
       if (!state.loadedProgram || !state.programState) {
-        problemResponse(
-          res,
-          '/problems/series_index_invalid',
-          'No program loaded or series index out of bounds',
-        );
+        problemResponse(res, '/problems/series_index_invalid', 'No program loaded or series index out of bounds');
         return;
       }
 
@@ -1080,11 +1205,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       }
 
       if (idx < 0 || idx >= state.loadedProgram.series.length) {
-        problemResponse(
-          res,
-          '/problems/series_index_invalid',
-          'No program loaded or series index out of bounds',
-        );
+        problemResponse(res, '/problems/series_index_invalid', 'No program loaded or series index out of bounds');
         return;
       }
 
@@ -1212,7 +1333,11 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       // role - it survives a stop and tells the user unloading is what's
       // needed, not just stopping.
       if (state.loadedProgram && programUsesAudio(state.loadedProgram, id)) {
-        problemResponse(res, '/problems/audio_in_use', 'Audio is used by the loaded program - unload the program first');
+        problemResponse(
+          res,
+          '/problems/audio_in_use',
+          'Audio is used by the loaded program - unload the program first',
+        );
         return;
       }
       if (state.programState?.running) {
@@ -1292,6 +1417,13 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       state.playingAudioId = null;
       state.playingUntil = null;
       audios.splice(0, audios.length, ...seed.audios);
+      activeHardware = { ...HARDWARE_DEFAULTS, ...(seed.hardware ?? {}) };
+      savedHardware = { ...activeHardware };
+      hardwareOverridden = seed.hardware !== undefined;
+    },
+
+    restart(): void {
+      activeHardware = { ...savedHardware };
     },
 
     listen(): Promise<number> {

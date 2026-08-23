@@ -1,3 +1,4 @@
+#include "config/hardware_store.h"
 #include "net_mgr.h"
 
 #include <cstring>
@@ -80,10 +81,10 @@ void start_mdns() {
     ESP_LOGW(TAG, "mDNS unavailable");
     return;
   }
-  mdns_hostname_set(CONFIG_RT_HOSTNAME);
+  mdns_hostname_set(hardware_store::current().hostname.c_str());
   mdns_instance_name_set("Rotation target");
   mdns_service_add(nullptr, "_http", "_tcp", kHttpPort, nullptr, 0);
-  ESP_LOGI(TAG, "Reachable at http://%s.local", CONFIG_RT_HOSTNAME);
+  ESP_LOGI(TAG, "Reachable at http://%s.local", hardware_store::current().hostname.c_str());
 }
 
 }  // namespace
@@ -124,7 +125,7 @@ Result connect() {
   ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_event_loop_create_default());
   s_netif = esp_netif_create_default_wifi_sta();
-  esp_netif_set_hostname(s_netif, CONFIG_RT_HOSTNAME);
+  esp_netif_set_hostname(s_netif, hardware_store::current().hostname.c_str());
 
   wifi_init_config_t init_cfg = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK(esp_wifi_init(&init_cfg));

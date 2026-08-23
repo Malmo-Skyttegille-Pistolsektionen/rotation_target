@@ -479,6 +479,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/config/hardware": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The hardware this device is configured for
+         * @description Public, like every other `GET`: it carries no credential, and the pin a
+         *     device drives is not a secret from anyone who can already see the
+         *     device.
+         *
+         *     Reports the configuration **in force**, which is the one latched at
+         *     boot — not one saved since. A write takes effect at the next restart
+         *     (see `PUT`), so `saved` and `active` differ exactly between a save and
+         *     that restart, and a client that shows only one of them will tell an
+         *     operator their change did nothing.
+         *
+         *     `defaults` is what the firmware was compiled with, so a client can mark
+         *     which values have been overridden and offer to put them back without
+         *     knowing what the compiled values are.
+         */
+        get: operations["getHardwareConfig"];
+        /**
+         * Store a hardware configuration
+         * @description Validates, then persists to NVS. **Takes effect at the next restart**,
+         *     and the response says so: nothing here re-drives a pin or renames mDNS
+         *     in place, because a target GPIO that moved while a program was loaded
+         *     would leave the old pin latched in whatever state it was last driven
+         *     to.
+         *
+         *     Refused as a whole on a bad value — nothing is written, so a rejected
+         *     form leaves the device exactly as it was. The refusals are the ones
+         *     whose recovery needs a USB cable:
+         *
+         *     - a GPIO outside 0–48, or one absent from this chip (22–25)
+         *     - a GPIO wired to the module's own flash or PSRAM (26–32), which stops
+         *       the device booting rather than merely failing to drive a target
+         *     - a GPIO that cannot drive an output
+         *     - a hostname that is not a legal DNS label, since it is also the setup
+         *       access point's SSID prefix
+         *
+         *     `targetsShownAtBoot` is refused outright, whatever its value: it is
+         *     serial-only (D-31). Refused rather than ignored, because an operator
+         *     who believes they changed where the targets rest is worse off than one
+         *     who was told they could not.
+         *
+         *     Survives a firmware update: `idf.py flash` leaves the `nvs` partition
+         *     alone, so a club's configuration outlives the image it was set on.
+         */
+        put: operations["putHardwareConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/config/hardware/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Forget the stored configuration
+         * @description Drops every override so the next boot comes up on the compiled
+         *     defaults. The way back from a configuration that does not suit the
+         *     board — though reaching this over HTTP assumes the device is still
+         *     reachable, which a wrong pin does not prevent but a wrong hostname
+         *     might.
+         *
+         *     Leaves the WiFi credentials alone. They share an NVS namespace with
+         *     this, and taking them out would turn "undo my hardware change" into
+         *     "and now find the setup portal".
+         */
+        post: operations["resetHardwareConfig"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ota": {
         parameters: {
             query?: never;
@@ -655,6 +742,75 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * @description What a device can be told about its own hardware without rebuilding it
+         *     (#144).
+         *
+         *     Deliberately not everything in `main/config.h`. The `*_ENABLED` flags
+         *     compile whole subsystems in or out, so making them runtime would mean
+         *     always carrying the code for hardware that may not be present. And
+         *     `RT_TARGETS_HIDE_AT_BOOT` stays compile-time on purpose: it exists so
+         *     somebody standing downrange when a board is powered is not hit by a
+         *     target turning on its own (D-31), and a safety default a remote UI can
+         *     switch off is not one.
+         *
+         *     Bank count is absent for the same reason it is fixed at one: banks are
+         *     a contract change (D-08, D-20), not a configuration key.
+         */
+        HardwareConfig: {
+            /**
+             * Format: int32
+             * @description The GPIO driving the target circuit. 22-25 do not exist on this chip and 26-32 are the module's own flash and PSRAM; both are refused, because driving one stops the device booting rather than merely failing to move a target.
+             */
+            targetGpio: number;
+            /** @description Whether a low level shows the targets. The prototype drives a BC547B whose low state opens the connection; a board that buffers or inverts the signal wants `false`. */
+            targetActiveLow: boolean;
+            /** @description mDNS name and the setup access point's SSID prefix, so `<hostname>.local` reaches the device and the portal appears as `<hostname>-setup-XXXX`. Two clubs on one network need two names. Bounded at 20 because the SSID suffix has to fit in 32. */
+            hostname: string;
+            /** @description Free text shown in the web app. Cosmetic, and the only field here that cannot break anything - hence no format rule beyond a length. Empty on a device that has never been named. */
+            displayName: string;
+            /**
+             * @description Where the targets rest at boot.
+             *
+             *     **Read-only here: it changes only from the serial console.** Which
+             *     position is safe at rest is a property of the target system — one
+             *     wired the opposite way round to ours needs the opposite value — so
+             *     it has to be configurable. But it is also the setting that protects
+             *     somebody standing downrange when a board is powered (D-31), and a
+             *     web form is the wrong place to change that.
+             *
+             *     Requiring physical access costs nothing in security: anyone at the
+             *     USB port can already reflash the device. It rules out the remote
+             *     mistake, which is the whole point.
+             *
+             *     `boot-targets shown` / `boot-targets hidden` on the console, or
+             *     `boot-targets` alone to read it back.
+             *
+             *     Sending it to `PUT` is refused with
+             *     `/problems/hardware_config_serial_only` rather than ignored — a
+             *     change an operator believes they made is worse than one they were
+             *     told they could not.
+             */
+            readonly targetsShownAtBoot: boolean;
+        };
+        /**
+         * @description Three views of one configuration, because they can legitimately differ.
+         *
+         *     `active` is what the device is running on, latched at boot. `saved` is
+         *     what is in NVS, which is `active` except between a write and the
+         *     restart that adopts it. `defaults` is what the firmware was compiled
+         *     with, so a client can mark what has been overridden and offer to put it
+         *     back without knowing the compiled values.
+         */
+        HardwareConfigState: {
+            active: components["schemas"]["HardwareConfig"];
+            saved: components["schemas"]["HardwareConfig"];
+            defaults: components["schemas"]["HardwareConfig"];
+            /** @description Whether anything has ever been written. False out of the box, which is the state #144 proposes should later arm a configuration password. */
+            overridden: boolean;
+            /** @description `saved` differs from `active`, so the device is not yet running what it has been told. The one field a client must not hide: a pin change that appears to have done nothing is how somebody ends up reflashing a working device. */
+            restartRequired: boolean;
+        };
+        /**
          * @description An RFC 9457 problem detail — the shape every handler uses for a
          *     failure, served as `application/problem+json` (D-19). The one
          *     exception is a request body over the size ceiling, rejected by the
@@ -678,7 +834,7 @@ export interface components {
              *     `program_invalid` `backend_issue` code in `asyncapi.yaml`.
              * @enum {string}
              */
-            type: "/problems/admin_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/admin_mode_already_enabled" | "/problems/admin_mode_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed";
+            type: "/problems/admin_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/admin_mode_already_enabled" | "/problems/admin_mode_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/hardware_config_invalid" | "/problems/hardware_config_serial_only" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed";
             /**
              * @description A short summary of the type, identical for every occurrence of it. Not for display — it does not describe this occurrence.
              * @example Program is read-only
@@ -1650,6 +1806,87 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description The resulting state, as `Targets shown` or `Targets hidden`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Message"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getHardwareConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The active configuration, what is stored, and the compiled defaults. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HardwareConfigState"];
+                };
+            };
+        };
+    };
+    putHardwareConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HardwareConfig"];
+            };
+        };
+        responses: {
+            /** @description Stored. Applies at the next restart. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Message"];
+                };
+            };
+            /**
+             * @description - `/problems/hardware_config_invalid` — a value the device refuses.
+             *       `detail` names which and why, because the operator has to decide
+             *       what to type instead.
+             *     - `/problems/hardware_config_serial_only` — the body carried
+             *       `targetsShownAtBoot`, which changes only from the serial console.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    resetHardwareConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cleared. Applies at the next restart. */
             200: {
                 headers: {
                     [name: string]: unknown;

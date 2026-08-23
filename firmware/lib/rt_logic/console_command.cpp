@@ -20,6 +20,13 @@ std::string_view trim(std::string_view text) {
   return text;
 }
 
+// Everything after the first word, trimmed. Empty when there is nothing.
+std::string_view tail(std::string_view text) {
+  text = trim(text);
+  const size_t end = text.find_first_of(" \t");
+  return end == std::string_view::npos ? std::string_view{} : trim(text.substr(end));
+}
+
 std::string_view head(std::string_view text) {
   text = trim(text);
   const size_t end = text.find_first_of(" \t");
@@ -38,7 +45,16 @@ Command parse_command(std::string_view line) {
   if (word.empty()) return Command::kNone;
   if (equals_ignoring_case(word, "status")) return Command::kStatus;
   if (equals_ignoring_case(word, "help") || equals_ignoring_case(word, "?")) return Command::kHelp;
+  if (equals_ignoring_case(word, "boot-targets")) return Command::kBootTargets;
   return Command::kUnknown;
+}
+
+BootTargets parse_boot_targets(std::string_view line) {
+  const std::string_view argument = tail(line);
+  if (argument.empty()) return BootTargets::kMissing;
+  if (equals_ignoring_case(argument, "shown")) return BootTargets::kShown;
+  if (equals_ignoring_case(argument, "hidden")) return BootTargets::kHidden;
+  return BootTargets::kInvalid;
 }
 
 std::string first_word(std::string_view line) {

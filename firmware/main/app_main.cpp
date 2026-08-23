@@ -2,6 +2,7 @@
 //  main/app_main.cpp
 //  Boot order: hardware, storage, repositories, network, server.
 // ============================================================================
+#include "config/hardware_store.h"
 #include "audio.h"
 #include "config.h"
 #include "audios.h"
@@ -43,6 +44,11 @@ extern "C" void app_main() {
   ESP_LOGI(TAG, "Rotation target backend %s (%s %s)", desc->version, desc->date, desc->time);
 
   init_nvs();
+
+  // Before anything that reads a pin or a name: targets::init() latches the
+  // GPIO and its polarity from here, and the network stack takes the hostname
+  // from here (#144).
+  hardware_store::init();
 
   rgb_led::init();
   rgb_led::status_joining();

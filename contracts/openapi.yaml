@@ -153,6 +153,11 @@ tags:
     description: Direct target control, outside a program run.
   - name: audios
     description: The stored audio clips.
+  - name: config
+    description: >-
+      Hardware the device can be told about without rebuilding it: which pin
+      drives the targets, which way round it is wired, and what it calls
+      itself.
   - name: sse
     description: The event stream carrying run state.
 
@@ -888,6 +893,122 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /config/hardware:
+    get:
+      tags: [config]
+      summary: The hardware this device is configured for
+      operationId: getHardwareConfig
+      description: |
+        Public, like every other `GET`: it carries no credential, and the pin a
+        device drives is not a secret from anyone who can already see the
+        device.
+
+        Reports the configuration **in force**, which is the one latched at
+        boot — not one saved since. A write takes effect at the next restart
+        (see `PUT`), so `saved` and `active` differ exactly between a save and
+        that restart, and a client that shows only one of them will tell an
+        operator their change did nothing.
+
+        `defaults` is what the firmware was compiled with, so a client can mark
+        which values have been overridden and offer to put them back without
+        knowing what the compiled values are.
+      responses:
+        "200":
+          description: The active configuration, what is stored, and the compiled defaults.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HardwareConfigState"
+
+    put:
+      tags: [config]
+      summary: Store a hardware configuration
+      operationId: putHardwareConfig
+      description: |
+        Validates, then persists to NVS. **Takes effect at the next restart**,
+        and the response says so: nothing here re-drives a pin or renames mDNS
+        in place, because a target GPIO that moved while a program was loaded
+        would leave the old pin latched in whatever state it was last driven
+        to.
+
+        Refused as a whole on a bad value — nothing is written, so a rejected
+        form leaves the device exactly as it was. The refusals are the ones
+        whose recovery needs a USB cable:
+
+        - a GPIO outside 0–48, or one absent from this chip (22–25)
+        - a GPIO wired to the module's own flash or PSRAM (26–32), which stops
+          the device booting rather than merely failing to drive a target
+        - a GPIO that cannot drive an output
+        - a hostname that is not a legal DNS label, since it is also the setup
+          access point's SSID prefix
+
+        `targetsShownAtBoot` is refused outright, whatever its value: it is
+        serial-only (D-31). Refused rather than ignored, because an operator
+        who believes they changed where the targets rest is worse off than one
+        who was told they could not.
+
+        Survives a firmware update: `idf.py flash` leaves the `nvs` partition
+        alone, so a club's configuration outlives the image it was set on.
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HardwareConfig"
+      responses:
+        "200":
+          description: Stored. Applies at the next restart.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: |
+            - `/problems/hardware_config_invalid` — a value the device refuses.
+              `detail` names which and why, because the operator has to decide
+              what to type instead.
+            - `/problems/hardware_config_serial_only` — the body carried
+              `targetsShownAtBoot`, which changes only from the serial console.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /config/hardware/reset:
+    post:
+      tags: [config]
+      summary: Forget the stored configuration
+      operationId: resetHardwareConfig
+      description: |
+        Drops every override so the next boot comes up on the compiled
+        defaults. The way back from a configuration that does not suit the
+        board — though reaching this over HTTP assumes the device is still
+        reachable, which a wrong pin does not prevent but a wrong hostname
+        might.
+
+        Leaves the WiFi credentials alone. They share an NVS namespace with
+        this, and taking them out would turn "undo my hardware change" into
+        "and now find the setup portal".
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      responses:
+        "200":
+          description: Cleared. Applies at the next restart.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /ota:
     post:
       tags: [diagnostics]
@@ -1272,6 +1393,116 @@ components:
             additionalProperties: false
 
   schemas:
+    HardwareConfig:
+      type: object
+      description: |
+        What a device can be told about its own hardware without rebuilding it
+        (#144).
+
+        Deliberately not everything in `main/config.h`. The `*_ENABLED` flags
+        compile whole subsystems in or out, so making them runtime would mean
+        always carrying the code for hardware that may not be present. And
+        `RT_TARGETS_HIDE_AT_BOOT` stays compile-time on purpose: it exists so
+        somebody standing downrange when a board is powered is not hit by a
+        target turning on its own (D-31), and a safety default a remote UI can
+        switch off is not one.
+
+        Bank count is absent for the same reason it is fixed at one: banks are
+        a contract change (D-08, D-20), not a configuration key.
+      required: [targetGpio, targetActiveLow, hostname, displayName, targetsShownAtBoot]
+      additionalProperties: false
+      properties:
+        targetGpio:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 48
+          description: >-
+            The GPIO driving the target circuit. 22-25 do not exist on this
+            chip and 26-32 are the module's own flash and PSRAM; both are
+            refused, because driving one stops the device booting rather than
+            merely failing to move a target.
+        targetActiveLow:
+          type: boolean
+          description: >-
+            Whether a low level shows the targets. The prototype drives a
+            BC547B whose low state opens the connection; a board that buffers
+            or inverts the signal wants `false`.
+        hostname:
+          type: string
+          minLength: 1
+          maxLength: 20
+          pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+          description: >-
+            mDNS name and the setup access point's SSID prefix, so
+            `<hostname>.local` reaches the device and the portal appears as
+            `<hostname>-setup-XXXX`. Two clubs on one network need two names.
+            Bounded at 20 because the SSID suffix has to fit in 32.
+        displayName:
+          type: string
+          maxLength: 40
+          description: >-
+            Free text shown in the web app. Cosmetic, and the only field here
+            that cannot break anything - hence no format rule beyond a length.
+            Empty on a device that has never been named.
+        targetsShownAtBoot:
+          type: boolean
+          readOnly: true
+          description: |
+            Where the targets rest at boot.
+
+            **Read-only here: it changes only from the serial console.** Which
+            position is safe at rest is a property of the target system — one
+            wired the opposite way round to ours needs the opposite value — so
+            it has to be configurable. But it is also the setting that protects
+            somebody standing downrange when a board is powered (D-31), and a
+            web form is the wrong place to change that.
+
+            Requiring physical access costs nothing in security: anyone at the
+            USB port can already reflash the device. It rules out the remote
+            mistake, which is the whole point.
+
+            `boot-targets shown` / `boot-targets hidden` on the console, or
+            `boot-targets` alone to read it back.
+
+            Sending it to `PUT` is refused with
+            `/problems/hardware_config_serial_only` rather than ignored — a
+            change an operator believes they made is worse than one they were
+            told they could not.
+
+    HardwareConfigState:
+      type: object
+      description: |
+        Three views of one configuration, because they can legitimately differ.
+
+        `active` is what the device is running on, latched at boot. `saved` is
+        what is in NVS, which is `active` except between a write and the
+        restart that adopts it. `defaults` is what the firmware was compiled
+        with, so a client can mark what has been overridden and offer to put it
+        back without knowing the compiled values.
+      required: [active, saved, defaults, overridden, restartRequired]
+      additionalProperties: false
+      properties:
+        active:
+          $ref: "#/components/schemas/HardwareConfig"
+        saved:
+          $ref: "#/components/schemas/HardwareConfig"
+        defaults:
+          $ref: "#/components/schemas/HardwareConfig"
+        overridden:
+          type: boolean
+          description: >-
+            Whether anything has ever been written. False out of the box, which
+            is the state #144 proposes should later arm a configuration
+            password.
+        restartRequired:
+          type: boolean
+          description: >-
+            `saved` differs from `active`, so the device is not yet running
+            what it has been told. The one field a client must not hide: a pin
+            change that appears to have done nothing is how somebody ends up
+            reflashing a working device.
+
     Problem:
       type: object
       description: |
@@ -1325,6 +1556,8 @@ components:
             - /problems/series_index_invalid
             - /problems/start_id_required
             - /problems/skip_id_required
+            - /problems/hardware_config_invalid
+            - /problems/hardware_config_serial_only
             # upload
             - /problems/upload_missing_file
             - /problems/upload_missing_title

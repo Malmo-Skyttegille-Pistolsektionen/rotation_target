@@ -1,3 +1,4 @@
+#include "config/hardware_store.h"
 #include "console.h"
 
 #include <cinttypes>
@@ -106,7 +107,7 @@ std::string status_text() {
 
   // Both halves: what the firmware drove, and what is actually on the pad.
   snprintf(line, sizeof(line), "targets    %s (gpio %d, level %d)\r\n",
-           targets::level() == kTargetLevelShown ? "shown" : "hidden", targets::pin(),
+           targets::level() == targets::level_shown() ? "shown" : "hidden", targets::pin(),
            targets::level());
   out += line;
 
@@ -140,6 +141,50 @@ std::string status_text() {
   return out;
 }
 
+// `boot-targets [shown|hidden]`. Serial-only on purpose (D-31, #144): which
+// position is safe at rest depends on the target system, so it must be
+// configurable - but a web form is the wrong place to change what the targets
+// do while somebody may be downrange.
+void handle_boot_targets(const std::string &line) {
+  const bool current = hardware_store::current().targets_shown_at_boot;
+
+  switch (rt::console::parse_boot_targets(line)) {
+    case rt::console::BootTargets::kMissing: {
+      // Both values when they differ. Reporting only the active one right
+      // after a change reads as "that did nothing" - the same trap
+      // `restartRequired` exists to close on the HTTP side.
+      const bool pending = hardware_store::saved().targets_shown_at_boot;
+      std::string out =
+          std::string("targets rest ") + (current ? "shown" : "hidden") + " at boot\r\n";
+      if (pending != current) {
+        out += std::string("after the next restart they will rest ") +
+               (pending ? "shown" : "hidden") + "\r\n";
+      } else {
+        out += "change with 'boot-targets shown' or 'boot-targets hidden'\r\n";
+      }
+      say(out);
+      return;
+    }
+    case rt::console::BootTargets::kInvalid:
+      say("expected 'shown' or 'hidden'\r\n");
+      return;
+    case rt::console::BootTargets::kShown:
+    case rt::console::BootTargets::kHidden:
+      break;
+  }
+
+  const bool shown = rt::console::parse_boot_targets(line) == rt::console::BootTargets::kShown;
+  if (!hardware_store::save_boot_targets(shown)) {
+    say("could not save - storage is not writable\r\n");
+    return;
+  }
+  // Says what did *not* happen as well as what did: nothing moves now, and an
+  // operator who reads only the first half would think the targets had already
+  // changed behaviour.
+  say(std::string("targets will rest ") + (shown ? "shown" : "hidden") +
+      " at boot\r\nthe targets have not moved; this applies at the next restart\r\n");
+}
+
 void handle(const std::string &line) {
   switch (rt::console::parse_command(line)) {
     case rt::console::Command::kNone:
@@ -147,9 +192,15 @@ void handle(const std::string &line) {
     case rt::console::Command::kStatus:
       say(status_text());
       break;
+    case rt::console::Command::kBootTargets:
+      handle_boot_targets(line);
+      break;
     case rt::console::Command::kHelp:
-      say("status   network, targets, storage, and what the boot scan found\r\n"
-          "help     this\r\n");
+      say("status         network, targets, storage, and what the boot scan found\r\n"
+          "boot-targets   where the targets rest at boot: 'shown' or 'hidden'\r\n"
+          "               reads with no argument. Serial only - it is what\r\n"
+          "               protects somebody standing downrange.\r\n"
+          "help           this\r\n");
       break;
     case rt::console::Command::kUnknown:
       say("unknown command '" + rt::console::first_word(line) + "' - try 'help'\r\n");

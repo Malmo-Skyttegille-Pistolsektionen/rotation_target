@@ -67,6 +67,9 @@ struct ProblemType {
   X(kSeriesIndexInvalid, "series_index_invalid", "Series index out of range", 400)              \
   X(kStartIdRequired, "start_id_required", "A program id is required to start", 400)            \
   X(kSkipIdRequired, "skip_id_required", "A program id is required to skip to a series", 400)   \
+  X(kHardwareConfigInvalid, "hardware_config_invalid", "Invalid hardware configuration", 400)   \
+  X(kHardwareConfigSerialOnly, "hardware_config_serial_only",                                   \
+    "That setting changes only from the serial console", 400)                                   \
   /* upload */                                                                                  \
   X(kUploadMissingFile, "upload_missing_file", "No file uploaded", 400)                         \
   X(kUploadMissingTitle, "upload_missing_title", "Missing title", 400)                          \

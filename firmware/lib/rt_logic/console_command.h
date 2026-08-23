@@ -16,7 +16,24 @@ enum class Command {
   kUnknown,  // a word we do not have
   kHelp,
   kStatus,
+  // `boot-targets [shown|hidden]` - reads with no argument, sets with one.
+  // Serial-only by design (#144): which position is safe at rest is a property
+  // of the target system, so it must be configurable, but it is also the
+  // setting that protects somebody standing downrange - so changing it needs
+  // physical access rather than a web form.
+  kBootTargets,
 };
+
+// What followed `boot-targets` on the line.
+enum class BootTargets {
+  kMissing,  // no argument: report, do not change
+  kShown,
+  kHidden,
+  kInvalid,  // a word that is neither
+};
+
+// The argument of a `boot-targets` line. Case-insensitive, like the command.
+BootTargets parse_boot_targets(std::string_view line);
 
 // Parses one line. Leading and trailing whitespace is ignored, and matching is
 // case-insensitive: someone typing at a serial terminal at a range should not

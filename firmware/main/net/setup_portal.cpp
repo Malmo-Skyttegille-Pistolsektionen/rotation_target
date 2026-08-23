@@ -1,3 +1,4 @@
+#include "config/hardware_store.h"
 #include "setup_portal.h"
 
 #include <cstring>
@@ -165,7 +166,8 @@ void start_ap() {
   uint8_t mac[6] = {};
   esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
   char ssid[33];
-  snprintf(ssid, sizeof(ssid), "%s-setup-%02X%02X", CONFIG_RT_HOSTNAME, mac[4], mac[5]);
+  snprintf(ssid, sizeof(ssid), "%s-setup-%02X%02X", hardware_store::current().hostname.c_str(),
+           mac[4], mac[5]);
 
   wifi_config_t ap_cfg = {};
   strncpy(reinterpret_cast<char *>(ap_cfg.ap.ssid), ssid, sizeof(ap_cfg.ap.ssid));
