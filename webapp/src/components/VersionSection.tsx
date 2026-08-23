@@ -10,10 +10,16 @@ import styles from './VersionSection.module.css';
  * LittleFS image the device boots from, and both take their version from the
  * same `git describe` against the same release tag (D-29). So the two rows below
  * normally read identically, and a *mismatch* is the interesting case - it means
- * the bundle in the browser is not the one on the device, which is exactly what
- * a `npm run dev` session pointed at a real board looks like. Worth saying out
- * loud rather than leaving someone to wonder why a fix they just made is not
- * there.
+ * the bundle in the browser is not the one running on the device. Worth saying
+ * out loud rather than leaving someone to wonder why a fix they just made is
+ * not there.
+ *
+ * Two things cause it, and the copy names both because they need opposite
+ * responses. A `npm run dev` session pointed at a real board is expected and
+ * temporary. A firmware upload (#127) is neither: OTA writes the app partition
+ * and leaves the LittleFS image alone, so the device keeps serving the bundle
+ * it already had and this mismatch persists across reboots until the storage
+ * partition is flashed over USB.
  *
  * The firmware side comes from `GET /diagnostics/info` rather than
  * `GET /api/v2/version`, for two reasons: this page already issues that request
@@ -53,8 +59,10 @@ export function VersionSection(): React.ReactNode {
 
       {mismatch && (
         <p className={styles.mismatch} data-testid='version-mismatch'>
-          This app was built from a different commit than the firmware it is talking to. Normally they ship together, so
-          you are probably running a development build against a device flashed with another one.
+          This app was built from a different commit than the firmware it is talking to. Normally they ship together.
+          Either this is a development build pointed at a device flashed with another one, or the firmware was updated
+          over the air — that replaces the application only, so the device still serves the web app it was flashed with.
+          Flashing over USB brings the two back into step.
         </p>
       )}
     </section>
