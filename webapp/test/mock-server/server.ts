@@ -504,6 +504,11 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     return state.playingAudioId === id && state.playingUntil !== null && clock.now() < state.playingUntil;
   }
 
+  /** `rt::program_uses_audio`: whether any event of any series plays `audioId`. */
+  function programUsesAudio(program: Program, audioId: number): boolean {
+    return program.series.some((series) => series.events.some((event) => event.audio_ids?.includes(audioId)));
+  }
+
   function parseJsonObject(body: string): Record<string, unknown> | null {
     if (!body) return null;
     try {
@@ -1114,21 +1119,35 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       return;
     }
 
-    // DELETE /audios/{id}/delete - Requires auth
+    // DELETE /audios/{id}/delete - Requires auth. Mirrors web_server.cpp's
+    // refusal order: not found, then read-only (the reason that never lifts),
+    // then the two run-safety conflicts (loaded-program use before running,
+    // because it names the clip's own role and survives a stop), then
+    // currently-playing.
     const audioDeleteMatch = endpoint.match(/^\/audios\/(\d+)\/delete$/);
     if (audioDeleteMatch && req.method === 'DELETE') {
       if (!checkAdminAuth(req, res)) return;
       const id = parseInt(audioDeleteMatch[1], 10);
       const index = audios.findIndex((a) => a.id === id);
-      // Existence first, so a bogus id is never reported as a conflict; then
-      // read-only, which is the reason that never lifts (D-23) and therefore
-      // goes ahead of the run-safety conflicts below it.
       if (index === -1) {
         problemResponse(res, '/problems/audio_not_found', 'Audio not found');
         return;
       }
       if (audios[index].readonly) {
         problemResponse(res, '/problems/audio_readonly', 'Audio is read-only and cannot be deleted');
+        return;
+      }
+      // Not only while running: stop() is a pause, so a clip removed between
+      // two runs would be missing when the loaded program is resumed. Named
+      // ahead of the run-in-progress check because it names the clip's own
+      // role - it survives a stop and tells the user unloading is what's
+      // needed, not just stopping.
+      if (state.loadedProgram && programUsesAudio(state.loadedProgram, id)) {
+        problemResponse(res, '/problems/audio_in_use', 'Audio is used by the loaded program - unload the program first');
+        return;
+      }
+      if (state.programState?.running) {
+        problemResponse(res, '/problems/program_running', 'A program is running - stop it before deleting audio');
         return;
       }
       if (isPlaying(id)) {
