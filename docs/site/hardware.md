@@ -72,4 +72,4 @@ in the repository.
 audio DAC that plays the range commands, and the [status LED](status-led.md).
 A target that only turns, with no audio, is a supported configuration.
 
-<!-- TODO: screenshots -->
+<!-- TODO: a photograph of the DB9 connector and the transistor as actually wired -->

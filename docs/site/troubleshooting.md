@@ -55,5 +55,3 @@ to pause. If another series follows, the device has already selected it and
 is waiting at its first event; press Start to run it. If that was the last
 series, the program has finished — Start would replay it from the beginning,
 or Unload to pick something else.
-
-<!-- TODO: screenshots -->

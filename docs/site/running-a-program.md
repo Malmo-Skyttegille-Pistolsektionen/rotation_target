@@ -12,6 +12,8 @@ example — each with its own targets and events. If the program has more than
 one, a second dropdown picks which series to run first; skip ahead to a later
 one at any point (see [Skipping](#optional-series-and-skipping) below).
 
+![The Run page with a program loaded](img/run-loaded.png)
+
 ## Starting
 
 **Start delay** sets how many seconds count down before the program actually
@@ -37,6 +39,8 @@ Once running:
   program — useful for checking the wiring works at all.
 
 ## The timeline
+
+![A run in progress](img/run-running.png)
 
 The Run page shows every series and event in the loaded program, and tracks
 the run live as it plays:
@@ -64,5 +68,3 @@ The series dropdown reaches every series directly, at any time the program is
 not running, in case the run needs to jump further than one step — but
 skipping mid-run is not offered: **Pause** is how a series in progress gets
 cut short.
-
-<!-- TODO: screenshots -->

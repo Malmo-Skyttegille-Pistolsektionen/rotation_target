@@ -18,6 +18,10 @@ list, and open `http://<that address>` directly. The [status LED](status-led.md)
 turns **green** once the device is on the network and serving the web app; if
 it is not green yet, the app is not reachable regardless of address.
 
+Once the address resolves, the app opens on the Run page:
+
+![The Run page with nothing loaded](img/run-idle.png)
+
 ## The setup portal
 
 A device that has never joined a network — or has lost the one it was
@@ -33,4 +37,4 @@ captive-portal page should open on its own; if it does not, browse to
 the device should use, saves them, and restarts — the device then joins that
 network the normal way.
 
-<!-- TODO: screenshots -->
+<!-- TODO: a screenshot of the captive-portal page, which needs a device in setup mode -->
