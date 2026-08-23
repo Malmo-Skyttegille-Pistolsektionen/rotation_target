@@ -110,12 +110,24 @@ version constant to any source file. See [`docs/RELEASING.md`](docs/RELEASING.md
 Full detail in [`firmware/AGENTS.md`](firmware/AGENTS.md); these two are worth
 knowing before touching a board.
 
-- **Flash with `--no-stub`.** esptool's stub flasher fails on this board and the
-  failure presents exactly like a bad flash sector. `idf.py flash` uses the
-  stub.
+- **Flash with `--no-stub`.** esptool's stub flasher fails on this board above
+  about 256 KB per transfer — measured: 256 KB works, 512 KB and 1 MB fail, and
+  the same 1 MB read succeeds with `--no-stub`. It is the transfer size that
+  decides it, not the address, the cable or which USB port is used. The failure
+  presents exactly like a bad flash sector. `idf.py flash` uses the stub.
 - **Never `idf.py set-target` on an existing clone.** It regenerates
   `sdkconfig`, which holds the WiFi credentials and is gitignored — there is no
   other copy. Use `idf.py reconfigure`.
+
+## Keep the repository root clean
+
+New configuration goes in `.github/` or beside the component it configures.
+The root is the first thing anyone opening the repository sees, and a tool's
+config file is rarely what they came for. Put a file there only when the tool
+genuinely cannot look anywhere else — `pre-commit` is the one that cannot.
+
+Before adding a root file, check whether the tool takes a path flag, reads an
+environment variable, or already searches `.github/`. Most do.
 
 ## Never commit
 
