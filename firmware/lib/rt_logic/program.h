@@ -136,6 +136,14 @@ inline std::string series_json(const Series &s) {
   out += json_quote(s.name);
   out += ",\"optional\":";
   out += s.optional ? "true" : "false";
+  // Emitted only when it is not the default. A device stores what it parsed and
+  // serves what it stored, so leaving this out dropped the anchor on the way to
+  // disk - parsed correctly, then gone. Omitting the zero keeps every program
+  // that predates the field byte-identical.
+  if (s.timer_start_index != 0) {
+    out += ",\"timer_start_index\":";
+    out += std::to_string(s.timer_start_index);
+  }
   out += ",\"events\":[";
   for (size_t i = 0; i < s.events.size(); i++) {
     if (i > 0) out += ',';

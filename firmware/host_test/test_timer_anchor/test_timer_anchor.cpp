@@ -164,6 +164,42 @@ void test_a_negative_index_is_refused() {
   TEST_ASSERT_FALSE(rt::parse_program(doc, strlen(doc), false, p, nullptr));
 }
 
+// --- round trip -------------------------------------------------------------
+
+void test_the_anchor_survives_being_serialised_and_parsed_again() {
+  // The gap that let this ship broken: parsing was tested, the ticker maths was
+  // tested, and the device still lost the anchor - because it stores what it
+  // parsed and serves what it stored, and the serialiser did not write the
+  // field. Verified on hardware as a program that read back without it.
+  const char *doc =
+      "{\"id\":1,\"title\":\"t\",\"series\":[{\"name\":\"s\",\"optional\":false,"
+      "\"timer_start_index\":1,"
+      "\"events\":[{\"duration\":5000},{\"duration\":60000}]}]}";
+  rt::Program parsed;
+  TEST_ASSERT_TRUE(rt::parse_program(doc, strlen(doc), false, parsed, nullptr));
+
+  const std::string round_tripped = rt::program_json(parsed);
+  TEST_ASSERT_NOT_NULL(strstr(round_tripped.c_str(), "\"timer_start_index\":1"));
+
+  rt::Program again;
+  TEST_ASSERT_TRUE(
+      rt::parse_program(round_tripped.c_str(), round_tripped.size(), false, again, nullptr));
+  TEST_ASSERT_EQUAL_INT32(1, again.series[0].timer_start_index);
+  TEST_ASSERT_EQUAL_INT32(5000, again.series[0].timer_anchor_ms());
+}
+
+void test_a_series_without_an_anchor_does_not_gain_the_field() {
+  // Omitting the default keeps every program that predates the field
+  // byte-identical through a round trip.
+  const char *doc =
+      "{\"id\":1,\"title\":\"t\",\"series\":[{\"name\":\"s\",\"optional\":false,"
+      "\"events\":[{\"duration\":5000}]}]}";
+  rt::Program parsed;
+  TEST_ASSERT_TRUE(rt::parse_program(doc, strlen(doc), false, parsed, nullptr));
+  const std::string round_tripped = rt::program_json(parsed);
+  TEST_ASSERT_NULL(strstr(round_tripped.c_str(), "timer_start_index"));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_no_anchor_is_the_start_of_the_series);
@@ -179,5 +215,7 @@ int main() {
   RUN_TEST(test_an_absent_field_is_zero);
   RUN_TEST(test_an_index_past_the_end_is_refused);
   RUN_TEST(test_a_negative_index_is_refused);
+  RUN_TEST(test_the_anchor_survives_being_serialised_and_parsed_again);
+  RUN_TEST(test_a_series_without_an_anchor_does_not_gain_the_field);
   return UNITY_END();
 }
