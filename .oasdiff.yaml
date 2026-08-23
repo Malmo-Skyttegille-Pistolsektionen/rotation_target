@@ -4,4 +4,36 @@
 #
 # Relative paths here resolve against this file's directory, not the process's
 # working directory.
+#
+# --- Why .oasdiff-levels.txt downgrades response-property-enum-value-added ---
+#
+# The reasoning lives here because that file takes no comments - a `#` on any
+# line is "invalid line", which is how this configuration first failed.
+#
+# oasdiff defaults that check to WARN, and the workflow runs with
+# `fail-on: WARN`. `Problem.type` is an enum, so *every* pull request that adds
+# a problem type fails the build - one warning per operation that can return a
+# Problem. #144 was the first to hit it, and nothing about it was breaking.
+#
+# openapi.yaml already states the rule oasdiff cannot see, at the enum itself:
+#
+#   "The enum is the whole vocabulary. It is open in practice: a client must
+#    fall back to `status` and `detail` for a value it does not recognise,
+#    because new types are additive and a client may be older than the firmware
+#    it is talking to."
+#
+# So adding a problem type is additive by the contract's own rule. This encodes
+# that rule; it is not a finding silenced for being inconvenient.
+#
+# oasdiff suggests `x-extensible-enum` instead, and in general it is the better
+# answer - a machine-readable "this enum is open". Deliberately not taken here:
+# openapi-typescript builds the webapp's `ProblemType` union from `enum`, and
+# the mock server's `satisfies Record<ProblemType, ...>` uses that union to turn
+# a problem type present in the contract but missing from the mock into a
+# compile error. It has already caught a real omission. The extension is not
+# standard OpenAPI, the generator would emit `string`, and that check would go.
+#
+# Narrow on purpose: request-side enum additions keep their default level. A
+# value a client may now send is a different question from one it may now
+# receive.
 severity-levels: .oasdiff-levels.txt
