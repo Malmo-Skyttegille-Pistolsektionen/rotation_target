@@ -366,7 +366,10 @@ describe('centring the running series (#131)', () => {
     const calls = recordScrolls();
     const original = window.matchMedia;
     window.matchMedia = ((query: string) =>
-      ({ matches: query.includes('prefers-reduced-motion'), media: query }) as MediaQueryList) as typeof window.matchMedia;
+      ({
+        matches: query.includes('prefers-reduced-motion'),
+        media: query,
+      }) as MediaQueryList) as typeof window.matchMedia;
 
     try {
       const { rerender } = renderTimeline(PROGRAM_MILITARY_SNABBMATCH, {
@@ -451,5 +454,55 @@ describe('optional series (#133)', () => {
     renderTimeline(PROGRAM_MILITARY_SNABBMATCH, { mode: 'default', currentSeriesIndex: optionalIndex });
 
     expect(screen.queryByRole('button', { name: 'Skip' })).toBeNull();
+  });
+});
+
+describe('the timer anchor (#126)', () => {
+  /** Two events, so index 1 is a legal anchor on both timeline types. */
+  function anchored(timerStartIndex: number | undefined, longEvent: boolean): Program {
+    return {
+      id: 1,
+      title: 'Anchored',
+      description: '',
+      readonly: false,
+      series: [
+        {
+          name: 'Serie 1',
+          optional: false,
+          ...(timerStartIndex === undefined ? {} : { timer_start_index: timerStartIndex }),
+          events: [
+            { duration: longEvent ? 60000 : 4000, command: 'hide' },
+            { duration: 10000, command: 'show' },
+          ],
+        },
+      ],
+    };
+  }
+
+  // The zero point has to be visible before the series runs - that is the
+  // requirement's own reason for the countdown ("makes it obvious where you
+  // are on the timeline"), and a marker only the running cursor reveals does
+  // not meet it.
+  it('marks the anchor event on the event-based timeline', () => {
+    renderTimeline(anchored(1, true), { mode: 'default' });
+    expect(screen.getByTestId('timeline-anchor-0')).toBeTruthy();
+    expect(within(screen.getByTestId('timeline-event-0-1')).getByText('0:00')).toBeTruthy();
+  });
+
+  it('marks the anchor on the time-scaled timeline', () => {
+    renderTimeline(anchored(1, false), { mode: 'field' });
+    expect(screen.getByTestId('timeline-anchor-line-0')).toBeTruthy();
+  });
+
+  // Index 0 is the default and means "the clock starts with the series", which
+  // is what every program meant before the field existed. Marking it would put
+  // a badge on the first event of every shipped program.
+  it('marks nothing when the series anchors at 0, and nothing when the field is absent', () => {
+    renderTimeline(anchored(0, true), { mode: 'default' });
+    expect(screen.queryByTestId('timeline-anchor-0')).toBeNull();
+    cleanup();
+
+    renderTimeline(anchored(undefined, true), { mode: 'default' });
+    expect(screen.queryByTestId('timeline-anchor-0')).toBeNull();
   });
 });

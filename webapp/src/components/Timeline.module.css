@@ -473,3 +473,40 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/* Where the run clock reaches zero (#126). Only drawn when a series names an
+   anchor: index 0 is the default and means the clock starts with the series,
+   which needs no marking. Deliberately not the same accent as `.active` - the
+   anchor is a property of the program, visible before anything runs, and the
+   active event is where the run has got to. */
+.eventBox.anchor {
+  border-color: #b45309;
+  border-style: dashed;
+}
+
+.anchorMark {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #b45309;
+}
+
+.anchorLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px dashed #b45309;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.anchorLineLabel {
+  position: absolute;
+  top: 0;
+  left: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #b45309;
+  white-space: nowrap;
+}
