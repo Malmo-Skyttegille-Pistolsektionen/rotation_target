@@ -935,6 +935,11 @@ function AudioPicker({ testId, audioIds, audios, onAdd, onRemove, onMove }: Audi
           <li key={id} className={styles.chip}>
             <span className={styles.chipOrder}>{index + 1}.</span>
             <span className={styles.chipTitle}>{titleOf(id)}</span>
+            {/* Up and down, not left and right: the list runs down the page,
+                and events and series in this same editor already reorder with
+                ↑ / ↓. The labels stay "earlier" and "later" - that is what
+                moving a clip does to the order it plays in, and it is the
+                thing a screen reader should say. */}
             <button
               className={styles.chipButton}
               aria-label={`Move clip ${id} earlier`}
@@ -942,7 +947,7 @@ function AudioPicker({ testId, audioIds, audios, onAdd, onRemove, onMove }: Audi
               disabled={index === 0}
               onClick={() => onMove(index, index - 1)}
             >
-              ←
+              ↑
             </button>
             <button
               className={styles.chipButton}
@@ -951,7 +956,7 @@ function AudioPicker({ testId, audioIds, audios, onAdd, onRemove, onMove }: Audi
               disabled={index === audioIds.length - 1}
               onClick={() => onMove(index, index + 1)}
             >
-              →
+              ↓
             </button>
             <button
               className={styles.chipButton}
