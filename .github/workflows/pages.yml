@@ -1,0 +1,108 @@
+---
+name: pages
+
+# Docs (#134) and the standalone program editor (#140) are one GitHub Pages
+# site, not two deployments - GitHub Pages has exactly one deployment target
+# per repo, so two workflows both calling `deploy-pages` would race each
+# other for it. This builds mkdocs at the site root and the editor under
+# `/editor/`, and uploads both as a single artifact. See
+# webapp/vite.editor.config.ts for why the editor is its own Vite build
+# rather than a second entry alongside the device bundle.
+on:
+  push:
+    branches: [main]
+    paths:
+      - mkdocs.yml
+      - docs/site/**
+      - webapp/src/**
+      - webapp/editor.html
+      - webapp/vite.editor.config.ts
+      - webapp/vite-plugins/resolve-version.ts
+      - webapp/package.json
+      - webapp/package-lock.json
+      - .github/workflows/pages.yml
+  pull_request:
+    paths:
+      - mkdocs.yml
+      - docs/site/**
+      - webapp/src/**
+      - webapp/editor.html
+      - webapp/vite.editor.config.ts
+      - webapp/vite-plugins/resolve-version.ts
+      - webapp/package.json
+      - webapp/package-lock.json
+      - .github/workflows/pages.yml
+
+permissions:
+  contents: read
+
+# A superseded run should not keep this going. The group carries a literal
+# prefix as well as `github.workflow`, matching the other workflows here.
+concurrency:
+  group: pages-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: false
+
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.14.7'
+
+      - name: Install MkDocs Material
+        run: pip install mkdocs-material
+
+      - name: Build docs
+        run: mkdocs build --strict
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24.19.0
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Install webapp dependencies
+        working-directory: webapp
+        run: npm ci
+
+      - name: Build program editor
+        working-directory: webapp
+        run: npm run build:pages-editor
+
+      - name: Assemble the combined site
+        # `mkdocs build` already wrote `site/`; the editor nests under it so
+        # one `upload-pages-artifact` call covers both. `editor.html` -> the
+        # directory's `index.html`: Vite's HTML entry can't be named that
+        # (webapp/index.html is the device build's own entry, in the same
+        # directory), but `/editor/` with no filename has to resolve to
+        # something.
+        run: |
+          mkdir -p site/editor
+          cp -r webapp/dist-editor/. site/editor/
+          mv site/editor/editor.html site/editor/index.html
+
+      - uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: site
+
+  deploy:
+    name: deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5.0.0

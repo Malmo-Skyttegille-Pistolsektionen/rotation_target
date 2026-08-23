@@ -40,6 +40,13 @@ The web app has the following main features:
     - Configure backend IP address.
     - Admin mode.
 
+5.  **Program editor, off the device (GitHub Pages):** the same `ProgramEditor`
+    component as the Programs tab, in a "no device" mode — open a program from
+    this repo, another repo, or a local file (or start empty), edit it, then
+    download it or send it back as a pull request. See
+    [Standalone program editor](#standalone-program-editor-github-pages)
+    below.
+
 ## Development
 
 ### Start dev server
@@ -109,6 +116,33 @@ while IFS= read -r -d '' f; do
 done < <(find dist -type f \( -name '*.js' -o -name '*.css' \) -print0)
 echo "$total * 1.05" | bc | cut -d. -f1 > size-budget
 ```
+
+This measures `dist/`, produced by `npm run build` (`vite.config.ts`) only.
+The standalone program editor below is a **separate build**
+(`vite.editor.config.ts`, output `dist-editor/`) precisely so that adding to
+it never grows this number — see the comment on `ProgramEditor`'s
+`renderExport` prop for how the device build avoids even importing that code.
+
+### Standalone program editor (GitHub Pages)
+
+```bash
+npm run dev:pages-editor          # http://localhost:8080, no mock API mounted
+npm run build:pages-editor        # -> dist-editor/, base /rotation_target/editor/
+```
+
+`editor.html` / `src/editor-main.tsx` build the same `ProgramEditor` component
+the Programs tab uses, in a mode with no device: it opens a program from a
+GitHub repo's `resources/programs/files/` (via the contents API, no auth
+needed for a public repo), from a local file, or empty; downloads the result;
+and can hand it back as a pull request through a prefilled
+`github.com/<owner>/<repo>/new/main` URL — no OAuth, no token, nothing to
+leak. See [`src/lib/pr-url.ts`](src/lib/pr-url.ts) and
+[`src/lib/github-contents.ts`](src/lib/github-contents.ts).
+
+`.github/workflows/pages.yml` builds this alongside the MkDocs docs site
+(`#134`) and deploys both as one GitHub Pages artifact, the editor nested
+under `/editor/` — GitHub Pages has one deployment target per repo, so two
+workflows both calling `deploy-pages` would race each other for it.
 
 ## End-to-end tests
 

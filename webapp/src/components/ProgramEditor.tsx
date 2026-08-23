@@ -43,15 +43,36 @@ import styles from './ProgramEditor.module.css';
  * What the session is for. `copy` and `edit` both need the full document —
  * `GET /programs` returns summaries — so both are fetched before the form
  * opens; `new` starts from nothing.
+ *
+ * `standalone` is the Pages build's only target (#140): there is no device to
+ * fetch from or save to, so the document arrives already in hand — from a
+ * repo file, a local file, or empty — and `id` is chosen by whoever opened it
+ * rather than assigned by a `POST`. `origin` is one line of "where this came
+ * from", carried through to the pull request body.
  */
 export type EditorTarget =
-  { kind: 'new' } | { kind: 'copy'; sourceId: number; sourceTitle: string } | { kind: 'edit'; id: number };
+  | { kind: 'new' }
+  | { kind: 'copy'; sourceId: number; sourceTitle: string }
+  | { kind: 'edit'; id: number }
+  | { kind: 'standalone'; id: number; document: Program | null; origin: string };
 
 interface ProgramEditorProps {
   target: EditorTarget;
   onClose: () => void;
   /** A `POST` succeeded: the device assigned this id, and the editor is done. */
   onCreated: (id: number, title: string) => void;
+  /**
+   * Rendered in place of a device save when `target.kind === 'standalone'`
+   * (#140) - a validated document ready to download or send back as a pull
+   * request. A render prop, not an import of `./ExportPanel` here: the
+   * device build never has a reason to reach that component or the
+   * GitHub/pull-request code behind it, so this keeps the device bundle from
+   * ever containing them - see webapp/README.md's note on the size budget.
+   * Only `src/standalone/StandaloneEditorApp.tsx` supplies it; the device
+   * build (`src/routes/programs.tsx`) never does, and never needs to, since
+   * `target.kind` is never `'standalone'` there.
+   */
+  renderExport?: (props: { program: Program; origin: string; onClose: () => void }) => React.ReactNode;
 }
 
 /**
@@ -65,9 +86,12 @@ interface ProgramEditorProps {
  * the JSON the device will actually receive, and the read-only timeline
  * underneath both as a preview.
  */
-export function ProgramEditor({ target, onClose, onCreated }: ProgramEditorProps): React.ReactNode {
+export function ProgramEditor({ target, onClose, onCreated, renderExport }: ProgramEditorProps): React.ReactNode {
   const programsApi = useProgramsApi();
-  const sourceId = target.kind === 'new' ? null : target.kind === 'copy' ? target.sourceId : target.id;
+  // `standalone` already holds its document - see the type doc above - so it
+  // takes the `new` branch here too: no device fetch, ever.
+  const sourceId =
+    target.kind === 'new' || target.kind === 'standalone' ? null : target.kind === 'copy' ? target.sourceId : target.id;
 
   const {
     data: source,
@@ -115,10 +139,11 @@ export function ProgramEditor({ target, onClose, onCreated }: ProgramEditorProps
     <ProgramEditorForm
       key={`${target.kind}-${sourceId ?? 'new'}`}
       target={target}
-      source={source ?? null}
+      source={target.kind === 'standalone' ? target.document : (source ?? null)}
       sourceError={source === undefined ? null : error}
       onClose={onClose}
       onCreated={onCreated}
+      renderExport={renderExport}
     />
   );
 }
@@ -143,10 +168,20 @@ interface PendingSave {
   carried: AuthoringIssue[];
 }
 
-function ProgramEditorForm({ target, source, sourceError, onClose, onCreated }: FormProps): React.ReactNode {
+function ProgramEditorForm({
+  target,
+  source,
+  sourceError,
+  onClose,
+  onCreated,
+  renderExport,
+}: FormProps): React.ReactNode {
   const queryClient = useQueryClient();
   const programsApi = useProgramsApi();
   const audiosApi = useAudiosApi();
+  // The Pages build (#140): no device to save to, an id chosen at open time
+  // instead of assigned by `POST`, and no audio list to fetch either.
+  const deviceless = target.kind === 'standalone';
 
   const [state, dispatch] = useReducer(editorReducer, source, (program: Program | null) =>
     createEditorState(
@@ -161,8 +196,10 @@ function ProgramEditorForm({ target, source, sourceError, onClose, onCreated }: 
   const [notice, setNotice] = useState<Notice | null>(null);
   const [pendingSave, setPendingSave] = useState<PendingSave | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  /** A validated document ready to download or open as a pull request (deviceless only). */
+  const [exportProgram, setExportProgram] = useState<Program | null>(null);
 
-  const { data: audios } = useQuery({ queryKey: ['audios'], queryFn: audiosApi.list });
+  const { data: audios } = useQuery({ queryKey: ['audios'], queryFn: audiosApi.list, enabled: !deviceless });
 
   // Unapplied JSON is an edit like any other. `isDirty` only sees the draft,
   // and the JSON view holds its text until a tab switch or a save applies it —
@@ -264,6 +301,14 @@ function ProgramEditorForm({ target, source, sourceError, onClose, onCreated }: 
   }
 
   function send(program: Program): void {
+    if (target.kind === 'standalone') {
+      // There is no device to assign an id or set `readonly` — both are
+      // decided by the author instead, the same way a hand-written file
+      // under `resources/programs/files/` already is (see the shipped
+      // fixtures: `id` matches the filename, `readonly` is `true`).
+      setExportProgram({ ...program, id: target.id, readonly: true });
+      return;
+    }
     if (target.kind === 'edit' && !sourceGone) {
       updateMutation.mutate({ id: target.id, program });
     } else {
@@ -331,7 +376,9 @@ function ProgramEditorForm({ target, source, sourceError, onClose, onCreated }: 
       ? `Editing program ${target.id}`
       : target.kind === 'copy'
         ? `New program, copied from "${target.sourceTitle}"`
-        : 'New program';
+        : target.kind === 'standalone'
+          ? `Program ${target.id} (no device — ${target.origin})`
+          : 'New program';
 
   const eventCount = state.draft.series.reduce((count, series) => count + series.events.length, 0);
 
@@ -388,7 +435,7 @@ function ProgramEditorForm({ target, source, sourceError, onClose, onCreated }: 
             onClick={handleSave}
             disabled={busy}
           >
-            {target.kind === 'edit' && !sourceGone ? 'Save' : 'Create'}
+            {deviceless ? 'Continue' : target.kind === 'edit' && !sourceGone ? 'Save' : 'Create'}
           </button>
         </div>
       </header>
@@ -418,7 +465,9 @@ function ProgramEditorForm({ target, source, sourceError, onClose, onCreated }: 
                 // Not JSON yet; the errors under the textarea already say so.
               }
             }}
-            filename={target.kind === 'edit' ? programFilename(target.id) : 'program.json'}
+            filename={
+              target.kind === 'edit' || target.kind === 'standalone' ? programFilename(target.id) : 'program.json'
+            }
           />
         )}
       </div>
@@ -471,7 +520,7 @@ function ProgramEditorForm({ target, source, sourceError, onClose, onCreated }: 
               )}
             </>
           }
-          confirmLabel={target.kind === 'edit' ? 'Save anyway' : 'Create anyway'}
+          confirmLabel={target.kind === 'edit' ? 'Save anyway' : deviceless ? 'Continue anyway' : 'Create anyway'}
           destructive={target.kind === 'edit'}
           onConfirm={() => {
             const pending = pendingSave;
@@ -507,6 +556,10 @@ function ProgramEditorForm({ target, source, sourceError, onClose, onCreated }: 
           onCancel={blocker.reset}
         />
       )}
+
+      {exportProgram &&
+        target.kind === 'standalone' &&
+        renderExport?.({ program: exportProgram, origin: target.origin, onClose: () => setExportProgram(null) })}
     </section>
   );
 }

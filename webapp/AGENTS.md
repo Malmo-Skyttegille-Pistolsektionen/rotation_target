@@ -26,6 +26,9 @@ src/lib/program-document.ts       # Validates a program against what parse_progr
 src/lib/program-editor.ts         # The editor's document model; every edit is a reducer action
 src/lib/run-position.ts           # Mirrors firmware/lib/rt_logic/run_position.h - change both
 e2e/                              # Playwright suite against the QEMU-hosted firmware (D-17)
+editor.html, src/editor-main.tsx  # GitHub Pages entry (#140): ProgramEditor with no device
+vite.editor.config.ts             # Its own Vite build (dist-editor/) - see README's size budget note
+src/standalone/                   # The Pages page: pick a document, then hand it to ProgramEditor
 ```
 
 The v1 snapshot (`src_legacy/`, `legacy.html`, `vite-plugins/mock-server.ts`)
