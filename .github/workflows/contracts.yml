@@ -2,17 +2,14 @@
 name: contracts
 
 on:
+  # No `paths:` filter, deliberately. These checks are required by the
+  # `protect-main` ruleset, and a required check that never runs blocks the pull
+  # request forever - so every workflow has to report on every PR. The cost is
+  # running the full suite on a docs-only change; the alternative was checks
+  # that render in the merge box without gating anything.
   push:
     branches: [main]
-    paths:
-      - contracts/**
-      - resources/**
-      - .github/workflows/contracts.yml
   pull_request:
-    paths:
-      - contracts/**
-      - resources/**
-      - .github/workflows/contracts.yml
 
   # Called by release.yml so the release is gated on the same checks that guard
   # main, run at the exact commit that gets tagged.
