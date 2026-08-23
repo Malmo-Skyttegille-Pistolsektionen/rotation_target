@@ -265,11 +265,12 @@ test('the start delay is set beside Start, and 0 starts without a countdown', as
   await page.getByTestId('run-start-delay').selectOption('0');
   await expect(page.getByTestId('run-start-delay-unit')).toContainText('no delay');
 
-  // One setting, two editors: the settings page reads what the run page wrote.
+  // The delay lives on the Run page only - the Settings page's duplicate copy
+  // was removed. It still survives leaving the page and coming back, because
+  // it is stored in the browser rather than in this component.
   await page.getByRole('link', { name: 'Settings' }).click();
-  await expect(page.getByTestId('settings-start-delay')).toHaveValue('0');
-  await expect(page.getByTestId('settings-start-delay-immediate')).toBeVisible();
   await page.getByRole('link', { name: 'Run' }).click();
+  await expect(page.getByTestId('run-start-delay')).toHaveValue('0');
 
   // No modal at 0: Start is the start.
   await page.getByRole('button', { name: 'Start' }).click();

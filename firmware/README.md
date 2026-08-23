@@ -30,11 +30,26 @@ flashing these boards.
 git clone https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target.git
 cd rotation_target/firmware
 
-idf.py set-target esp32s3          # once, per clone
+idf.py set-target esp32s3          # FIRST clone only - see the warning below
 idf.py menuconfig                  # optional: seed WiFi under "Rotation target backend"
 idf.py build
 idf.py -p /dev/ttyACM0 flash monitor
 ```
+
+> ⚠️ **`idf.py set-target` regenerates `sdkconfig`**, which is where the WiFi
+> credentials live and is gitignored — so there is no other copy, and nothing
+> says they are gone until the device cannot join a network. On a clone you
+> have already built, use **`idf.py reconfigure`**.
+>
+> Keeping the credentials outside the tree removes the hazard entirely:
+>
+> ```bash
+> idf.py -D SDKCONFIG=$HOME/agents/rotation_target/sdkconfig build
+> ```
+
+> **`idf.py flash` uses esptool's stub loader, which fails on this board** and
+> fails in a way that looks like bad flash. See
+> [`docs/HARDWARE.md`](docs/HARDWARE.md) for the `--no-stub` invocation.
 
 The shipped audio and programs live in the monorepo's sibling `resources/`
 directory. The build reads them from there by default; point `RT_RESOURCES_DIR`

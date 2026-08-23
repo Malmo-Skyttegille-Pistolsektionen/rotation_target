@@ -305,26 +305,43 @@
   min-width: 0;
 }
 
+/* One clip per row rather than wrapped inline. Several clips on one event play
+   back to back, so the list is an ordered sequence; laid out as chips flowing
+   across a line, "50 · Provserie ← → ×  1 · 1 ← → ×" ran together and the
+   order - the thing the list exists to show - was the hardest part to read. */
 .chips {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
+  flex-direction: column;
+  gap: 0.25rem;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
 .chip {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 0.2rem;
-  padding: 0.15rem 0.35rem;
-  border-radius: 999px;
+  gap: 0.35rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
   background: #eef2ff;
   color: #3730a3;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   max-width: 100%;
   overflow-wrap: anywhere;
+}
+
+.chipOrder {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  min-width: 1.4em;
+  text-align: right;
+}
+
+/* Takes the slack so the three buttons sit at the right edge of every row,
+   in the same place on each. */
+.chipTitle {
+  flex: 1;
 }
 
 .chipButton {

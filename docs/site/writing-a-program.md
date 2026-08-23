@@ -124,3 +124,7 @@ up, and tells you which it chose.
 An uploaded program is on **one device**. To put it on every device, and to
 keep it through a reflash, it has to go into the repository — see
 [getting a program into the shipped set](programs-and-audio.md#getting-a-program-into-the-shipped-set).
+
+The [program editor](https://malmo-skyttegille-pistolsektionen.github.io/rotation_target/editor/) does both halves of that for you: open the
+program in it, press **Continue**, and it offers the file to download and a
+prefilled pull request against this repository.

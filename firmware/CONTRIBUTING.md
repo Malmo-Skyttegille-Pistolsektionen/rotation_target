@@ -29,9 +29,22 @@ project — please read the safety note before changing run or target behaviour.
 ```bash
 git clone https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target.git
 cd rotation_target/firmware
-idf.py set-target esp32s3
+idf.py set-target esp32s3          # FIRST clone only - see the warning below
 idf.py build
 ```
+
+> ⚠️ **Never run `idf.py set-target` on a clone you have already built.** It
+> regenerates `sdkconfig` from scratch, and `sdkconfig` is where the WiFi
+> credentials live — it is gitignored, so there is no other copy and nothing
+> will tell you they are gone until the device cannot join a network. Use
+> **`idf.py reconfigure`** on an existing clone.
+>
+> Better still, keep the credentials outside the tree entirely and point the
+> build at them, so regenerating `sdkconfig` costs nothing:
+>
+> ```bash
+> idf.py -D SDKCONFIG=$HOME/agents/rotation_target/sdkconfig build
+> ```
 
 You need **ESP-IDF >= 6.0** (CI pins v6.0.2). The shipped audio and programs
 live in the monorepo's sibling `resources/` directory; CMake fails at configure
@@ -94,14 +107,16 @@ deterministically.
 
 ## Commits and pull requests
 
-- **Conventional Commits** for commit messages and PR titles
-  (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`; `!` for breaking).
-  A GitHub check enforces the PR title.
-- **Sign off every commit** — `git commit -s` (Developer Certificate of Origin).
-- **Work on a branch and open a PR.** Never push to `main`.
+Branching, Conventional Commits, sign-off and the breaking-change marker are in
+the root [`CONTRIBUTING.md`](../CONTRIBUTING.md) and apply here unchanged. Two
+things are firmware-specific:
+
 - Explain *why* in the commit body, not just what. If a change is subtle, the
   reason it is that way is the part a future reader needs.
-- Say what you verified and what you did not, especially regarding hardware.
+- **Say what you verified and what you did not.** "Compile-verified only, not
+  run on hardware" is a perfectly acceptable statement; silence is not. Much of
+  this cannot be proved without a board, and a reviewer needs to know which
+  half they are reading.
 
 ## Comments
 
@@ -135,8 +150,12 @@ Version is derived from git — ESP-IDF fills `esp_app_desc_t.version` from
 `git describe --always --tags --dirty`, and `GET /api/v2/version` reports it.
 There is no version constant in the source and there must not be one.
 
-Releasing is `git tag X.Y.Z && git push --tags`. Tags are **bare three-part
-semver** (`2.0.0`, never `v2.0.0`).
+Releasing is **not** `git tag && git push --tags`: the `release` workflow is
+dispatched manually, runs every check at the commit it is about to tag, waits
+on an approval, and then tags, builds and publishes. Tagging by hand skips all
+of that. Tags are **bare three-part semver** (`2.0.0`, never `v2.0.0`), and
+cover firmware, web app and resources together (D-29). See
+[`docs/RELEASING.md`](../docs/RELEASING.md).
 
 ## Reporting a problem
 

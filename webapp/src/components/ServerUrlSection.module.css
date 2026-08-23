@@ -118,3 +118,24 @@
     justify-content: center;
   }
 }
+
+/* Normal weight against the bold heading: it is a fact about the device, not a
+   second heading. */
+.sectionTitleAside {
+  font-weight: 400;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+/* Selectable and monospaced - its job is to be copied or read out. */
+.address {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #111827;
+  user-select: all;
+}
+
+.addressMissing {
+  margin-top: 0.5rem;
+  color: #92400e;
+  font-size: 0.85rem;
+}

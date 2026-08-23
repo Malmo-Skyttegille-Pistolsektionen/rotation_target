@@ -1,7 +1,9 @@
 import { useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useSettings } from '../context/SettingsContext';
 import { updateBaseUrl } from '../api/client';
+import { useDiagnosticsApi } from '../api/diagnostics';
 import styles from './ServerUrlSection.module.css';
 
 function isUrlValid(url: string): boolean {
@@ -23,6 +25,20 @@ function isUrlValid(url: string): boolean {
 
 export function ServerUrlSection(): React.ReactNode {
   const { settings, setServerBaseUrl } = useSettings();
+  const diagnosticsApi = useDiagnosticsApi();
+
+  // The device's own address, folded into this section's heading rather than
+  // given a section of its own. It is not a setting - nothing here can change
+  // it - and as its own card it read as one, under a heading shorter than the
+  // value beneath it. What it is actually for is being read aloud or copied,
+  // and beside the URL is where it explains something: this is the address the
+  // box below should point at.
+  const { data: diagnostics } = useQuery({
+    queryKey: ['diagnostics'],
+    queryFn: diagnosticsApi.info,
+  });
+  const deviceAddress = diagnostics?.ipAddress;
+  const hasAddress = deviceAddress !== undefined && deviceAddress !== '';
   const [urlInput, setUrlInput] = useState(settings.serverBaseUrl);
   const [urlError, setUrlError] = useState<string | null>(null);
   const [urlSuccess, setUrlSuccess] = useState(false);
@@ -58,7 +74,19 @@ export function ServerUrlSection(): React.ReactNode {
 
   return (
     <section className={styles.section}>
-      <h2 className={styles.sectionTitle}>Server Base URL</h2>
+      <h2 className={styles.sectionTitle}>
+        Server Base URL
+        {hasAddress && (
+          <span className={styles.sectionTitleAside}>
+            {' '}
+            (IP address:{' '}
+            <span className={styles.address} data-testid='network-address'>
+              {deviceAddress}
+            </span>
+            )
+          </span>
+        )}
+      </h2>
       <div className={styles.inputRow}>
         <input
           type='url'
@@ -75,6 +103,16 @@ export function ServerUrlSection(): React.ReactNode {
           Save
         </button>
       </div>
+      {/* Kept from the section this absorbed: an empty `ipAddress` is the
+          firmware saying it is on its own access point or the link dropped,
+          which is a different thing from not having answered yet - and it is
+          the one case where this line tells an operator something they cannot
+          see from the fact the page loaded. */}
+      {diagnostics !== undefined && !hasAddress && (
+        <div className={styles.addressMissing} data-testid='network-address-missing'>
+          The device reports no address — it is serving its own access point, or the network dropped.
+        </div>
+      )}
       {urlError && <div className={styles.errorMessage}>{urlError}</div>}
       {urlSuccess && <div className={styles.successMessage}>Server URL saved successfully</div>}
     </section>
