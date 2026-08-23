@@ -805,7 +805,7 @@ export interface components {
             active: components["schemas"]["HardwareConfig"];
             saved: components["schemas"]["HardwareConfig"];
             defaults: components["schemas"]["HardwareConfig"];
-            /** @description Whether anything has ever been written. False out of the box, which is the state #144 proposes should later arm a configuration password. */
+            /** @description Whether `saved` differs from `defaults`. False out of the box, and false again after a reset - so a client can use it to decide whether a "reset to defaults" action would do anything. Note this is *not* "a value has ever been written": saving a value equal to its default leaves `overridden` false, because there is then nothing to put back. */
             overridden: boolean;
             /** @description `saved` differs from `active`, so the device is not yet running what it has been told. The one field a client must not hide: a pin change that appears to have done nothing is how somebody ends up reflashing a working device. */
             restartRequired: boolean;
