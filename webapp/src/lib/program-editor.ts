@@ -37,6 +37,15 @@ export interface DraftSeries {
   key: string;
   name: string;
   optional: boolean;
+  /**
+   * The event the run clock starts on (#126), held as that event's *key*
+   * rather than its index. An index would have to be fixed up by every
+   * reorder, insert and delete; a key moves with the event it names and needs
+   * none of that. `null` is "the clock starts with the series", which is the
+   * document's `timer_start_index: 0` and what every program meant before the
+   * field existed.
+   */
+  timerStartKey: string | null;
   events: DraftEvent[];
 }
 
@@ -70,6 +79,8 @@ export type EditorAction =
   | { type: 'addSeries' }
   | { type: 'setSeriesName'; series: number; value: string }
   | { type: 'setSeriesOptional'; series: number; value: boolean }
+  /** Name the event the run clock starts on, or `null` to start with the series. */
+  | { type: 'setSeriesTimerStart'; series: number; eventKey: string | null }
   | { type: 'moveSeries'; from: number; to: number }
   | { type: 'duplicateSeries'; series: number }
   | { type: 'removeSeries'; series: number }
@@ -103,6 +114,18 @@ export type EditorAction =
  * is not a number, and hiding that behind a `Program` cast would put the lie
  * one layer further from where it is caught.
  */
+/**
+ * The anchor as the document carries it: an index, or 0 when the series has no
+ * anchor or the event it named has since been deleted. Resolving late means a
+ * deleted anchor degrades to "starts with the series" rather than pointing at
+ * whatever event inherited its position.
+ */
+function timerStartIndexOf(series: DraftSeries): number {
+  if (series.timerStartKey === null) return 0;
+  const index = series.events.findIndex((event) => event.key === series.timerStartKey);
+  return index > 0 ? index : 0;
+}
+
 export function toDocument(draft: Draft): Record<string, unknown> {
   return {
     title: draft.title,
@@ -110,6 +133,7 @@ export function toDocument(draft: Draft): Record<string, unknown> {
     series: draft.series.map((series) => ({
       name: series.name,
       optional: series.optional,
+      ...(timerStartIndexOf(series) === 0 ? {} : { timer_start_index: timerStartIndexOf(series) }),
       events: series.events.map((event) => {
         const duration = parseDuration(event.duration);
         return {
@@ -163,6 +187,7 @@ export function toPreviewProgram(draft: Draft): Program {
     series: draft.series.map((series) => ({
       name: series.name,
       optional: series.optional,
+      ...(timerStartIndexOf(series) === 0 ? {} : { timer_start_index: timerStartIndexOf(series) }),
       events: series.events.map((event): Event => {
         const ms = durationMs(event);
         return {
@@ -188,17 +213,23 @@ function draftFromProgram(program: Program | null, from: number): { draft: Draft
   const draft: Draft = {
     title: program?.title ?? '',
     description: program?.description ?? '',
-    series: (program?.series ?? []).map((series: Series) => ({
-      key: key(),
-      name: series.name,
-      optional: series.optional === true,
-      events: series.events.map((event: Event) => ({
+    series: (program?.series ?? []).map((series: Series) => {
+      const seriesKey = key();
+      const events: DraftEvent[] = series.events.map((event: Event) => ({
         key: key(),
         duration: String(event.duration),
         command: event.command === 'show' || event.command === 'hide' ? event.command : 'none',
         audioIds: [...(event.audio_ids ?? [])],
-      })),
-    })),
+      }));
+      const anchor = series.timer_start_index ?? 0;
+      return {
+        key: seriesKey,
+        name: series.name,
+        optional: series.optional === true,
+        timerStartKey: anchor > 0 ? (events[anchor]?.key ?? null) : null,
+        events,
+      };
+    }),
   };
 
   return { draft, nextKey };
@@ -225,6 +256,7 @@ export function createEditorState(program: Program | null): EditorState {
           key: seriesKey,
           name: '',
           optional: false,
+          timerStartKey: null,
           events: [{ key: eventKey, duration: NEW_EVENT_DURATION, command: 'none', audioIds: [] }],
         },
       ],
@@ -308,6 +340,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
               key: seriesKey,
               name: '',
               optional: false,
+              timerStartKey: null,
               events: [{ key: eventKey, duration: NEW_EVENT_DURATION, command: 'none', audioIds: [] }],
             },
           ],
@@ -321,6 +354,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'setSeriesOptional':
       return { ...state, draft: withSeries(draft, action.series, (series) => ({ ...series, optional: action.value })) };
 
+    case 'setSeriesTimerStart':
+      return {
+        ...state,
+        draft: withSeries(draft, action.series, (series) => ({ ...series, timerStartKey: action.eventKey })),
+      };
+
     case 'moveSeries':
       return { ...state, draft: { ...draft, series: move(draft.series, action.from, action.to) } };
 
@@ -328,11 +367,20 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const source = draft.series[action.series];
       if (!source) return state;
       let nextKey = state.nextKey;
+      // The copy re-keys every event, so the anchor is carried across by
+      // position - the one place a key cannot simply travel with its event.
+      const anchorIndex = timerStartIndexOf(source);
+      const copiedEvents = source.events.map((event) => ({
+        ...event,
+        key: `k${nextKey++}`,
+        audioIds: [...event.audioIds],
+      }));
       const copy: DraftSeries = {
         key: `k${nextKey++}`,
         name: source.name === '' ? '' : `${source.name} (copy)`,
         optional: source.optional,
-        events: source.events.map((event) => ({ ...event, key: `k${nextKey++}`, audioIds: [...event.audioIds] })),
+        timerStartKey: anchorIndex > 0 ? (copiedEvents[anchorIndex]?.key ?? null) : null,
+        events: copiedEvents,
       };
       const series = [...draft.series];
       series.splice(action.series + 1, 0, copy);

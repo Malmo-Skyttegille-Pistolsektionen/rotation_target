@@ -681,6 +681,7 @@ function SeriesCard({
               eventIndex={eventIndex}
               eventCount={series.events.length}
               selected={selection.includes(event.key)}
+              timerStart={series.timerStartKey === event.key}
               audios={audios}
               dispatch={dispatch}
             />
@@ -710,6 +711,8 @@ interface EventRowProps {
   eventIndex: number;
   eventCount: number;
   selected: boolean;
+  /** Whether the run clock starts on this event (#126). */
+  timerStart: boolean;
   audios: AudioFile[];
   dispatch: React.Dispatch<EditorAction>;
 }
@@ -720,6 +723,7 @@ function EventRow({
   eventIndex,
   eventCount,
   selected,
+  timerStart,
   audios,
   dispatch,
 }: EventRowProps): React.ReactNode {
@@ -788,6 +792,27 @@ function EventRow({
           </label>
         ))}
       </fieldset>
+
+      {/* A per-event control even though the field lives on the series: an
+          author picks the moment the clock starts, and "which event" is how
+          they think about it. Clicking the one already set clears it, so the
+          series can go back to starting its clock at the top without a
+          separate control for "none". */}
+      <label className={styles.checkbox}>
+        <input
+          type='checkbox'
+          data-testid={`${testId}-timer-start`}
+          checked={timerStart}
+          onChange={() =>
+            dispatch({
+              type: 'setSeriesTimerStart',
+              series: seriesIndex,
+              eventKey: timerStart ? null : event.key,
+            })
+          }
+        />
+        Timer starts here
+      </label>
 
       <AudioPicker
         testId={testId}
