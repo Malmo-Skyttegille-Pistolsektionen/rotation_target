@@ -7,7 +7,11 @@
  * `githubJson` surfaces a 403 distinctly so the caller can say so rather than
  * report a generic failure.
  */
+import type { AudioFile } from '../api/types';
 import { PROGRAMS_PATH } from './pr-url';
+
+/** Where the shipped audio catalogue lives in the repository. */
+const AUDIOS_PATH = 'resources/audios/audios.json';
 
 export interface RepoLocation {
   owner: string;
@@ -81,4 +85,39 @@ export async function fetchRepoProgramFile(file: RepoProgramFile): Promise<strin
     throw new GitHubApiError(response.status, `GitHub returned ${String(response.status)} fetching ${file.path}.`);
   }
   return response.text();
+}
+
+/**
+ * The shipped audio catalogue from a repo, as the editor's `AudioFile[]`.
+ *
+ * The Pages editor has no device, so it has no `GET /audios` to ask - and
+ * without one every clip on an event renders as its bare id. The repository is
+ * the same catalogue the device is flashed with, and `raw.githubusercontent.com`
+ * serves it CORS-enabled, so a clip can be named without a board.
+ *
+ * `audios.json` is a map keyed by id, whose values carry `title` and
+ * `filename` but no `id` - the key is the id. `readonly` is true for all of
+ * them: everything in the repository is shipped by definition, and an uploaded
+ * clip only exists on a device.
+ */
+export async function fetchRepoAudioCatalogue(location: RepoLocation): Promise<AudioFile[]> {
+  const ref = location.ref ?? 'main';
+  const url = `https://raw.githubusercontent.com/${location.owner}/${location.repo}/${ref}/${AUDIOS_PATH}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new GitHubApiError(response.status, `GitHub returned ${String(response.status)} fetching ${AUDIOS_PATH}.`);
+  }
+  const raw: unknown = await response.json();
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return [];
+
+  return Object.entries(raw as Record<string, unknown>)
+    .flatMap(([key, value]) => {
+      const id = Number(key);
+      if (!Number.isInteger(id) || typeof value !== 'object' || value === null) return [];
+      const entry = value as Record<string, unknown>;
+      const title = typeof entry.title === 'string' ? entry.title : String(id);
+      const filename = typeof entry.filename === 'string' ? entry.filename : `${String(id)}.wav`;
+      return [{ id, title, filename, readonly: true }];
+    })
+    .sort((a, b) => a.id - b.id);
 }
