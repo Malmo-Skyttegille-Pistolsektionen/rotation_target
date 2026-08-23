@@ -24,11 +24,24 @@ theme:
 
 nav:
   - Home: index.md
+  - Hardware and wiring: hardware.md
   - Connecting: connecting.md
   - Running a program: running-a-program.md
+  - Programs and audio: programs-and-audio.md
+  - Writing your own program: writing-a-program.md
+  - Settings: settings.md
   - Status LED: status-led.md
   - Troubleshooting: troubleshooting.md
 
 markdown_extensions:
   - tables
   - admonition
+  # Lets writing-a-program.md embed the example program from the same file
+  # the page links for download, so the two cannot drift apart.
+  - pymdownx.snippets:
+      base_path: [docs/site]
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid

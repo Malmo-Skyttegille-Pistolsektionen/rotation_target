@@ -1,0 +1,112 @@
+{
+  "id": 1000,
+  "title": "Militär Snabbmatch (kort)",
+  "description": "Provserie 10s + Serie 1, 10s",
+  "readonly": false,
+  "series": [
+    {
+      "name": "Provserie 10s",
+      "optional": false,
+      "timer_start_index": 3,
+      "events": [
+        {
+          "duration": 5000,
+          "command": "show",
+          "audio_ids": [
+            50,
+            1,
+            28
+          ]
+        },
+        {
+          "duration": 60000,
+          "command": "show",
+          "audio_ids": [
+            26
+          ]
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 10000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10s Serie 1",
+      "optional": false,
+      "timer_start_index": 3,
+      "events": [
+        {
+          "duration": 5000,
+          "command": "show",
+          "audio_ids": [
+            64
+          ]
+        },
+        {
+          "duration": 60000,
+          "command": "show",
+          "audio_ids": [
+            26
+          ]
+        },
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            31
+          ]
+        },
+        {
+          "duration": 10000,
+          "command": "show"
+        },
+        {
+          "duration": 1000,
+          "command": "hide"
+        },
+        {
+          "duration": 3000,
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37,
+            36,
+            39
+          ]
+        }
+      ]
+    }
+  ]
+}

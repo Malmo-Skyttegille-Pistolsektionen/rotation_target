@@ -27,4 +27,4 @@ The LED is deliberately dim: the device sits on a range in the dark and a
 bright indicator is a distraction downrange. Photographs for these docs should
 be taken in low light or it will not read as the colours above.
 
-<!-- TODO: screenshots -->
+<!-- TODO: low-light photographs of each LED state, per the note above -->
