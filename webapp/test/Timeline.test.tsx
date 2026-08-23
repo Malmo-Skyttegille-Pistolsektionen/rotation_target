@@ -497,6 +497,23 @@ describe('the timer anchor (#126)', () => {
   // Index 0 is the default and means "the clock starts with the series", which
   // is what every program meant before the field existed. Marking it would put
   // a badge on the first event of every shipped program.
+  // The cumulative on each card is what the run clock will read there, so the
+  // card the badge calls 0:00 says 0 rather than 72. Decided on #126: one clock
+  // on the page, not two answering different questions.
+  // The card carries the time the run clock will read where that event *ends*.
+  // With the anchor on event 1, event 0 ends exactly at zero.
+  it('reads the card cumulative from the anchor, signed', () => {
+    renderTimeline(anchored(1, true), { mode: 'default' });
+    expect(screen.getByTestId('timeline-cumulative-0-0').textContent).toBe('0');
+    expect(screen.getByTestId('timeline-cumulative-0-1').textContent).toBe('+10');
+  });
+
+  it('leaves the cumulative unsigned and series-absolute when there is no anchor', () => {
+    renderTimeline(anchored(undefined, true), { mode: 'default' });
+    expect(screen.getByTestId('timeline-cumulative-0-0').textContent).toBe('60');
+    expect(screen.getByTestId('timeline-cumulative-0-1').textContent).toBe('70');
+  });
+
   it('marks nothing when the series anchors at 0, and nothing when the field is absent', () => {
     renderTimeline(anchored(0, true), { mode: 'default' });
     expect(screen.queryByTestId('timeline-anchor-0')).toBeNull();

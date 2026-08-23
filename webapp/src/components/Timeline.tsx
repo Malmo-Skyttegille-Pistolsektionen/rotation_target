@@ -101,15 +101,6 @@ export function Timeline({
 
   if (!program?.series) return null;
 
-  // `tickerMs` arrives measured from the series' timer anchor, so it is negative
-  // through the preamble (#126). The playhead needs elapsed-since-series-start,
-  // so the anchor goes back on. A series without `timer_start_index` anchors at
-  // 0 and this is the identity it always was.
-  const anchorMs = (series: Series): number => {
-    const index = series.timer_start_index ?? 0;
-    return series.events.slice(0, index).reduce((total, event) => total + event.duration, 0);
-  };
-
   // Straight from the wire otherwise: `tickerMs` is millisecond-precise. It used to be whole seconds multiplied back up by 1000, which put
   // the playhead up to a second - a whole event, on a field program - behind
   // where the targets actually were.
@@ -289,7 +280,12 @@ function DefaultTimelineSeries({
               <CommandIcon command={event.command} />
               {hasAudio(event) && <AudioIcon />}
             </span>
-            <span className={styles.accumulated}>{Math.round(event.accumulated / 1000)}</span>
+            <span
+              className={styles.accumulated}
+              data-testid={`timeline-cumulative-${String(seriesIndex)}-${String(eIdx)}`}
+            >
+              {anchorRelativeSeconds(series, event.accumulated)}
+            </span>
             {isAnchor && (
               <span
                 className={styles.anchorMark}
@@ -358,11 +354,12 @@ function EventDetail({ program, reference, pinned, audioTitles, onDismiss }: Eve
 
         <dt>Starts at</dt>
         <dd>
-          {formatSeconds(startsAtMs)} into {series.name}
+          {anchorRelativeSeconds(series, startsAtMs)} s{' '}
+          {anchorMs(series) === 0 ? `into ${series.name}` : 'on the run clock'}
         </dd>
 
         <dt>Ends at</dt>
-        <dd>{formatSeconds(startsAtMs + event.duration)}</dd>
+        <dd>{formatRunClock(series, startsAtMs + event.duration)}</dd>
 
         <dt>Audio</dt>
         <dd>
@@ -389,6 +386,49 @@ function commandDescription(command?: string): string {
   if (command === 'show') return 'Show';
   if (command === 'hide') return 'Hide';
   return 'Unchanged — a timed pause';
+}
+
+/**
+ * Milliseconds from the start of a series to the event its run clock starts on
+ * (#126). A series without `timer_start_index` anchors at 0, which is what
+ * every program meant before the field existed, so this is the identity for
+ * all of them.
+ *
+ * Mirrors `rt::Series::timer_anchor_ms`.
+ */
+function anchorMs(series: Series): number {
+  const index = series.timer_start_index ?? 0;
+  return series.events.slice(0, index).reduce((total, event) => total + event.duration, 0);
+}
+
+/** Signed milliseconds from the series' run-clock zero: negative before it. */
+function anchorRelativeMs(series: Series, msFromSeriesStart: number): number {
+  return msFromSeriesStart - anchorMs(series);
+}
+
+/**
+ * A whole-second run-clock figure for an event card. Written with an explicit
+ * `+` once a series has an anchor, so a positive number cannot be read as
+ * "seconds into the series" when the two disagree; unsigned without one,
+ * because then they agree and a `+` on every card is noise.
+ */
+function anchorRelativeSeconds(series: Series, msFromSeriesStart: number): string {
+  const seconds = Math.round(anchorRelativeMs(series, msFromSeriesStart) / 1000);
+  if (anchorMs(series) === 0) return String(seconds);
+  return seconds > 0 ? `+${String(seconds)}` : String(seconds);
+}
+
+/**
+ * The same figure for the detail panel, which keeps the tenth of a second
+ * `formatSeconds` does - a 2.5 s event rounded to 3 in the one place that
+ * exists to be precise would be a worse answer than the one it replaced.
+ */
+function formatRunClock(series: Series, msFromSeriesStart: number): string {
+  const ms = anchorRelativeMs(series, msFromSeriesStart);
+  const text = formatSeconds(Math.abs(ms));
+  if (anchorMs(series) === 0) return text;
+  if (ms === 0) return text;
+  return `${ms > 0 ? '+' : '-'}${text}`;
 }
 
 function formatSeconds(ms: number): string {
