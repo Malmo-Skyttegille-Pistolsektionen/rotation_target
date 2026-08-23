@@ -91,49 +91,62 @@ is fine and the HTTP server is not.
 
 ### Use `--no-stub`
 
-**esptool's stub flasher fails on this board when *reading* flash, above about
-256 KB per transfer.** It dies with `Packet content transfer stopped`.
-**Writing is unaffected.**
+**The stub fails only when *reading*, and only over the native USB port.**
+It dies with `Packet content transfer stopped`. Writing is unaffected on either
+port, and the UART port is unaffected entirely.
 
-Measured on the DevKitC-1 over the native USB port, esptool 5.3.1:
+Measured on the DevKitC-1, esptool 5.3.1:
 
-| Operation | Size | Stub | Result |
-|---|---|---|---|
-| `read-flash` | 256 KB | yes | works |
-| `read-flash` | 512 KB | yes | **fails** |
-| `read-flash` | 1 MB | yes | **fails 3/3** |
-| `read-flash` | 1 MB | `--no-stub` | works |
-| `write-flash` | 1.1 MB (app) | yes | works, hash verified |
-| `write-flash` | 10 MB (storage) | yes | works, hash verified |
+| Port | Operation | Size | Stub | Result |
+|---|---|---|---|---|
+| native USB | `read-flash` | 256 KB | yes | works |
+| native USB | `read-flash` | 512 KB | yes | **fails** |
+| native USB | `read-flash` | 1 MB | yes | **fails 3/3** |
+| native USB | `read-flash` | 1 MB | `--no-stub` | works |
+| native USB | `write-flash` | 1.1 MB | yes | works, hash verified |
+| native USB | `write-flash` | 10 MB | yes | works, hash verified |
+| UART | `read-flash` | 1 MB | yes | works 3/3 |
+| UART | `read-flash` | 4 MB | yes | works |
+| UART | `read-flash` | 16 MB | yes | works |
 
-So the rule is narrower than it was written here for a long time:
+The DevKitC-1 has two USB-C sockets and they are not interchangeable here:
 
-- **`read-flash` needs `--no-stub`** on this board. Reading a backup image is
-  what first hit this, and it is what the old note in this file generalised
-  from.
-- **`write-flash` does not.** `idf.py flash` uses the stub and works. So does
-  the browser-based flasher, which cannot turn the stub off at all.
+- **UART** — a CH343 bridge (USB vendor `1a86`). No stub problem at all; it
+  read the whole 16 MB flash in one call.
+- **native USB** — the ESP32-S3's own USB Serial/JTAG, which is a **USB-CDC**
+  device (vendor `303a`). This is the one where large stub reads die.
 
-It is the transfer *size* that decides a read, not the address: the offset it
-dies at is wherever the transfer had reached. This has not been reproduced as a
-published esptool bug on 5.3.1 — the closest reports
-([esptool#857](https://github.com/espressif/esptool/issues/857),
-[#655](https://github.com/espressif/esptool/issues/655)) are a v4.5.0
-regression fixed in v4.5.1 and a Windows USB-CDC case — so treat it as a
-property of this board until somebody shows otherwise.
-
-Only the native USB port has been tested. The DevKitC-1's other USB-C socket is
-a separate UART bridge and may well behave differently; nobody has checked.
+`ls -l /dev/ttyACM*` does not tell them apart — both enumerate as CDC. Check the
+vendor:
 
 ```bash
-# Reading a backup image: the stub must be off.
-python -m esptool --chip esp32s3 --port /dev/ttyACM0 --no-stub \
-  read-flash 0 0x1000000 backup.bin
+udevadm info -q property -n /dev/ttyACM0 | grep ID_VENDOR_ID
+# 303a = native USB (stub reads fail);  1a86 = UART bridge (fine)
 ```
 
+That it is CDC-specific matches
+[esptool#655](https://github.com/espressif/esptool/issues/655), "Packet content
+transfer stopped" with a USB-CDC serial port. The other near-miss report,
+[esptool#857](https://github.com/espressif/esptool/issues/857), was a v4.5.0
+regression fixed in v4.5.1 and does not apply to 5.3.1.
+
+**So:**
+
+- Taking a backup image over the **native USB** port needs `--no-stub`, or use
+  the UART socket instead:
+
+  ```bash
+  python -m esptool --chip esp32s3 --port /dev/ttyACM0 --no-stub \
+    read-flash 0 0x1000000 backup.bin
+  ```
+
+- **Flashing needs nothing special on either port.** `idf.py flash` uses the
+  stub and works, which is also why the browser-based flasher works — it cannot
+  turn the stub off.
+
 **A failed read presents exactly like a bad flash sector and is not one.**
-Running the same read with and without `--no-stub` is the test that tells them
-apart.
+Reading the same range over the other socket, or with `--no-stub`, is the test
+that tells them apart.
 
 ### Ports
 

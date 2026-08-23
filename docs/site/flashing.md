@@ -24,6 +24,7 @@ machine you do not want to install tools on.
 
 1. Connect the board to your computer with a **USB-C data cable**. A charge-only
    cable will not work, and is the most common reason a board does not appear.
+   A DevKitC-1 has two USB-C sockets and either will do for flashing.
 2. Open the [**Espressif web flasher**](https://espressif.github.io/esptool-js/)
    in **Chrome or Edge**. Firefox and Safari do not implement Web Serial and
    cannot do this.
@@ -61,6 +62,7 @@ switches to it, and keeps everything else.
 - **The browser cannot see the port.** Chrome or Edge only, and on Linux your
   user may need to be in the `dialout` group.
 - **Reading a backup image fails partway** with
-  `Packet content transfer stopped`. That is a known quirk of this board and
-  not a fault: reads over about 256 KB need `--no-stub`. Writing is unaffected.
-  See [Hardware](hardware.md).
+  `Packet content transfer stopped`. Not a fault, and not something that
+  affects flashing: it happens only when *reading* large amounts over the
+  board's **native USB** socket. Use the other USB-C socket (the UART one), or
+  add `--no-stub`. See [Hardware](hardware.md).

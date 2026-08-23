@@ -110,13 +110,15 @@ version constant to any source file. See [`docs/RELEASING.md`](docs/RELEASING.md
 Full detail in [`firmware/AGENTS.md`](firmware/AGENTS.md); these two are worth
 knowing before touching a board.
 
-- **`read-flash` needs `--no-stub`; writing does not.** esptool's stub fails on
-  this board when *reading* over about 256 KB in one transfer (256 KB works,
-  512 KB and 1 MB fail 3/3, `--no-stub` reads 1 MB fine). Writes are unaffected:
-  the stub wrote the 1.1 MB app and the 10 MB LittleFS image with the hash
-  verified, so `idf.py flash` is fine. This file previously said "flash with
-  `--no-stub`" — that generalised a real *read* failure into a rule about
-  writing that nobody had measured.
+- **Large `read-flash` over the *native USB* port needs `--no-stub`.** Nothing
+  else does. The stub reads fine over the UART socket (the whole 16 MB in one
+  call) and writes fine over both, so `idf.py flash` is fine. The two USB-C
+  sockets both enumerate as `/dev/ttyACM*`; tell them apart by USB vendor —
+  `303a` is the native USB Serial/JTAG (CDC, the affected one), `1a86` is the
+  CH343 UART bridge. This file twice said something wrong here: first "flash
+  with `--no-stub`", which generalised a *read* failure into a rule about
+  writing, then "the stub fails on this board", which was really "on this
+  port". See `firmware/docs/HARDWARE.md` for the measurements.
 - **Never `idf.py set-target` on an existing clone.** It regenerates
   `sdkconfig`, which holds the WiFi credentials and is gitignored — there is no
   other copy. Use `idf.py reconfigure`.
