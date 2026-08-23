@@ -23,13 +23,36 @@ const DEFAULT_VALUES = {
  */
 export const START_DELAY_MIN_SECONDS = 0;
 export const START_DELAY_MAX_SECONDS = 60;
+export const START_DELAY_STEP_SECONDS = 5;
 
-/** The one place the range is enforced - every writer and the reader go through it. */
+/**
+ * Every delay that can be chosen: 0, then 5 s to 60 s. The editors are
+ * dropdowns rather than number fields (#195) - one tap on the tablet the range
+ * uses, no keyboard over the Start button beside it, and no way to type 100 or
+ * a stray 0 into the one control whose job is keeping people off the line.
+ */
+export const START_DELAY_OPTIONS: readonly number[] = [
+  START_DELAY_MIN_SECONDS,
+  ...Array.from(
+    { length: START_DELAY_MAX_SECONDS / START_DELAY_STEP_SECONDS },
+    (_, i) => (i + 1) * START_DELAY_STEP_SECONDS,
+  ),
+];
+
+/**
+ * The one place the range is enforced - every writer and the reader go through
+ * it. Also snaps to the nearest offered value, which is what makes a dropdown
+ * safe to introduce: a browser that stored 7 before #195 reads back as 5
+ * rather than selecting nothing and showing an empty control.
+ */
 function clampStartDelaySeconds(seconds: number): number {
   if (!Number.isFinite(seconds)) {
     return DEFAULT_VALUES.startDelaySeconds;
   }
-  return Math.min(START_DELAY_MAX_SECONDS, Math.max(START_DELAY_MIN_SECONDS, Math.round(seconds)));
+  const bounded = Math.min(START_DELAY_MAX_SECONDS, Math.max(START_DELAY_MIN_SECONDS, seconds));
+  return START_DELAY_OPTIONS.reduce((best, option) =>
+    Math.abs(option - bounded) < Math.abs(best - bounded) ? option : best,
+  );
 }
 
 export interface Settings {

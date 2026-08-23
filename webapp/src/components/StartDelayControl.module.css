@@ -23,12 +23,13 @@
 }
 
 .input {
-  width: 3.5rem;
+  /* Wide enough for "No delay" and the arrow a select draws inside its box;
+     the 3.5rem before #195 was sized for a two-digit number field. */
+  width: 6.5rem;
   padding: 0.25rem 0.375rem;
   font-size: 1rem;
   font-weight: 700;
   font-family: monospace;
-  text-align: right;
   border: 1px solid #d1d5db;
   border-radius: 4px;
   background-color: #fff;

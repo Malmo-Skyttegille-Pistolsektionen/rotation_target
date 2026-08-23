@@ -1,51 +1,53 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import clsx from 'clsx';
-import { START_DELAY_MAX_SECONDS, START_DELAY_MIN_SECONDS, useSettings } from '../context/SettingsContext';
+import {
+  START_DELAY_MAX_SECONDS,
+  START_DELAY_MIN_SECONDS,
+  START_DELAY_OPTIONS,
+  useSettings,
+} from '../context/SettingsContext';
 import styles from './StartDelaySection.module.css';
 
 export function StartDelaySection(): React.ReactNode {
   const { settings, setStartDelaySeconds } = useSettings();
-  // Unsaved edits only. With nothing in hand the field shows the setting, so a
-  // change made on the run page is what this section reports.
-  const [draft, setDraft] = useState<string | null>(null);
   const [delaySuccess, setDelaySuccess] = useState(false);
 
-  const handleDelayChange = useCallback((e: React.ChangeEvent<HTMLInputElement>): void => {
-    setDraft(e.target.value);
-    setDelaySuccess(false);
-  }, []);
-
-  const handleDelaySave = useCallback((): void => {
-    setStartDelaySeconds(draft === null || draft === '' ? settings.startDelaySeconds : Number(draft));
-    setDraft(null);
-    setDelaySuccess(true);
-
-    setTimeout(() => {
-      setDelaySuccess(false);
-    }, 3000);
-  }, [draft, settings.startDelaySeconds, setStartDelaySeconds]);
+  // No Save button and no draft: a select commits a whole value at once, so
+  // there is never a half-chosen state to hold or a moment where the field and
+  // the setting disagree (#195). The confirmation stays, because the write is
+  // otherwise silent.
+  const handleDelayChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>): void => {
+      setStartDelaySeconds(Number(e.target.value));
+      setDelaySuccess(true);
+      setTimeout(() => {
+        setDelaySuccess(false);
+      }, 3000);
+    },
+    [setStartDelaySeconds],
+  );
 
   return (
     <section className={styles.section}>
       <h2 className={styles.sectionTitle}>Start Delay</h2>
       <div className={styles.inputRow}>
         <div className={styles.inputGroup}>
-          <input
-            type='number'
+          <select
             data-testid='settings-start-delay'
             className={clsx(styles.input, styles.inputSmall)}
-            value={draft ?? String(settings.startDelaySeconds)}
+            value={String(settings.startDelaySeconds)}
             onChange={handleDelayChange}
-            min={START_DELAY_MIN_SECONDS}
-            max={START_DELAY_MAX_SECONDS}
-          />
+          >
+            {START_DELAY_OPTIONS.map((seconds) => (
+              <option key={seconds} value={String(seconds)}>
+                {seconds === 0 ? 'No delay' : String(seconds)}
+              </option>
+            ))}
+          </select>
           <span className={styles.inputLabel}>
-            seconds ({START_DELAY_MIN_SECONDS}-{START_DELAY_MAX_SECONDS}; {START_DELAY_MIN_SECONDS} = no countdown)
+            {START_DELAY_MIN_SECONDS}-{START_DELAY_MAX_SECONDS} seconds; No delay = no countdown
           </span>
         </div>
-        <button className={clsx(styles.button, styles.buttonPrimary)} onClick={handleDelaySave}>
-          Save
-        </button>
       </div>
       {settings.startDelaySeconds === 0 && (
         <p className={styles.immediateNote} data-testid='settings-start-delay-immediate'>

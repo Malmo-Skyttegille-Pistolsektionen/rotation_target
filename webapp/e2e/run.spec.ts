@@ -262,7 +262,7 @@ test('the start delay is set beside Start, and 0 starts without a countdown', as
 
   // The settings default (10 s), on the page the countdown happens on.
   await expect(page.getByTestId('run-start-delay')).toHaveValue('10');
-  await page.getByTestId('run-start-delay').fill('0');
+  await page.getByTestId('run-start-delay').selectOption('0');
   await expect(page.getByTestId('run-start-delay-unit')).toContainText('no delay');
 
   // One setting, two editors: the settings page reads what the run page wrote.

@@ -44,7 +44,7 @@ export function CountdownModal({ seconds, onCancel, onStartNow }: CountdownModal
     <dialog ref={dialogRef} className={styles.dialog} onKeyDown={handleKeyDown} onClick={handleBackdropClick}>
       <div className={styles.content}>
         <div className={styles.label}>Starting in...</div>
-        <div className={styles.countdown} key={seconds}>
+        <div className={styles.countdown} data-testid='countdown-seconds' key={seconds}>
           {seconds}
         </div>
         <div className={styles.buttonRow}>
