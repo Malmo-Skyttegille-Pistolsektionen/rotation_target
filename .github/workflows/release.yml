@@ -162,7 +162,7 @@ jobs:
             # passed with `force`, not an inferred one.
             AUTO="0.1.0"
           else
-            AUTO="$(git-cliff --config cliff.toml --bumped-version)"
+            AUTO="$(git-cliff --config .github/cliff.toml --bumped-version)"
           fi
 
           if [ -z "$REQUESTED" ]; then
@@ -233,7 +233,7 @@ jobs:
       - name: Generate the release notes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: git-cliff --config cliff.toml --latest --unreleased --strip all --output NOTES.md
+        run: git-cliff --config .github/cliff.toml --latest --unreleased --strip all --output NOTES.md
 
       - uses: actions/upload-artifact@v7.0.1
         with:

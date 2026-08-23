@@ -50,7 +50,7 @@ the DB9 connector and the load; it cannot be wired to pin 2 directly.
 ## What a target system has to do to work
 
 Nothing in the firmware is specific to any one target system — it was built
-against the [Eigenbrod TP2](https://www.eigenbrod.de/), but anything driven
+against the [Eigenbrod TP2](https://eigenbrod-schiessanlagen.de/en/products?tx_produkt_produkte%5Baction%5D=show&tx_produkt_produkte%5BL%5D=2&tx_produkt_produkte%5Bprodukt%5D=319&cHash=942340d5971be0a0ac3d26ff3c257c0b), but anything driven
 the same way should work.
 
 | Requirement | Why |

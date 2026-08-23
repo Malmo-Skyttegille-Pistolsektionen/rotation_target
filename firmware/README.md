@@ -1,7 +1,7 @@
 # Rotation Target Backend — ESP32 (ESP-IDF)
 
 Native ESP-IDF firmware for Malmö Skyttegille Pistolsektionen's
-[Eigenbrod TP2 rotation target system](https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target_backend_resources).
+[Eigenbrod TP2 rotation target system](https://eigenbrod-schiessanlagen.de/en/products?tx_produkt_produkte%5Baction%5D=show&tx_produkt_produkte%5BL%5D=2&tx_produkt_produkte%5Bprodukt%5D=319&cHash=942340d5971be0a0ac3d26ff3c257c0b).
 It runs shooting programs — turning the targets and playing the commands — and
 serves the React webapp over REST and Server-Sent Events.
 

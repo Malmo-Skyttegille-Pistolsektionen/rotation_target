@@ -36,6 +36,8 @@ nav:
 markdown_extensions:
   - tables
   - admonition
+  # The editor link on the front page is rendered as a button.
+  - attr_list
   # Lets writing-a-program.md embed the example program from the same file
   # the page links for download, so the two cannot drift apart.
   - pymdownx.snippets:
