@@ -50,3 +50,11 @@ jobs:
 
       - name: actionlint
         uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
+
+      # actionlint checks each workflow on its own and never compares the two
+      # sides of a reusable-workflow call, so it cannot see a caller granting
+      # less than the callee asks for. GitHub rejects that when the run starts,
+      # with no logs and no job list to diagnose it from - see #213, which took
+      # the release workflow out entirely.
+      - name: reusable-workflow permissions
+        run: python3 .github/scripts/check_workflow_permissions.py
