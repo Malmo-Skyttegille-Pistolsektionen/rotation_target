@@ -48,9 +48,10 @@ void on_event(void *, esp_event_base_t base, int32_t id, void *data) {
       return;
     }
 
-    if (s_retries < CONFIG_RT_WIFI_MAX_RETRIES) {
+    if (s_retries < hardware_store::current().wifi_max_retries) {
       s_retries++;
-      ESP_LOGW(TAG, "Join attempt %d/%d failed", s_retries, CONFIG_RT_WIFI_MAX_RETRIES);
+      ESP_LOGW(TAG, "Join attempt %d/%d failed", s_retries,
+               static_cast<int>(hardware_store::current().wifi_max_retries));
       rgb_led::status_joining();
       esp_wifi_connect();
     } else {
@@ -83,7 +84,8 @@ void start_mdns() {
   }
   mdns_hostname_set(hardware_store::current().hostname.c_str());
   mdns_instance_name_set("Rotation target");
-  mdns_service_add(nullptr, "_http", "_tcp", kHttpPort, nullptr, 0);
+  mdns_service_add(nullptr, "_http", "_tcp",
+                   static_cast<uint16_t>(hardware_store::current().http_port), nullptr, 0);
   ESP_LOGI(TAG, "Reachable at http://%s.local", hardware_store::current().hostname.c_str());
 }
 

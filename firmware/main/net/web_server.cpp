@@ -844,6 +844,20 @@ std::string hardware_config_json(const rt::HardwareConfig &config) {
   out += rt::json_quote(config.display_name);
   out += ",\"targetsShownAtBoot\":";
   out += config.targets_shown_at_boot ? "true" : "false";
+  out += ",\"ledGpio\":";
+  out += std::to_string(config.led_gpio);
+  out += ",\"i2sPort\":";
+  out += std::to_string(config.i2s_port);
+  out += ",\"i2sBckGpio\":";
+  out += std::to_string(config.i2s_bck_gpio);
+  out += ",\"i2sWsGpio\":";
+  out += std::to_string(config.i2s_ws_gpio);
+  out += ",\"i2sDoutGpio\":";
+  out += std::to_string(config.i2s_dout_gpio);
+  out += ",\"httpPort\":";
+  out += std::to_string(config.http_port);
+  out += ",\"wifiMaxRetries\":";
+  out += std::to_string(config.wifi_max_retries);
   out += "}";
   return out;
 }
@@ -888,9 +902,8 @@ void register_config_routes() {
     JsonDocument doc;
     if (body == nullptr || deserializeJson(doc, body) != DeserializationError::Ok ||
         !doc.is<JsonObject>()) {
-      return send_problem(
-          res, rt::problem::kHardwareConfigInvalid,
-          "Expected a JSON object with targetGpio, targetActiveLow, hostname and displayName");
+      return send_problem(res, rt::problem::kHardwareConfigInvalid,
+                          "Expected a JSON object of hardware configuration fields");
     }
 
     // Refused, not ignored (D-31, #144). Where the targets rest at boot is
@@ -913,6 +926,15 @@ void register_config_routes() {
     if (!doc["hostname"].isNull()) config.hostname = doc["hostname"] | config.hostname;
     if (!doc["displayName"].isNull())
       config.display_name = doc["displayName"] | config.display_name;
+    if (!doc["ledGpio"].isNull()) config.led_gpio = doc["ledGpio"] | config.led_gpio;
+    if (!doc["i2sPort"].isNull()) config.i2s_port = doc["i2sPort"] | config.i2s_port;
+    if (!doc["i2sBckGpio"].isNull()) config.i2s_bck_gpio = doc["i2sBckGpio"] | config.i2s_bck_gpio;
+    if (!doc["i2sWsGpio"].isNull()) config.i2s_ws_gpio = doc["i2sWsGpio"] | config.i2s_ws_gpio;
+    if (!doc["i2sDoutGpio"].isNull())
+      config.i2s_dout_gpio = doc["i2sDoutGpio"] | config.i2s_dout_gpio;
+    if (!doc["httpPort"].isNull()) config.http_port = doc["httpPort"] | config.http_port;
+    if (!doc["wifiMaxRetries"].isNull())
+      config.wifi_max_retries = doc["wifiMaxRetries"] | config.wifi_max_retries;
 
     const rt::ConfigRefusal refusal = hardware_store::save(config);
     if (refusal != rt::ConfigRefusal::kNone) {
@@ -992,7 +1014,7 @@ bool start() {
         return next();
       });
 
-  s_server.setPort(kHttpPort);
+  s_server.setPort(static_cast<uint16_t>(hardware_store::current().http_port));
 
   // Preflight. Registered as a catch-all because nothing else answers OPTIONS,
   // and a preflight that 404s fails the real request that follows it.
@@ -1082,7 +1104,8 @@ bool start() {
     return false;
   }
 
-  ESP_LOGI(TAG, "HTTP server listening on port %u", kHttpPort);
+  ESP_LOGI(TAG, "HTTP server listening on port %d",
+           static_cast<int>(hardware_store::current().http_port));
   return true;
 }
 

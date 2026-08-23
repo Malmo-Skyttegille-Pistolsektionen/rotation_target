@@ -17,6 +17,7 @@ export type StartupIssue = components['schemas']['StartupIssue'];
 export type DiagnosticsInfo = components['schemas']['DiagnosticsInfo'];
 export type HardwareConfig = components['schemas']['HardwareConfig'];
 export type HardwareConfigState = components['schemas']['HardwareConfigState'];
+export type HardwareConfigPatch = components['schemas']['HardwareConfigPatch'];
 
 /**
  * Every problem type the contract knows about, as a union of the `type` URIs —

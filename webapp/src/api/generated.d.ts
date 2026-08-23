@@ -747,10 +747,11 @@ export interface components {
          *
          *     Deliberately not everything in `main/config.h`. The `*_ENABLED` flags
          *     compile whole subsystems in or out, so making them runtime would mean
-         *     always carrying the code for hardware that may not be present. And
-         *     `RT_TARGETS_HIDE_AT_BOOT` stays compile-time on purpose: it exists so
-         *     somebody standing downrange when a board is powered is not hit by a
-         *     target turning on its own (D-31), and a safety default a remote UI can
+         *     always carrying the code for hardware that may not be present.
+         *
+         *     `targetsShownAtBoot` is here but read-only: it is configurable, because
+         *     which resting position is safe is a property of the target system, but
+         *     only from the serial console (D-31). A safety default a remote UI can
          *     switch off is not one.
          *
          *     Bank count is absent for the same reason it is fixed at one: banks are
@@ -791,6 +792,74 @@ export interface components {
              *     told they could not.
              */
             readonly targetsShownAtBoot: boolean;
+            /**
+             * Format: int32
+             * @description The status LED's data pin. Carried even by a firmware built without the LED, so the value survives being flashed onto one that has it.
+             */
+            ledGpio: number;
+            /**
+             * Format: int32
+             * @description Which of the chip's two I2S peripherals drives the DAC. A peripheral instance, not a pin, hence its own bounds.
+             */
+            i2sPort: number;
+            /**
+             * Format: int32
+             * @description The I2S bit clock pin.
+             */
+            i2sBckGpio: number;
+            /**
+             * Format: int32
+             * @description The I2S word select (left/right clock) pin.
+             */
+            i2sWsGpio: number;
+            /**
+             * Format: int32
+             * @description The I2S serial data output pin, into the amplifier.
+             */
+            i2sDoutGpio: number;
+            /**
+             * Format: int32
+             * @description The port the web app and API are served on. mDNS advertises the host and not the port, so a device moved off 80 reports the port on the serial console — there is nothing else to ask.
+             */
+            httpPort: number;
+            /**
+             * Format: int32
+             * @description How many times to try the stored network before raising the setup portal. At roughly 2.4 s an attempt, 60 is about two and a half minutes; beyond that a device that cannot join looks broken rather than busy.
+             */
+            wifiMaxRetries: number;
+        };
+        /**
+         * @description A partial hardware configuration: every field is optional and any field
+         *     the body omits keeps its stored value.
+         *
+         *     Separate from `HardwareConfig` rather than reusing it, because the two
+         *     have opposite obligations. A response has to carry every field, so
+         *     `HardwareConfig` requires them all; a request may carry one, so
+         *     requiring anything here would break every client that sends less than
+         *     the whole object - including this repository's own web app, which sends
+         *     only what the operator touched so that a form left open cannot overwrite
+         *     a value somebody else set in the meantime.
+         *
+         *     `targetsShownAtBoot` is absent by construction: it is serial-only
+         *     (D-31), and sending it is refused with
+         *     `/problems/hardware_config_serial_only`.
+         *
+         *     Kept in step with `HardwareConfig` by the web app's generated types -
+         *     `HardwareConfigPatch` there is derived from this schema, so a field
+         *     added to one and not the other stops compiling.
+         */
+        HardwareConfigPatch: {
+            targetGpio?: components["schemas"]["HardwareConfig"]["targetGpio"];
+            targetActiveLow?: components["schemas"]["HardwareConfig"]["targetActiveLow"];
+            hostname?: components["schemas"]["HardwareConfig"]["hostname"];
+            displayName?: components["schemas"]["HardwareConfig"]["displayName"];
+            ledGpio?: components["schemas"]["HardwareConfig"]["ledGpio"];
+            i2sPort?: components["schemas"]["HardwareConfig"]["i2sPort"];
+            i2sBckGpio?: components["schemas"]["HardwareConfig"]["i2sBckGpio"];
+            i2sWsGpio?: components["schemas"]["HardwareConfig"]["i2sWsGpio"];
+            i2sDoutGpio?: components["schemas"]["HardwareConfig"]["i2sDoutGpio"];
+            httpPort?: components["schemas"]["HardwareConfig"]["httpPort"];
+            wifiMaxRetries?: components["schemas"]["HardwareConfig"]["wifiMaxRetries"];
         };
         /**
          * @description Three views of one configuration, because they can legitimately differ.
@@ -805,7 +874,7 @@ export interface components {
             active: components["schemas"]["HardwareConfig"];
             saved: components["schemas"]["HardwareConfig"];
             defaults: components["schemas"]["HardwareConfig"];
-            /** @description Whether anything has ever been written. False out of the box, which is the state #144 proposes should later arm a configuration password. */
+            /** @description Whether `saved` differs from `defaults`. False out of the box, and false again after a reset - so a client can use it to decide whether a "reset to defaults" action would do anything. Note this is *not* "a value has ever been written": saving a value equal to its default leaves `overridden` false, because there is then nothing to put back. */
             overridden: boolean;
             /** @description `saved` differs from `active`, so the device is not yet running what it has been told. The one field a client must not hide: a pin change that appears to have done nothing is how somebody ends up reflashing a working device. */
             restartRequired: boolean;
@@ -1846,7 +1915,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["HardwareConfig"];
+                "application/json": components["schemas"]["HardwareConfigPatch"];
             };
         };
         responses: {
