@@ -1,0 +1,7 @@
+# oasdiff configuration, read automatically by the breaking-change check in
+# .github/workflows/contracts.yml (#176). oasdiff-action picks this up from the
+# repository root; `oasdiff breaking` finds it the same way when run by hand.
+#
+# Relative paths here resolve against this file's directory, not the process's
+# working directory.
+severity-levels: .oasdiff-levels.txt
