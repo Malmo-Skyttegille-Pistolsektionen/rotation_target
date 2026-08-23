@@ -25,6 +25,7 @@ theme:
 nav:
   - Home: index.md
   - Hardware and wiring: hardware.md
+  - Flashing a board: flashing.md
   - Connecting: connecting.md
   - Running a program: running-a-program.md
   - Programs and audio: programs-and-audio.md

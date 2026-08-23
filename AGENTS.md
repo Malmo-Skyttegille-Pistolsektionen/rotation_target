@@ -110,11 +110,13 @@ version constant to any source file. See [`docs/RELEASING.md`](docs/RELEASING.md
 Full detail in [`firmware/AGENTS.md`](firmware/AGENTS.md); these two are worth
 knowing before touching a board.
 
-- **Flash with `--no-stub`.** esptool's stub flasher fails on this board above
-  about 256 KB per transfer — measured: 256 KB works, 512 KB and 1 MB fail, and
-  the same 1 MB read succeeds with `--no-stub`. It is the transfer size that
-  decides it, not the address, the cable or which USB port is used. The failure
-  presents exactly like a bad flash sector. `idf.py flash` uses the stub.
+- **`read-flash` needs `--no-stub`; writing does not.** esptool's stub fails on
+  this board when *reading* over about 256 KB in one transfer (256 KB works,
+  512 KB and 1 MB fail 3/3, `--no-stub` reads 1 MB fine). Writes are unaffected:
+  the stub wrote the 1.1 MB app and the 10 MB LittleFS image with the hash
+  verified, so `idf.py flash` is fine. This file previously said "flash with
+  `--no-stub`" — that generalised a real *read* failure into a rule about
+  writing that nobody had measured.
 - **Never `idf.py set-target` on an existing clone.** It regenerates
   `sdkconfig`, which holds the WiFi credentials and is gitignored — there is no
   other copy. Use `idf.py reconfigure`.

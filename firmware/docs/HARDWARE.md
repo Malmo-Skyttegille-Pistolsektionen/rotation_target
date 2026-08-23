@@ -91,42 +91,49 @@ is fine and the HTTP server is not.
 
 ### Use `--no-stub`
 
-**esptool's stub flasher fails on this hardware above about 256 KB per
-transfer.** It dies with `Packet content transfer stopped`. Measured on the
-DevKitC-1 over the native USB port, reading the same address each time:
+**esptool's stub flasher fails on this board when *reading* flash, above about
+256 KB per transfer.** It dies with `Packet content transfer stopped`.
+**Writing is unaffected.**
 
-| Transfer | Stub | Result |
-|---|---|---|
-| 256 KB | yes | works |
-| 512 KB | yes | fails |
-| 1 MB | yes | fails 3/3 |
-| 1 MB | `--no-stub` | works |
+Measured on the DevKitC-1 over the native USB port, esptool 5.3.1:
 
-It is the *size* that decides it, not the address and not the port: the
-address it happens to die at is wherever the transfer had got to. The app
-binary (~1.1 MB) and the LittleFS image (10 MB) are both well over the
-threshold, which is why a full flash needs the ROM loader.
+| Operation | Size | Stub | Result |
+|---|---|---|---|
+| `read-flash` | 256 KB | yes | works |
+| `read-flash` | 512 KB | yes | **fails** |
+| `read-flash` | 1 MB | yes | **fails 3/3** |
+| `read-flash` | 1 MB | `--no-stub` | works |
+| `write-flash` | 1.1 MB (app) | yes | works, hash verified |
+| `write-flash` | 10 MB (storage) | yes | works, hash verified |
 
-The stub is roughly 2.4x faster when it does work, so this costs real time on
-a large write — it is not a precaution to drop, it is the difference between a
-flash that completes and one that does not.
+So the rule is narrower than it was written here for a long time:
+
+- **`read-flash` needs `--no-stub`** on this board. Reading a backup image is
+  what first hit this, and it is what the old note in this file generalised
+  from.
+- **`write-flash` does not.** `idf.py flash` uses the stub and works. So does
+  the browser-based flasher, which cannot turn the stub off at all.
+
+It is the transfer *size* that decides a read, not the address: the offset it
+dies at is wherever the transfer had reached. This has not been reproduced as a
+published esptool bug on 5.3.1 — the closest reports
+([esptool#857](https://github.com/espressif/esptool/issues/857),
+[#655](https://github.com/espressif/esptool/issues/655)) are a v4.5.0
+regression fixed in v4.5.1 and a Windows USB-CDC case — so treat it as a
+property of this board until somebody shows otherwise.
+
+Only the native USB port has been tested. The DevKitC-1's other USB-C socket is
+a separate UART bridge and may well behave differently; nobody has checked.
 
 ```bash
-# flash arguments are printed at the end of `idf.py build`
+# Reading a backup image: the stub must be off.
 python -m esptool --chip esp32s3 --port /dev/ttyACM0 --no-stub \
-  --before default-reset --after hard-reset \
-  write-flash --flash-mode dio --flash-freq 80m --flash-size 16MB \
-  0x0 build/bootloader/bootloader.bin \
-  0x8000 build/partition_table/partition-table.bin \
-  0xf000 build/ota_data_initial.bin \
-  0x20000 build/rotation_target_backend.bin \
-  0x620000 build/storage.bin
+  read-flash 0 0x1000000 backup.bin
 ```
 
-**This presents exactly like a bad flash sector and is not one.** Running the
-same read with and without `--no-stub` is the test that tells them apart —
-chasing it as failing hardware, or as a cable or port problem, wastes a lot of
-time. `idf.py flash` uses the stub, so prefer the explicit invocation above.
+**A failed read presents exactly like a bad flash sector and is not one.**
+Running the same read with and without `--no-stub` is the test that tells them
+apart.
 
 ### Ports
 

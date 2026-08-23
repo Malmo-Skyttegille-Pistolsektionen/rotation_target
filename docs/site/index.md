@@ -46,6 +46,8 @@ the other way round, but only over a serial cable — see [Settings](settings.md
 
 - [Hardware and wiring](hardware.md) — the DB9 connector and what a target
   system has to be to work with the board.
+- [Flashing a board](flashing.md) — put a release onto an ESP32-S3, from a
+  browser or the command line.
 - [Connecting](connecting.md) — join the device's network and open the web app.
 - [Running a program](running-a-program.md) — start, follow, and stop a run.
 - [Status LED](status-led.md) — what the device is telling you when nobody has

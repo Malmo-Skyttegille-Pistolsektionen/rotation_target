@@ -60,14 +60,16 @@ Everything an operator needs is on the documentation site:
 
 ## Installing
 
-Releases ship a pre-built firmware image; you do not need a toolchain to put it
-on a board. See
-[Connecting](https://malmo-skyttegille-pistolsektionen.github.io/rotation_target/connecting/)
-for getting the device onto your network afterwards, and
-[Settings](https://malmo-skyttegille-pistolsektionen.github.io/rotation_target/settings/)
-for adapting a stock image to your own board — the target pin, its polarity,
-the audio and LED pins and the device's name are all configurable on the
-device, without rebuilding it.
+Releases ship a pre-built firmware image and you do not need a toolchain to put
+it on a board — Espressif's web flasher does it from Chrome or Edge.
+
+**[Flashing a board](https://malmo-skyttegille-pistolsektionen.github.io/rotation_target/flashing/)**
+→ **[Connecting](https://malmo-skyttegille-pistolsektionen.github.io/rotation_target/connecting/)**
+→ **[Settings](https://malmo-skyttegille-pistolsektionen.github.io/rotation_target/settings/)**
+
+The target pin, its polarity, the audio and LED pins and the device's name are
+all configurable on the device, so a stock release image adapts to another
+club's board without rebuilding it.
 
 ## Target systems
 

@@ -42,14 +42,18 @@ npm run dev            # http://localhost:5173, against the mock server
 ### The firmware
 
 Install ESP-IDF **6.0.2** — the version this is built against — following
-[Espressif's setup guide](https://docs.espressif.com/projects/esp-idf/en/v6.0.2/esp32s3/get-started/).
-The short form on Linux/macOS:
+[Espressif's setup guide](https://docs.espressif.com/projects/esp-idf/en/v6.0.2/esp32s3/get-started/),
+which covers every platform and the prerequisites each one needs. Install it
+wherever you keep toolchains; nothing here assumes a location.
+
+Then, once per shell, put the toolchain on your PATH:
 
 ```bash
-git clone -b v6.0.2 --recursive https://github.com/espressif/esp-idf.git ~/esp/esp-idf-6.0.2
-~/esp/esp-idf-6.0.2/install.sh esp32s3
-. ~/esp/esp-idf-6.0.2/export.sh          # every new shell
+. <esp-idf>/export.sh
 ```
+
+`<esp-idf>` is wherever you installed it. Everything below assumes you have
+done this.
 
 Then build. **The web app first** — the firmware bakes whatever `webapp/dist`
 currently holds and does not rebuild it, so a firmware build after a web app
@@ -62,23 +66,24 @@ cd ../firmware && idf.py build
 
 ### Flashing a board
 
-**Use `--no-stub`.** esptool's stub flasher fails on this hardware above about
-256 KB per transfer, and the failure presents exactly like a bad flash sector.
-`idf.py flash` uses the stub, so flash explicitly — the arguments are printed
-at the end of `idf.py build`:
-
 ```bash
-python -m esptool --chip esp32s3 --port /dev/ttyACM0 --no-stub \
-  --before default-reset --after hard-reset \
-  write-flash --flash-mode dio --flash-freq 80m --flash-size 16MB \
-  0x0 build/bootloader/bootloader.bin \
-  0x8000 build/partition_table/partition-table.bin \
-  0xf000 build/ota_data_initial.bin \
-  0x20000 build/rotation_target_backend.bin \
-  0x620000 build/storage.bin
+idf.py -p <port> flash monitor        # e.g. /dev/ttyACM0, or COM5 on Windows
 ```
 
-The measurements behind that, the wiring and the partition layout are in
+`idf.py app-flash` updates only the firmware and leaves the LittleFS image
+alone, so it does not discard programs and audio somebody uploaded to the
+device.
+
+**One caveat, and it is about reading, not writing.** esptool's stub fails on
+this board when *reading* more than about 256 KB in one transfer, so taking a
+backup image needs `--no-stub`:
+
+```bash
+python -m esptool --chip esp32s3 -p <port> --no-stub read-flash 0 0x1000000 backup.bin
+```
+
+Writing is unaffected — `idf.py flash` uses the stub and works. The
+measurements, the wiring and the partition layout are in
 [`firmware/docs/HARDWARE.md`](firmware/docs/HARDWARE.md).
 
 ### Running it without a board
@@ -89,7 +94,7 @@ Two ways, and they answer different questions.
 real web app out of the same LittleFS image a board is flashed with:
 
 ```bash
-. ~/esp/esp-idf-6.0.2/export.sh
+. <esp-idf>/export.sh
 firmware/scripts/run-qemu.sh          # then http://localhost:8080
 ```
 
@@ -183,7 +188,7 @@ a branch that is missing them.
 
 - **Secrets, of any kind.** The WiFi credentials live outside the working tree
   and the build is pointed at them:
-  `idf.py -D SDKCONFIG=$HOME/agents/rotation_target/sdkconfig build`. A file
+  `idf.py -D SDKCONFIG=<path outside the repo>/sdkconfig build`. A file
   that is not in the tree cannot be committed by accident; a `.gitignore` rule
   cannot say the same, because it does not apply to a file already tracked and
   does not know about the siblings a tool generates beside the one you ignored.
