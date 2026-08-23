@@ -8,6 +8,19 @@ and plays the spoken range commands over an amplifier. A React web app — serve
 by the board itself over WiFi — starts and stops programs, follows the run live
 over Server-Sent Events, and manages the stored programs and audio.
 
+## Documentation
+
+- **[Operator documentation](https://malmo-skyttegille-pistolsektionen.github.io/rotation_target/)**
+  — wiring, connecting, running a program, and what the status LED is telling
+  you. This is the one to send a club member.
+- **[Program editor](https://malmo-skyttegille-pistolsektionen.github.io/rotation_target/editor/)**
+  — write and edit programs in a browser with **no device attached**, then
+  download the file or open a pull request against this repository. Also useful
+  for reading a shipped program without a board in front of you.
+
+Developer documentation stays in the repository: see [Layout](#layout) below
+and [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
 ## Target systems
 
 - **[Eigenbrod TP2](https://www.eigenbrod.de/)** — what this was built against

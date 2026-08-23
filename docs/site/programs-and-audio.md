@@ -84,3 +84,6 @@ The route is: **Download** the program from the Programs page, then open a
 pull request adding it under `resources/programs/files/` with a filename of
 `<id>.json` — an id below 1000, not already taken. The same applies to audio
 clips under `resources/audios/`.
+
+The [program editor](https://malmo-skyttegille-pistolsektionen.github.io/rotation_target/editor/) does both halves for you — see
+[Writing your own program](writing-a-program.md).

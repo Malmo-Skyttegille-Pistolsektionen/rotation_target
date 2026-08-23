@@ -28,6 +28,13 @@ injure them.
   a browser open.
 - [Troubleshooting](troubleshooting.md) — common problems and what to check.
 
+## Write a program without a device
+
+The **[program editor](https://malmo-skyttegille-pistolsektionen.github.io/rotation_target/editor/)** runs entirely in a browser tab, with no board
+attached. Open a program from this repository, edit it, and either download the
+file or open a pull request with it. [Writing your own
+program](writing-a-program.md) walks through building one from nothing.
+
 ## Source
 
 Full technical documentation — hardware wiring, the API contract, and the
