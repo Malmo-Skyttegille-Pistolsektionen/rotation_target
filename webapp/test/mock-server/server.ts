@@ -235,10 +235,19 @@ function normalizeProgram(raw: Record<string, unknown>, id: number): Program | n
       return event;
     });
 
+    // Mirrors `rt::parse_series`: refused rather than clamped, because an index
+    // past the end names an event that is not there. 0 on an empty series is
+    // the absent case and stays legal.
+    const anchor = typeof entry.timer_start_index === 'number' ? Math.trunc(entry.timer_start_index) : 0;
+    if (anchor < 0 || anchor >= events.length) {
+      if (!(anchor === 0 && events.length === 0)) refused = true;
+    }
+
     return {
       name: typeof entry.name === 'string' ? entry.name : '',
       optional: entry.optional === true,
       events,
+      ...(anchor === 0 ? {} : { timer_start_index: anchor }),
     };
   });
 
