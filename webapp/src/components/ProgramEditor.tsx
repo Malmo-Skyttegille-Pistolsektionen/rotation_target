@@ -73,6 +73,14 @@ interface ProgramEditorProps {
    * `target.kind` is never `'standalone'` there.
    */
   renderExport?: (props: { program: Program; origin: string; onClose: () => void }) => React.ReactNode;
+  /**
+   * Where to get the clip catalogue when there is no device (#140). Injected
+   * for the same reason as `renderExport`: only the Pages build has a source
+   * for this - the repository - and the device build must not carry the
+   * GitHub-fetching code to reach it. Without one, a deviceless editor shows
+   * every clip as a bare id, which is what it did before.
+   */
+  loadAudios?: () => Promise<AudioFile[]>;
 }
 
 /**
@@ -86,7 +94,13 @@ interface ProgramEditorProps {
  * the JSON the device will actually receive, and the read-only timeline
  * underneath both as a preview.
  */
-export function ProgramEditor({ target, onClose, onCreated, renderExport }: ProgramEditorProps): React.ReactNode {
+export function ProgramEditor({
+  target,
+  onClose,
+  onCreated,
+  renderExport,
+  loadAudios,
+}: ProgramEditorProps): React.ReactNode {
   const programsApi = useProgramsApi();
   // `standalone` already holds its document - see the type doc above - so it
   // takes the `new` branch here too: no device fetch, ever.
@@ -144,6 +158,7 @@ export function ProgramEditor({ target, onClose, onCreated, renderExport }: Prog
       onClose={onClose}
       onCreated={onCreated}
       renderExport={renderExport}
+      loadAudios={loadAudios}
     />
   );
 }
@@ -175,6 +190,7 @@ function ProgramEditorForm({
   onClose,
   onCreated,
   renderExport,
+  loadAudios,
 }: FormProps): React.ReactNode {
   const queryClient = useQueryClient();
   const programsApi = useProgramsApi();
@@ -199,7 +215,18 @@ function ProgramEditorForm({
   /** A validated document ready to download or open as a pull request (deviceless only). */
   const [exportProgram, setExportProgram] = useState<Program | null>(null);
 
-  const { data: audios } = useQuery({ queryKey: ['audios'], queryFn: audiosApi.list, enabled: !deviceless });
+  // Two sources for one list. With a device it is `GET /audios`, which knows
+  // about uploaded clips as well as shipped ones. Without one it is whatever
+  // `loadAudios` can find - the repository's shipped catalogue - so a clip can
+  // still be named. A failure is not surfaced: the ids alone are what this
+  // showed before, so falling back to them costs nothing an operator can act
+  // on, and the editor is usable either way.
+  const { data: audios } = useQuery({
+    queryKey: ['audios', deviceless ? 'repo' : 'device'],
+    queryFn: deviceless && loadAudios ? loadAudios : audiosApi.list,
+    enabled: !deviceless || loadAudios !== undefined,
+    retry: false,
+  });
 
   // Unapplied JSON is an edit like any other. `isDirty` only sees the draft,
   // and the JSON view holds its text until a tab switch or a save applies it —

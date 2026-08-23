@@ -8,6 +8,7 @@ import {
   listRepoProgramFiles,
   type RepoProgramFile,
 } from '../lib/github-contents';
+import { fetchRepoAudioCatalogue } from '../lib/github-contents';
 import { parseProgramDocument } from '../lib/program-document';
 import styles from './StandaloneEditorApp.module.css';
 
@@ -55,6 +56,10 @@ export function StandaloneEditorApp(): React.ReactNode {
             // Unreachable for a `standalone` target — there is no device `POST` to succeed.
           }}
           renderExport={(props) => <ExportPanel {...props} />}
+          // The canonical repo's catalogue, not the one a program was opened
+          // from: clip ids are the shipped set's, and a fork's copy of
+          // audios.json is the same file until somebody changes it.
+          loadAudios={() => fetchRepoAudioCatalogue({ owner: CANONICAL_OWNER, repo: CANONICAL_REPO })}
         />
       ) : opened ? (
         <ConfirmOpen
