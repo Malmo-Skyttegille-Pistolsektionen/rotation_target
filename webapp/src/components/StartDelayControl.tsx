@@ -1,6 +1,5 @@
-import { useState } from 'react';
 import clsx from 'clsx';
-import { START_DELAY_MAX_SECONDS, START_DELAY_MIN_SECONDS, useSettings } from '../context/SettingsContext';
+import { START_DELAY_OPTIONS, useSettings } from '../context/SettingsContext';
 import styles from './StartDelayControl.module.css';
 
 const HINT =
@@ -18,20 +17,6 @@ interface StartDelayControlProps {
  */
 export function StartDelayControl({ disabled = false }: StartDelayControlProps): React.ReactNode {
   const { settings, setStartDelaySeconds } = useSettings();
-  // While the field is being edited it shows what was typed - including a
-  // half-typed or empty value. Otherwise it shows the setting, so a change made
-  // on the settings page or in another tab appears here.
-  const [draft, setDraft] = useState<string | null>(null);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
-    const raw = e.target.value;
-    setDraft(raw);
-    // `type=number` gives '' for anything it cannot parse, and for a cleared
-    // field. Nothing to commit until there is a number again.
-    if (raw !== '') {
-      setStartDelaySeconds(Number(raw));
-    }
-  };
 
   const immediate = settings.startDelaySeconds === 0;
 
@@ -40,20 +25,27 @@ export function StartDelayControl({ disabled = false }: StartDelayControlProps):
       <label className={styles.label} htmlFor='run-start-delay'>
         Start delay
       </label>
-      <input
+      {/* A select rather than a number field (#195): one tap on the tablet the
+          range uses instead of a keyboard over the Start button beside it, and
+          no half-typed value to hold - which is why this component no longer
+          carries a draft. */}
+      <select
         id='run-start-delay'
         data-testid='run-start-delay'
-        type='number'
         className={styles.input}
-        value={draft ?? String(settings.startDelaySeconds)}
-        onChange={handleChange}
-        onBlur={() => setDraft(null)}
-        min={START_DELAY_MIN_SECONDS}
-        max={START_DELAY_MAX_SECONDS}
-        step={1}
+        value={String(settings.startDelaySeconds)}
+        onChange={(e) => {
+          setStartDelaySeconds(Number(e.target.value));
+        }}
         disabled={disabled}
         aria-describedby='run-start-delay-unit'
-      />
+      >
+        {START_DELAY_OPTIONS.map((seconds) => (
+          <option key={seconds} value={String(seconds)}>
+            {seconds === 0 ? 'No delay' : String(seconds)}
+          </option>
+        ))}
+      </select>
       {/* A live firing line: 0 has to read as a statement about what Start
           will do, not as a bare number in a box. */}
       <span

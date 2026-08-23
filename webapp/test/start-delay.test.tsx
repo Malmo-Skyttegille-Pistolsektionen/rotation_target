@@ -33,16 +33,16 @@ let queryClient: QueryClient;
 let stream: SSEReader;
 let deliveredFrames = 0;
 
-function delayInput(): HTMLInputElement {
-  return screen.getByTestId('run-start-delay') as HTMLInputElement;
+function delayInput(): HTMLSelectElement {
+  return screen.getByTestId('run-start-delay') as HTMLSelectElement;
 }
 
 function delayUnit(): string {
   return screen.getByTestId('run-start-delay-unit').textContent ?? '';
 }
 
-function settingsInput(): HTMLInputElement {
-  return screen.getByTestId('settings-start-delay') as HTMLInputElement;
+function settingsInput(): HTMLSelectElement {
+  return screen.getByTestId('settings-start-delay') as HTMLSelectElement;
 }
 
 function stored(): string | null {
@@ -50,15 +50,9 @@ function stored(): string | null {
 }
 
 /** Type into a number field the way the browser reports it. */
-async function type(input: HTMLInputElement, value: string): Promise<void> {
+async function type(input: HTMLSelectElement, value: string): Promise<void> {
   await act(async () => {
     fireEvent.change(input, { target: { value } });
-  });
-}
-
-async function blur(input: HTMLInputElement): Promise<void> {
-  await act(async () => {
-    fireEvent.blur(input);
   });
 }
 
@@ -116,11 +110,22 @@ describe('the start delay is one setting with two editors', () => {
   }
 
   it('shows the stored value on the run control', () => {
+    localStorage.setItem(STORAGE_KEY, '15');
+    renderBoth();
+
+    expect(delayInput().value).toBe('15');
+    expect(settingsInput().value).toBe('15');
+  });
+
+  // A browser that stored a value off the ladder before #195 - anything a
+  // number field allowed - has to read back as something the dropdown can
+  // select, or the control renders empty and the setting is unreachable.
+  it('snaps a stored value that is not on the ladder to the nearest one', () => {
     localStorage.setItem(STORAGE_KEY, '7');
     renderBoth();
 
-    expect(delayInput().value).toBe('7');
-    expect(settingsInput().value).toBe('7');
+    expect(delayInput().value).toBe('5');
+    expect(settingsInput().value).toBe('5');
   });
 
   it('shows the default when nothing is stored', () => {
@@ -134,61 +139,54 @@ describe('the start delay is one setting with two editors', () => {
     await type(delayInput(), '25');
 
     expect(stored()).toBe('25');
-    // No Save on the run page, and no navigation: the settings section is
-    // reading the same context value.
+    // No navigation: the settings section is reading the same context value.
     expect(settingsInput().value).toBe('25');
   });
 
-  it('shows an edit saved in the settings section on the run control', async () => {
+  // The settings section lost its Save button with #195: a select commits a
+  // whole value, so there is no half-chosen state for a Save to resolve.
+  it('shows an edit made in the settings section on the run control, with no Save', async () => {
     renderBoth();
 
-    await type(settingsInput(), '3');
-    // Settings keeps its explicit Save, so nothing has moved yet.
-    expect(delayInput().value).toBe('10');
+    await type(settingsInput(), '5');
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    });
-
-    expect(stored()).toBe('3');
-    expect(delayInput().value).toBe('3');
+    expect(stored()).toBe('5');
+    expect(delayInput().value).toBe('5');
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
   });
 
   it('follows the same key changed in another tab', async () => {
     renderBoth();
 
     await act(async () => {
-      localStorage.setItem(STORAGE_KEY, '42');
-      window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY, newValue: '42' }));
+      localStorage.setItem(STORAGE_KEY, '40');
+      window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY, newValue: '40' }));
     });
 
-    expect(delayInput().value).toBe('42');
-    expect(settingsInput().value).toBe('42');
+    expect(delayInput().value).toBe('40');
+    expect(settingsInput().value).toBe('40');
   });
 
-  it('clamps to the advertised 0-60 range, whichever editor is used', async () => {
+  // Out-of-range values are no longer reachable through the UI, but another
+  // tab and an older build both still write straight to the key.
+  it('clamps a stored value outside 0-60, whichever editor reads it', async () => {
+    localStorage.setItem(STORAGE_KEY, '99');
     renderBoth();
-
-    await type(delayInput(), '99');
-    expect(stored()).toBe('60');
-    await blur(delayInput());
     expect(delayInput().value).toBe('60');
+    cleanup();
 
-    await type(delayInput(), '-5');
-    expect(stored()).toBe('0');
+    localStorage.setItem(STORAGE_KEY, '-5');
+    renderBoth();
+    expect(delayInput().value).toBe('0');
   });
 
-  it('keeps a half-typed field editable without writing rubbish', async () => {
+  it('offers no delay, then 5 s to 60 s, and nothing between', () => {
     renderBoth();
 
-    // `type=number` reports '' for a cleared field. Clearing it to type a new
-    // number must not be read as 0 - the one value that means "no countdown".
-    await type(delayInput(), '');
-    expect(delayInput().value).toBe('');
-    expect(stored()).toBeNull();
-
-    await blur(delayInput());
-    expect(delayInput().value).toBe('10');
+    const offered = Array.from(delayInput().options).map((option) => option.value);
+    expect(offered).toEqual(['0', '5', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55', '60']);
+    expect(Array.from(settingsInput().options).map((option) => option.value)).toEqual(offered);
+    expect(delayInput().options[0].textContent).toBe('No delay');
   });
 });
 
@@ -327,11 +325,13 @@ describe('the run page starts on the delay it was set to', () => {
   });
 
   it('opens the countdown for a non-zero delay', async () => {
-    await ready(4);
+    await ready(5);
     await pressStart();
 
     expect(screen.getByText('Starting in...')).toBeTruthy();
-    expect(screen.getByText('4')).toBeTruthy();
+    // By testid, not by text: the delay ladder now offers a <option>5</option>
+    // on the page behind the modal.
+    expect(screen.getByTestId('countdown-seconds').textContent).toBe('5');
   });
 
   it('starts at once, with no countdown, when the delay is 0', async () => {
@@ -355,21 +355,21 @@ describe('the run page starts on the delay it was set to', () => {
   });
 
   it('freezes the control while a countdown runs, and counts out the length it was pressed on', async () => {
-    await ready(3);
+    await ready(5);
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     await pressStart();
 
     // The modal makes the page behind it inert, and the control says so.
     expect(delayInput().disabled).toBe(true);
 
-    // Another tab moves the setting to a minute. The countdown captured 3 s
+    // Another tab moves the setting to a minute. The countdown captured 5 s
     // when Start was pressed and is not renegotiating it.
     await act(async () => {
       localStorage.setItem(STORAGE_KEY, '60');
       window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY, newValue: '60' }));
     });
 
-    for (let second = 0; second <= 3; second++) {
+    for (let second = 0; second <= 5; second++) {
       await act(async () => {
         vi.advanceTimersByTime(1000);
       });
@@ -391,8 +391,8 @@ describe('the run page starts on the delay it was set to', () => {
     );
 
     expect(delayInput().disabled).toBe(false);
-    await type(delayInput(), '8');
-    expect(stored()).toBe('8');
+    await type(delayInput(), '10');
+    expect(stored()).toBe('10');
     await quiesce(50);
   });
 });
