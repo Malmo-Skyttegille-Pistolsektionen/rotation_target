@@ -917,9 +917,14 @@ function AudioPicker({ testId, audioIds, audios, onAdd, onRemove, onMove }: Audi
       (term === '' || String(audio.id).includes(term) || audio.title.toLowerCase().includes(term)),
   );
 
+  // `1. "Provserie" (50)` — the position first, because the order is what an
+  // author is reading the list for; the title in quotes, because clip titles
+  // are things like "1" and "10 sekunder" and an unquoted one reads as part of
+  // the numbering; the id last, in brackets, because it is the thing you only
+  // need when something is wrong.
   function titleOf(id: number): string {
     const audio = audios.find((entry) => entry.id === id);
-    return audio ? `${audio.id} · ${audio.title}` : `${id} (not on the device)`;
+    return audio ? `"${audio.title}" (${String(audio.id)})` : `(${String(id)}) — not on the device`;
   }
 
   return (
@@ -928,7 +933,8 @@ function AudioPicker({ testId, audioIds, audios, onAdd, onRemove, onMove }: Audi
       <ul className={styles.chips} data-testid={`${testId}-audio-ids`}>
         {audioIds.map((id, index) => (
           <li key={id} className={styles.chip}>
-            <span>{titleOf(id)}</span>
+            <span className={styles.chipOrder}>{index + 1}.</span>
+            <span className={styles.chipTitle}>{titleOf(id)}</span>
             <button
               className={styles.chipButton}
               aria-label={`Move clip ${id} earlier`}
@@ -1082,11 +1088,43 @@ interface JsonEditorProps {
  * device will change as well as what it will refuse.
  */
 function JsonEditor({ text, result, onChange, onFormat, filename }: JsonEditorProps): React.ReactNode {
+  const [copied, setCopied] = useState(false);
+
+  // `navigator.clipboard` needs a secure context, and the device serves plain
+  // HTTP over the range's WiFi - so on the tablet this is used from, it is
+  // simply absent. Selecting the textarea is what is left: it does not copy on
+  // its own, but it turns "copy this" into one keystroke instead of a drag
+  // through several hundred lines.
+  async function handleCopy(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+    } catch {
+      const box = document.querySelector<HTMLTextAreaElement>('[data-testid="editor-json"]');
+      box?.focus();
+      box?.select();
+    }
+  }
+
   return (
     <div className={styles.json}>
       <div className={styles.toolbar}>
         <button className={styles.button} data-testid='editor-json-format' onClick={onFormat}>
           Format
+        </button>
+        {/* Copies exactly what is in the box, like Download - a hand-edit in
+            the textarea is the document the author means. */}
+        <button
+          className={styles.button}
+          data-testid='editor-json-copy'
+          onClick={() => {
+            void handleCopy();
+          }}
+        >
+          {copied ? 'Copied' : 'Copy'}
         </button>
         {/* Downloads exactly what is in the box, not the parsed draft: if
             somebody has hand-edited the JSON, that is the document they mean

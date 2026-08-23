@@ -7,7 +7,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { SettingsProvider } from '../src/context/SettingsContext';
-import { NetworkSection } from '../src/components/NetworkSection';
+import { ServerUrlSection } from '../src/components/ServerUrlSection';
 import { createFakeClock } from './mock-server/clock';
 import { createMockServer, type MockServer } from './mock-server/server';
 
@@ -31,7 +31,7 @@ function renderSection(): void {
   render(
     <QueryClientProvider client={queryClient}>
       <SettingsProvider>
-        <NetworkSection />
+        <ServerUrlSection />
       </SettingsProvider>
     </QueryClientProvider>,
   );
@@ -49,6 +49,10 @@ afterEach(async () => {
   await server.close();
 });
 
+// The address used to have a section of its own. It now sits in the Server
+// Base URL heading (it is a fact about the device, not a setting), but what it
+// has to say is unchanged - hence the same assertions against the section that
+// absorbed it.
 describe('the device address on Settings', () => {
   it('shows the address the device reports', async () => {
     // Not the URL the browser used: at the range those differed, and the

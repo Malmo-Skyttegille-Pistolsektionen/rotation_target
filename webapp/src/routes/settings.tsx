@@ -3,9 +3,7 @@ import { useEffect, useRef } from 'react';
 import { useSettings } from '../context/SettingsContext';
 import { initializeBaseUrl } from '../api/client';
 import { ServerUrlSection } from '../components/ServerUrlSection';
-import { NetworkSection } from '../components/NetworkSection';
 import { AdminModeSection } from '../components/AdminModeSection';
-import { StartDelaySection } from '../components/StartDelaySection';
 import { StartupIssuesSection } from '../components/StartupIssuesSection';
 import { StorageSection } from '../components/StorageSection';
 import { FirmwareSection } from '../components/FirmwareSection';
@@ -34,11 +32,7 @@ function SettingsPage(): React.ReactNode {
 
       <ServerUrlSection />
 
-      <NetworkSection />
-
       <AdminModeSection />
-
-      <StartDelaySection />
 
       <StartupIssuesSection />
 

@@ -9,7 +9,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { updateBaseUrl } from '../src/api/client';
 import { SettingsProvider } from '../src/context/SettingsContext';
 import { StartDelayControl } from '../src/components/StartDelayControl';
-import { StartDelaySection } from '../src/components/StartDelaySection';
 import { useSSE } from '../src/hooks/useSSE';
 import type { Program, StateUpdatePayload } from '../src/api/types';
 import { RunView } from '../src/routes/run';
@@ -39,10 +38,6 @@ function delayInput(): HTMLSelectElement {
 
 function delayUnit(): string {
   return screen.getByTestId('run-start-delay-unit').textContent ?? '';
-}
-
-function settingsInput(): HTMLSelectElement {
-  return screen.getByTestId('settings-start-delay') as HTMLSelectElement;
 }
 
 function stored(): string | null {
@@ -98,13 +93,13 @@ afterEach(() => {
 
 // --- the setting is one value, wherever it is edited -----------------------
 
-describe('the start delay is one setting with two editors', () => {
-  /** The run control and the settings section, side by side under one provider. */
+// One editor now: the Settings page's copy was removed as duplication - the
+// delay is a run-page control and that is where it is set.
+describe('the start delay', () => {
   function renderBoth(): void {
     render(
       <SettingsProvider>
         <StartDelayControl />
-        <StartDelaySection />
       </SettingsProvider>,
     );
   }
@@ -114,7 +109,6 @@ describe('the start delay is one setting with two editors', () => {
     renderBoth();
 
     expect(delayInput().value).toBe('15');
-    expect(settingsInput().value).toBe('15');
   });
 
   // A browser that stored a value off the ladder before #195 - anything a
@@ -125,7 +119,6 @@ describe('the start delay is one setting with two editors', () => {
     renderBoth();
 
     expect(delayInput().value).toBe('5');
-    expect(settingsInput().value).toBe('5');
   });
 
   it('shows the default when nothing is stored', () => {
@@ -133,25 +126,14 @@ describe('the start delay is one setting with two editors', () => {
     expect(delayInput().value).toBe('10');
   });
 
-  it('persists an edit made on the run page and shows it in the settings section', async () => {
+  // A select commits a whole value, so the write is immediate - there is no
+  // Save anywhere for this setting any more.
+  it('persists an edit made on the run page at once, with no Save', async () => {
     renderBoth();
 
     await type(delayInput(), '25');
 
     expect(stored()).toBe('25');
-    // No navigation: the settings section is reading the same context value.
-    expect(settingsInput().value).toBe('25');
-  });
-
-  // The settings section lost its Save button with #195: a select commits a
-  // whole value, so there is no half-chosen state for a Save to resolve.
-  it('shows an edit made in the settings section on the run control, with no Save', async () => {
-    renderBoth();
-
-    await type(settingsInput(), '5');
-
-    expect(stored()).toBe('5');
-    expect(delayInput().value).toBe('5');
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
   });
 
@@ -164,7 +146,6 @@ describe('the start delay is one setting with two editors', () => {
     });
 
     expect(delayInput().value).toBe('40');
-    expect(settingsInput().value).toBe('40');
   });
 
   // Out-of-range values are no longer reachable through the UI, but another
@@ -185,19 +166,17 @@ describe('the start delay is one setting with two editors', () => {
 
     const offered = Array.from(delayInput().options).map((option) => option.value);
     expect(offered).toEqual(['0', '5', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55', '60']);
-    expect(Array.from(settingsInput().options).map((option) => option.value)).toEqual(offered);
     expect(delayInput().options[0].textContent).toBe('No delay');
   });
 });
 
 // --- 0 is a value, and it says so ------------------------------------------
 
-describe('0 means no countdown, in both places', () => {
-  it('round-trips 0 and labels it, on the run control and in settings', async () => {
+describe('0 means no countdown, and says so', () => {
+  it('round-trips 0 and labels it on the run control', async () => {
     render(
       <SettingsProvider>
         <StartDelayControl />
-        <StartDelaySection />
       </SettingsProvider>,
     );
 
@@ -206,8 +185,7 @@ describe('0 means no countdown, in both places', () => {
     expect(stored()).toBe('0');
     expect(delayUnit()).toContain('no delay');
     expect(delayUnit()).toContain('at once');
-    expect(screen.getByTestId('settings-start-delay-immediate').textContent).toContain('at once');
-    expect(settingsInput().value).toBe('0');
+    expect(delayInput().value).toBe('0');
   });
 
   it('says seconds, not "no delay", for any non-zero value', async () => {

@@ -241,7 +241,9 @@ describe('creating a program', () => {
     type('editor-event-0-0-audio-add', '33');
     type('editor-event-0-0-audio-add', '26');
 
-    expect(screen.getByTestId('editor-event-0-0-audio-ids').textContent).toContain('33 · Eld!');
+    // One row per clip, numbered, title quoted, id in brackets - see the note
+    // on `titleOf` in ProgramEditor.tsx.
+    expect(screen.getByTestId('editor-event-0-0-audio-ids').textContent).toContain('1."Eld!" (33)');
     fireEvent.click(screen.getByTestId('editor-event-0-0-audio-26-earlier'));
     fireEvent.click(screen.getByTestId('editor-save'));
 
