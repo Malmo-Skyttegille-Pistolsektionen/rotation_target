@@ -24,6 +24,7 @@ theme:
 
 nav:
   - Home: index.md
+  - Hardware and wiring: hardware.md
   - Connecting: connecting.md
   - Running a program: running-a-program.md
   - Status LED: status-led.md
@@ -32,3 +33,7 @@ nav:
 markdown_extensions:
   - tables
   - admonition
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
