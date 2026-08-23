@@ -1,0 +1,100 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  background: #eff6ff;
+  padding: 1rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.hint {
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.85rem;
+}
+
+.warning {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #dc2626;
+  border-radius: 4px;
+  background: #fee2e2;
+  color: #7f1d1d;
+  font-size: 0.85rem;
+}
+
+.repoRow {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: #374151;
+  flex: 1 1 12rem;
+}
+
+.copyRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.copyLine {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.input,
+.textarea {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.85rem;
+  background: #fff;
+  max-width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  box-sizing: border-box;
+}
+
+.textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.button {
+  padding: 0.4rem 0.75rem;
+  min-height: var(--rt-control-height);
+  border: 1px solid #2563eb;
+  border-radius: 4px;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  text-decoration: none;
+  text-align: center;
+  align-self: flex-start;
+}
+
+.button:hover {
+  background: #1d4ed8;
+}
+
+.button:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}

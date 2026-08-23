@@ -5,6 +5,7 @@ plans
 
 # Ignore build output
 dist/
+dist-editor/
 *.tsbuildinfo
 
 # Ignore environment settings

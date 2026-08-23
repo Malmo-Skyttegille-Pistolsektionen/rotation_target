@@ -8,7 +8,9 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:pages-editor": "vite --config vite.editor.config.ts",
     "build": "tsc -b && vite build",
+    "build:pages-editor": "vite build --config vite.editor.config.ts",
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "lint": "eslint .",

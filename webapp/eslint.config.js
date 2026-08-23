@@ -17,7 +17,7 @@ const hooksRulesOwnedByReactHooks = Object.fromEntries(
 );
 
 export default tseslint.config(
-  { ignores: ['dist', 'src/api/generated.d.ts', 'playwright-report', 'test-results'] },
+  { ignores: ['dist', 'dist-editor', 'src/api/generated.d.ts', 'playwright-report', 'test-results'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
