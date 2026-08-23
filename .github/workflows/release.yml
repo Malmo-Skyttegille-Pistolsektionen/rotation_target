@@ -442,9 +442,38 @@ jobs:
         id: package
         shell: bash
         working-directory: firmware
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
           mkdir -p release
+
+          # Two images are what somebody actually needs, and they answer
+          # different questions:
+          #
+          #   factory - everything at its offset, merged into one file that is
+          #             written at 0x0. A new board, or one being put back to a
+          #             known state. Flashing it discards uploaded programs and
+          #             audio, because storage.bin is part of it.
+          #   ota     - the app alone, which is what POST /api/v2/ota accepts
+          #             and what an already-configured device wants: it leaves
+          #             NVS and the LittleFS image alone.
+          #
+          # The individual images stay published beneath them. They are what a
+          # partial flash needs, and dropping them would remove the only way to
+          # update the app over a cable without also erasing the club's files.
+          esptool --chip esp32s3 merge-bin \
+            --output "release/rotation_target-${VERSION}-factory.bin" \
+            --flash-mode dio --flash-freq 80m --flash-size 16MB \
+            0x0 build/bootloader/bootloader.bin \
+            0x8000 build/partition_table/partition-table.bin \
+            0xf000 build/ota_data_initial.bin \
+            0x20000 build/rotation_target_backend.bin \
+            0x620000 build/storage.bin
+
+          cp build/rotation_target_backend.bin \
+             "release/rotation_target-${VERSION}-ota.bin"
+
           # ota_data_initial.bin travels with them: the partition table has no
           # factory slot, so flashing without it over a device whose otadata
           # points at ota_1 boots the stale image in ota_1.
@@ -455,6 +484,13 @@ jobs:
              build/storage.bin \
              release/
           cd release
+
+          # merge-bin exiting 0 means it wrote a file, not that the file is
+          # flashable. This is published as the one-file way to flash a board,
+          # so the app's presence at its offset is checked, not assumed.
+          python3 ../scripts/check_merged.py \
+            "rotation_target-${VERSION}-factory.bin" rotation_target_backend.bin
+
           sha256sum ./*.bin > SHA256SUMS.txt
           cat SHA256SUMS.txt
           echo "sha256=$(sha256sum rotation_target_backend.bin | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
@@ -538,6 +574,8 @@ jobs:
             --title "$VERSION" \
             --notes-file NOTES.md \
             --prerelease \
+            "release/rotation_target-$VERSION-factory.bin" \
+            "release/rotation_target-$VERSION-ota.bin" \
             release/rotation_target_backend.bin \
             release/bootloader.bin \
             release/partition-table.bin \
@@ -601,6 +639,17 @@ jobs:
             exit 1
           fi
           echo "The published image reports $GOT"
+
+          # The one-file image is what most people will flash, and it is the
+          # asset a bad upload would break most quietly - a truncated copy still
+          # writes, and boots whatever was on the board before.
+          python3 ../firmware/scripts/check_merged.py \
+            "rotation_target-${VERSION}-factory.bin" rotation_target_backend.bin
+
+          # The OTA asset is the app under another name; if they ever diverge,
+          # the device would be offered an update that is not the release.
+          cmp "rotation_target-${VERSION}-ota.bin" rotation_target_backend.bin
+          echo "The OTA image matches the published app"
 
   # The moment the release becomes real. One flag flip, with the assets already
   # in place and checked - so there is no window in which the latest release
