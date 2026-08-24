@@ -24,45 +24,6 @@
   }
 }
 
-/* Cards on this page, matching the component sections it lists. */
-.section {
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.sectionTitle {
-  margin: 0;
-  font-size: 1.1rem;
-  color: #374151;
-  font-weight: 600;
-}
-
-.explain {
-  margin: 0;
-  color: #374151;
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-
-/* A link styled as a button: it navigates rather than acting, so it stays an
-   anchor for middle-click, keyboard and screen readers. */
-.button {
-  align-self: flex-start;
-  padding: 0.45rem 0.9rem;
-  font-size: 0.9rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  background: #fff;
-  color: #374151;
-  cursor: pointer;
-  text-decoration: none;
-}
-
 .backLink {
   align-self: flex-start;
   color: #4338ca;

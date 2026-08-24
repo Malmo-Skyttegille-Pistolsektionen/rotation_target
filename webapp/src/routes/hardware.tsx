@@ -48,7 +48,11 @@ function HardwarePage(): React.ReactNode {
         </p>
       )}
 
-      <HardwareSection />
+      {/* Not rendered while the window is shut. Both contracts say a client
+          should decide whether to *offer* these settings rather than let
+          somebody fill a form that cannot be submitted - and the window can
+          lapse while the page is open, or the page be reached by a bookmark. */}
+      {open && <HardwareSection />}
     </div>
   );
 }

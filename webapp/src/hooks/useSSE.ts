@@ -55,6 +55,13 @@ export function useSSE(): void {
       eventSource.onopen = (): void => {
         console.log('[SSE] Connected');
         queryClient.setQueryData(['sse-status'], 'connected');
+        // Anything that changed while the stream was down was published to
+        // nobody: this channel carries change notifications and sends no
+        // snapshot on connect. For run state the next event is seconds away,
+        // but the configuration window can sit unchanged for five minutes -
+        // so a press made during a reconnect would leave the tab missing until
+        // somebody reloaded the page.
+        void queryClient.invalidateQueries({ queryKey: ['hardware-config'] });
       };
 
       eventSource.onerror = (err): void => {

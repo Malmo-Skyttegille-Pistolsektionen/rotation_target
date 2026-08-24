@@ -145,6 +145,38 @@ describe('the configuration window', () => {
     expect(((await refused.json()) as { type: string }).type).toBe('/problems/program_running');
   });
 
+  // The hole a review found: the PUT was guarded and reset was not. Reset
+  // rewrites every value at once, so on a device configured for a non-stock
+  // board it is the more destructive of the two - guarding only the PUT
+  // protected nothing, because one click undid it.
+  it('refuses reset while the window is shut, not just the write', async () => {
+    await device(false);
+    const base = `http://127.0.0.1:${String(PORT)}/api/v2`;
+
+    const refused = await fetch(`${base}/config/hardware/reset`, { method: 'POST' });
+    expect(refused.status).toBe(403);
+    expect(((await refused.json()) as { type: string }).type).toBe(
+      '/problems/hardware_config_window_closed',
+    );
+  });
+
+  it('refuses reset while a program is running', async () => {
+    await device(true);
+    const base = `http://127.0.0.1:${String(PORT)}/api/v2`;
+
+    await fetch(`${base}/programs/${String(PROGRAM.id)}/load`, { method: 'POST' });
+    const started = await fetch(`${base}/programs/start`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: PROGRAM.id }),
+    });
+    expect(started.status).toBe(200);
+
+    const refused = await fetch(`${base}/config/hardware/reset`, { method: 'POST' });
+    expect(refused.status).toBe(409);
+    expect(((await refused.json()) as { type: string }).type).toBe('/problems/program_running');
+  });
+
   // Without a local tick the countdown would sit still between events, which
   // reads as a stopped clock rather than a window that is closing.
   it('ticks down between events', async () => {

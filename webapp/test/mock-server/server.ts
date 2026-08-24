@@ -998,6 +998,24 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
 
     if (endpoint === '/config/hardware/reset' && req.method === 'POST') {
       if (!checkAdminAuth(req, res)) return;
+      // Same two guards as the PUT, mirroring the firmware: reset rewrites
+      // every value at once, so leaving it open protected nothing.
+      if (isRunning()) {
+        problemResponse(
+          res,
+          '/problems/program_running',
+          'A program is running - stop it before resetting the hardware configuration',
+        );
+        return;
+      }
+      if (!configWindowOpen) {
+        problemResponse(
+          res,
+          '/problems/hardware_config_window_closed',
+          'Press the BOOT button on the device (marked BOOT or FLASH) three times within ten seconds to open a five-minute configuration window, then try again.',
+        );
+        return;
+      }
       savedHardware = { ...HARDWARE_DEFAULTS };
       jsonResponse(res, 200, { message: 'Hardware configuration reset - restart the device to apply it' });
       return;
