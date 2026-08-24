@@ -70,6 +70,8 @@ struct ProblemType {
   X(kHardwareConfigInvalid, "hardware_config_invalid", "Invalid hardware configuration", 400)   \
   X(kHardwareConfigSerialOnly, "hardware_config_serial_only",                                   \
     "That setting changes only from the serial console", 400)                                   \
+  X(kHardwareConfigWindowClosed, "hardware_config_window_closed",                               \
+    "The configuration window is closed", 403)                                                  \
   /* upload */                                                                                  \
   X(kUploadMissingFile, "upload_missing_file", "No file uploaded", 400)                         \
   X(kUploadMissingTitle, "upload_missing_title", "Missing title", 400)                          \

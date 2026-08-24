@@ -11,12 +11,12 @@ import styles from './HardwareSection.module.css';
  * The hardware a device is configured for (#144) — the answer to "where does a
  * club configure their device", which until now was "curl, or not at all".
  *
- * Set apart from the rest of Settings on purpose. Everything else here is
- * recoverable from the page you broke it on; these values are not. A wrong
- * GPIO drives nothing, a wrong hostname makes the device hard to find, and the
- * way back is a USB cable — which is exactly what configurability was supposed
- * to remove. So it is collapsed by default, warns before it opens, and says
- * what a change will do and when.
+ * On its own page (`/hardware`), reached by a button on Settings and absent
+ * from the main navigation. Everything on Settings is recoverable from the page
+ * you broke it on; these values are not. A wrong GPIO drives nothing, and a
+ * wrong hostname changes mDNS so the device stops answering to the name people
+ * reach it by — which is worse, because a wrong pin at least leaves the web app
+ * reachable to fix it from.
  *
  * Two rules it exists to make visible:
  *
@@ -104,7 +104,6 @@ export function HardwareSection(): React.ReactNode {
   // Same rule as the rest of the app: admin off means anyone may manage.
   const canManage = !adminModeEnabled || adminToken !== null;
 
-  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<HardwareConfigPatch | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -200,16 +199,6 @@ export function HardwareSection(): React.ReactNode {
     <section className={clsx(styles.section, styles.expert)} data-testid='hardware-section'>
       <div className={styles.head}>
         <h2 className={styles.sectionTitle}>Hardware</h2>
-        <button
-          className={styles.button}
-          data-testid='hardware-toggle'
-          aria-expanded={open}
-          onClick={() => {
-            setOpen(!open);
-          }}
-        >
-          {open ? 'Hide' : 'Show'}
-        </button>
       </div>
 
       <p className={styles.explain}>
@@ -225,8 +214,7 @@ export function HardwareSection(): React.ReactNode {
         </p>
       )}
 
-      {open && (
-        <>
+      <>
           {group(
             'Targets',
             'hardware-group-targets',
@@ -367,8 +355,7 @@ export function HardwareSection(): React.ReactNode {
           )}
 
           <p className={styles.hint}>Nothing here takes effect until the device restarts.</p>
-        </>
-      )}
+      </>
 
       {notice && (
         <p className={styles.notice} data-testid='hardware-notice'>

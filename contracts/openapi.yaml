@@ -979,6 +979,18 @@ paths:
                 $ref: "#/components/schemas/Problem"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            `/problems/hardware_config_window_closed` — nobody has pressed the
+            device's button recently, so the configuration window is shut.
+
+            Separate from 401, which is about admin credentials: this is not a
+            question of who you are but of whether somebody is standing at the
+            device. Both apply, and both must pass.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
 
   /config/hardware/reset:
     post:
@@ -1538,6 +1550,41 @@ components:
             minutes; beyond that a device that cannot join looks broken rather
             than busy.
 
+    ConfigWriteWindow:
+      type: object
+      description: |
+        Whether the device is currently accepting hardware configuration.
+
+        Guarded by a button press rather than a password. The threat is an
+        accident - somebody editing a GPIO because it looked interesting - and
+        an accidental change cannot involve walking to the device and pressing
+        its button, so the gesture is the proof of deliberateness. Unlike a
+        password there is nothing to generate, store, hand over, lose or
+        rotate, and it improves on its own: put the board in an enclosure and
+        the button is behind the key, with no code change.
+
+        A client should use this to decide whether to *offer* the settings at
+        all, rather than letting somebody fill a form that cannot be submitted.
+
+        The window is RAM-only and dies with the boot: one that survived a
+        restart would be one nobody remembers opening.
+      required: [open, remainingSeconds]
+      additionalProperties: false
+      properties:
+        open:
+          type: boolean
+          description: >-
+            Whether `PUT /config/hardware` would be accepted. Always true on a
+            build with no button, since refusing every change there would make
+            the device unconfigurable rather than safe.
+        remainingSeconds:
+          type: integer
+          format: int32
+          minimum: 0
+          description: >-
+            Seconds left, or 0. For a countdown, so a form does not simply stop
+            working without explanation.
+
     HardwareConfigPatch:
       type: object
       description: |
@@ -1594,7 +1641,7 @@ components:
         restart that adopts it. `defaults` is what the firmware was compiled
         with, so a client can mark what has been overridden and offer to put it
         back without knowing the compiled values.
-      required: [active, saved, defaults, overridden, restartRequired]
+      required: [active, saved, defaults, overridden, restartRequired, writeWindow]
       additionalProperties: false
       properties:
         active:
@@ -1612,6 +1659,8 @@ components:
             is *not* "a value has ever been written": saving a value equal to
             its default leaves `overridden` false, because there is then
             nothing to put back.
+        writeWindow:
+          $ref: "#/components/schemas/ConfigWriteWindow"
         restartRequired:
           type: boolean
           description: >-
@@ -1675,6 +1724,7 @@ components:
             - /problems/skip_id_required
             - /problems/hardware_config_invalid
             - /problems/hardware_config_serial_only
+            - /problems/hardware_config_window_closed
             # upload
             - /problems/upload_missing_file
             - /problems/upload_missing_title

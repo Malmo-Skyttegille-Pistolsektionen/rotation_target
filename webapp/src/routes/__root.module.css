@@ -58,3 +58,19 @@
   min-width: 0;
   box-sizing: border-box;
 }
+
+/* Present only while the device's configuration window is open, so it reads as
+   temporary rather than as a tab somebody merely has not noticed before. */
+.expertLink {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  border: 1px solid #fcd34d;
+  background-color: #fffbeb;
+}
+
+.countdown {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+  color: #92400e;
+}

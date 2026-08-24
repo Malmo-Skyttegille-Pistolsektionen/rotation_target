@@ -33,6 +33,9 @@ constexpr int kPollMs = 20;
 constexpr int64_t kPressValidMs = 60'000;
 
 std::atomic<int64_t> s_last_press_ms{0};
+// RAM only, so it dies with the boot. A window that survived a restart would be
+// one nobody remembers opening.
+std::atomic<int64_t> s_window_until_ms{0};
 std::atomic<bool> s_available{false};
 
 int64_t now_ms() {
@@ -45,8 +48,14 @@ void task(void *) {
     const bool pressed = gpio_get_level(kPin) == kPressedLevel;
     switch (gesture.update(pressed, now_ms())) {
       case rt::Gesture::kShortPress:
+        // One press, two meanings, decided by what is asking rather than by the
+        // gesture: the setup portal consumes it to authorise credentials, and
+        // outside the portal it opens the configuration window. Both are the
+        // same claim - somebody is standing at the device.
         s_last_press_ms.store(now_ms());
-        ESP_LOGI(TAG, "Button pressed");
+        s_window_until_ms.store(now_ms() + kConfigWindowMs);
+        ESP_LOGI(TAG, "Button pressed - configuration window open for %d minutes",
+                 static_cast<int>(kConfigWindowMs / 60000));
         break;
       case rt::Gesture::kLongHold:
         // #209 will restart into safe mode here. Logged rather than silently
@@ -102,6 +111,19 @@ bool consume_press() {
 
 bool available() {
   return s_available.load();
+}
+
+bool config_window_open() {
+  // A build with no button has no way to open the window, and refusing every
+  // change on it would make the device unconfigurable rather than safe.
+  if (!s_available.load()) return true;
+  return now_ms() < s_window_until_ms.load();
+}
+
+int32_t config_window_remaining_s() {
+  if (!s_available.load()) return 0;
+  const int64_t left = s_window_until_ms.load() - now_ms();
+  return left > 0 ? static_cast<int32_t>(left / 1000) : 0;
 }
 
 }  // namespace boot_button

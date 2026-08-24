@@ -81,6 +81,10 @@ const PROBLEMS = {
   '/problems/upload_missing_title': { title: 'Missing title', status: 400 },
   '/problems/audio_format_unsupported': { title: 'Unsupported audio format', status: 400 },
   '/problems/hardware_config_invalid': { title: 'Invalid hardware configuration', status: 400 },
+  '/problems/hardware_config_window_closed': {
+    title: 'The configuration window is closed',
+    status: 403,
+  },
   '/problems/hardware_config_serial_only': {
     title: 'That setting changes only from the serial console',
     status: 400,
@@ -222,6 +226,8 @@ export interface MockSeed {
    * compiled defaults and `overridden: false`, which is an out-of-box device.
    */
   hardware?: HardwareConfig;
+  /** Whether the button-opened configuration window is open (#144). */
+  configWindowOpen?: boolean;
   /**
    * What the boot scan complained about, served by `GET /diagnostics/info`
    * (D-25). Defaults to none, which is what a clean boot reports.
@@ -433,6 +439,10 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   // what closes the gap - the mock's stand-in for a reboot.
   let activeHardware: HardwareConfig = { ...HARDWARE_DEFAULTS, ...(seed.hardware ?? {}) };
   let savedHardware: HardwareConfig = { ...activeHardware };
+  // The firmware opens this with a button press and reports it so the app can
+  // decide whether to offer the settings at all. There is no button here, so a
+  // test drives it directly; open by default, matching a build with no button.
+  const configWindowOpen = seed.configWindowOpen ?? true;
 
   const state: ServerState = {
     loadedProgram: null,
@@ -877,6 +887,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         // "differs from the defaults", not "a key was written" - saving a
         // value equal to its default leaves nothing for a reset to undo.
         overridden: JSON.stringify(savedHardware) !== JSON.stringify(HARDWARE_DEFAULTS),
+        writeWindow: { open: configWindowOpen, remainingSeconds: configWindowOpen ? 300 : 0 },
         restartRequired: JSON.stringify(activeHardware) !== JSON.stringify(savedHardware),
       };
       jsonResponse(res, 200, payload);
@@ -910,6 +921,17 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       // Spread rather than a field-by-field copy on purpose: the explicit form
       // silently drops any field added to the contract later, which is exactly
       // how `timer_start_index` went missing here once already.
+      // Expert mode is a place, not a per-field rule: the whole endpoint is
+      // behind the window, hostname included.
+      if (!configWindowOpen) {
+        problemResponse(
+          res,
+          '/problems/hardware_config_window_closed',
+          'Press the BOOT button on the device (marked BOOT or FLASH) to open a five-minute configuration window, then try again.',
+        );
+        return;
+      }
+
       const patch = parsed as Partial<HardwareConfig>;
       const candidate: HardwareConfig = {
         ...savedHardware,

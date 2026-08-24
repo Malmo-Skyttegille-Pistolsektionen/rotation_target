@@ -33,12 +33,12 @@ function renderSection(): void {
   );
 }
 
-/** The section is collapsed until asked for; every field test needs it open. */
+/**
+ * The section lives on its own page now (#144), so there is nothing to expand -
+ * but the fields only exist once the device has answered.
+ */
 async function open(): Promise<void> {
-  await waitFor(() => expect(screen.getByTestId('hardware-toggle')).toBeTruthy());
-  await act(async () => {
-    fireEvent.click(screen.getByTestId('hardware-toggle'));
-  });
+  await waitFor(() => expect(screen.getByTestId('hardware-target-gpio')).toBeTruthy());
 }
 
 /** The testid a field is rendered with, to the config key it edits. */
@@ -76,16 +76,16 @@ afterEach(async () => {
 });
 
 describe('the hardware section', () => {
-  // Collapsed by default because these values are the ones that can make a
-  // device unreachable - a club that never needs them should not meet them.
-  it('is collapsed until asked for', async () => {
+  // It used to be a collapsible section on Settings. It is now its own page,
+  // reached by a button and absent from the main navigation, so there is no
+  // toggle - and a stale one would silently hide every field behind a click
+  // that no longer exists.
+  it('has no expander, because it is a page rather than a section', async () => {
     await device();
     renderSection();
 
-    await waitFor(() => expect(screen.getByTestId('hardware-toggle')).toBeTruthy());
-    expect(screen.queryByTestId('hardware-target-gpio')).toBeNull();
-
     await open();
+    expect(screen.queryByTestId('hardware-toggle')).toBeNull();
     expect(screen.getByTestId('hardware-target-gpio')).toBeTruthy();
   });
 
@@ -245,6 +245,33 @@ describe('the hardware section', () => {
     });
 
     await waitFor(() => expect(screen.getByTestId('hardware-notice').textContent).toContain('USB serial'));
+  });
+
+  // The window is what guards these settings (#144): a press at the device,
+  // not a password. Nothing is written while it is shut.
+  it('refuses to save while the configuration window is closed', async () => {
+    server = createMockServer({
+      clock: createFakeClock(),
+      port: PORT,
+      seed: { programs: {}, audios: [], configWindowOpen: false },
+    });
+    await server.listen();
+    renderSection();
+    await open();
+
+    await type('hardware-display-name', 'Bana 1');
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('hardware-save'));
+    });
+
+    await waitFor(() => expect(screen.getByTestId('hardware-notice').textContent).toContain('BOOT button'));
+
+    const state = (await (await fetch(`http://127.0.0.1:${String(PORT)}/api/v2/config/hardware`)).json()) as {
+      saved: { displayName: string };
+      writeWindow: { open: boolean };
+    };
+    expect(state.writeWindow.open).toBe(false);
+    expect(state.saved.displayName).toBe('');
   });
 
   // Shown because an operator needs to know it; not editable because it is what

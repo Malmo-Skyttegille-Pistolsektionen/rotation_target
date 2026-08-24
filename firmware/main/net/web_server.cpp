@@ -4,6 +4,7 @@
 //  Ported route-for-route from src/backend/apis/api.py of the MicroPython
 //  backend; Microdot's API swapped for PsychicHttp's.
 // ============================================================================
+#include "boot_button.h"
 #include "config/hardware_store.h"
 #include "web_server.h"
 
@@ -889,6 +890,11 @@ void register_config_routes() {
     out += hardware_config_json(defaults);
     out += ",\"overridden\":";
     out += hardware_store::overridden() ? "true" : "false";
+    out += ",\"writeWindow\":{\"open\":";
+    out += boot_button::config_window_open() ? "true" : "false";
+    out += ",\"remainingSeconds\":";
+    out += std::to_string(boot_button::config_window_remaining_s());
+    out += "}";
     out += ",\"restartRequired\":";
     out += same_config(active, saved) ? "false" : "true";
     out += "}";
@@ -919,6 +925,16 @@ void register_config_routes() {
     // Absent fields keep what is stored rather than reverting to a compiled
     // default: a client that knows about fewer fields than this firmware must
     // not silently undo the ones it cannot see.
+    // Expert mode is a place, not a per-field rule: the whole endpoint is
+    // behind the window. Hostname belongs inside it as much as the pins do -
+    // a wrong pin leaves the web app reachable to fix it from, a wrong
+    // hostname changes mDNS and does not.
+    if (!boot_button::config_window_open()) {
+      return send_problem(res, rt::problem::kHardwareConfigWindowClosed,
+                          "Press the BOOT button on the device (marked BOOT or FLASH) to open a "
+                          "five-minute configuration window, then try again.");
+    }
+
     rt::HardwareConfig config = hardware_store::saved();
     if (!doc["targetGpio"].isNull()) config.target_gpio = doc["targetGpio"] | config.target_gpio;
     if (!doc["targetActiveLow"].isNull())

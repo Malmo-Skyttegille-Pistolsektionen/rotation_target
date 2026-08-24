@@ -829,6 +829,32 @@ export interface components {
             wifiMaxRetries: number;
         };
         /**
+         * @description Whether the device is currently accepting hardware configuration.
+         *
+         *     Guarded by a button press rather than a password. The threat is an
+         *     accident - somebody editing a GPIO because it looked interesting - and
+         *     an accidental change cannot involve walking to the device and pressing
+         *     its button, so the gesture is the proof of deliberateness. Unlike a
+         *     password there is nothing to generate, store, hand over, lose or
+         *     rotate, and it improves on its own: put the board in an enclosure and
+         *     the button is behind the key, with no code change.
+         *
+         *     A client should use this to decide whether to *offer* the settings at
+         *     all, rather than letting somebody fill a form that cannot be submitted.
+         *
+         *     The window is RAM-only and dies with the boot: one that survived a
+         *     restart would be one nobody remembers opening.
+         */
+        ConfigWriteWindow: {
+            /** @description Whether `PUT /config/hardware` would be accepted. Always true on a build with no button, since refusing every change there would make the device unconfigurable rather than safe. */
+            open: boolean;
+            /**
+             * Format: int32
+             * @description Seconds left, or 0. For a countdown, so a form does not simply stop working without explanation.
+             */
+            remainingSeconds: number;
+        };
+        /**
          * @description A partial hardware configuration: every field is optional and any field
          *     the body omits keeps its stored value.
          *
@@ -876,6 +902,7 @@ export interface components {
             defaults: components["schemas"]["HardwareConfig"];
             /** @description Whether `saved` differs from `defaults`. False out of the box, and false again after a reset - so a client can use it to decide whether a "reset to defaults" action would do anything. Note this is *not* "a value has ever been written": saving a value equal to its default leaves `overridden` false, because there is then nothing to put back. */
             overridden: boolean;
+            writeWindow: components["schemas"]["ConfigWriteWindow"];
             /** @description `saved` differs from `active`, so the device is not yet running what it has been told. The one field a client must not hide: a pin change that appears to have done nothing is how somebody ends up reflashing a working device. */
             restartRequired: boolean;
         };
@@ -903,7 +930,7 @@ export interface components {
              *     `program_invalid` `backend_issue` code in `asyncapi.yaml`.
              * @enum {string}
              */
-            type: "/problems/admin_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/admin_mode_already_enabled" | "/problems/admin_mode_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/hardware_config_invalid" | "/problems/hardware_config_serial_only" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed";
+            type: "/problems/admin_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/admin_mode_already_enabled" | "/problems/admin_mode_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/hardware_config_invalid" | "/problems/hardware_config_serial_only" | "/problems/hardware_config_window_closed" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed";
             /**
              * @description A short summary of the type, identical for every occurrence of it. Not for display — it does not describe this occurrence.
              * @example Program is read-only
@@ -1944,6 +1971,22 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            /**
+             * @description `/problems/hardware_config_window_closed` — nobody has pressed the
+             *     device's button recently, so the configuration window is shut.
+             *
+             *     Separate from 401, which is about admin credentials: this is not a
+             *     question of who you are but of whether somebody is standing at the
+             *     device. Both apply, and both must pass.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     resetHardwareConfig: {
