@@ -69,3 +69,28 @@
   font-size: 0.9rem;
   text-decoration: none;
 }
+
+/* How long is left on the button-opened configuration window (#144). On the
+   page rather than in the tab, because it is read while typing a pin number. */
+.window {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  background-color: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.windowShut {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  background-color: #f3f4f6;
+  border: 1px solid #d1d5db;
+  color: #374151;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}

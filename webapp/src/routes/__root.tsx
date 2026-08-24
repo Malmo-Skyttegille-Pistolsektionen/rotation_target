@@ -26,9 +26,13 @@ export const Route = createRootRoute({
  * but refused to save would have to explain itself in an error message nobody
  * reads. Here there is nothing to explain: press the button at the device and
  * the tab is there.
+ *
+ * The label is the label and nothing else - a countdown in a tab name would put
+ * a changing number in the navigation and pull this tab's text out of line with
+ * its neighbours. It belongs on the page it applies to.
  */
 function RootLayout(): React.ReactNode {
-  const { open: expertOpen, remainingSeconds } = useConfigWindow();
+  const { open: expertOpen } = useConfigWindow();
 
   return (
     <div className={styles.layout}>
@@ -53,9 +57,6 @@ function RootLayout(): React.ReactNode {
             data-testid='expert-tab'
           >
             Expert mode
-            {/* The countdown is the answer to "how long have I got", asked
-                while typing a pin number. */}
-            <span className={styles.countdown}>{formatRemaining(remainingSeconds)}</span>
           </Link>
         )}
       </nav>
@@ -67,10 +68,4 @@ function RootLayout(): React.ReactNode {
       </Suspense>
     </div>
   );
-}
-
-function formatRemaining(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${String(m)}:${String(s).padStart(2, '0')}`;
 }
