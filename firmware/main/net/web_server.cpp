@@ -890,10 +890,13 @@ void register_config_routes() {
     out += hardware_config_json(defaults);
     out += ",\"overridden\":";
     out += hardware_store::overridden() ? "true" : "false";
+    // One meaning: "would a PUT be accepted right now". A run closes it, so the
+    // app hides Expert mode rather than offering a form that cannot save.
+    const bool window_open = boot_button::config_window_open() && !executor::is_running();
     out += ",\"writeWindow\":{\"open\":";
-    out += boot_button::config_window_open() ? "true" : "false";
+    out += window_open ? "true" : "false";
     out += ",\"remainingSeconds\":";
-    out += std::to_string(boot_button::config_window_remaining_s());
+    out += std::to_string(window_open ? boot_button::config_window_remaining_s() : 0);
     out += "}";
     out += ",\"restartRequired\":";
     out += same_config(active, saved) ? "false" : "true";
@@ -925,6 +928,19 @@ void register_config_routes() {
     // Absent fields keep what is stored rather than reverting to a compiled
     // default: a client that knows about fewer fields than this firmware must
     // not silently undo the ones it cannot see.
+    // Not while a program is running. Reconfiguring the machine and operating
+    // it are different activities, and these values only take effect at the
+    // next restart - so the only thing changing them mid-run can do is confuse
+    // whoever is on the line about what the device is about to become.
+    //
+    // Checked before the window, because "stop the run" is the more useful of
+    // the two instructions to be given.
+    if (executor::is_running()) {
+      return send_problem(res, rt::problem::kProgramRunning,
+                          "A program is running - stop it before changing the hardware "
+                          "configuration");
+    }
+
     // Expert mode is a place, not a per-field rule: the whole endpoint is
     // behind the window. Hostname belongs inside it as much as the pins do -
     // a wrong pin leaves the web app reachable to fix it from, a wrong

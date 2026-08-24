@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // Same-origin with the mock, as the app runs for real - the firmware serves
 // the bundle. See the note in useAdminStatus.test.tsx.
-// @vitest-environment-options { "url": "http://127.0.0.1:18086" }
+// @vitest-environment-options { "url": "http://127.0.0.1:18090" }
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -19,10 +19,17 @@ import { createMockServer, type MockServer } from './mock-server/server';
 import { openSSE, type SSEReader } from './mock-server/sse-reader';
 
 // Distinct per suite - vitest runs files in parallel, so a shared port is an
-// EADDRINUSE flake (18080 useAdminStatus, 18081 audios, 18082 programs,
-// 18083 program-editor, 18084 run, 18085 startup-issues, 18086 here).
-// Pick the next free number for a new suite.
-const PORT = 18086;
+// EADDRINUSE flake. This suite and version-section.test.tsx both claimed 18086
+// and intermittently killed each other; whichever bound second failed all four
+// of its tests with a message naming neither file. Moved here rather than
+// there because version-section's number is written into three comments
+// elsewhere.
+//
+// Taken: 18080 useAdminStatus, 18081 audios, 18082 programs, 18083
+// program-editor, 18084 run, 18085 startup-issues, 18086 version-section,
+// 18087, 18088, 18089, 18090 here, 18092 hardware-section, 18097 config-window.
+// Pick a free number for a new suite, and grep before you do.
+const PORT = 18090;
 
 const STORAGE_KEY = 'rt_settings_start_delay_seconds';
 const FALT: Program = { ...PROGRAM_FALT_TRANING, id: 40 };

@@ -444,6 +444,16 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   // test drives it directly; open by default, matching a build with no button.
   const configWindowOpen = seed.configWindowOpen ?? true;
 
+  /** Mirrors `executor::is_running()` on the device. */
+  const isRunning = (): boolean => state.programState?.running === true;
+
+  /**
+   * Mirrors what the firmware reports as `writeWindow.open`: the button window
+   * AND no run in progress, so the two cannot disagree about whether a save
+   * would be accepted.
+   */
+  const hardwareWritable = (): boolean => configWindowOpen && !isRunning();
+
   const state: ServerState = {
     loadedProgram: null,
     programState: null,
@@ -887,7 +897,12 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         // "differs from the defaults", not "a key was written" - saving a
         // value equal to its default leaves nothing for a reset to undo.
         overridden: JSON.stringify(savedHardware) !== JSON.stringify(HARDWARE_DEFAULTS),
-        writeWindow: { open: configWindowOpen, remainingSeconds: configWindowOpen ? 300 : 0 },
+        // Mirrors the firmware: one meaning, "would a PUT be accepted now", so
+        // a run closes the window and the app hides Expert mode.
+        writeWindow: {
+          open: hardwareWritable(),
+          remainingSeconds: hardwareWritable() ? 300 : 0,
+        },
         restartRequired: JSON.stringify(activeHardware) !== JSON.stringify(savedHardware),
       };
       jsonResponse(res, 200, payload);
@@ -921,6 +936,17 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       // Spread rather than a field-by-field copy on purpose: the explicit form
       // silently drops any field added to the contract later, which is exactly
       // how `timer_start_index` went missing here once already.
+      // Checked before the window: "stop the run" is the more useful of the
+      // two instructions.
+      if (isRunning()) {
+        problemResponse(
+          res,
+          '/problems/program_running',
+          'A program is running - stop it before changing the hardware configuration',
+        );
+        return;
+      }
+
       // Expert mode is a place, not a per-field rule: the whole endpoint is
       // behind the window, hostname included.
       if (!configWindowOpen) {
