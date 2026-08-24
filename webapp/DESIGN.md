@@ -30,33 +30,71 @@ colors:
   warn-tint: "#fef3c7"
   warn-border: "#fcd34d"
 typography:
+  # Eight steps, and every font-size in src/ is one of them. The ramp was
+  # derived from what the app already shipped rather than imposed on it: the
+  # sizes carrying real weight (0.85rem across 51 rules, 0.9rem across 37) were
+  # simply never written down here, so the documented ramp and the CSS had
+  # drifted apart in both directions.
+  #
+  # What was removed were the accidental near-duplicates - 0.7 beside 0.75,
+  # 0.8 and 0.875 beside 0.85, and three components that each invented their
+  # own `.title` size (1.05, 1.2, 1.25). Nothing moved by more than 0.15rem.
   display:
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
     fontSize: "clamp(4.5rem, 24vw, 7rem)"
     fontWeight: 700
     lineHeight: 1
     fontVariation: "tabular-nums"
+    usage: "The run screen's countdown, and nothing else."
+  timer:
+    fontFamily: "Inter, system-ui, Avenir, Helvetica, Arial, sans-serif"
+    fontSize: "clamp(1.5rem, 5vw, 2rem)"
+    fontWeight: 600
+    lineHeight: 1.2
+    usage: "The sticky timer that follows a run. Fluid on purpose - it has to stay readable on a phone held at arm's length and not dominate a laptop."
   headline:
     fontFamily: "Inter, system-ui, Avenir, Helvetica, Arial, sans-serif"
     fontSize: "1.5rem"
     fontWeight: 600
     lineHeight: 1.3
+    usage: "Page headings, and the timeline's duration readout."
   title:
     fontFamily: "Inter, system-ui, Avenir, Helvetica, Arial, sans-serif"
     fontSize: "1.1rem"
     fontWeight: 600
     lineHeight: 1.4
+    usage: "Section and card titles. The one step three components had each guessed differently."
+  lead:
+    fontFamily: "Inter, system-ui, Avenir, Helvetica, Arial, sans-serif"
+    fontSize: "1rem"
+    fontWeight: 500
+    lineHeight: 1.5
+    usage: "Controls that need to outweigh body text - a primary button, a card title in a dense list."
+  bodyLarge:
+    fontFamily: "Inter, system-ui, Avenir, Helvetica, Arial, sans-serif"
+    fontSize: "0.95rem"
+    fontWeight: 400
+    lineHeight: 1.5
+    usage: "Text the operator reads off a device at the range: table cells, form inputs, read-only values."
   body:
     fontFamily: "Inter, system-ui, Avenir, Helvetica, Arial, sans-serif"
     fontSize: "0.9rem"
     fontWeight: 400
     lineHeight: 1.5
+    usage: "The default. Buttons, labels, most prose."
+  small:
+    fontFamily: "Inter, system-ui, Avenir, Helvetica, Arial, sans-serif"
+    fontSize: "0.85rem"
+    fontWeight: 400
+    lineHeight: 1.5
+    usage: "Supporting text under a control - hints, metadata, error detail. The most-used size in the app."
   label:
     fontFamily: "Inter, system-ui, Avenir, Helvetica, Arial, sans-serif"
     fontSize: "0.75rem"
     fontWeight: 600
     lineHeight: 1
     letterSpacing: "0.05em"
+    usage: "Badges, group headings, tick labels. Anything set in caps."
 rounded:
   sm: "4px"
   md: "6px"
