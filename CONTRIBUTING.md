@@ -41,15 +41,32 @@ npm run dev            # http://localhost:5173, against the mock server
 
 ### The firmware
 
-Install ESP-IDF **6.0.2** — the version this is built against — following
-[Espressif's setup guide](https://docs.espressif.com/projects/esp-idf/en/v6.0.2/esp32s3/get-started/).
-The short form on Linux/macOS:
+Install ESP-IDF **v6.0.2** — CI pins that exact version, and `>= 6.0` is
+required. Follow
+[Espressif's setup guide](https://docs.espressif.com/projects/esp-idf/en/v6.0.2/esp32s3/get-started/);
+the short form on Linux/macOS, with `<esp-idf>` wherever you keep it:
 
 ```bash
-git clone -b v6.0.2 --recursive https://github.com/espressif/esp-idf.git ~/esp/esp-idf-6.0.2
-~/esp/esp-idf-6.0.2/install.sh esp32s3
-. ~/esp/esp-idf-6.0.2/export.sh          # every new shell
+git clone -b v6.0.2 --recursive https://github.com/espressif/esp-idf.git <esp-idf>
+<esp-idf>/install.sh esp32s3       # downloads the toolchain, several GB
+. <esp-idf>/export.sh              # every new shell
 ```
+
+Worth knowing before you hit them:
+
+- **`export.sh` must be re-run in every new shell.** It only edits the
+  environment. Espressif's own convention is an alias — `alias get_idf='.
+  <esp-idf>/export.sh'` — rather than sourcing it from your shell profile,
+  which slows down every shell you open.
+- **`install.sh` puts the toolchain in `~/.espressif` by default.** To keep it
+  elsewhere, export `IDF_TOOLS_PATH` **before** running either script, and set
+  it in your shell profile — `export.sh` reads the same variable, and if it is
+  unset it will look in the default location and find nothing.
+- **`--recursive` matters.** A clone without submodules fails at configure time
+  with missing components rather than anything that names the real cause.
+- **Do not run `idf.py set-target` on a clone you have already configured** —
+  it regenerates `sdkconfig` from defaults. Use `idf.py reconfigure`. See
+  *Never commit* below for why that is destructive here.
 
 Then build. **The web app first** — the firmware bakes whatever `webapp/dist`
 currently holds and does not rebuild it, so a firmware build after a web app
@@ -89,7 +106,7 @@ Two ways, and they answer different questions.
 real web app out of the same LittleFS image a board is flashed with:
 
 ```bash
-. ~/esp/esp-idf-6.0.2/export.sh
+. <esp-idf>/export.sh
 firmware/scripts/run-qemu.sh          # then http://localhost:8080
 ```
 
@@ -183,7 +200,7 @@ a branch that is missing them.
 
 - **Secrets, of any kind.** The WiFi credentials live outside the working tree
   and the build is pointed at them:
-  `idf.py -D SDKCONFIG=$HOME/agents/rotation_target/sdkconfig build`. A file
+  `idf.py -D SDKCONFIG=<path outside the repo>/sdkconfig build`. A file
   that is not in the tree cannot be committed by accident; a `.gitignore` rule
   cannot say the same, because it does not apply to a file already tracked and
   does not know about the siblings a tool generates beside the one you ignored.

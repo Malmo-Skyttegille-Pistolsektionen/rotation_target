@@ -154,7 +154,7 @@ under test is the artefact the board actually serves, so the webapp cannot
 drift away from the backend without a red build.
 
 ```bash
-. ~/esp/esp-idf-6.0.2/export.sh     # QEMU needs the ESP-IDF toolchain
+. <esp-idf>/export.sh               # QEMU needs the ESP-IDF toolchain
 npm ci
 npx playwright install chromium     # `.npmrc` sets ignore-scripts; not automatic
 npm run e2e:local                   # build -> boot QEMU -> test -> tear down

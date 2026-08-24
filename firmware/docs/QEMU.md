@@ -7,7 +7,7 @@ suite possible without a board on the desk, against the same code that ships —
 not a mock.
 
 ```sh
-. ~/esp/esp-idf-6.0.2/export.sh
+. <esp-idf>/export.sh
 firmware/scripts/run-qemu.sh
 # then: http://localhost:8080   (Ctrl-A X quits QEMU)
 ```

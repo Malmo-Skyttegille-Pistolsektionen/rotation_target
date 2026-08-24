@@ -43,7 +43,7 @@ idf.py build
 > build at them, so regenerating `sdkconfig` costs nothing:
 >
 > ```bash
-> idf.py -D SDKCONFIG=$HOME/agents/rotation_target/sdkconfig build
+> idf.py -D SDKCONFIG=<path outside the repo>/sdkconfig build
 > ```
 
 You need **ESP-IDF >= 6.0** (CI pins v6.0.2). The shipped audio and programs
