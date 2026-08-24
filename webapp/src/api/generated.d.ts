@@ -1985,15 +1985,31 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             /**
-             * @description - `/problems/hardware_config_window_closed` — nobody has pressed
-             *       the device's button recently, so the configuration window is
-             *       shut. Separate from 401, which is about admin credentials: this
-             *       is not a question of who you are but of whether somebody is
-             *       standing at the device. Both apply, and both must pass.
-             *     - `/problems/program_running` — a program is running. Checked
-             *       first, because "stop the run" is the more useful instruction.
+             * @description `/problems/hardware_config_window_closed` — nobody has completed
+             *     the three-press sequence recently, so the configuration window is
+             *     shut.
+             *
+             *     Separate from 401, which is about admin credentials: this is not a
+             *     question of who you are but of whether somebody is standing at the
+             *     device. Both apply, and both must pass.
              */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description `/problems/program_running` — a program is running.
+             *
+             *     Checked before the window, because "stop the run" is the more
+             *     useful of the two instructions. Reconfiguring the machine and
+             *     operating it are different activities, and these values only take
+             *     effect at the next restart.
+             */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

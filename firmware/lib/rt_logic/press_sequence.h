@@ -35,8 +35,11 @@ constexpr int64_t kUnlockWindowMs = 10'000;
 // not that they started from a clean slate.
 class PressSequence {
  public:
+  // Zero is clamped, not honoured: the sliding-window branch would index
+  // `times_[presses_ - 1]`, i.e. `times_[SIZE_MAX]`, on the first press.
   explicit PressSequence(size_t presses = kUnlockPresses, int64_t window_ms = kUnlockWindowMs)
-      : presses_(presses < kMaxPresses ? presses : kMaxPresses), window_ms_(window_ms) {}
+      : presses_(presses == 0 ? kUnlockPresses : (presses < kMaxPresses ? presses : kMaxPresses)),
+        window_ms_(window_ms) {}
 
   // True exactly once per completed sequence. The history is cleared on
   // success, so a fourth press does not immediately complete another one - it

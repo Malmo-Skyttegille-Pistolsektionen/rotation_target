@@ -146,16 +146,23 @@ void block_when(BlockedFn condition) {
 }
 
 bool config_window_open() {
+  // Blocking comes first, whatever the button situation. A run holds the window
+  // shut on every build - the contract says so, and the mock implements it that
+  // way, so returning true here on a no-button build made the two disagree
+  // about a device that would refuse the write anyway.
+  if (s_blocked != nullptr && s_blocked()) return false;
   // A build with no button has no way to open the window, and refusing every
   // change on it would make the device unconfigurable rather than safe.
   if (!s_available.load()) return true;
-  if (s_blocked != nullptr && s_blocked()) return false;
   return now_ms() < s_window_until_ms.load();
 }
 
 int32_t config_window_remaining_s() {
-  if (!s_available.load()) return 0;
   if (s_blocked != nullptr && s_blocked()) return 0;
+  // A window with no button never closes, so there is no countdown to show.
+  // Reported as the whole window rather than 0: "unlocked for 0:00" is a
+  // contradiction, and it is what the UI renders literally.
+  if (!s_available.load()) return static_cast<int32_t>(kConfigWindowMs / 1000);
   const int64_t left = s_window_until_ms.load() - now_ms();
   return left > 0 ? static_cast<int32_t>(left / 1000) : 0;
 }

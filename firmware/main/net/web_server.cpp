@@ -980,6 +980,24 @@ void register_config_routes() {
   s_server.on(
       "/api/v2/config/hardware/reset", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
         if (!require_admin(req, res)) return ESP_OK;
+
+        // The same two guards as the PUT, and for a stronger reason: this
+        // rewrites every value at once. On a device configured for a
+        // non-stock board it is the most destructive call in the API, so
+        // guarding the PUT and leaving this open protected nothing - one
+        // click undid it.
+        if (executor::is_running()) {
+          return send_problem(res, rt::problem::kProgramRunning,
+                              "A program is running - stop it before resetting the hardware "
+                              "configuration");
+        }
+        if (!boot_button::config_window_open()) {
+          return send_problem(res, rt::problem::kHardwareConfigWindowClosed,
+                              "Press the BOOT button on the device (marked BOOT or FLASH) three "
+                              "times within ten seconds to open a five-minute configuration "
+                              "window, then try again.");
+        }
+
         hardware_store::reset();
         return send_message(res, "Hardware configuration reset - restart the device to apply it");
       });
