@@ -16,6 +16,7 @@
 #include "nvs_flash.h"
 #include "program_executor.h"
 #include "programs.h"
+#include "boot_button.h"
 #include "rgb_led.h"
 #include "storage.h"
 #include "console.h"
@@ -52,6 +53,12 @@ extern "C" void app_main() {
 
   rgb_led::init();
   rgb_led::status_joining();
+
+  // Watched for the whole uptime, not only while the setup portal is up. The
+  // portal needs the short press (#208), but the long hold has to work on a
+  // device that joined its network perfectly well and simply has a pin
+  // configured wrong (#209).
+  boot_button::init();
 
   targets::init();
 
