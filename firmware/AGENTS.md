@@ -49,13 +49,9 @@ idf.py menuconfig           # optional WiFi seed, under "Rotation target backend
 idf.py build
 ```
 
-> **Never run `idf.py set-target` on a clone that already has an `sdkconfig`.**
-> It regenerates `sdkconfig` from the defaults, and `sdkconfig` is where the
-> WiFi SSID and password live — they are gitignored and exist nowhere else, so
-> regenerating it destroys the only copy. To pick up new Kconfig symbols on an
-> existing clone use `idf.py reconfigure`, which keeps the values. The same goes
-> for `idf.py fullclean`. This command appears in every ESP-IDF tutorial, which
-> is exactly why it is worth a warning here.
+> **`idf.py set-target` and `idf.py fullclean` destroy `sdkconfig`**, which
+> holds the only copy of the WiFi credentials. Use `idf.py reconfigure`.
+> Full explanation in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 > ⚠️ **`idf.py` also writes `sdkconfig.bak-<timestamp>` beside `sdkconfig`**,
 > holding the same credentials. `sdkconfig.*` is gitignored now, but a `git

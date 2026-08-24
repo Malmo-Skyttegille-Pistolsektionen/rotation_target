@@ -64,13 +64,14 @@ Worth knowing before you hit them:
   unset it will look in the default location and find nothing.
 - **`--recursive` matters.** A clone without submodules fails at configure time
   with missing components rather than anything that names the real cause.
-- **Do not run `idf.py set-target` on a clone you have already configured** —
-  it regenerates `sdkconfig` from defaults. Use `idf.py reconfigure`. See
-  *Never commit* below for why that is destructive here.
+- **Do not run `idf.py set-target` or `idf.py fullclean` on a configured
+  clone** — both regenerate `sdkconfig`, which holds the only copy of the WiFi
+  credentials. Use `idf.py reconfigure`. Why, in
+  [`firmware/CONTRIBUTING.md`](firmware/CONTRIBUTING.md).
 
 Then build. **The web app first** — the firmware bakes whatever `webapp/dist`
-currently holds and does not rebuild it, so a firmware build after a web app
-change but without `npm run build` silently ships the old bundle:
+currently holds and never rebuilds it. Skip this and the device silently serves
+the old bundle; see [*The seams*](AGENTS.md#the-seams):
 
 ```bash
 cd webapp && npm run build     # produces webapp/dist
