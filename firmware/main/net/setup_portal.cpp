@@ -18,6 +18,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "json_util.h"
+#include "boot_button.h"
 #include "rgb_led.h"
 #include "wifi_store.h"
 
@@ -41,6 +42,8 @@ background:#1c1c1c;color:#eee;box-sizing:border-box}
 button{margin-top:1.25rem;width:100%;padding:.7rem;font-size:1rem;border:0;border-radius:.3rem;
 background:#2d7;color:#000;font-weight:600}
 p{color:#aaa;font-size:.85rem;line-height:1.4}
+.step{color:#eee;background:#1c1c1c;border-left:.2rem solid #2d7;padding:.6rem .7rem;
+margin-top:1.25rem}
 </style></head><body>
 <h1>Rotation target setup</h1>
 <p>This device could not join a network. Enter the WiFi it should use.
@@ -48,6 +51,9 @@ It will save the details and restart.</p>
 <form method="POST" action="/save">
 <label for="s">Network name (SSID)</label><input id="s" name="ssid" required maxlength="32">
 <label for="p">Password</label><input id="p" name="password" type="password" maxlength="63">
+<p class="step"><b>Then press the BOOT button on the device</b> before saving.
+It is next to the USB sockets, marked BOOT or FLASH. This is what proves you are
+standing at the device rather than merely in range of it.</p>
 <button type="submit">Save and restart</button></form>
 </body></html>)HTML";
 
@@ -125,6 +131,33 @@ esp_err_t save(httpd_req_t *req) {
       return ESP_FAIL;
     }
     received += n;
+  }
+
+  // Before the credentials are even read: whoever is submitting has to have
+  // pressed the button. The setup AP's password is compile-time and identical
+  // on every device, and this repository is public, so being *on* this network
+  // proves nothing (#208). A press proves physical access, which is the
+  // property actually wanted - and it cannot be had over the air, by anyone,
+  // at any distance.
+  //
+  // Checked on a build that has the button. Without one there is nothing to
+  // press, and refusing every submission would make the device unrecoverable.
+  if (boot_button::available() && !boot_button::consume_press()) {
+    ESP_LOGW(TAG, "Credential submission refused: no button press");
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_send(req,
+                    "<!doctype html><meta charset=\"utf-8\">"
+                    "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+                    "<body style=\"font-family:system-ui,sans-serif;margin:0;padding:1.5rem;"
+                    "background:#111;color:#eee\">"
+                    "<h1 style=\"font-size:1.25rem\">Press the button first</h1>"
+                    "<p>Press the <b>BOOT</b> button on the device - it is next to the USB "
+                    "sockets, and may be marked <b>FLASH</b> - then go back and save again.</p>"
+                    "<p>Nothing has been saved. This step proves somebody is standing at the "
+                    "device, which is why it cannot be done from the network.</p>"
+                    "<p><a style=\"color:#2d7\" href=\"/\">Back</a></p>",
+                    HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
   }
 
   const std::string ssid = form_field(body, "ssid");
