@@ -38,10 +38,8 @@ void tearDown() {}
 
 void test_a_normal_press_is_a_short_press() {
   rt::ButtonGesture gesture;
-  TEST_ASSERT_EQUAL(static_cast<int>(rt::Gesture::kNone),
-                    static_cast<int>(hold_for(gesture, 200)));
-  TEST_ASSERT_EQUAL(static_cast<int>(rt::Gesture::kShortPress),
-                    static_cast<int>(release(gesture)));
+  TEST_ASSERT_EQUAL(static_cast<int>(rt::Gesture::kNone), static_cast<int>(hold_for(gesture, 200)));
+  TEST_ASSERT_EQUAL(static_cast<int>(rt::Gesture::kShortPress), static_cast<int>(release(gesture)));
 }
 
 // A brush against the board, or contact bounce, must not authorise anything.
@@ -68,8 +66,7 @@ void test_a_long_hold_does_not_also_report_a_press_on_release() {
   rt::ButtonGesture gesture;
   TEST_ASSERT_EQUAL(static_cast<int>(rt::Gesture::kLongHold),
                     static_cast<int>(hold_for(gesture, 3200)));
-  TEST_ASSERT_EQUAL(static_cast<int>(rt::Gesture::kNone),
-                    static_cast<int>(release(gesture)));
+  TEST_ASSERT_EQUAL(static_cast<int>(rt::Gesture::kNone), static_cast<int>(release(gesture)));
 }
 
 void test_a_long_hold_fires_only_once_however_long_it_is_held() {
@@ -86,8 +83,7 @@ void test_just_under_the_threshold_is_still_a_press() {
   rt::ButtonGesture gesture(3000);
   TEST_ASSERT_EQUAL(static_cast<int>(rt::Gesture::kNone),
                     static_cast<int>(hold_for(gesture, 2900)));
-  TEST_ASSERT_EQUAL(static_cast<int>(rt::Gesture::kShortPress),
-                    static_cast<int>(release(gesture)));
+  TEST_ASSERT_EQUAL(static_cast<int>(rt::Gesture::kShortPress), static_cast<int>(release(gesture)));
 }
 
 void test_presses_are_reported_one_per_press() {
