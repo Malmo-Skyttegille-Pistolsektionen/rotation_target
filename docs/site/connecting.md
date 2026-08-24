@@ -33,9 +33,29 @@ captive-portal page should open by itself; if it does not, browse to
 
 ![The setup portal, as it appears on a phone that has joined the device's own network](img/setup-portal.png)
 
-Enter the network name and password the device should use, and press **Save and
-restart**. The device stores them, restarts, and joins that network the normal
-way — the LED goes blinking red, then green.
+Enter the network name and password the device should use.
+
+!!! important "Press the button on the device before saving"
+
+    The device will not accept network details until somebody presses its
+    **BOOT** button — the small button next to the USB sockets, marked `BOOT` or
+    `FLASH` on some boards. Press it, then press **Save and restart**.
+
+    If you save without pressing it first, the page says so and nothing is
+    stored; press the button and save again.
+
+    **Why:** the setup network's password is the same on every device and this
+    project's source is public, so being *on* that network does not prove much.
+    Pressing the button proves somebody is standing at the device — which is
+    exactly what cannot be done from a car park. Without it, anyone in radio
+    range of a device that has lost its network could point it at a network of
+    their choosing.
+
+    The press is good for about a minute, so there is no rush, and a press
+    nobody remembers making cannot authorise anything later.
+
+Once saved, the device restarts and joins that network the normal way — the LED
+goes blinking red, then green.
 
 From here it is on your network, and the rest of this page applies.
 
