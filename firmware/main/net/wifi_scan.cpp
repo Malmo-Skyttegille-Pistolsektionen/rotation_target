@@ -1,6 +1,7 @@
 #include "wifi_scan.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 
 #include "esp_log.h"
@@ -53,17 +54,7 @@ std::vector<AccessPoint> scan() {
     ap.rssi = r.rssi;
     ap.channel = r.primary;
     ap.auth = r.authmode;
-
-    // One SSID on several access points is one network to a human. Keep the
-    // strongest sighting; a list of six identical names says nothing about
-    // which one you would actually associate with.
-    const auto seen = std::find_if(out.begin(), out.end(), [&](const AccessPoint &existing) {
-      return !existing.ssid.empty() && existing.ssid == ap.ssid;
-    });
-    if (seen != out.end()) {
-      if (ap.rssi > seen->rssi) *seen = ap;
-      continue;
-    }
+    memcpy(ap.bssid, r.bssid, sizeof(ap.bssid));
     out.push_back(std::move(ap));
   }
 
@@ -72,6 +63,28 @@ std::vector<AccessPoint> scan() {
 
   ESP_LOGI(TAG, "Scan found %u network(s)", static_cast<unsigned>(out.size()));
   return out;
+}
+
+std::vector<AccessPoint> strongest_per_ssid(const std::vector<AccessPoint> &all) {
+  std::vector<AccessPoint> out;
+  for (const AccessPoint &ap : all) {
+    if (ap.ssid.empty()) continue;
+    const auto seen = std::find_if(out.begin(), out.end(),
+                                   [&](const AccessPoint &kept) { return kept.ssid == ap.ssid; });
+    if (seen == out.end()) {
+      out.push_back(ap);
+    } else if (ap.rssi > seen->rssi) {
+      *seen = ap;
+    }
+  }
+  return out;
+}
+
+std::string bssid_text(const uint8_t bssid[6]) {
+  char buf[18];
+  snprintf(buf, sizeof(buf), "%02x:%02x:%02x:%02x:%02x:%02x", bssid[0], bssid[1], bssid[2],
+           bssid[3], bssid[4], bssid[5]);
+  return buf;
 }
 
 const std::vector<AccessPoint> &cached() {

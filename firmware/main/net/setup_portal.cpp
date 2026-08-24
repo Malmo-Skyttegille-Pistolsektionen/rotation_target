@@ -159,7 +159,10 @@ std::string html_escape(const std::string &in) {
 
 // The <option> list, strongest first, from the scan taken before the AP went up.
 std::string network_options() {
-  const std::vector<wifi_scan::AccessPoint> &found = wifi_scan::cached();
+  // Collapsed here rather than in the scan: the pick-list wants one entry per
+  // name, while the serial survey wants every radio.
+  const std::vector<wifi_scan::AccessPoint> found =
+      wifi_scan::strongest_per_ssid(wifi_scan::cached());
 
   std::string out = "<option value=\"\">";
   out += found.empty() ? "-- no networks found --" : "-- choose a network --";

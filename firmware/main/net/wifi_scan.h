@@ -18,6 +18,7 @@ struct AccessPoint {
   int8_t rssi = 0;   // dBm; closer to zero is stronger
   uint8_t channel = 0;
   wifi_auth_mode_t auth = WIFI_AUTH_OPEN;
+  uint8_t bssid[6] = {};  // the radio itself, which the SSID does not identify
 };
 
 // An active scan across every channel. Blocking, roughly two seconds, and
@@ -27,10 +28,24 @@ struct AccessPoint {
 // SSID, and a fast scan never finds it. The same reason applies to a survey -
 // a channel the scan skipped is a channel whose interference you will not see.
 //
-// Duplicates are collapsed to the strongest sighting, because a site with
-// several access points on one SSID otherwise fills the list with the same
-// name and tells you nothing.
+// Every record the driver returns, strongest first: one per BSSID, duplicates
+// and hidden networks included. Collapsing happens in `strongest_per_ssid()`
+// for the callers that want a pick-list.
+//
+// Not collapsed here because the duplicates are information. Several radios on
+// one SSID is a mesh or a multi-AP site, and that is worth seeing when you are
+// working out why a device roams or will not settle - the same fact that, from
+// a pick-list, would just be the same name six times.
 std::vector<AccessPoint> scan();
+
+// One entry per SSID, keeping the strongest sighting, with unnamed networks
+// dropped. For a list somebody chooses from: a hidden network has nothing
+// selectable to show, and six identical names say nothing about which radio
+// you would actually associate with.
+std::vector<AccessPoint> strongest_per_ssid(const std::vector<AccessPoint> &all);
+
+// "24:4b:fe:71:01:b0"
+std::string bssid_text(const uint8_t bssid[6]);
 
 // The most recent scan, whoever ran it.
 //

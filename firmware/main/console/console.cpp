@@ -205,21 +205,29 @@ void handle_wifi_scan() {
     return;
   }
 
-  char line[128];
-  say("\r\n signal  dBm  ch  security    SSID\r\n");
-  say(" ------  ---  --  ----------  ----------------------------------\r\n");
+  char line[176];
+  // One row per radio, not per name. Two rows sharing an SSID mean two access
+  // points - a mesh, or a guest network on the same box - and the BSSID says
+  // which: the same first five octets is one physical radio wearing two names,
+  // and it does not contend with itself. That distinction is what decides
+  // whether a channel is actually crowded or only looks it.
+  say("\r\n signal  dBm  ch  security    BSSID              SSID\r\n");
+  say(" ------  ---  --  ----------  -----------------  -------------------------\r\n");
   for (const wifi_scan::AccessPoint &ap : found) {
     const int b = wifi_scan::bars(ap.rssi);
     char meter[5] = "....";
     for (int i = 0; i < b && i < 4; i++) meter[i] = '#';
-    snprintf(line, sizeof(line), " [%s] %4d  %2u  %-10s  %s\r\n", meter, static_cast<int>(ap.rssi),
-             static_cast<unsigned>(ap.channel), wifi_scan::auth_name(ap.auth),
+    snprintf(line, sizeof(line), " [%s] %4d  %2u  %-10s  %s  %s\r\n", meter,
+             static_cast<int>(ap.rssi), static_cast<unsigned>(ap.channel),
+             wifi_scan::auth_name(ap.auth), wifi_scan::bssid_text(ap.bssid).c_str(),
              ap.ssid.empty() ? "(hidden)" : ap.ssid.c_str());
     say(line);
   }
-  snprintf(line, sizeof(line), "\r\n%u network(s). Same list the setup portal offers.\r\n",
-           static_cast<unsigned>(found.size()));
+  snprintf(line, sizeof(line), "\r\n%u radio(s), %u named network(s).\r\n",
+           static_cast<unsigned>(found.size()),
+           static_cast<unsigned>(wifi_scan::strongest_per_ssid(found).size()));
   say(line);
+  say("The portal offers the named ones, strongest first.\r\n");
 }
 
 // What this device is joined to and how well, which is the other half of
