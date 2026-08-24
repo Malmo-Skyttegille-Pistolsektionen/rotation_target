@@ -890,9 +890,10 @@ void register_config_routes() {
     out += hardware_config_json(defaults);
     out += ",\"overridden\":";
     out += hardware_store::overridden() ? "true" : "false";
-    // One meaning: "would a PUT be accepted right now". A run closes it, so the
-    // app hides Expert mode rather than offering a form that cannot save.
-    const bool window_open = boot_button::config_window_open() && !executor::is_running();
+    // One meaning: "would a PUT be accepted right now". The run is already part
+    // of that answer - boot_button owns the composite - so this does not
+    // recompute it and cannot drift from the guard on the write below.
+    const bool window_open = boot_button::config_window_open();
     out += ",\"writeWindow\":{\"open\":";
     out += window_open ? "true" : "false";
     out += ",\"remainingSeconds\":";
@@ -947,8 +948,9 @@ void register_config_routes() {
     // hostname changes mDNS and does not.
     if (!boot_button::config_window_open()) {
       return send_problem(res, rt::problem::kHardwareConfigWindowClosed,
-                          "Press the BOOT button on the device (marked BOOT or FLASH) to open a "
-                          "five-minute configuration window, then try again.");
+                          "Press the BOOT button on the device (marked BOOT or FLASH) three times "
+                          "within ten seconds to open a five-minute configuration window, then "
+                          "try again.");
     }
 
     rt::HardwareConfig config = hardware_store::saved();

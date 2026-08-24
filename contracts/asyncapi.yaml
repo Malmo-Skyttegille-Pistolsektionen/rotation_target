@@ -121,6 +121,8 @@ channels:
         $ref: "#/components/messages/backendIssue"
       libraryChanged:
         $ref: "#/components/messages/libraryChanged"
+      configWindow:
+        $ref: "#/components/messages/configWindow"
 
 operations:
   receiveEvents:
@@ -135,6 +137,7 @@ operations:
       - $ref: "#/channels/events/messages/heartbeat"
       - $ref: "#/channels/events/messages/backend_issue"
       - $ref: "#/channels/events/messages/libraryChanged"
+      - $ref: "#/channels/events/messages/configWindow"
 
 components:
   messages:
@@ -299,6 +302,77 @@ components:
             `DELETE /api/v2/audios/{id}/delete`.
           payload:
             kind: audio
+
+    configWindow:
+      name: configWindow
+      title: The hardware configuration window opened or closed
+      summary: >-
+        Whether the device is accepting hardware configuration right now. Sent
+        when the answer changes, so a client can show or hide Expert mode
+        without asking repeatedly.
+      description: |
+        Hardware configuration (#144) is guarded by a window that **three short
+        presses of the device's BOOT button within ten seconds** open for five
+        minutes. The presses are the proof that somebody is standing at the
+        device; the window is how long that proof lasts.
+
+        Three rather than one because one is something a person can do by
+        accident — brushing the board while wiring, or pressing to see what it
+        does. A deliberate rhythm cannot be arrived at by mistake, and it costs
+        the legitimate operator about two seconds.
+
+        **Emitted whenever the effective answer changes, whatever caused it:**
+
+        - the third press within ten seconds opens it, or restarts the five
+          minutes if it is already open
+        - the five minutes lapse
+        - a program starts, which closes it — configuration is refused during a
+          run, because reconfiguring the machine and operating it are different
+          activities and these values only take effect at the next restart
+        - a program stops, which reopens it if time remains
+
+        The last two mean this is not simply a mirror of the button: it is the
+        answer to "would a `PUT /config/hardware` be accepted", which is the
+        only question a client actually has.
+
+        **Not sent on connect.** Like every other message on this channel it is
+        a change notification, not a snapshot. A client takes its initial value
+        from `GET /api/v2/config/hardware`, whose `writeWindow` object is this
+        payload's exact shape, and follows this event thereafter.
+
+        `remainingSeconds` is the value at the moment of sending. A client may
+        count down between events, but the device is authoritative: hide the
+        section when a `configWindow` says `open: false`, not when a local
+        counter reaches zero. The two disagree whenever a browser tab has been
+        asleep.
+
+        **Advisory.** A client that ignores this shows a stale tab, and the
+        `PUT` it would allow is refused with
+        `/problems/hardware_config_window_closed`. Nothing unsafe follows from
+        missing it — the device is the gate, not the tab.
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/ConfigWindow"
+      examples:
+        - name: opened-by-three-presses
+          summary: >-
+            Somebody pressed BOOT three times inside ten seconds. Five minutes
+            from the third press.
+          payload:
+            open: true
+            remainingSeconds: 300
+        - name: lapsed
+          summary: The five minutes ran out with nobody pressing again.
+          payload:
+            open: false
+            remainingSeconds: 0
+        - name: closed-by-a-run-starting
+          summary: >-
+            A program started. The window closes even though the five minutes
+            have not elapsed, and reopens with what is left when the run stops.
+          payload:
+            open: false
+            remainingSeconds: 0
 
   schemas:
     StateUpdate:
@@ -490,3 +564,27 @@ components:
             A counter incremented per beat, starting at 1 and reset by a
             reboot. Unrelated to the SSE `id:` field, which carries uptime in
             milliseconds.
+    ConfigWindow:
+      type: object
+      description: >-
+        The same shape as `writeWindow` in `GET /api/v2/config/hardware`, so a
+        client stores one value from two sources rather than reconciling two.
+      required: [open, remainingSeconds]
+      additionalProperties: false
+      properties:
+        open:
+          type: boolean
+          description: >-
+            Whether `PUT /api/v2/config/hardware` would be accepted right now.
+            False while a program is running as well as when nobody has
+            completed the three-press sequence. Always true on a build with no button, since refusing
+            every change there would make the device unconfigurable rather than
+            safe.
+        remainingSeconds:
+          type: integer
+          format: int32
+          minimum: 0
+          description: >-
+            Seconds left on the window, or 0 when it is closed. For a countdown
+            the operator can see, so a form does not simply stop working
+            without explanation.

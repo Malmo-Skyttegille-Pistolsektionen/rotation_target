@@ -36,13 +36,15 @@ function HardwarePage(): React.ReactNode {
       {open ? (
         <p className={styles.window} data-testid='config-window'>
           Configuration is unlocked for <strong>{formatRemaining(remainingSeconds)}</strong>. Press
-          the device&rsquo;s <strong>BOOT</strong> button again to start a fresh five minutes.
+          the device&rsquo;s <strong>BOOT</strong> button three times again for a fresh five
+          minutes.
         </p>
       ) : (
         <p className={styles.windowShut} data-testid='config-window-shut'>
           Configuration is <strong>locked</strong>. Press the <strong>BOOT</strong> button on the
-          device &mdash; next to the USB sockets, marked <code>BOOT</code> or <code>FLASH</code>{' '}
-          &mdash; to unlock it for five minutes.
+          device <strong>three times within ten seconds</strong> &mdash; it is next to the USB
+          sockets, marked <code>BOOT</code> or <code>FLASH</code> &mdash; to unlock it for five
+          minutes. Three rather than one so it cannot happen by accident.
         </p>
       )}
 

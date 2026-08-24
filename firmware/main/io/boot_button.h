@@ -15,8 +15,8 @@ namespace boot_button {
 //
 //   - A short press, while the setup portal is up, authorises it to accept
 //     WiFi credentials (#208).
-//   - A short press during normal operation opens the configuration window
-//     (see below), which is the same proof used for a different question.
+//   - Three short presses within ten seconds open the configuration window
+//     (see below).
 //   - A long hold restarts into safe mode (#209 - not yet implemented; the
 //     gesture is already detected and logged).
 //
@@ -40,14 +40,19 @@ bool available();
 
 // --- the configuration window ------------------------------------------------
 //
-// Hardware configuration is guarded by a window that a button press opens, not
-// by a password.
+// Hardware configuration is guarded by a window that three button presses
+// within ten seconds open, not by a password.
 //
 // The threat is an accident, not an adversary: somebody clicking into settings
-// and editing a GPIO because it looked interesting. An accidental change cannot
-// involve walking to the device and pressing a button, so the gesture *is* the
-// proof of deliberateness - and unlike a password there is nothing to generate,
-// store, hand over, lose or rotate.
+// and editing a GPIO because it looked interesting. A deliberate rhythm at the
+// device cannot be arrived at by accident, so the gesture *is* the proof - and
+// unlike a password there is nothing to generate, store, hand over, lose or
+// rotate.
+//
+// Three rather than one, unlike the setup portal (#208), because the two prove
+// different things. The portal needs proof of *presence*, which one press gives
+// and which is unforgeable over the air however often it is repeated. This needs
+// proof of *intent*, and one press is something a person does by accident.
 //
 // It also improves on its own. Regular users can reach the device today, so the
 // press proves little about *who*; put the board in an enclosure later and the
@@ -62,8 +67,31 @@ bool available();
 // that a window nobody remembers opening is not still open.
 constexpr int64_t kConfigWindowMs = 5 * 60 * 1000;
 
-// Whether the window is open right now.
+// A condition that holds the window shut regardless of the button. The app
+// sets this to "a program is running": reconfiguring the machine and operating
+// it are different activities, and these values only take effect at the next
+// restart, so a mid-run change can only confuse whoever is on the line.
+//
+// Injected rather than called directly so this module keeps knowing nothing
+// about the executor - and so there is exactly one definition of "the window is
+// open" for the API, the change notification and the guard on the write to
+// share. Two places computing it separately is how they come to disagree.
+using BlockedFn = bool (*)();
+void block_when(BlockedFn condition);
+
+// Whether a write to the hardware configuration would be accepted right now:
+// the press window is live and nothing is blocking it.
 bool config_window_open();
+
+// Called whenever the window's answer changes, so the change can be published
+// without anybody polling for it. Set once at startup.
+//
+// The device has to *notice* the five minutes lapsing: nothing else is watching,
+// and a window that closed silently would leave every open browser showing a tab
+// that no longer works. The polling task is already awake, so it watches the
+// boundary.
+using WindowChangedFn = void (*)(bool open, int32_t remaining_s);
+void on_window_changed(WindowChangedFn callback);
 
 // Seconds left, or 0. For a countdown the operator can see, so a form does not
 // simply stop working without explanation.

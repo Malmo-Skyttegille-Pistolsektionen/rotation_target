@@ -3,6 +3,7 @@
 #include <atomic>
 
 #include "button_gesture.h"
+#include "press_sequence.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -37,6 +38,13 @@ std::atomic<int64_t> s_last_press_ms{0};
 // one nobody remembers opening.
 std::atomic<int64_t> s_window_until_ms{0};
 std::atomic<bool> s_available{false};
+WindowChangedFn s_on_changed = nullptr;
+BlockedFn s_blocked = nullptr;
+// What was last published. The deadline as well as the flag: re-arming an
+// already-open window does not change `open`, so publishing on that alone
+// leaves every browser counting down from a deadline that has moved.
+bool s_last_published_open = false;
+int64_t s_last_published_until_ms = 0;
 
 int64_t now_ms() {
   return esp_timer_get_time() / 1000;
@@ -44,18 +52,22 @@ int64_t now_ms() {
 
 void task(void *) {
   rt::ButtonGesture gesture;
+  rt::PressSequence unlock;
   for (;;) {
     const bool pressed = gpio_get_level(kPin) == kPressedLevel;
     switch (gesture.update(pressed, now_ms())) {
       case rt::Gesture::kShortPress:
-        // One press, two meanings, decided by what is asking rather than by the
-        // gesture: the setup portal consumes it to authorise credentials, and
-        // outside the portal it opens the configuration window. Both are the
-        // same claim - somebody is standing at the device.
+        // Every press is recorded for the setup portal, which needs proof of
+        // presence and takes one (#208). Only a rhythm of three opens the
+        // configuration window, which needs proof of intent.
         s_last_press_ms.store(now_ms());
-        s_window_until_ms.store(now_ms() + kConfigWindowMs);
-        ESP_LOGI(TAG, "Button pressed - configuration window open for %d minutes",
-                 static_cast<int>(kConfigWindowMs / 60000));
+        if (unlock.press(now_ms())) {
+          s_window_until_ms.store(now_ms() + kConfigWindowMs);
+          ESP_LOGI(TAG, "Configuration window open for %d minutes",
+                   static_cast<int>(kConfigWindowMs / 60000));
+        } else {
+          ESP_LOGI(TAG, "Button pressed");
+        }
         break;
       case rt::Gesture::kLongHold:
         // #209 will restart into safe mode here. Logged rather than silently
@@ -67,6 +79,18 @@ void task(void *) {
       case rt::Gesture::kNone:
         break;
     }
+    // The lapse has no event of its own anywhere else in the system: it is
+    // simply a moment passing. Watched here because this task is already awake,
+    // and because a window that closed silently would leave every open browser
+    // showing a tab that no longer does anything.
+    const bool open_now = config_window_open();
+    const int64_t until_now = s_window_until_ms.load();
+    if (open_now != s_last_published_open || until_now != s_last_published_until_ms) {
+      s_last_published_open = open_now;
+      s_last_published_until_ms = until_now;
+      if (s_on_changed != nullptr) s_on_changed(open_now, config_window_remaining_s());
+    }
+
     vTaskDelay(pdMS_TO_TICKS(kPollMs));
   }
 }
@@ -113,15 +137,25 @@ bool available() {
   return s_available.load();
 }
 
+void on_window_changed(WindowChangedFn callback) {
+  s_on_changed = callback;
+}
+
+void block_when(BlockedFn condition) {
+  s_blocked = condition;
+}
+
 bool config_window_open() {
   // A build with no button has no way to open the window, and refusing every
   // change on it would make the device unconfigurable rather than safe.
   if (!s_available.load()) return true;
+  if (s_blocked != nullptr && s_blocked()) return false;
   return now_ms() < s_window_until_ms.load();
 }
 
 int32_t config_window_remaining_s() {
   if (!s_available.load()) return 0;
+  if (s_blocked != nullptr && s_blocked()) return 0;
   const int64_t left = s_window_until_ms.load() - now_ms();
   return left > 0 ? static_cast<int32_t>(left / 1000) : 0;
 }

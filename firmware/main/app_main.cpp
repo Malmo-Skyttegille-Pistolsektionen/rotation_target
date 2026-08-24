@@ -17,6 +17,7 @@
 #include "program_executor.h"
 #include "programs.h"
 #include "boot_button.h"
+#include "sse_hub.h"
 #include "rgb_led.h"
 #include "storage.h"
 #include "console.h"
@@ -58,6 +59,8 @@ extern "C" void app_main() {
   // portal needs the short press (#208), but the long hold has to work on a
   // device that joined its network perfectly well and simply has a pin
   // configured wrong (#209).
+  // The pin is watched from here, so a press is never missed - but the
+  // collaborators below are registered later, once they exist.
   boot_button::init();
 
   targets::init();
@@ -86,6 +89,21 @@ extern "C" void app_main() {
     // no way to point the device at a different network without a toolchain.
     net_mgr::run_setup_portal();  // never returns; reboots once credentials are saved
   }
+
+  // Registered here, not beside boot_button::init(): the task polls every 20 ms
+  // and calls straight into both of these. Wiring them before the executor and
+  // the SSE hub existed put the device in a boot loop -
+  // `xQueueTakeMutexRecursive` on a mutex that had not been created yet, one
+  // second into every boot. Nothing in the host tests could have caught it;
+  // only a real board could.
+  //
+  // One definition of "the window is open", shared by the API, the guard on the
+  // write and the event: a program running holds it shut, and boot_button owns
+  // the composite so nothing recomputes it.
+  boot_button::block_when(executor::is_running);
+  // Published on the transition, which includes the five minutes lapsing - a
+  // moment nothing else in the system would notice.
+  boot_button::on_window_changed(sse_hub::broadcast_config_window);
 
   if (!web_server::start()) {
     ESP_LOGE(TAG, "HTTP server unavailable - restarting");

@@ -524,6 +524,11 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   function broadcastState(): void {
     const message = stateUpdateFrame();
     clients.forEach(({ res }) => res.write(message));
+    // A run starting or stopping changes whether configuration is accepted, so
+    // the window is re-evaluated wherever run state moves. On the device the
+    // button task notices this within one 20 ms tick; here the state broadcast
+    // is the equivalent moment.
+    broadcastConfigWindowIfChanged();
   }
 
   /**
@@ -534,6 +539,21 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
    */
   function broadcastLibraryChanged(kind: LibraryChangedPayload['kind']): void {
     const message = `event: libraryChanged\ndata: ${JSON.stringify({ kind })}\n\n`;
+    clients.forEach(({ res }) => res.write(message));
+  }
+
+  /**
+   * `sse_hub::broadcast_config_window` (#144). The firmware sends this on the
+   * transition only, so the mock does too - and the transition includes a run
+   * starting or stopping, because the run is part of the answer.
+   */
+  let lastPublishedWindowOpen: boolean | null = null;
+  function broadcastConfigWindowIfChanged(): void {
+    const open = hardwareWritable();
+    if (open === lastPublishedWindowOpen) return;
+    lastPublishedWindowOpen = open;
+    const payload = { open, remainingSeconds: open ? 300 : 0 };
+    const message = `event: configWindow\ndata: ${JSON.stringify(payload)}\n\n`;
     clients.forEach(({ res }) => res.write(message));
   }
 

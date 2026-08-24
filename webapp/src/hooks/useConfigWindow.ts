@@ -10,11 +10,14 @@ import { useHardwareConfigApi } from '../api/hardwareConfig';
  * fill in a form that cannot be submitted. The window opens on a press of the
  * device's BOOT button and lasts five minutes.
  *
- * Polled, because the window opens at the device rather than in this browser,
- * so the tab has to appear without the operator knowing to reload — and vanish
- * when it lapses, for the same reason. An SSE event would be tidier and is
- * worth doing, but this happens rarely enough that a poll is not worth waiting
- * for it.
+ * Fetched once and then kept current by the `configWindow` SSE event, which
+ * `useSSE` writes straight into this query's cache. Not polled: the window
+ * changes a handful of times in a device's life, and asking every few seconds
+ * forever — on every open browser, including during a run — to catch it is the
+ * wrong shape.
+ *
+ * The device publishes the transition, including the one nothing else would
+ * notice: the five minutes simply lapsing.
  */
 export function useConfigWindow(): { open: boolean; remainingSeconds: number } {
   const api = useHardwareConfigApi();
@@ -22,9 +25,6 @@ export function useConfigWindow(): { open: boolean; remainingSeconds: number } {
   const { data, dataUpdatedAt } = useQuery({
     queryKey: ['hardware-config'],
     queryFn: api.get,
-    // Fast enough that pressing the button feels immediate, slow enough to be
-    // invisible on a device that is busy serving a run.
-    refetchInterval: 5000,
   });
 
   const serverOpen = data?.writeWindow.open ?? false;
