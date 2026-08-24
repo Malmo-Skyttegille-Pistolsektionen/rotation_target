@@ -15,7 +15,8 @@
 if(CONFIG_RT_NET_OPENETH)
     set(RT_NET_SRCS "net/eth_mgr.cpp")
 else()
-    set(RT_NET_SRCS "net/wifi_mgr.cpp" "net/wifi_store.cpp" "net/setup_portal.cpp")
+    set(RT_NET_SRCS "net/wifi_mgr.cpp" "net/wifi_store.cpp" "net/setup_portal.cpp"
+        "net/wifi_scan.cpp")
 endif()
 
 idf_component_register(

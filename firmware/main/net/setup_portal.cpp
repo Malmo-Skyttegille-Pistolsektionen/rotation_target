@@ -3,6 +3,7 @@
 
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include "esp_event.h"
 #include "esp_http_server.h"
@@ -20,6 +21,7 @@
 #include "json_util.h"
 #include "boot_button.h"
 #include "rgb_led.h"
+#include "wifi_scan.h"
 #include "wifi_store.h"
 
 namespace setup_portal {
@@ -32,12 +34,12 @@ const char *TAG = "setup";
 // means no API route can ever be exposed on an open setup AP.
 httpd_handle_t s_httpd = nullptr;
 
-const char kPage[] = R"HTML(<!doctype html><html><head><meta charset="utf-8">
+const char kPageHead[] = R"HTML(<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Rotation target setup</title><style>
 body{font-family:system-ui,sans-serif;margin:0;padding:1.5rem;background:#111;color:#eee}
 h1{font-size:1.25rem}form{max-width:22rem}label{display:block;margin:1rem 0 .25rem}
-input{width:100%;padding:.6rem;font-size:1rem;border:1px solid #444;border-radius:.3rem;
+input,select{width:100%;padding:.6rem;font-size:1rem;border:1px solid #444;border-radius:.3rem;
 background:#1c1c1c;color:#eee;box-sizing:border-box}
 button{margin-top:1.25rem;width:100%;padding:.7rem;font-size:1rem;border:0;border-radius:.3rem;
 background:#2d7;color:#000;font-weight:600}
@@ -46,15 +48,36 @@ p{color:#aaa;font-size:.85rem;line-height:1.4}
 margin-top:1.25rem}
 </style></head><body>
 <h1>Rotation target setup</h1>
-<p>This device could not join a network. Enter the WiFi it should use.
+<p>This device could not join a network. Choose the WiFi it should use.
 It will save the details and restart.</p>
 <form method="POST" action="/save">
-<label for="s">Network name (SSID)</label><input id="s" name="ssid" required maxlength="32">
-<label for="p">Password</label><input id="p" name="password" type="password" maxlength="63">
+<label for="pick">Network</label>
+<select id="pick" onchange="pick(this)">)HTML";
+
+// Spliced between the two halves: one <option> per network the scan found.
+const char kPageTail[] = R"HTML(</select>
+<div id="manual" style="display:none">
+<label for="s">Network name</label>
+<input id="s" name="ssid" maxlength="32" autocapitalize="none" autocorrect="off">
+</div>
+<label for="p">Password</label>
+<input id="p" name="password" type="password" maxlength="63">
 <p class="step"><b>Then press the BOOT button on the device</b> before saving.
 It is next to the USB sockets, marked BOOT or FLASH. This is what proves you are
 standing at the device rather than merely in range of it.</p>
 <button type="submit">Save and restart</button></form>
+<script>
+// The <select> is a convenience; `ssid` is always what gets submitted. A hidden
+// network has no name to offer, so choosing "Other" reveals the text field and
+// the operator types it - which is also the escape hatch if the scan missed one.
+function pick(sel){
+  var other = sel.value === '\x01other';
+  document.getElementById('manual').style.display = other ? 'block' : 'none';
+  var s = document.getElementById('s');
+  if (other) { s.value = ''; s.required = true; s.focus(); }
+  else { s.value = sel.value; s.required = false; }
+}
+</script>
 </body></html>)HTML";
 
 // Percent-decoding for application/x-www-form-urlencoded. A WiFi password can
@@ -101,9 +124,66 @@ std::string form_field(const std::string &body, const std::string &name) {
   return {};
 }
 
+// An SSID is arbitrary bytes chosen by somebody else, and it lands inside both
+// an attribute and element text. Escaped character by character rather than
+// with sequential replaces, which double-escape the entities they just
+// inserted - the bug AutoLee hit when '&' was added to its list last.
+std::string html_escape(const std::string &in) {
+  std::string out;
+  out.reserve(in.size());
+  for (const char c : in) {
+    switch (c) {
+      case '&':
+        out += "&amp;";
+        break;
+      case '"':
+        out += "&quot;";
+        break;
+      case '\'':
+        out += "&#39;";
+        break;
+      case '<':
+        out += "&lt;";
+        break;
+      case '>':
+        out += "&gt;";
+        break;
+      default:
+        out += c;
+    }
+  }
+  return out;
+}
+
+// The <option> list, strongest first, from the scan taken before the AP went up.
+std::string network_options() {
+  const std::vector<wifi_scan::AccessPoint> &found = wifi_scan::cached();
+
+  std::string out = "<option value=\"\">";
+  out += found.empty() ? "-- no networks found --" : "-- choose a network --";
+  out += "</option>";
+
+  for (const wifi_scan::AccessPoint &ap : found) {
+    // A hidden network has no name to put in the list; "Other" covers it.
+    if (ap.ssid.empty()) continue;
+    const std::string safe = html_escape(ap.ssid);
+    out += "<option value=\"" + safe + "\">" + safe + " (" + std::to_string(ap.rssi) + " dBm, " +
+           wifi_scan::auth_name(ap.auth) + ")</option>";
+  }
+
+  // U+0001 rather than a word: an SSID may legitimately be "Other", and a
+  // sentinel a network could collide with is a bug waiting for the one site
+  // that has it.
+  out += "<option value=\"\x01other\">Other or hidden network...</option>";
+  return out;
+}
+
 esp_err_t serve_page(httpd_req_t *req) {
   httpd_resp_set_type(req, "text/html");
-  return httpd_resp_send(req, kPage, HTTPD_RESP_USE_STRLEN);
+  httpd_resp_sendstr_chunk(req, kPageHead);
+  httpd_resp_sendstr_chunk(req, network_options().c_str());
+  httpd_resp_sendstr_chunk(req, kPageTail);
+  return httpd_resp_sendstr_chunk(req, nullptr);
 }
 
 // Every captive-portal probe gets a redirect to the page, which is what makes
@@ -251,6 +331,13 @@ void start_http() {
 
 void run() {
   rgb_led::status_portal();
+
+  // Before the access point, deliberately. Scanning once the AP is up means
+  // hopping channels, which drops whoever is connected to it - so the list the
+  // page offers is taken now, while the radio is still only a station that has
+  // just failed to join.
+  wifi_scan::cache(wifi_scan::scan());
+
   start_ap();
 
   // Answers every A query with our own address, so any hostname a phone probes
