@@ -18,7 +18,7 @@
 
 .title {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
 }
 
 .meta {
@@ -349,7 +349,7 @@
   background: none;
   cursor: pointer;
   color: inherit;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   line-height: 1;
   padding: 0 0.1rem;
 }
