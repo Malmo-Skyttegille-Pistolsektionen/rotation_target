@@ -7,7 +7,6 @@ import { AdminModeSection } from '../components/AdminModeSection';
 import { StartupIssuesSection } from '../components/StartupIssuesSection';
 import { StorageSection } from '../components/StorageSection';
 import { FirmwareSection } from '../components/FirmwareSection';
-import { HardwareSection } from '../components/HardwareSection';
 import { VersionSection } from '../components/VersionSection';
 import styles from './settings.module.css';
 
@@ -41,7 +40,6 @@ function SettingsPage(): React.ReactNode {
 
       <FirmwareSection />
 
-      <HardwareSection />
 
       <VersionSection />
     </div>

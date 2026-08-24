@@ -4,6 +4,7 @@
 //  Ported route-for-route from src/backend/apis/api.py of the MicroPython
 //  backend; Microdot's API swapped for PsychicHttp's.
 // ============================================================================
+#include "boot_button.h"
 #include "config/hardware_store.h"
 #include "web_server.h"
 
@@ -889,6 +890,15 @@ void register_config_routes() {
     out += hardware_config_json(defaults);
     out += ",\"overridden\":";
     out += hardware_store::overridden() ? "true" : "false";
+    // One meaning: "would a PUT be accepted right now". The run is already part
+    // of that answer - boot_button owns the composite - so this does not
+    // recompute it and cannot drift from the guard on the write below.
+    const bool window_open = boot_button::config_window_open();
+    out += ",\"writeWindow\":{\"open\":";
+    out += window_open ? "true" : "false";
+    out += ",\"remainingSeconds\":";
+    out += std::to_string(window_open ? boot_button::config_window_remaining_s() : 0);
+    out += "}";
     out += ",\"restartRequired\":";
     out += same_config(active, saved) ? "false" : "true";
     out += "}";
@@ -919,6 +929,30 @@ void register_config_routes() {
     // Absent fields keep what is stored rather than reverting to a compiled
     // default: a client that knows about fewer fields than this firmware must
     // not silently undo the ones it cannot see.
+    // Not while a program is running. Reconfiguring the machine and operating
+    // it are different activities, and these values only take effect at the
+    // next restart - so the only thing changing them mid-run can do is confuse
+    // whoever is on the line about what the device is about to become.
+    //
+    // Checked before the window, because "stop the run" is the more useful of
+    // the two instructions to be given.
+    if (executor::is_running()) {
+      return send_problem(res, rt::problem::kProgramRunning,
+                          "A program is running - stop it before changing the hardware "
+                          "configuration");
+    }
+
+    // Expert mode is a place, not a per-field rule: the whole endpoint is
+    // behind the window. Hostname belongs inside it as much as the pins do -
+    // a wrong pin leaves the web app reachable to fix it from, a wrong
+    // hostname changes mDNS and does not.
+    if (!boot_button::config_window_open()) {
+      return send_problem(res, rt::problem::kHardwareConfigWindowClosed,
+                          "Press the BOOT button on the device (marked BOOT or FLASH) three times "
+                          "within ten seconds to open a five-minute configuration window, then "
+                          "try again.");
+    }
+
     rt::HardwareConfig config = hardware_store::saved();
     if (!doc["targetGpio"].isNull()) config.target_gpio = doc["targetGpio"] | config.target_gpio;
     if (!doc["targetActiveLow"].isNull())

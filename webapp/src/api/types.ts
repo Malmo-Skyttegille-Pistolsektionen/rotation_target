@@ -51,7 +51,11 @@ export const SSETypes = {
   Heartbeat: 'heartbeat',
   BackendIssue: 'backend_issue',
   LibraryChanged: 'libraryChanged',
+  ConfigWindow: 'configWindow',
 } as const;
+
+/** Same shape as `writeWindow` in `GET /config/hardware`, deliberately. */
+export type ConfigWindowPayload = HardwareConfigState['writeWindow'];
 
 export interface HeartbeatPayload {
   id: number;

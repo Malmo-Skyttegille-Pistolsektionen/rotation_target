@@ -206,4 +206,15 @@ void broadcast_library_changed(const char *kind) {
   enqueue("libraryChanged", rt::library_changed_json(kind));
 }
 
+void broadcast_config_window(bool open, int32_t remaining_s) {
+  // Same shape as `writeWindow` in GET /config/hardware, so a client keeps one
+  // value from two sources rather than reconciling two.
+  std::string payload = "{\"open\":";
+  payload += open ? "true" : "false";
+  payload += ",\"remainingSeconds\":";
+  payload += std::to_string(remaining_s);
+  payload += "}";
+  enqueue("configWindow", payload);
+}
+
 }  // namespace sse_hub
