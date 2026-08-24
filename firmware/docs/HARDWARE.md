@@ -130,9 +130,35 @@ time. `idf.py flash` uses the stub, so prefer the explicit invocation above.
 
 ### Ports
 
-The boards expose two USB-C sockets. The **native USB-Serial/JTAG** one
-enumerates as `/dev/ttyACM0` (`lsusb` → `303a:…`); a UART-bridge socket appears
-as `/dev/ttyUSB0` (`10c4` / `1a86`). Work so far has used the native port.
+The boards expose two USB-C sockets. The **native USB-Serial/JTAG** one is USB
+vendor `303a`; the **UART bridge** is `10c4` (CP2102) or `1a86` (CH343).
+
+**Both can enumerate as `/dev/ttyACM*`** — the CH343 is a CDC device too — so
+the device name does not tell them apart. The vendor does:
+
+```bash
+udevadm info -q property -n /dev/ttyACM0 | grep ID_VENDOR_ID
+# 303a = native USB-Serial/JTAG
+# 1a86 / 10c4 = UART bridge
+```
+
+**Which socket matters, and not symmetrically:**
+
+| | native USB (`303a`) | UART bridge (`1a86`/`10c4`) |
+|---|---|---|
+| `ESP_LOG` output | yes | yes |
+| **The interactive console** | **yes** | **no** |
+| Flashing | yes | yes |
+| Large `read-flash` | needs `--no-stub` | fine |
+
+The console is the asymmetric one and it catches people out. `console.cpp`
+writes with `usb_serial_jtag_write_bytes()`, so **the `rt>` prompt exists only
+on the native USB socket.** On the UART bridge the log output still streams,
+which makes the port look right — but every command typed there is silently
+ignored. That covers `boot-targets` (#144), `wifi-scan` and `wifi-info`.
+
+If a documented serial-only command appears to do nothing, check the vendor ID
+before checking anything else.
 
 With two boards connected, tell them apart by MAC — the kernel puts it in the
 device name:
