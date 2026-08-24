@@ -73,6 +73,24 @@ void test_a_very_long_word_does_not_match_anything() {
   TEST_ASSERT_EQUAL(Command::kUnknown, parse_command(noise));
 }
 
+// --- wifi diagnostics ------------------------------------------------------
+
+void test_wifi_commands_are_recognised() {
+  TEST_ASSERT_EQUAL(Command::kWifiScan, parse_command("wifi-scan"));
+  TEST_ASSERT_EQUAL(Command::kWifiInfo, parse_command("wifi-info"));
+  // Same leniency as every other command: leading space and any case.
+  TEST_ASSERT_EQUAL(Command::kWifiScan, parse_command("  WIFI-SCAN  "));
+  TEST_ASSERT_EQUAL(Command::kWifiInfo, parse_command("Wifi-Info"));
+}
+
+// The two differ by one word and do very different things, so a near miss must
+// not silently resolve to the other one.
+void test_a_near_miss_is_not_the_other_wifi_command() {
+  TEST_ASSERT_EQUAL(Command::kUnknown, parse_command("wifi"));
+  TEST_ASSERT_EQUAL(Command::kUnknown, parse_command("wifi-scanner"));
+  TEST_ASSERT_EQUAL(Command::kUnknown, parse_command("wifiscan"));
+}
+
 // --- boot-targets (#144) ---------------------------------------------------
 //
 // The one setting that changes only from here, because it decides what the
@@ -124,6 +142,8 @@ int main() {
   RUN_TEST(test_a_prefix_is_not_a_match);
   RUN_TEST(test_the_word_comes_back_for_echoing);
   RUN_TEST(test_a_very_long_word_does_not_match_anything);
+  RUN_TEST(test_wifi_commands_are_recognised);
+  RUN_TEST(test_a_near_miss_is_not_the_other_wifi_command);
   RUN_TEST(test_boot_targets_is_recognised);
   RUN_TEST(test_no_argument_means_report_rather_than_change);
   RUN_TEST(test_both_positions_parse_whatever_the_case);

@@ -11,7 +11,9 @@
 #include "driver/usb_serial_jtag.h"
 #include "esp_app_desc.h"
 #include "esp_idf_version.h"
+#include "esp_netif.h"
 #include "esp_log.h"
+#include "esp_wifi.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -25,6 +27,9 @@
 #include "programs.h"
 #include "sse_hub.h"
 #include "targets.h"
+#if !CONFIG_RT_NET_OPENETH
+#include "wifi_scan.h"
+#endif
 #endif
 
 namespace console {
@@ -185,6 +190,112 @@ void handle_boot_targets(const std::string &line) {
       " at boot\r\nthe targets have not moved; this applies at the next restart\r\n");
 }
 
+#if !CONFIG_RT_NET_OPENETH
+
+// A scan, printed as a table somebody can read at a range on a laptop screen.
+//
+// Runs a fresh scan rather than serving the cached one: the question being
+// asked here is "what does it look like *now*", usually while somebody moves
+// the board or an access point around.
+void handle_wifi_scan() {
+  say("scanning all channels (about 2s)...\r\n");
+  const std::vector<wifi_scan::AccessPoint> found = wifi_scan::scan();
+  if (found.empty()) {
+    say("no networks found - the radio may be down, or nothing is on air\r\n");
+    return;
+  }
+
+  char line[176];
+  // One row per radio, not per name. Two rows sharing an SSID mean two access
+  // points - a mesh, or a guest network on the same box - and the BSSID says
+  // which: the same first five octets is one physical radio wearing two names,
+  // and it does not contend with itself. That distinction is what decides
+  // whether a channel is actually crowded or only looks it.
+  say("\r\n signal  dBm  ch  security    BSSID              SSID\r\n");
+  say(" ------  ---  --  ----------  -----------------  -------------------------\r\n");
+  for (const wifi_scan::AccessPoint &ap : found) {
+    const int b = wifi_scan::bars(ap.rssi);
+    char meter[5] = "....";
+    for (int i = 0; i < b && i < 4; i++) meter[i] = '#';
+    snprintf(line, sizeof(line), " [%s] %4d  %2u  %-10s  %s  %s\r\n", meter,
+             static_cast<int>(ap.rssi), static_cast<unsigned>(ap.channel),
+             wifi_scan::auth_name(ap.auth), wifi_scan::bssid_text(ap.bssid).c_str(),
+             ap.ssid.empty() ? "(hidden)" : ap.ssid.c_str());
+    say(line);
+  }
+  snprintf(line, sizeof(line), "\r\n%u radio(s), %u named network(s).\r\n",
+           static_cast<unsigned>(found.size()),
+           static_cast<unsigned>(wifi_scan::strongest_per_ssid(found).size()));
+  say(line);
+  say("The portal offers the named ones, strongest first.\r\n");
+}
+
+// What this device is joined to and how well, which is the other half of
+// diagnosing a join that keeps dropping.
+void handle_wifi_info() {
+  char line[160];
+
+  wifi_ap_record_t ap = {};
+  if (esp_wifi_sta_get_ap_info(&ap) != ESP_OK) {
+    say("not joined to a network\r\n");
+    say("(if the setup portal is up, this device is serving its own AP instead)\r\n");
+    return;
+  }
+
+  const size_t len = strnlen(reinterpret_cast<const char *>(ap.ssid), sizeof(ap.ssid));
+  const std::string ssid(reinterpret_cast<const char *>(ap.ssid), len);
+  snprintf(line, sizeof(line), "ssid       %s\r\n", ssid.empty() ? "(hidden)" : ssid.c_str());
+  say(line);
+  snprintf(line, sizeof(line), "bssid      %02x:%02x:%02x:%02x:%02x:%02x\r\n", ap.bssid[0],
+           ap.bssid[1], ap.bssid[2], ap.bssid[3], ap.bssid[4], ap.bssid[5]);
+  say(line);
+  snprintf(line, sizeof(line), "signal     %d dBm (%d/4 bars)\r\n", static_cast<int>(ap.rssi),
+           wifi_scan::bars(ap.rssi));
+  say(line);
+  snprintf(line, sizeof(line), "channel    %u\r\n", static_cast<unsigned>(ap.primary));
+  say(line);
+  snprintf(line, sizeof(line), "security   %s\r\n", wifi_scan::auth_name(ap.authmode));
+  say(line);
+
+  esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+  if (netif != nullptr) {
+    esp_netif_ip_info_t ip = {};
+    if (esp_netif_get_ip_info(netif, &ip) == ESP_OK) {
+      snprintf(line, sizeof(line),
+               "ip         " IPSTR "\r\nnetmask    " IPSTR "\r\ngateway    " IPSTR "\r\n",
+               IP2STR(&ip.ip), IP2STR(&ip.netmask), IP2STR(&ip.gw));
+      say(line);
+    }
+    esp_netif_dns_info_t dns = {};
+    if (esp_netif_get_dns_info(netif, ESP_NETIF_DNS_MAIN, &dns) == ESP_OK) {
+      snprintf(line, sizeof(line), "dns        " IPSTR "\r\n", IP2STR(&dns.ip.u_addr.ip4));
+      say(line);
+    }
+    uint8_t mac[6] = {};
+    if (esp_netif_get_mac(netif, mac) == ESP_OK) {
+      snprintf(line, sizeof(line), "mac        %02x:%02x:%02x:%02x:%02x:%02x\r\n", mac[0], mac[1],
+               mac[2], mac[3], mac[4], mac[5]);
+      say(line);
+    }
+  }
+}
+
+#else  // CONFIG_RT_NET_OPENETH
+
+// The QEMU build has an emulated Ethernet controller and no radio, so there is
+// nothing to scan and wifi_scan.cpp is not linked in. Answered rather than
+// hidden: a command that silently vanishes on one build is worse than one that
+// says why it cannot help.
+void handle_wifi_scan() {
+  say("this build has no radio (CONFIG_RT_NET_OPENETH) - nothing to scan\r\n");
+}
+
+void handle_wifi_info() {
+  say("this build has no radio (CONFIG_RT_NET_OPENETH) - see 'status' for the link\r\n");
+}
+
+#endif  // CONFIG_RT_NET_OPENETH
+
 void handle(const std::string &line) {
   switch (rt::console::parse_command(line)) {
     case rt::console::Command::kNone:
@@ -195,11 +306,21 @@ void handle(const std::string &line) {
     case rt::console::Command::kBootTargets:
       handle_boot_targets(line);
       break;
+    case rt::console::Command::kWifiScan:
+      handle_wifi_scan();
+      break;
+    case rt::console::Command::kWifiInfo:
+      handle_wifi_info();
+      break;
     case rt::console::Command::kHelp:
       say("status         network, targets, storage, and what the boot scan found\r\n"
           "boot-targets   where the targets rest at boot: 'shown' or 'hidden'\r\n"
           "               reads with no argument. Serial only - it is what\r\n"
           "               protects somebody standing downrange.\r\n"
+          "wifi-scan      every network the radio can hear: signal, channel,\r\n"
+          "               security. The same list the setup portal offers.\r\n"
+          "wifi-info      what this device is joined to: signal, channel, IP,\r\n"
+          "               gateway, DNS, MAC.\r\n"
           "help           this\r\n");
       break;
     case rt::console::Command::kUnknown:

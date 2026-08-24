@@ -22,6 +22,15 @@ enum class Command {
   // setting that protects somebody standing downrange - so changing it needs
   // physical access rather than a web form.
   kBootTargets,
+  // `wifi-scan` - what the radio can hear, with signal and encryption.
+  // `wifi-info` - what this device is joined to, and how.
+  //
+  // Serial-only on purpose, and not because they are dangerous: they are a
+  // diagnostic for somebody standing at a range wondering why a board will not
+  // join, and that person has a cable. Adding an API surface for them would be
+  // a surface to secure for no gain.
+  kWifiScan,
+  kWifiInfo,
 };
 
 // What followed `boot-targets` on the line.
