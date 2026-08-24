@@ -50,7 +50,7 @@
 
 .fieldLabel {
   color: #6b7280;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 600;
@@ -71,7 +71,7 @@
   margin: 0;
   flex-basis: 100%;
   color: #6b7280;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
 }
 
 .button {
@@ -182,7 +182,7 @@
 
 .fileCell {
   font-family: monospace;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: #6b7280;
   overflow-wrap: anywhere;
 }
@@ -302,7 +302,7 @@
   }
 
   .table {
-    font-size: 0.875rem;
+    font-size: 0.85rem;
   }
 
   .table th,
@@ -330,6 +330,6 @@
 
   .button {
     padding: 0 0.65rem;
-    font-size: 0.875rem;
+    font-size: 0.85rem;
   }
 }

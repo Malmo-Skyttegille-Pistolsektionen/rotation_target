@@ -98,7 +98,7 @@
 
 .duration {
   font-weight: bold;
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   color: #333;
 }
 
@@ -155,7 +155,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   font-weight: 500;
   padding: 0 2px;
   overflow: hidden;
@@ -216,7 +216,7 @@
   position: absolute;
   bottom: -18px;
   transform: translateX(-50%);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: #6b7280;
   /* .tick is 1px wide, so an absolutely positioned label with no explicit
      width shrink-to-fits against that 1px - harmless for a single digit-run
@@ -304,7 +304,7 @@
   /* Nothing here drops under 14 px: this is read from behind the firing line,
      not from a desk. */
   .symbol {
-    font-size: 0.875rem;
+    font-size: 0.85rem;
     letter-spacing: 0;
   }
 
@@ -316,7 +316,7 @@
     padding: 1px 0 0;
     border-top: 1px solid #eee;
     border-left: none;
-    font-size: 0.875rem;
+    font-size: 0.85rem;
     width: 100%;
   }
 
@@ -445,7 +445,7 @@
 }
 
 .optionalBadge {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -485,7 +485,7 @@
 }
 
 .anchorMark {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: #b45309;
@@ -505,7 +505,7 @@
   position: absolute;
   top: 0;
   left: 3px;
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: #b45309;
   white-space: nowrap;
