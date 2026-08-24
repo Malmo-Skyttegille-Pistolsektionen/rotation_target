@@ -33,7 +33,26 @@ jobs:
       - uses: actions/setup-python@v7.0.0
         with:
           python-version: '3.14.7'
-      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+
+      # Inlined rather than using pre-commit/action, which is a four-step
+      # composite doing exactly this. Upstream describes it as maintenance-only
+      # and points at pre-commit.ci instead; meanwhile it pins actions/cache@v4
+      # internally, which annotates every pull request in this repository with
+      # a Node 20 deprecation notice we cannot address from here.
+      #
+      # pre-commit.ci is the upstream recommendation and is deliberately not
+      # used: it pushes auto-fix commits, and every commit here has to carry a
+      # DCO sign-off (CONTRIBUTING.md) that a bot would not add.
+      - run: python -m pip install pre-commit
+
+      - uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          # Same key shape as the action used: the hook environments depend on
+          # the interpreter as well as the config, so both belong in the key.
+          key: pre-commit-3|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - run: pre-commit run --all-files --show-diff-on-failure --color=always
 
   workflows:
     name: yamllint + actionlint
@@ -49,4 +68,12 @@ jobs:
         run: pipx run yamllint -c firmware/.yamllint .github .pre-commit-config.yaml firmware/.yamllint
 
       - name: actionlint
-        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
+        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7  # v2.2.0
+
+      # actionlint checks each workflow on its own and never compares the two
+      # sides of a reusable-workflow call, so it cannot see a caller granting
+      # less than the callee asks for. GitHub rejects that when the run starts,
+      # with no logs and no job list to diagnose it from - see #213, which took
+      # the release workflow out entirely.
+      - name: reusable-workflow permissions
+        run: python3 .github/scripts/check_workflow_permissions.py
