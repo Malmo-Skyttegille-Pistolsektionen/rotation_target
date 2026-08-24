@@ -60,6 +60,8 @@ const char kPageTail[] = R"HTML(</select>
 <label for="s">Network name</label>
 <input id="s" name="ssid" maxlength="32" autocapitalize="none" autocorrect="off">
 </div>
+<p style="margin:.4rem 0 0"><a href="/rescan" style="color:#2d7;font-size:.85rem">Rescan
+networks</a></p>
 <label for="p">Password</label>
 <input id="p" name="password" type="password" maxlength="63">
 <p class="step"><b>Then press the BOOT button on the device</b> before saving.
@@ -186,6 +188,16 @@ esp_err_t serve_page(httpd_req_t *req) {
   return httpd_resp_sendstr_chunk(req, nullptr);
 }
 
+// Re-runs the scan and returns to the page. The reason it exists: somebody
+// diagnosing a marginal signal moves the board or the access point and wants to
+// see what changed, and power-cycling to refresh a list is a poor answer.
+esp_err_t rescan(httpd_req_t *req) {
+  wifi_scan::cache(wifi_scan::scan());
+  httpd_resp_set_status(req, "303 See Other");
+  httpd_resp_set_hdr(req, "Location", "/");
+  return httpd_resp_send(req, nullptr, 0);
+}
+
 // Every captive-portal probe gets a redirect to the page, which is what makes
 // phones pop the "sign in to network" sheet instead of reporting no internet.
 esp_err_t redirect(httpd_req_t *req) {
@@ -300,7 +312,20 @@ void start_ap() {
     ap_cfg.ap.authmode = WIFI_AUTH_OPEN;
   }
 
-  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+  // APSTA, not plain AP. `esp_wifi_scan_start()` needs the station interface
+  // active: in pure AP mode every scan fails, so the network list on the page
+  // could never be refreshed once the access point was up. The station side is
+  // never connected here - it exists so the radio can still listen.
+  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
+
+  // `esp_wifi_init()` loads whatever station config the driver previously
+  // persisted into its in-RAM copy. The moment APSTA brings the station
+  // interface up, the driver tries to associate with that stale network - and
+  // a device that quietly rejoins the old network while still serving its
+  // setup portal is in two states at once. Clearing it is what stops that.
+  wifi_config_t empty_sta = {};
+  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &empty_sta));
+
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_cfg));
   ESP_ERROR_CHECK(esp_wifi_start());
 
@@ -321,9 +346,11 @@ void start_http() {
 
   static const httpd_uri_t root = {"/", HTTP_GET, serve_page, nullptr, false, false, nullptr};
   static const httpd_uri_t post = {"/save", HTTP_POST, save, nullptr, false, false, nullptr};
+  static const httpd_uri_t scan = {"/rescan", HTTP_GET, rescan, nullptr, false, false, nullptr};
   static const httpd_uri_t any = {"/*", HTTP_GET, redirect, nullptr, false, false, nullptr};
   httpd_register_uri_handler(s_httpd, &root);
   httpd_register_uri_handler(s_httpd, &post);
+  httpd_register_uri_handler(s_httpd, &scan);
   httpd_register_uri_handler(s_httpd, &any);
 }
 
@@ -331,14 +358,11 @@ void start_http() {
 
 void run() {
   rgb_led::status_portal();
-
-  // Before the access point, deliberately. Scanning once the AP is up means
-  // hopping channels, which drops whoever is connected to it - so the list the
-  // page offers is taken now, while the radio is still only a station that has
-  // just failed to join.
-  wifi_scan::cache(wifi_scan::scan());
-
   start_ap();
+
+  // After the AP, which APSTA makes possible. The first list is ready before
+  // anybody can have joined and asked for the page.
+  wifi_scan::cache(wifi_scan::scan());
 
   // Answers every A query with our own address, so any hostname a phone probes
   // lands on the setup page.
