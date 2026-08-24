@@ -46,6 +46,8 @@ Command parse_command(std::string_view line) {
   if (equals_ignoring_case(word, "status")) return Command::kStatus;
   if (equals_ignoring_case(word, "help") || equals_ignoring_case(word, "?")) return Command::kHelp;
   if (equals_ignoring_case(word, "boot-targets")) return Command::kBootTargets;
+  if (equals_ignoring_case(word, "wifi-scan")) return Command::kWifiScan;
+  if (equals_ignoring_case(word, "wifi-info")) return Command::kWifiInfo;
   return Command::kUnknown;
 }
 
