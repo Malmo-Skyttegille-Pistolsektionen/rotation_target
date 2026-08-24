@@ -846,7 +846,20 @@ export interface components {
          *     restart would be one nobody remembers opening.
          */
         ConfigWriteWindow: {
-            /** @description Whether `PUT /config/hardware` would be accepted. Always true on a build with no button, since refusing every change there would make the device unconfigurable rather than safe. */
+            /**
+             * @description Whether `PUT /config/hardware` would be accepted right now. One
+             *     meaning, so a client can hide the settings entirely rather than
+             *     offer a form that cannot save.
+             *
+             *     False **while a program is running**, as well as when nobody has
+             *     pressed the button. Reconfiguring the machine and operating it are
+             *     different activities, and these values only take effect at the next
+             *     restart — so changing them mid-run can only confuse whoever is on
+             *     the line about what the device is about to become.
+             *
+             *     Always true on a build with no button, since refusing every change
+             *     there would make the device unconfigurable rather than safe.
+             */
             open: boolean;
             /**
              * Format: int32
@@ -1972,12 +1985,13 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             /**
-             * @description `/problems/hardware_config_window_closed` — nobody has pressed the
-             *     device's button recently, so the configuration window is shut.
-             *
-             *     Separate from 401, which is about admin credentials: this is not a
-             *     question of who you are but of whether somebody is standing at the
-             *     device. Both apply, and both must pass.
+             * @description - `/problems/hardware_config_window_closed` — nobody has pressed
+             *       the device's button recently, so the configuration window is
+             *       shut. Separate from 401, which is about admin credentials: this
+             *       is not a question of who you are but of whether somebody is
+             *       standing at the device. Both apply, and both must pass.
+             *     - `/problems/program_running` — a program is running. Checked
+             *       first, because "stop the run" is the more useful instruction.
              */
             403: {
                 headers: {
