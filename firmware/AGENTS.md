@@ -77,22 +77,26 @@ idf.py build
   grep the generated `sdkconfig` to confirm the value landed. This fails quietly
   and looks exactly like the change not working.
 
-### Flashing: use `--no-stub`
+### Flashing, and when `--no-stub` is needed
 
-**esptool's stub flasher fails on this board.** It dies with `Packet content
-transfer stopped` at a specific address — 0xDA000 reproduced 0/3 — while the ROM
-loader reads the identical sector 3/3 and handled a 1 MB read in one call that
-the stub could not manage in 256 KB pieces.
+**Only large reads need it.** esptool's stub fails on `read-flash` above
+roughly 3 MB per transfer, dying with `Packet content transfer stopped`.
+Flashing is fine with the stub, including `idf.py flash`.
 
 ```bash
-python -m esptool --port /dev/ttyACM0 --no-stub write-flash ...   # args printed by `idf.py build`
-python -m esptool --port /dev/ttyACM0 --no-stub read-flash 0 0x1000000 backup.bin
+idf.py flash                                                       # fine
+esptool --port /dev/ttyACM0 --no-stub --baud 921600 \
+  read-flash 0x0 0x1000000 backup.bin                              # needs it
 ```
 
-This presents exactly like a bad flash sector and **is not one**. Chasing it as
-failing hardware — or as a cable, port or chunk-size problem — burns a lot of
-time. Running the same read with and without `--no-stub` is the test that tells
-those apart. `idf.py flash` uses the stub, so prefer the explicit invocation.
+A failed large read presents exactly like a bad flash sector and **is not one**.
+Chasing it as failing hardware, or as a cable or port problem, burns a lot of
+time; running the same read with and without `--no-stub` tells them apart.
+
+The measured thresholds are in [`docs/HARDWARE.md`](docs/HARDWARE.md) and
+belong only there. This rule has been written down wrong twice — once as "fails
+at address 0xDA000", once as "fails above 256 KB" — because each copy was
+restated rather than re-derived.
 
 ### Ports
 

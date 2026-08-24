@@ -89,31 +89,50 @@ is fine and the HTTP server is not.
 
 ## Flashing
 
-### Use `--no-stub`
+### Large reads need `--no-stub`
 
-**esptool's stub flasher fails on this hardware above about 256 KB per
-transfer.** It dies with `Packet content transfer stopped`. Measured on the
-DevKitC-1 over the native USB port, reading the same address each time:
+**esptool's stub fails on `read-flash` above roughly 3 MB per transfer.** It
+dies with `Packet content transfer stopped`. Measured on the DevKitC-1 over the
+native USB port, esptool 5.3.1, reading from `0x0`:
 
 | Transfer | Stub | Result |
 |---|---|---|
-| 256 KB | yes | works |
-| 512 KB | yes | fails |
-| 1 MB | yes | fails 3/3 |
-| 1 MB | `--no-stub` | works |
+| 1 MB | yes | works |
+| 2 MB | yes | works |
+| 3 MB | yes | works |
+| 4 MB | yes | **fails** |
+| 8 MB | yes | **fails** |
+| 16 MB | yes | **fails** |
+| 16 MB | `--no-stub` | works |
 
-It is the *size* that decides it, not the address and not the port: the
-address it happens to die at is wherever the transfer had got to. The app
-binary (~1.1 MB) and the LittleFS image (10 MB) are both well over the
-threshold, which is why a full flash needs the ROM loader.
+It is the *size* that decides it, not the address: where it dies is wherever
+the transfer had got to. The threshold sits between 3 MB and 4 MB.
 
-The stub is roughly 2.4x faster when it does work, so this costs real time on
-a large write — it is not a precaution to drop, it is the difference between a
-flash that completes and one that does not.
+**The stub does not return bad data — it fails, or it is correct.** A 1 MB stub
+read was compared byte for byte against the same range of a `--no-stub` dump of
+the whole chip. The only differences were inside `nvs`, because esptool resets
+the board between reads and the firmware writes NVS on boot. Everything else
+matched exactly.
+
+**So most work does not need `--no-stub`,** and the stub is roughly 15x faster
+(1 MB in 5.9 s). Reach for it when reading at full-flash scale — taking a
+backup image of a board, for instance:
+
+```bash
+esptool --port /dev/ttyACM0 --no-stub --baud 921600 \
+  read-flash 0x0 0x1000000 flash_full_16MB.bin
+```
+
+**Writes are a separate question and are not covered by the numbers above.**
+`write-flash` with the stub was measured good at 1.1 MB and at 10 MB on
+2026-08-24, hash-verified, so `idf.py flash` is fine. A full 16 MB write with
+the stub has not been tested. Until it is, a restore of a whole-chip image is
+the one write worth doing with `--no-stub`, on the grounds that it runs when
+something has already gone wrong.
 
 ```bash
 # flash arguments are printed at the end of `idf.py build`
-python -m esptool --chip esp32s3 --port /dev/ttyACM0 --no-stub \
+python -m esptool --chip esp32s3 --port /dev/ttyACM0 \
   --before default-reset --after hard-reset \
   write-flash --flash-mode dio --flash-freq 80m --flash-size 16MB \
   0x0 build/bootloader/bootloader.bin \
@@ -123,10 +142,16 @@ python -m esptool --chip esp32s3 --port /dev/ttyACM0 --no-stub \
   0x620000 build/storage.bin
 ```
 
-**This presents exactly like a bad flash sector and is not one.** Running the
-same read with and without `--no-stub` is the test that tells them apart —
-chasing it as failing hardware, or as a cable or port problem, wastes a lot of
-time. `idf.py flash` uses the stub, so prefer the explicit invocation above.
+**A failed large read presents exactly like a bad flash sector and is not one.**
+Running the same read with and without `--no-stub` is the test that tells them
+apart; chasing it as failing hardware, or as a cable problem, wastes a lot of
+time.
+
+> **This section has been wrong before.** It previously claimed the threshold
+> was "about 256 KB" and that 512 KB and 1 MB reads failed — they do not. The
+> rule survived unexamined because "always pass `--no-stub`" was cheap to obey,
+> so nobody re-derived it. If you change these numbers, say what you measured
+> and when.
 
 ### Ports
 

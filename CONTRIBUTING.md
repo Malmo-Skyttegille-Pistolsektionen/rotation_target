@@ -62,13 +62,11 @@ cd ../firmware && idf.py build
 
 ### Flashing a board
 
-**Use `--no-stub`.** esptool's stub flasher fails on this hardware above about
-256 KB per transfer, and the failure presents exactly like a bad flash sector.
-`idf.py flash` uses the stub, so flash explicitly — the arguments are printed
-at the end of `idf.py build`:
+`idf.py flash` works. If you would rather flash explicitly, the arguments are
+printed at the end of `idf.py build`:
 
 ```bash
-python -m esptool --chip esp32s3 --port /dev/ttyACM0 --no-stub \
+python -m esptool --chip esp32s3 --port /dev/ttyACM0 \
   --before default-reset --after hard-reset \
   write-flash --flash-mode dio --flash-freq 80m --flash-size 16MB \
   0x0 build/bootloader/bootloader.bin \
@@ -78,7 +76,9 @@ python -m esptool --chip esp32s3 --port /dev/ttyACM0 --no-stub \
   0x620000 build/storage.bin
 ```
 
-The measurements behind that, the wiring and the partition layout are in
+**Reading the whole chip is the one operation that needs `--no-stub`** — the
+stub fails on reads above roughly 3 MB. The measurements behind that, the
+wiring and the partition layout are in
 [`firmware/docs/HARDWARE.md`](firmware/docs/HARDWARE.md).
 
 ### Running it without a board
