@@ -10,6 +10,50 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 # bare `git describe` that would happily name the firmware after an unrelated
 # tag such as `pre-copilot`. Setting PROJECT_VER before project() takes
 # precedence over IDF's own derivation.
+# This runs at *configure* time, and ESP-IDF bakes the result into
+# esp_app_desc_t - so without telling CMake to watch git, a warm build tree
+# keeps reporting whichever commit it was last configured on. That is #247: a
+# board built from 6f5af58 reported a8a3483 in its boot banner, in
+# GET /api/v2/version and in build.version, while build.details - regenerated
+# per build - correctly said 6f5af58.
+#
+# Watching HEAD covers the case that actually bites (committing, switching
+# branch, rebasing). It does **not** cover the tree merely becoming dirty:
+# nothing reconfigures when a source file is edited, so the `--dirty` suffix
+# here can lag. `build.dirty` is computed on every build by
+# cmake/build_info.cmake and is the field to trust for that.
+function(rt_reconfigure_when_head_moves)
+    set(git_dir "${CMAKE_CURRENT_LIST_DIR}/../.git")
+    # A worktree or a submodule has `.git` as a *file* pointing elsewhere, and
+    # a tarball has none. Both are legitimate ways to build this; they simply
+    # do not get the watch.
+    if(NOT IS_DIRECTORY "${git_dir}")
+        return()
+    endif()
+    if(EXISTS "${git_dir}/HEAD")
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${git_dir}/HEAD")
+        file(READ "${git_dir}/HEAD" head_content)
+        string(STRIP "${head_content}" head_content)
+        # On a branch, HEAD names a ref and it is the *ref* file that changes
+        # when a commit lands; HEAD itself only changes when the branch does.
+        # Detached HEAD writes the sha straight into HEAD, so the watch above
+        # is already enough there.
+        if(head_content MATCHES "^ref: (.+)$")
+            set(ref_file "${git_dir}/${CMAKE_MATCH_1}")
+            if(EXISTS "${ref_file}")
+                set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${ref_file}")
+            endif()
+            # A packed ref has no file of its own; packed-refs is what moves.
+            if(EXISTS "${git_dir}/packed-refs")
+                set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                             "${git_dir}/packed-refs")
+            endif()
+        endif()
+    endif()
+endfunction()
+
+rt_reconfigure_when_head_moves()
+
 set(RT_VERSION_TAG_GLOB "[0-9]*.[0-9]*.[0-9]*")
 execute_process(
     COMMAND git describe --tags --match "${RT_VERSION_TAG_GLOB}" --always --dirty
