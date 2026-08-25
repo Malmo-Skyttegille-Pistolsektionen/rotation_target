@@ -77,3 +77,11 @@ jobs:
       # the release workflow out entirely.
       - name: reusable-workflow permissions
         run: python3 .github/scripts/check_workflow_permissions.py
+
+      # The gap no C++ linter can close (#225): clang-tidy and cppcheck analyse
+      # translation units, and a file nothing compiles has none. rt_logic lists
+      # its sources explicitly - which is right, and is also how
+      # `expert_password.{h,cpp}` sat in the tree looking live without ever
+      # being built.
+      - name: firmware sources are actually built
+        run: python3 .github/scripts/check_build_membership.py

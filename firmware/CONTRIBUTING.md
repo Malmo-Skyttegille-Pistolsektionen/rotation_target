@@ -93,6 +93,13 @@ where no test and no sanitizer can reach it. Take an abstraction
 If a change cannot be tested in `host_test/`, that is usually a sign the logic
 ended up on the wrong side of the line.
 
+**A new source file has to be added to a `CMakeLists.txt`.** `rt_logic` lists
+its sources explicitly rather than globbing, so a file you add and forget to
+register simply is not compiled — it looks live to anyone reading it and fails
+much later, or never. CI refuses that now
+(`.github/scripts/check_build_membership.py`), in both directions: an
+unregistered source, and a header nothing built includes.
+
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) has the task model, the locking
 rules and the storage layout. Read it before touching the executor or anything
 concurrent.
