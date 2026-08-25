@@ -53,6 +53,10 @@ file(MAKE_DIRECTORY "${RT_BUILD_INFO_DIR}")
 
 idf_build_get_property(RT_IDF_VER IDF_VER)
 
+# Needed by the staging and packing steps below, both of which are defined
+# before the tail of this file - so it is fetched once, here.
+idf_build_get_property(RT_PYTHON PYTHON)
+
 # The shipped programs and audio come from the monorepo's `resources/` tree and
 # are flashed as a LittleFS image. They are staged into one tree first because
 # the on-device layout is not the one resources/ uses: `shipped/` is what the
@@ -64,6 +68,7 @@ set(RT_RESOURCES_DIR "${CMAKE_CURRENT_LIST_DIR}/../resources" CACHE PATH
 set(LITTLEFS_STAGE "${CMAKE_BINARY_DIR}/littlefs_stage")
 set(LITTLEFS_STAGE_STAMP "${CMAKE_BINARY_DIR}/littlefs_stage.stamp")
 set(LITTLEFS_STAGE_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/cmake/stage_littlefs.cmake")
+set(RT_ADPCM_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/tools/wav_to_adpcm.py")
 
 if(NOT EXISTS "${RT_RESOURCES_DIR}/audios/audios.json")
     message(FATAL_ERROR
@@ -133,9 +138,11 @@ add_custom_command(
     COMMAND "${CMAKE_COMMAND}"
             -D "RT_RESOURCES_DIR=${RT_RESOURCES_DIR}"
             -D "LITTLEFS_STAGE=${LITTLEFS_STAGE}"
+            -D "RT_PYTHON=${RT_PYTHON}"
+            -D "RT_ADPCM_SCRIPT=${RT_ADPCM_SCRIPT}"
             -P "${LITTLEFS_STAGE_SCRIPT}"
     COMMAND "${CMAKE_COMMAND}" -E touch "${LITTLEFS_STAGE_STAMP}"
-    DEPENDS ${RT_STAGE_INPUTS} "${LITTLEFS_STAGE_SCRIPT}"
+    DEPENDS ${RT_STAGE_INPUTS} "${LITTLEFS_STAGE_SCRIPT}" "${RT_ADPCM_SCRIPT}"
     COMMENT "Staging the LittleFS image contents"
     VERBATIM)
 
@@ -185,8 +192,6 @@ set(RT_EMBEDDED_BLOB "${RT_EMBEDDED_DIR}/embedded.bin")
 set(RT_EMBEDDED_INDEX "${CMAKE_BINARY_DIR}/generated/embedded_index.generated.h")
 set(RT_PACK_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/tools/pack_assets.py")
 file(MAKE_DIRECTORY "${RT_EMBEDDED_DIR}" "${CMAKE_BINARY_DIR}/generated")
-
-idf_build_get_property(RT_PYTHON PYTHON)
 
 set(RT_PACK_ARGS "${RT_EMBEDDED_BLOB}" "${RT_EMBEDDED_INDEX}")
 if(RT_WEBAPP_STAGE_DIR)

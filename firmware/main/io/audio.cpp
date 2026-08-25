@@ -77,6 +77,83 @@ class FileSource : public rt::ByteSource {
   uint64_t size_ = 0;
 };
 
+// Duplicates mono into both channels on the way out - the PCM5102A is wired as
+// a stereo DAC either way - in pieces, so the caller can hand over a whole
+// decoded ADPCM block without a buffer the size of one.
+//
+// static, not stack: a 4 KB task stack cannot hold these alongside its call
+// frames. Safe because everything here runs on the single playback task.
+void write_mono_as_stereo(const int16_t *samples, size_t count) {
+  static int16_t stereo[kAudioChunkBytes];
+  constexpr size_t kPieceSamples = kAudioChunkBytes / 2;
+
+  while (count > 0) {
+    const size_t piece = count < kPieceSamples ? count : kPieceSamples;
+    for (size_t i = 0; i < piece; i++) {
+      stereo[i * 2 + 0] = samples[i];
+      stereo[i * 2 + 1] = samples[i];
+    }
+    size_t written = 0;
+    i2s_channel_write(s_tx, stereo, piece * 2 * sizeof(int16_t), &written, portMAX_DELAY);
+    samples += piece;
+    count -= piece;
+  }
+}
+
+// Uploaded clips: whatever the club recorded, straight from the file.
+void play_pcm(FILE *f, const rt::WavInfo &info) {
+  static int16_t chunk[kAudioChunkBytes / 2];
+  uint64_t remaining = info.data_bytes;
+
+  while (remaining > 0) {
+    const size_t want = remaining < sizeof(chunk) ? static_cast<size_t>(remaining) : sizeof(chunk);
+    const size_t got = fread(chunk, 1, want, f);
+    if (got == 0) break;
+    remaining -= got;
+
+    // Whole 16-bit frames only: an odd tail byte is half a sample, and
+    // rounding up for it would emit two bytes of the previous clip still
+    // sitting in the static buffer.
+    const size_t samples = got / 2;
+    if (samples == 0) break;
+
+    if (info.channels == 1) {
+      write_mono_as_stereo(chunk, samples);
+    } else {
+      size_t written = 0;
+      i2s_channel_write(s_tx, chunk, samples * sizeof(int16_t), &written, portMAX_DELAY);
+    }
+  }
+}
+
+// The shipped set, transcoded to IMA ADPCM at build time so that firmware, web
+// app and audio fit one image (#227). Block by block, because each block
+// restarts from its own predictor - which is also why a damaged block costs
+// one block rather than the rest of the clip.
+void play_adpcm(FILE *f, const rt::WavInfo &info) {
+  static uint8_t block[rt::kMaxAdpcmBlockBytes];
+  static int16_t pcm[rt::ima_adpcm_samples_per_block(rt::kMaxAdpcmBlockBytes)];
+
+  uint64_t remaining = info.data_bytes;
+  // The final block is padded to a whole block; `fact` says how much of it is
+  // real. Without one, every decoded sample is played - a fraction of a second
+  // of near-silence at the end rather than a wrong answer.
+  uint64_t samples_left = info.total_samples > 0 ? info.total_samples : UINT64_MAX;
+
+  while (remaining > 0 && samples_left > 0) {
+    const size_t want =
+        remaining < info.block_bytes ? static_cast<size_t>(remaining) : info.block_bytes;
+    const size_t got = fread(block, 1, want, f);
+    if (got < rt::kImaAdpcmHeaderBytes) break;
+    remaining -= got;
+
+    size_t decoded = rt::decode_ima_adpcm_block(block, got, pcm, sizeof(pcm) / sizeof(pcm[0]));
+    if (decoded > samples_left) decoded = static_cast<size_t>(samples_left);
+    samples_left -= decoded;
+    write_mono_as_stereo(pcm, decoded);
+  }
+}
+
 void play_one(const std::string &path) {
   rt::WavInfo info;
   FILE *f = fopen(path.c_str(), "rb");
@@ -116,40 +193,10 @@ void play_one(const std::string &path) {
     return;
   }
 
-  // static, not stack: together these are 3 KB, which a 4 KB task stack cannot
-  // hold alongside its call frames. Safe because play_one() only ever runs on
-  // the single playback task.
-  static uint8_t chunk[kAudioChunkBytes];
-  // Mono is duplicated into both channels, so the write buffer is twice the
-  // read buffer - the PCM5102A is wired as a stereo DAC either way.
-  static uint8_t stereo[kAudioChunkBytes * 2];
-  uint64_t remaining = info.data_bytes;
-
-  while (remaining > 0) {
-    const size_t want = remaining < sizeof(chunk) ? static_cast<size_t>(remaining) : sizeof(chunk);
-    const size_t got = fread(chunk, 1, want, f);
-    if (got == 0) break;
-    remaining -= got;
-
-    const uint8_t *out = chunk;
-    size_t out_bytes = got;
-    if (info.channels == 1) {
-      // Whole 16-bit frames only: an odd tail byte is half a sample, and
-      // doubling `got` for it would emit two bytes of the previous clip still
-      // sitting in the static buffer.
-      const size_t pairs = got & ~static_cast<size_t>(1);
-      for (size_t i = 0; i < pairs; i += 2) {
-        stereo[i * 2 + 0] = chunk[i];
-        stereo[i * 2 + 1] = chunk[i + 1];
-        stereo[i * 2 + 2] = chunk[i];
-        stereo[i * 2 + 3] = chunk[i + 1];
-      }
-      out = stereo;
-      out_bytes = pairs * 2;
-    }
-
-    size_t written = 0;
-    i2s_channel_write(s_tx, out, out_bytes, &written, portMAX_DELAY);
+  if (info.format == rt::WavFormat::kImaAdpcm) {
+    play_adpcm(f, info);
+  } else {
+    play_pcm(f, info);
   }
 
   i2s_channel_disable(s_tx);

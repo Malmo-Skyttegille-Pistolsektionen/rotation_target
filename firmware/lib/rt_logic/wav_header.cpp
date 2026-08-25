@@ -5,6 +5,11 @@
 namespace rt {
 namespace {
 
+// RIFF wFormatTag values. 1 is uncompressed PCM; 0x11 is IMA ADPCM, which is
+// what tools/wav_to_adpcm.py emits for the shipped set (#227).
+constexpr uint16_t kFormatPcm = 1;
+constexpr uint16_t kFormatImaAdpcm = 0x11;
+
 uint32_t read_le(const uint8_t *p, size_t bytes) {
   uint32_t v = 0;
   for (size_t i = 0; i < bytes; i++) v |= static_cast<uint32_t>(p[i]) << (8 * i);
@@ -43,13 +48,38 @@ bool parse_wav_header(ByteSource &src, WavInfo &out) {
       const uint16_t audio_format = static_cast<uint16_t>(read_le(fmt, 2));
       out.channels = static_cast<uint16_t>(read_le(fmt + 2, 2));
       out.sample_rate = read_le(fmt + 4, 4);
+      const uint16_t block_align = static_cast<uint16_t>(read_le(fmt + 12, 2));
       const uint16_t bits = static_cast<uint16_t>(read_le(fmt + 14, 2));
 
-      if (audio_format != 1 || bits != 16) return false;
-      if (out.channels != 1 && out.channels != 2) return false;
+      if (audio_format == kFormatPcm && bits == 16) {
+        out.format = WavFormat::kPcm16;
+        if (out.channels != 1 && out.channels != 2) return false;
+      } else if (audio_format == kFormatImaAdpcm && bits == 4) {
+        out.format = WavFormat::kImaAdpcm;
+        // Stereo IMA ADPCM interleaves the channels four bytes at a time and
+        // nothing produces it here; refused rather than half-decoded.
+        if (out.channels != 1) return false;
+        // A block has to hold its header and at least one encoded byte, and a
+        // block bigger than the decode buffer downstream cannot be played.
+        if (block_align <= kImaAdpcmHeaderBytes || block_align > kMaxAdpcmBlockBytes) {
+          return false;
+        }
+        out.block_bytes = block_align;
+      } else {
+        return false;
+      }
       // A zero rate would divide by zero in the I2S clock config downstream.
       if (out.sample_rate == 0) return false;
       have_fmt = true;
+
+    } else if (memcmp(header, "fact", 4) == 0) {
+      // Non-PCM WAV carries the real sample count here, which is the only
+      // place the padding in the final ADPCM block can be undone. Optional:
+      // a file without one plays every decoded sample, padding included.
+      uint8_t fact[4];
+      if (size >= sizeof(fact) && src.read_at(cursor, fact, sizeof(fact)) == sizeof(fact)) {
+        out.total_samples = read_le(fact, 4);
+      }
 
     } else if (memcmp(header, "data", 4) == 0) {
       if (!have_fmt) return false;

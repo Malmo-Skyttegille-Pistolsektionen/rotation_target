@@ -250,6 +250,14 @@ Load-bearing invariants:
   BOOT button does the same to a real board. **Any new destructive gesture
   inherits this rule**: it must not be reachable by a pin that is simply
   broken.
+- **Shipped audio is IMA ADPCM, uploaded audio is PCM, and both reach the same
+  player** (#227). `tools/wav_to_adpcm.py` transcodes at build time; the file
+  is still a `.wav` and still named by id, so `audios.json` needs no idea it
+  happened. **The encoder and `rt::decode_ima_adpcm_block` must reconstruct
+  with the same expression** — `((2n+1)*step)>>3` in one multiply, not the
+  specification's four separately-shifted terms, which truncate differently
+  and drift over a block. `host_test/test_ima_adpcm` pins the decoder against
+  a vector ffmpeg produced, which is what makes "the same" checkable.
 - **The web app is a read-only VFS at `/embedded`, not files on the flash
   filesystem** (#227): `tools/pack_assets.py` bakes `webapp/dist` into the app
   image as one blob, and `storage/embedded_fs.cpp` registers it. Exposed as a
