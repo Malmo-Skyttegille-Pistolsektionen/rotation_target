@@ -1055,7 +1055,7 @@ export interface components {
             /** Format: int32 */
             id: number;
             title: string;
-            /** @description The absolute path on the device's LittleFS mount, e.g. `/storage/shipped/audio/26.wav`. Named `filename` for compatibility with the MicroPython backend, which joined the directory into it the same way. */
+            /** @description The absolute path the device reads the clip from — display and diagnostics only; nothing addresses a clip by it. A shipped clip is `/embedded/audio/26.wav`, which is not a filesystem at all but the read-only image baked into the application (D-35); an uploaded one is `/userdata/audio/1000.wav` on the writable partition. Named `filename` for compatibility with the MicroPython backend, which joined the directory into it the same way. */
             filename: string;
             /** @description True for clips flashed with the firmware. */
             readonly: boolean;
