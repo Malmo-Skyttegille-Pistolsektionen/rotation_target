@@ -194,7 +194,8 @@ file(MAKE_DIRECTORY "${RT_EMBEDDED_DIR}" "${CMAKE_BINARY_DIR}/generated")
 # `gz:` on the web app only: the static handler is the one consumer that can
 # undo it. The program loader would need a decompressor, and ADPCM does not
 # compress usefully.
-set(RT_PACK_ARGS "${RT_EMBEDDED_BLOB}" "${RT_EMBEDDED_INDEX}"
+set(RT_EMBEDDED_ASM "${RT_EMBEDDED_DIR}/embedded_blob.S")
+set(RT_PACK_ARGS "${RT_EMBEDDED_BLOB}" "${RT_EMBEDDED_INDEX}" "${RT_EMBEDDED_ASM}"
     "audio=${RT_SHIPPED_STAGE}/audio" "programs=${RT_SHIPPED_STAGE}/programs")
 if(RT_WEBAPP_STAGE_DIR)
     list(APPEND RT_PACK_ARGS "gz:webapp=${RT_WEBAPP_STAGE_DIR}")
@@ -221,7 +222,7 @@ endif()
 
 add_custom_target(rt_pack_assets ALL
     COMMAND "${RT_PYTHON}" "${RT_PACK_SCRIPT}" ${RT_PACK_ARGS}
-    BYPRODUCTS "${RT_EMBEDDED_BLOB}" "${RT_EMBEDDED_INDEX}"
+    BYPRODUCTS "${RT_EMBEDDED_BLOB}" "${RT_EMBEDDED_INDEX}" "${RT_EMBEDDED_ASM}"
     COMMENT "Packing the embedded web app into the app image"
     VERBATIM)
 add_dependencies(rt_pack_assets rt_shipped_stage)
@@ -230,14 +231,17 @@ if(TARGET rt_webapp_fresh)
     add_dependencies(rt_pack_assets rt_webapp_fresh)
 endif()
 
-set(RT_EMBEDDED_ASM "${RT_EMBEDDED_DIR}/embedded_blob.S")
-configure_file("${CMAKE_CURRENT_LIST_DIR}/main/storage/embedded_blob.S.in"
-               "${RT_EMBEDDED_ASM}" @ONLY)
-
-# `.incbin` reads the blob at assembly time and nothing tracks that as a
-# dependency, so without this a rebuilt web app would assemble the *previous*
-# blob - the same failure #39 was, one layer down.
-set_source_files_properties("${RT_EMBEDDED_ASM}" PROPERTIES OBJECT_DEPENDS "${RT_EMBEDDED_BLOB}")
+# No OBJECT_DEPENDS here, deliberately. `.incbin` reads the blob at assembly
+# time and nothing tracks that as a dependency - but the obvious guard,
+# set_source_files_properties(OBJECT_DEPENDS), is **directory-scoped**, and
+# this file is not the directory `main` is registered in, so it silently did
+# not apply. The object kept a stale blob, every offset in the index pointed
+# into the wrong bytes, and the web app was served as garbage.
+#
+# tools/pack_assets.py writes the .S itself now, with the blob's digest in a
+# comment, so the file differs whenever the blob differs and ordinary
+# dependency tracking reassembles it. A mechanism that cannot silently fail to
+# apply beats one that can.
 
 # Attached here rather than in main/CMakeLists.txt: components are registered
 # inside project(), before RT_WEBAPP_DIR and everything derived from it exists.
