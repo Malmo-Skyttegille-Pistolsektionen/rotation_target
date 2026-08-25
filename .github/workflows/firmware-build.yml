@@ -151,6 +151,20 @@ jobs:
           . "$IDF_PATH/export.sh"
           idf.py size
 
+      # The partition table becomes effectively write-once at the first release
+      # tag: growing the app slot costs a cable pass over every device and
+      # wipes NVS. So the moment to notice the slot filling up is long before
+      # it is full, and a check that runs on every build is the only thing that
+      # reliably does. See firmware/scripts/check_image_budget.py for the two
+      # ceilings and why they are separate.
+      - name: Check the image budget
+        shell: bash
+        run: |
+          python3 scripts/check_image_budget.py \
+            partitions.csv \
+            build/rotation_target_backend.bin \
+            build/generated/embedded_index.generated.h
+
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: firmware
@@ -158,7 +172,6 @@ jobs:
             firmware/build/rotation_target_backend.bin
             firmware/build/bootloader/bootloader.bin
             firmware/build/partition_table/partition-table.bin
-            firmware/build/storage.bin
           if-no-files-found: error
 
   # A job of its own rather than a step in `firmware` above, despite #225's

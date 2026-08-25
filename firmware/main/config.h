@@ -66,9 +66,6 @@ constexpr size_t kAudioChunkBytes = 1024;
 
 // --- Storage ---------------------------------------------------------------
 
-// LittleFS mount point for the `storage` partition (see partitions.csv).
-constexpr const char *kStorageMount = "/storage";
-
 // The read-only filesystem baked into the app image (#227). Not a partition:
 // it is .rodata in the application, so an OTA replaces it along with the
 // firmware and nothing can write to it at all. See storage/embedded_fs.h.
@@ -77,12 +74,20 @@ constexpr const char *kEmbeddedMount = "/embedded";
 // the `.gz` is shipped; the vendored static handler probes for it.
 constexpr const char *kWebappDir = "/embedded/webapp/";
 constexpr const char *kWebappIndex = "/embedded/webapp/index.html";
-// Flashed with the firmware, never written to at runtime.
-constexpr const char *kShippedAudioDir = "/storage/shipped/audio";
-constexpr const char *kShippedProgramDir = "/storage/shipped/programs";
-// Created on first upload.
-constexpr const char *kUploadAudioDir = "/storage/uploads/audio";
-constexpr const char *kUploadProgramDir = "/storage/uploads/programs";
+
+// LittleFS mount point for the `userdata` partition (see partitions.csv).
+// Uploads and nothing else: no update path writes it, which is why it is a
+// partition of its own rather than a directory beside the shipped content.
+constexpr const char *kStorageMount = "/userdata";
+// Inside the app image, so physically unwritable rather than merely
+// write-protected. `readonly` is a property of the directory a resource was
+// loaded from, and an uploaded file now cannot reach where these live even in
+// principle - the invariant stops depending on care.
+constexpr const char *kShippedAudioDir = "/embedded/audio";
+constexpr const char *kShippedProgramDir = "/embedded/programs";
+// On `userdata`, created on first upload.
+constexpr const char *kUploadAudioDir = "/userdata/audio";
+constexpr const char *kUploadProgramDir = "/userdata/programs";
 
 // The id ranges: below this is shipped, at or above it is uploaded. A shipped
 // resource landing inside the upload range is shadowed by an upload at the same
@@ -100,10 +105,12 @@ constexpr int kSseHeartbeatSeconds = 10;
 constexpr size_t kMaxUploadBytes = 1024 * 1024;
 
 // Firmware is the one upload that legitimately exceeds the ceiling above: the
-// app image is already past 1 MB and the slot it goes into is 3 MB. Sized to
-// the slot, so the limit that rejects an oversized upload is the same limit
-// that would have run out of flash anyway.
-constexpr size_t kMaxFirmwareUploadBytes = 3 * 1024 * 1024;
+// app image is 3.3 MB (it carries the web app and the shipped audio since
+// #227) and the slot it goes into is 4.5 MB. Sized to the slot, so the limit
+// that rejects an oversized upload is the same limit that would have run out
+// of flash anyway - and it has to move with partitions.csv, because an image
+// larger than this is refused before the flash ever gets a chance to say no.
+constexpr size_t kMaxFirmwareUploadBytes = 4608 * 1024;
 // How many boot-time backend_issues GET /api/v2/diagnostics/info keeps. They
 // are raised before the SSE hub has a server and would otherwise be dropped;
 // beyond this many the oldest is discarded. Sized for "a handful of stored

@@ -207,12 +207,16 @@ const DATA_DIR = path.resolve(here, '../data');
 // The device's real partition table (firmware/partitions.csv), with plausible
 // usage. otadata reports a size and no usage because the device cannot tell
 // either - the shape has to match, gaps included.
+// Mirrors firmware/partitions.csv, which #227 rewrote: the app slots grew to
+// hold the web app and the shipped audio, and `storage` became `userdata`
+// holding only uploads.
 const DEFAULT_PARTITIONS: DiagnosticsInfo['partitions'] = [
-  { name: 'nvs', kind: 'data', sizeBytes: 24_576, usedBytes: 4_160 },
+  { name: 'nvs', kind: 'data', sizeBytes: 81_920, usedBytes: 4_160 },
   { name: 'otadata', kind: 'data', sizeBytes: 8_192 },
-  { name: 'ota_0', kind: 'app', sizeBytes: 3_145_728, usedBytes: 1_096_480, running: true },
-  { name: 'ota_1', kind: 'app', sizeBytes: 3_145_728, usedBytes: 0, running: false },
-  { name: 'storage', kind: 'data', sizeBytes: 10_223_616, usedBytes: 8_163_328 },
+  { name: 'nvs_keys', kind: 'data', sizeBytes: 4_096 },
+  { name: 'ota_0', kind: 'app', sizeBytes: 4_718_592, usedBytes: 3_383_744, running: true },
+  { name: 'ota_1', kind: 'app', sizeBytes: 4_718_592, usedBytes: 0, running: false },
+  { name: 'userdata', kind: 'data', sizeBytes: 7_077_888, usedBytes: 262_144 },
   { name: 'coredump', kind: 'data', sizeBytes: 131_072, usedBytes: 0 },
 ];
 

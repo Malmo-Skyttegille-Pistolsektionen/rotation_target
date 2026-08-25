@@ -68,7 +68,9 @@ GUEST_PORT="$(sdkconfig_value CONFIG_RT_HTTP_PORT)"
 FLASH_SIZE="$(sdkconfig_value CONFIG_ESPTOOLPY_FLASHSIZE)"
 
 # `idf.py qemu` builds this itself; done here because everything after it is
-# too. Every binary in flash_args, including the LittleFS image, goes in.
+# too. Every binary in flash_args goes in - which since #227 is bootloader,
+# partition table, otadata and the app, and no filesystem image at all:
+# `userdata` is formatted on first mount and holds only uploads.
 FLASH_IMAGE="${BUILD_DIR}/qemu_flash.bin"
 echo "==> Merging the flash image (${FLASH_SIZE})"
 (cd "${BUILD_DIR}" && python -m esptool --chip esp32s3 merge-bin \

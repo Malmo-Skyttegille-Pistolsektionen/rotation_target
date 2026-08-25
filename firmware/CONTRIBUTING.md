@@ -179,6 +179,56 @@ of that. Tags are **bare three-part semver** (`2.0.0`, never `v2.0.0`), and
 cover firmware, web app and resources together (D-29). See
 [`docs/RELEASING.md`](../docs/RELEASING.md).
 
+## Changing the partition table
+
+**Don't, unless there is no alternative.** A partition-table change cannot be
+delivered over the air: the OTA endpoint writes the inactive app slot and
+nothing else, so every device in the field has to be reached with a USB cable —
+and the change **wipes NVS**, which is where the WiFi credentials and the
+hardware configuration live.
+
+`partitions.csv` was last changed by [#227], which moved the shipped audio and
+the web app into the app slot and split uploads into `userdata`. That was done
+while the fleet was three boards, all in hand, and no release had been cut. It
+gets more expensive with every board built.
+
+`scripts/check_image_budget.py` runs on every CI build and fails well before
+the app slot is full, precisely so that "we need a bigger slot" is a
+conversation rather than a surprise.
+
+### Migrating a board
+
+Per board, and in this order. **Capture the configuration first** — it is
+inside the NVS the flash is about to erase.
+
+1. **Write down the hardware configuration.** Settings → Expert, or `status`
+   on the serial console: the target GPIO and polarity, the LED pin, the three
+   I2S pins, the hostname and the display name. A board on the compiled
+   defaults has nothing to capture.
+2. **Take a full image first if this board matters.** It is the only way back:
+   ```bash
+   python -m esptool --chip esp32s3 --port /dev/ttyACM0 --no-stub      read-flash 0x0 0x1000000 backup-<board>.bin
+   ```
+   `--no-stub` is not optional at this size — see
+   [`docs/HARDWARE.md`](docs/HARDWARE.md).
+3. **Flash the factory image**, which writes the new table:
+   ```bash
+   python -m esptool --chip esp32s3 --port /dev/ttyACM0 --no-stub      write-flash 0x0 rotation_target-<version>-factory.bin
+   ```
+4. **The board comes up in the setup portal**, blue LED, because NVS is gone.
+   Join `rotation-target-setup-XXXX` and give it the network again — pressing
+   BOOT to authorise, as usual.
+5. **Put the hardware configuration back** from step 1, and restart.
+
+**Uploaded programs and clips survive**, because `userdata` is not part of the
+factory image and nothing writes it. That is a property of the new table, not
+of care taken during the migration — but a board coming from a **pre-#227**
+layout has its uploads in the old `storage` partition, which the new table
+overlaps. Those do not survive; get them off the device first
+(`GET /api/v2/programs`, and the audio files) if anyone wants them.
+
+[#227]: https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target/issues/227
+
 ## Reporting a problem
 
 Open an issue with what you expected, what happened, and — if it came off a

@@ -101,19 +101,25 @@ Point `RT_WEBAPP_DIR` at a `dist` built elsewhere to override that. With no
 `dist` at all the device serves the API only, which looks like a broken web
 app rather than a missing one.
 
-It goes **inside the app image**, not into the `storage` LittleFS partition
+It goes **inside the app image**, along with the shipped audio and programs
 (#227). That is what makes an OTA a complete update: an OTA writes the inactive
-app slot and nothing else, so a web app on the filesystem could only be
-replaced with a cable, and firmware and bundle drifted apart until somebody
-did. `firmware/tools/pack_assets.py` concatenates `dist` into one blob with an
+app slot and nothing else, so content on the filesystem could only be replaced
+with a cable, and firmware and bundle drifted apart until somebody did.
+`firmware/tools/pack_assets.py` concatenates the tree into one blob with an
 index; `firmware/main/storage/embedded_fs.cpp` registers it as a read-only VFS
 at `/embedded`, so every reader keeps using `fopen`/`stat` and none of them
 knows the difference. The packer also does the gzipping, so there is no `gzip`
 prerequisite and the bytes are reproducible.
 
-**`resources/` is flashed into that same image**, and `readonly` is a property
-of the directory a program was loaded from, never of the document — an uploader
-must not be able to claim its program is shipped.
+The `userdata` partition holds uploads and nothing else, and **no update path
+writes it** — not a guarded write, no write. `idf.py flash` therefore stops
+destroying uploads, which it used to do every time.
+
+**`resources/` goes into that same app image** (#227), transcoded to IMA ADPCM
+on the way for the audio. `readonly` is a property of the directory a program
+was loaded from, never of the document — an uploader must not be able to claim
+its program is shipped, and now cannot: shipped content lives inside the binary
+and the `userdata` partition uploads land in is a different partition entirely.
 
 **One version covers all of it** (D-29). Firmware, web app and resources ship
 under a single bare-semver tag, derived from git at build time. Never add a

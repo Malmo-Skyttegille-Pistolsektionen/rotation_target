@@ -5,6 +5,7 @@
 #include <sys/errno.h>
 #include <sys/stat.h>
 
+#include <cstdlib>
 #include <cstring>
 
 #include "config.h"
@@ -214,8 +215,153 @@ int vfs_stat(void *, const char *path, struct stat *out) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
+// --- directory iteration ---------------------------------------------------
+//
+// Only the program loader needs it (`programs::load_dir` scans for `<id>.json`),
+// but it has to be right rather than nearly right: the entries are a flat
+// sorted list of full paths, and "the children of /programs" is not something
+// the packer stores.
+
+struct EmbeddedDir {
+  // Must be first: the VFS layer hands this back to us as a DIR*.
+  DIR base;
+  char prefix[80];
+  size_t prefix_len;
+  size_t next;  // index into kEntries
+  long offset;  // for telldir/seekdir, counted in entries yielded
+  struct dirent entry;
+};
+
+// The immediate child of `prefix` that `path` lies under, or nullptr. Writes
+// the name into `out` and says whether it is a directory.
+const char *child_of(const char *path, const char *prefix, size_t prefix_len, char *out,
+                     size_t out_size, bool *is_dir) {
+  if (strncmp(path, prefix, prefix_len) != 0 || path[prefix_len] != '/') return nullptr;
+  const char *rest = path + prefix_len + 1;
+  const char *slash = strchr(rest, '/');
+  const size_t len = slash != nullptr ? static_cast<size_t>(slash - rest) : strlen(rest);
+  if (len == 0 || len >= out_size) return nullptr;
+  memcpy(out, rest, len);
+  out[len] = '\0';
+  *is_dir = slash != nullptr;
+  return out;
+}
+
+DIR *vfs_opendir(void *, const char *name) {
+  if (!is_directory(name)) {
+    errno = ENOENT;
+    return nullptr;
+  }
+  auto *dir = static_cast<EmbeddedDir *>(calloc(1, sizeof(EmbeddedDir)));
+  if (dir == nullptr) {
+    errno = ENOMEM;
+    return nullptr;
+  }
+
+  // A trailing slash would make every prefix comparison below off by one, and
+  // `/` is the mount root, whose children have no prefix to strip.
+  size_t len = strlen(name);
+  while (len > 1 && name[len - 1] == '/') len--;
+  if (len == 1 && name[0] == '/') len = 0;
+  if (len >= sizeof(dir->prefix)) {
+    free(dir);
+    errno = ENAMETOOLONG;
+    return nullptr;
+  }
+  memcpy(dir->prefix, name, len);
+  dir->prefix[len] = '\0';
+  dir->prefix_len = len;
+  return reinterpret_cast<DIR *>(dir);
+}
+
+int vfs_readdir_r(void *, DIR *pdir, struct dirent *entry, struct dirent **out) {
+  auto *dir = reinterpret_cast<EmbeddedDir *>(pdir);
+  *out = nullptr;
+  if (dir == nullptr) return EBADF;
+
+  char name[sizeof(dir->entry.d_name)];
+  while (dir->next < kEntryCount) {
+    bool is_dir = false;
+    const char *found = child_of(kEntries[dir->next].path, dir->prefix, dir->prefix_len, name,
+                                 sizeof(name), &is_dir);
+    dir->next++;
+    if (found == nullptr) continue;
+
+    // Entries are sorted by path, so every file under one subdirectory is
+    // adjacent - which is what makes "skip a directory already reported" a
+    // comparison against the last name rather than a set.
+    if (is_dir && strcmp(name, dir->entry.d_name) == 0) continue;
+
+    memset(entry, 0, sizeof(*entry));
+    entry->d_ino = 0;
+    entry->d_type = is_dir ? DT_DIR : DT_REG;
+    strlcpy(entry->d_name, name, sizeof(entry->d_name));
+    // Kept for the adjacency check above as well as for readdir()'s return.
+    dir->entry = *entry;
+    dir->offset++;
+    *out = entry;
+    return 0;
+  }
+  return 0;
+}
+
+struct dirent *vfs_readdir(void *ctx, DIR *pdir) {
+  auto *dir = reinterpret_cast<EmbeddedDir *>(pdir);
+  if (dir == nullptr) {
+    errno = EBADF;
+    return nullptr;
+  }
+  struct dirent scratch;
+  struct dirent *out = nullptr;
+  const int err = vfs_readdir_r(ctx, pdir, &scratch, &out);
+  if (err != 0) {
+    errno = err;
+    return nullptr;
+  }
+  // Returned from the DIR rather than from the stack: readdir()'s contract is
+  // that the pointer stays valid until the next call on the same DIR.
+  return out != nullptr ? &dir->entry : nullptr;
+}
+
+long vfs_telldir(void *, DIR *pdir) {
+  auto *dir = reinterpret_cast<EmbeddedDir *>(pdir);
+  if (dir == nullptr) {
+    errno = EBADF;
+    return -1;
+  }
+  return dir->offset;
+}
+
+void vfs_seekdir(void *ctx, DIR *pdir, long offset) {
+  auto *dir = reinterpret_cast<EmbeddedDir *>(pdir);
+  if (dir == nullptr) return;
+  // Rewind and walk: the mapping from an offset to a position in kEntries is
+  // not arithmetic (directories collapse several entries into one), so the
+  // only honest way back to offset N is to replay the first N.
+  dir->next = 0;
+  dir->offset = 0;
+  dir->entry.d_name[0] = '\0';
+  struct dirent scratch;
+  struct dirent *out = nullptr;
+  while (dir->offset < offset) {
+    vfs_readdir_r(ctx, pdir, &scratch, &out);
+    if (out == nullptr) break;
+  }
+}
+
+int vfs_closedir(void *, DIR *pdir) {
+  free(pdir);
+  return 0;
+}
+
 const esp_vfs_dir_ops_t kDirOps = {
     .stat_p = &vfs_stat,
+    .opendir_p = &vfs_opendir,
+    .readdir_p = &vfs_readdir,
+    .readdir_r_p = &vfs_readdir_r,
+    .telldir_p = &vfs_telldir,
+    .seekdir_p = &vfs_seekdir,
+    .closedir_p = &vfs_closedir,
 };
 
 // The `_p` (context-carrying) members throughout: the context-free ones are

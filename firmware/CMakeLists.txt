@@ -58,16 +58,15 @@ idf_build_get_property(RT_IDF_VER IDF_VER)
 idf_build_get_property(RT_PYTHON PYTHON)
 
 # The shipped programs and audio come from the monorepo's `resources/` tree and
-# are flashed as a LittleFS image. They are staged into one tree first because
-# the on-device layout is not the one resources/ uses: `shipped/` is what the
-# firmware treats as read-only, and `uploads/` is the writable half the REST API
-# adds to (created on first use).
+# go into the application image alongside the web app (#227). They are staged
+# into one tree first because the on-device layout is not the one resources/
+# uses, and because the audio is transcoded on the way.
 set(RT_RESOURCES_DIR "${CMAKE_CURRENT_LIST_DIR}/../resources" CACHE PATH
     "Directory holding the shipped audio and programs (audios/, programs/)")
 
-set(LITTLEFS_STAGE "${CMAKE_BINARY_DIR}/littlefs_stage")
-set(LITTLEFS_STAGE_STAMP "${CMAKE_BINARY_DIR}/littlefs_stage.stamp")
-set(LITTLEFS_STAGE_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/cmake/stage_littlefs.cmake")
+set(RT_SHIPPED_STAGE "${CMAKE_BINARY_DIR}/shipped_stage")
+set(RT_SHIPPED_STAMP "${CMAKE_BINARY_DIR}/shipped_stage.stamp")
+set(RT_SHIPPED_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/cmake/stage_shipped.cmake")
 set(RT_ADPCM_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/tools/wav_to_adpcm.py")
 
 if(NOT EXISTS "${RT_RESOURCES_DIR}/audios/audios.json")
@@ -134,24 +133,23 @@ endif()
 # warm tree does not reconfigure because `webapp/dist` was rebuilt, so copying
 # here at configure time shipped the *previous* bundle (issue #39).
 add_custom_command(
-    OUTPUT "${LITTLEFS_STAGE_STAMP}"
+    OUTPUT "${RT_SHIPPED_STAMP}"
     COMMAND "${CMAKE_COMMAND}"
             -D "RT_RESOURCES_DIR=${RT_RESOURCES_DIR}"
-            -D "LITTLEFS_STAGE=${LITTLEFS_STAGE}"
+            -D "RT_SHIPPED_STAGE=${RT_SHIPPED_STAGE}"
             -D "RT_PYTHON=${RT_PYTHON}"
             -D "RT_ADPCM_SCRIPT=${RT_ADPCM_SCRIPT}"
-            -P "${LITTLEFS_STAGE_SCRIPT}"
-    COMMAND "${CMAKE_COMMAND}" -E touch "${LITTLEFS_STAGE_STAMP}"
-    DEPENDS ${RT_STAGE_INPUTS} "${LITTLEFS_STAGE_SCRIPT}" "${RT_ADPCM_SCRIPT}"
-    COMMENT "Staging the LittleFS image contents"
+            -P "${RT_SHIPPED_SCRIPT}"
+    COMMAND "${CMAKE_COMMAND}" -E touch "${RT_SHIPPED_STAMP}"
+    DEPENDS ${RT_STAGE_INPUTS} "${RT_SHIPPED_SCRIPT}" "${RT_ADPCM_SCRIPT}"
+    COMMENT "Staging the shipped audio and programs"
     VERBATIM)
 
-add_custom_target(rt_littlefs_stage DEPENDS "${LITTLEFS_STAGE_STAMP}")
+add_custom_target(rt_shipped_stage DEPENDS "${RT_SHIPPED_STAMP}")
 
-# The image target always re-runs (the component cannot watch the base dir), so
-# the stamp is only ordering: stage first, then pack what staging produced.
-littlefs_create_partition_image(storage "${LITTLEFS_STAGE}" FLASH_IN_PROJECT
-                               DEPENDS "${LITTLEFS_STAGE_STAMP}")
+# No LittleFS image is built any more. `userdata` holds uploads and nothing
+# else, and it is formatted on first mount - so there is nothing to flash into
+# it, and `idf.py flash` stops destroying what the club uploaded (#227).
 
 # Declared here rather than in main/CMakeLists.txt because RT_WEBAPP_DIR and
 # RT_RESOURCES_DIR are settled above, and components are registered inside
@@ -193,10 +191,23 @@ set(RT_EMBEDDED_INDEX "${CMAKE_BINARY_DIR}/generated/embedded_index.generated.h"
 set(RT_PACK_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/tools/pack_assets.py")
 file(MAKE_DIRECTORY "${RT_EMBEDDED_DIR}" "${CMAKE_BINARY_DIR}/generated")
 
-set(RT_PACK_ARGS "${RT_EMBEDDED_BLOB}" "${RT_EMBEDDED_INDEX}")
+# `gz:` on the web app only: the static handler is the one consumer that can
+# undo it. The program loader would need a decompressor, and ADPCM does not
+# compress usefully.
+set(RT_PACK_ARGS "${RT_EMBEDDED_BLOB}" "${RT_EMBEDDED_INDEX}"
+    "audio=${RT_SHIPPED_STAGE}/audio" "programs=${RT_SHIPPED_STAGE}/programs")
 if(RT_WEBAPP_STAGE_DIR)
-    list(APPEND RT_PACK_ARGS "webapp=${RT_WEBAPP_STAGE_DIR}")
+    list(APPEND RT_PACK_ARGS "gz:webapp=${RT_WEBAPP_STAGE_DIR}")
 endif()
+
+# Staged before packing, at configure time as well as at build time, because
+# the packer reads what staging produced.
+execute_process(COMMAND "${CMAKE_COMMAND}"
+                -D "RT_RESOURCES_DIR=${RT_RESOURCES_DIR}"
+                -D "RT_SHIPPED_STAGE=${RT_SHIPPED_STAGE}"
+                -D "RT_PYTHON=${RT_PYTHON}"
+                -D "RT_ADPCM_SCRIPT=${RT_ADPCM_SCRIPT}"
+                -P "${RT_SHIPPED_SCRIPT}")
 
 # Once at configure time so the blob and the index exist before anything tries
 # to assemble or include them, and again on every build so they stay true - the
@@ -213,6 +224,7 @@ add_custom_target(rt_pack_assets ALL
     BYPRODUCTS "${RT_EMBEDDED_BLOB}" "${RT_EMBEDDED_INDEX}"
     COMMENT "Packing the embedded web app into the app image"
     VERBATIM)
+add_dependencies(rt_pack_assets rt_shipped_stage)
 if(TARGET rt_webapp_fresh)
     # Ordering only: fail before the packer embeds a stale bundle, not after.
     add_dependencies(rt_pack_assets rt_webapp_fresh)
