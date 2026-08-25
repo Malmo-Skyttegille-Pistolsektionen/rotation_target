@@ -115,3 +115,15 @@ audio set" is not, and those are the questions that get a fault diagnosed.
 report — which is the only thing it is for. If your browser refuses (some do on
 a plain `http://` address, which is what the device serves), the text appears
 below instead so you can select it by hand.
+
+## Troubleshooting
+
+A panel that appears **below About**, and only in the five minutes after
+somebody presses the device's BOOT button three times. It downloads one zip
+file holding the device's own details and, if it has crashed, the crash dump —
+the thing to attach to a message when a board has come back from a range day
+behaving oddly.
+
+It is behind the button press because a crash dump can contain the WiFi
+password. [Sending a fault report](troubleshooting.md#sending-a-fault-report)
+has the steps and what it means for who you send it to.

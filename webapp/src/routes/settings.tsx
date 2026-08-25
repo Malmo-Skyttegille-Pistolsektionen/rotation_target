@@ -8,6 +8,7 @@ import { StartupIssuesSection } from '../components/StartupIssuesSection';
 import { StorageSection } from '../components/StorageSection';
 import { FirmwareSection } from '../components/FirmwareSection';
 import { AboutSection } from '../components/AboutSection';
+import { TroubleshootingSection } from '../components/TroubleshootingSection';
 import styles from './settings.module.css';
 
 export const Route = createFileRoute('/settings')({
@@ -40,8 +41,11 @@ function SettingsPage(): React.ReactNode {
 
       <FirmwareSection />
 
-
       <AboutSection />
+
+      {/* Last, and only while the configuration window is open: it is the one
+          thing on this page that hands out a copy of the device's memory. */}
+      <TroubleshootingSection />
     </div>
   );
 }

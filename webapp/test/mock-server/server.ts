@@ -238,6 +238,13 @@ export interface MockSeed {
    */
   startupIssues?: StartupIssue[];
   /**
+   * Whether the device has a crash dump waiting, which is what
+   * `coredumpPresent` reports and what decides whether the troubleshooting
+   * bundle carries a `coredump.bin` (#201). Defaults to false: a device that
+   * has not panicked is the normal one.
+   */
+  coredumpPresent?: boolean;
+  /**
    * The `git describe` string `GET /diagnostics/info` reports. Defaults to a
    * value no bundle can have been built at, so the version comparison on
    * Settings has something to disagree with unless a test says otherwise.
@@ -919,7 +926,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         minFreeHeapBytes: 170_112,
         freePsramBytes: 8_216_576,
         runningPartition: 'ota_0',
-        coredumpPresent: false,
+        coredumpPresent: seed.coredumpPresent ?? false,
         storageTotalBytes: 12_582_912,
         storageUsedBytes: 4_194_304,
         partitions: seed.partitions ?? DEFAULT_PARTITIONS,
@@ -939,6 +946,42 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         ...(seed.build === null ? {} : { build: seed.build ?? DEFAULT_BUILD_INFO }),
       };
       jsonResponse(res, 200, info);
+      return;
+    }
+
+    // GET /diagnostics/bundle - the troubleshooting download (#201).
+    //
+    // Admin *and* the configuration window, which is the interesting half: a
+    // coredump can hold the WiFi password and admin mode is off by default, so
+    // an admin-only gate would be no gate on a normal device. `hardwareWritable`
+    // rather than `configWindowOpen` because the firmware's
+    // `config_window_open()` is held shut by a run, and the two must agree
+    // about a device that would refuse.
+    //
+    // The body is an *empty* archive - the 22-byte end-of-central-directory
+    // record and nothing else, which is a real zip every reader accepts.
+    // Nothing in the app opens it; it goes straight to the Downloads folder.
+    // Reimplementing the entry layout here would be a second copy of a format
+    // whose real test is firmware/host_test/test_zip_writer.
+    if (endpoint === '/diagnostics/bundle' && req.method === 'GET') {
+      if (!checkAdminAuth(req, res)) return;
+      if (!hardwareWritable()) {
+        problemResponse(
+          res,
+          '/problems/hardware_config_window_closed',
+          'Press the BOOT button on the device (marked BOOT or FLASH) three times within ten seconds to open a five-minute configuration window, then try again.',
+        );
+        return;
+      }
+
+      // The firmware builds this from the hostname, the version and why the
+      // device last restarted, and puts no date in it - it has no clock.
+      const filename = `rotation-target-${seed.firmwareVersion ?? '2.0.0-mock'}-poweron.zip`;
+      res.writeHead(200, {
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      });
+      res.end(Buffer.from('PK\u0005\u0006' + '\u0000'.repeat(18), 'latin1'));
       return;
     }
 
