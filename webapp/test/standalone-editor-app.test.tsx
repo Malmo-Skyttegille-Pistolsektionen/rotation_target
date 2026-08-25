@@ -9,7 +9,7 @@ import {
   createRouter,
 } from '@tanstack/react-router';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SettingsProvider } from '../src/context/SettingsContext';
 import { StandaloneEditorApp } from '../src/standalone/StandaloneEditorApp';
 
@@ -57,16 +57,100 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
 });
 
+/**
+ * A repository with two programs. The listing is the contents API; the two
+ * titles come from `raw.githubusercontent.com`, which is deliberately a
+ * different host - the whole lazy-title design rests on those not spending API
+ * quota.
+ */
+function stubRepo(options: { titlesFail?: boolean } = {}): ReturnType<typeof vi.fn> {
+  const listing = JSON.stringify([
+    { name: '2.json', path: 'p/2.json', type: 'file', download_url: 'https://raw/2' },
+    { name: '40.json', path: 'p/40.json', type: 'file', download_url: 'https://raw/40' },
+  ]);
+  const titles: Record<string, string> = {
+    'https://raw/2': JSON.stringify({ id: 2, title: 'Provserie' }),
+    'https://raw/40': JSON.stringify({ id: 40, title: 'Fältträning' }),
+  };
+
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.startsWith('https://api.github.com/')) return Promise.resolve(new Response(listing, { status: 200 }));
+    if (options.titlesFail) return Promise.resolve(new Response('nope', { status: 500 }));
+    return Promise.resolve(new Response(titles[url] ?? '{}', { status: 200 }));
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
 describe('the picker', () => {
-  it('offers this repo, another repo, a local file, and new', async () => {
+  it('offers one repo card, a local file, and new', async () => {
     renderApp();
     await ready();
-    expect(screen.getByTestId('picker-repo-canonical')).toBeTruthy();
-    expect(screen.getByTestId('picker-repo-other')).toBeTruthy();
+    // One card, not two (#221). "This repo" was never anything but a set of
+    // defaults once the path and ref became fields.
+    expect(screen.getByTestId('picker-repo')).toBeTruthy();
     expect(screen.getByTestId('picker-file')).toBeTruthy();
     expect(screen.getByTestId('picker-new')).toBeTruthy();
+  });
+
+  // Somebody browsing our programs should press Browse and touch nothing.
+  it('pre-fills the repo fields with this project, and the ref with nothing', async () => {
+    renderApp();
+    await ready();
+    expect((screen.getByTestId('picker-repo-owner') as HTMLInputElement).value).toBe(
+      'Malmo-Skyttegille-Pistolsektionen',
+    );
+    expect((screen.getByTestId('picker-repo-repo') as HTMLInputElement).value).toBe('rotation_target');
+    expect((screen.getByTestId('picker-repo-path') as HTMLInputElement).value).toBe('resources/programs/files');
+    // Empty means the default branch, which is what somebody wants unless they
+    // say otherwise.
+    expect((screen.getByTestId('picker-repo-ref') as HTMLInputElement).value).toBe('');
+  });
+
+  it('carries the path and ref into the listing request', async () => {
+    const fetchMock = stubRepo();
+    renderApp();
+    await ready();
+
+    type('picker-repo-path', 'other/programs');
+    type('picker-repo-ref', 'v1.2.3');
+    fireEvent.click(screen.getByTestId('picker-repo-browse'));
+
+    await screen.findByTestId('picker-repo-files');
+    const listingCall = fetchMock.mock.calls.find((call) => String(call[0]).startsWith('https://api.github.com/'));
+    expect(String(listingCall?.[0])).toBe(
+      'https://api.github.com/repos/Malmo-Skyttegille-Pistolsektionen/rotation_target/contents/other/programs?ref=v1.2.3',
+    );
+  });
+
+  it('upgrades each row from its filename to its title as the titles arrive', async () => {
+    stubRepo();
+    renderApp();
+    await ready();
+    fireEvent.click(screen.getByTestId('picker-repo-browse'));
+
+    // Not "2.json" and "40.json" - the whole point of #221 is that you cannot
+    // tell Provserie from Fältträning without opening both.
+    expect((await screen.findByTestId('picker-repo-file-2.json')).textContent).toBe('2 — Provserie');
+    expect(screen.getByTestId('picker-repo-file-40.json').textContent).toBe('40 — Fältträning');
+  });
+
+  // The list has to be usable under a rate limit, an offline moment, or a file
+  // somebody broke - which means degrading to exactly today's behaviour rather
+  // than failing the browse.
+  it('keeps the filename when a title cannot be read, and lists anyway', async () => {
+    stubRepo({ titlesFail: true });
+    renderApp();
+    await ready();
+    fireEvent.click(screen.getByTestId('picker-repo-browse'));
+
+    const row = await screen.findByTestId('picker-repo-file-2.json');
+    expect(row.textContent).toBe('2.json');
+    expect(screen.queryByTestId('picker-repo-error')).toBeNull();
   });
 });
 

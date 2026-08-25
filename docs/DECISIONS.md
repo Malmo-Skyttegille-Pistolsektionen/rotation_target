@@ -41,6 +41,7 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-30 | The webapp has written visual rules, derived from the shipped code | Decided | 2026-08-21 |
 | D-31 | Targets show at boot, and stay shown between series | Decided | 2026-08-22 |
 | D-32 | A skip names the program it is for; reset and stop do not | Decided | 2026-08-23 |
+| D-38 | Repo browsing is one card; titles ride on raw, not the API | Decided | 2026-08-25 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
 
@@ -1167,6 +1168,48 @@ confusing state worth refusing outright rather than deferring to the next
 call. *An id on `reset` and `stop` too, for one rule covering every run-control
 verb* — rejected above; the ambiguity D-27 and this decision close is specific
 to calls that choose where execution goes, and `reset`/`stop` do not.
+
+## D-38 — Repo browsing is one card; titles ride on raw, not the API *(Decided 2026-08-25)*
+
+**Decision:** the Pages editor's two repository cards — "this repo" and
+"another repo" — become **one**, "Open from repo", with four fields (owner,
+repo, path, ref) pre-filled with this project's values. Program titles are
+fetched **lazily** and rendered in place of filenames; a file whose title
+cannot be read keeps its filename.
+
+**Why one card:** the two differed only in whether the owner and repo inputs
+were shown (`fixedRepo`). Once path and ref are fields as well, "this repo" is
+nothing but a set of defaults — and two cards asked the user to decide which
+one applied before they had any reason to care. Somebody browsing our programs
+presses Browse and touches nothing.
+
+**The measured correction to #221's premise.** The issue treats showing titles
+as the expensive option: "listing a 12-program repo goes from 1 request to 13",
+against a 60/hour unauthenticated cap, with a club at a range hitting a 403.
+**That is not what happens.** The contents API returns a `download_url` on
+`raw.githubusercontent.com`, which is not the API and returns no
+`x-ratelimit-*` headers at all — verified against the live endpoint, not
+inferred. **The listing is one API request whatever the directory holds**, and
+the titles do not touch that budget.
+
+So the option ranked first in #221 is not merely the least-bad trade; it is
+close to free. Lazy is still the right shape — the list should not wait on N
+round-trips, raw has its own abuse protections, and a broken file must cost one
+row rather than the browse — but the failure mode the issue was designing
+around does not exist. Fetches are bounded to four in flight, and a browse
+elsewhere aborts the ones still running so a slow response cannot write titles
+into a list nobody is looking at any more.
+
+**Rejected, and now for a better reason than "I like it less":** *fetch on
+hover* trades a usable list for a saving that turns out not to be needed;
+*fetch all up front* has the worst failure mode for no gain; *a committed index*
+is a second source of truth that goes stale and only works for repositories
+that opted in, which defeats the point of letting the path be typed at all.
+
+**Also:** the listing filter moves from `name.endsWith('.json')` to
+`idFromFilename(name) !== null`. A stray `notes.json` used to be listed and
+sorted to the front as id 0 — tolerable while the path was hardcoded to our own
+layout, and not once the path is whatever somebody typed.
 
 ## Open questions
 

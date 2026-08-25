@@ -18,6 +18,13 @@ export interface RepoLocation {
   repo: string;
   /** Branch, tag or commit SHA. Omitted means the repo's default branch. */
   ref?: string;
+  /**
+   * Directory to list. Omitted means this repository's own layout
+   * (`resources/programs/files`), which is a fact about *us* and only a guess
+   * about anybody else - a wrong guess reads as "the repo is empty" rather
+   * than "the path is wrong", which is what #221 is about.
+   */
+  path?: string;
 }
 
 export interface RepoProgramFile {
@@ -64,18 +71,71 @@ export function idFromFilename(name: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
-/** Lists the program files under `resources/programs/files/` in a repo, sorted by id. */
+/**
+ * Lists the program files in a repo directory, sorted by id. **One** API
+ * request, whatever the directory holds.
+ *
+ * Filtered on `idFromFilename`, not on `.json`. It used to be the latter, so a
+ * stray `notes.json` was listed and sorted to the front as id 0. Harmless while
+ * the path was hardcoded to our own layout; once the caller can point this at
+ * any directory (#221), "every .json here is a program" stops being a
+ * reasonable assumption at all.
+ */
 export async function listRepoProgramFiles(location: RepoLocation): Promise<RepoProgramFile[]> {
+  const path = (location.path ?? PROGRAMS_PATH).replace(/^\/+|\/+$/g, '');
   const refQuery = location.ref ? `?ref=${encodeURIComponent(location.ref)}` : '';
-  const url = `https://api.github.com/repos/${location.owner}/${location.repo}/contents/${PROGRAMS_PATH}${refQuery}`;
+  const url = `https://api.github.com/repos/${location.owner}/${location.repo}/contents/${path}${refQuery}`;
   const entries = await githubJson<ContentsApiEntry[]>(url);
   return entries
     .filter(
       (entry): entry is ContentsApiEntry & { download_url: string } =>
-        entry.type === 'file' && entry.name.endsWith('.json') && entry.download_url !== null,
+        entry.type === 'file' && idFromFilename(entry.name) !== null && entry.download_url !== null,
     )
     .map((entry) => ({ name: entry.name, path: entry.path, downloadUrl: entry.download_url }))
     .sort((a, b) => (idFromFilename(a.name) ?? 0) - (idFromFilename(b.name) ?? 0));
+}
+
+/** What a listed file says about itself, once its contents have been read. */
+export interface RepoProgramSummary {
+  /** The id the *document* declares, which need not be the one the filename claims. */
+  declaredId: number | null;
+  title: string | null;
+}
+
+/**
+ * The title inside one listed file, so a list can say "Provserie" rather than
+ * `42.json`.
+ *
+ * **This does not spend API quota.** The contents API hands back a
+ * `download_url` on `raw.githubusercontent.com`, which is not the API and
+ * carries no `x-ratelimit-*` headers - measured, not assumed. #221 worried that
+ * showing titles would take a 12-program listing from 1 request to 13 and put a
+ * club at a range over the 60/hour limit; that is not what happens. The listing
+ * is one API request either way, and the titles ride on raw.
+ *
+ * Deliberately lenient: this is decoration on a list, so a file that will not
+ * parse gets `null` and keeps its filename rather than failing the browse. The
+ * real validation happens when the document is actually opened.
+ */
+export async function fetchRepoProgramSummary(
+  file: RepoProgramFile,
+  signal?: AbortSignal,
+): Promise<RepoProgramSummary> {
+  const empty: RepoProgramSummary = { declaredId: null, title: null };
+  try {
+    const response = await fetch(file.downloadUrl, signal ? { signal } : {});
+    if (!response.ok) return empty;
+    const raw: unknown = await response.json();
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return empty;
+    const doc = raw as Record<string, unknown>;
+    return {
+      declaredId: typeof doc.id === 'number' && Number.isInteger(doc.id) ? doc.id : null,
+      title: typeof doc.title === 'string' && doc.title.trim() !== '' ? doc.title : null,
+    };
+  } catch {
+    // Includes the abort when the user browses somewhere else mid-flight.
+    return empty;
+  }
 }
 
 /** Fetches one program file's raw text — from `raw.githubusercontent.com`, also CORS-enabled. */
