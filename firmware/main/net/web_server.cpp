@@ -53,8 +53,11 @@ const char *TAG = "web_server";
 PsychicHttpServer s_server;
 PsychicUploadHandler s_audio_upload;
 
-// Uploads land here first and are renamed to <id>.wav once validated.
-constexpr const char *kStagedUploadPath = "/storage/uploads/audio/.staging";
+// Uploads land here first and are renamed to <id>.wav once validated. Built
+// from RT_UPLOAD_AUDIO_DIR rather than a literal of its own, so the two
+// cannot drift the way they did when the userdata mount was renamed from
+// /storage and this path was not.
+constexpr const char *kStagedUploadPath = RT_UPLOAD_AUDIO_DIR "/.staging";
 
 // Set while a request body is being streamed to the staging file, cleared by
 // the handler's onRequest. Still set outside a request means the last upload
