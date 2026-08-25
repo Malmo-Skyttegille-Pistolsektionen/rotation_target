@@ -27,6 +27,13 @@ void init();
 void set(uint8_t r, uint8_t g, uint8_t b);
 void off();
 
+// Re-applies whichever status was last set. For anything that borrows the LED
+// for a moment - the factory-reset hold (#222) - so that letting go of the
+// button puts the device's own status back instead of leaving it showing the
+// borrowed colour until the next state change, which on a serving device never
+// comes.
+void restore();
+
 // Alternates red and off on each call. Join attempts are ~2.4 s apart, which
 // makes the blink rate, so this needs no timer of its own.
 void status_joining();
@@ -41,5 +48,10 @@ void status_online();
 void status_serving();
 // No usable network; the setup access point is up instead.
 void status_portal();
+
+// White, and not one of the statuses above: a held button is something being
+// done *to* the device, not a state it is in. See boot_button.h - it means the
+// factory reset is counting down and letting go now abandons it.
+void hold_armed();
 
 }  // namespace rgb_led

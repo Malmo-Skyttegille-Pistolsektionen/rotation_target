@@ -130,6 +130,44 @@ void test_anything_else_is_invalid_rather_than_a_default() {
   }
 }
 
+// --- factory-reset (#222) --------------------------------------------------
+//
+// The only console command with no undo, so what does *not* count as a
+// confirmation matters more than what does.
+
+void test_factory_reset_is_recognised() {
+  TEST_ASSERT_EQUAL(Command::kFactoryReset, parse_command("factory-reset"));
+  TEST_ASSERT_EQUAL(Command::kFactoryReset, parse_command("  FACTORY-RESET confirm "));
+}
+
+void test_the_bare_command_is_not_a_confirmation() {
+  // Typing the command is asking what it does. The device answers with the
+  // exact words to type next; nothing is destroyed here.
+  TEST_ASSERT_FALSE(rt::console::factory_reset_confirmed("factory-reset"));
+  TEST_ASSERT_FALSE(rt::console::factory_reset_confirmed("  factory-reset   "));
+}
+
+void test_the_confirmation_word_is_taken_in_any_case() {
+  TEST_ASSERT_TRUE(rt::console::factory_reset_confirmed("factory-reset confirm"));
+  TEST_ASSERT_TRUE(rt::console::factory_reset_confirmed("  factory-reset  CONFIRM  "));
+}
+
+// Nothing but the word the device asked for. A shell habit ('-y', 'yes') or a
+// half-typed word must not erase a device's settings.
+void test_nothing_else_confirms() {
+  for (const char *line :
+       {"factory-reset y", "factory-reset yes", "factory-reset -f", "factory-reset confirmed",
+        "factory-reset conf", "factory-reset confirm please"}) {
+    TEST_ASSERT_FALSE(rt::console::factory_reset_confirmed(line));
+  }
+}
+
+void test_a_near_miss_is_not_the_command() {
+  TEST_ASSERT_EQUAL(Command::kUnknown, parse_command("factory"));
+  TEST_ASSERT_EQUAL(Command::kUnknown, parse_command("factory-restart"));
+  TEST_ASSERT_EQUAL(Command::kUnknown, parse_command("reset"));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_status_is_recognised);
@@ -148,5 +186,10 @@ int main() {
   RUN_TEST(test_no_argument_means_report_rather_than_change);
   RUN_TEST(test_both_positions_parse_whatever_the_case);
   RUN_TEST(test_anything_else_is_invalid_rather_than_a_default);
+  RUN_TEST(test_factory_reset_is_recognised);
+  RUN_TEST(test_the_bare_command_is_not_a_confirmation);
+  RUN_TEST(test_the_confirmation_word_is_taken_in_any_case);
+  RUN_TEST(test_nothing_else_confirms);
+  RUN_TEST(test_a_near_miss_is_not_the_command);
   return UNITY_END();
 }

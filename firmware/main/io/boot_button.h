@@ -8,17 +8,19 @@
 
 namespace boot_button {
 
-// Two features want this pin, and each polling it separately would be the wrong
-// shape: whichever sampled first would swallow the transition the other was
-// waiting for. So one task owns the pin and classifies what it sees
+// Several features want this pin, and each polling it separately would be the
+// wrong shape: whichever sampled first would swallow the transition the other
+// was waiting for. So one task owns the pin and classifies what it sees
 // (`rt::ButtonGesture`), and features ask this module what happened.
 //
 //   - A short press, while the setup portal is up, authorises it to accept
 //     WiFi credentials (#208).
 //   - Three short presses within ten seconds open the configuration window
 //     (see below).
-//   - A long hold restarts into safe mode (#209 - not yet implemented; the
-//     gesture is already detected and logged).
+//   - A ten-second hold is a factory reset (#222). The LED goes white after
+//     three seconds to say it is counting; letting go before ten abandons it.
+//     Acted on here rather than exposed as a question, unlike the two above:
+//     there is nobody to ask, which is the situation the gesture exists for.
 //
 // Nothing here is a power-on gesture. GPIO0 is a strapping pin: held low when
 // reset is released, the chip enters ROM download mode and this firmware never
