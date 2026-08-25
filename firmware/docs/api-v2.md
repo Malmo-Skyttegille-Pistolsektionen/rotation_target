@@ -269,7 +269,7 @@ incident is diagnosable without a USB cable:
     {
       "code": "program_invalid",
       "message": "Program file is malformed and was skipped",
-      "context": { "file": "/storage/uploads/programs/200.json" }
+      "context": { "file": "/userdata/programs/200.json" }
     }
   ]
 }
@@ -391,7 +391,8 @@ first:
 ## Static assets and the SPA fallback
 
 Everything that is not `/api/v2` or `/sse/v2` is the bundled webapp, served
-from `/storage/webapp/` — pre-compressed at build time, so the handler answers
+from `/embedded/webapp/` — inside the app image, pre-compressed at build time,
+so the handler answers
 with the `.gz` and `Content-Encoding: gzip`.
 
 The webapp routes client-side, so `/run` and `/settings` are pages it owns and

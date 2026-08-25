@@ -24,7 +24,7 @@ const AudiosView = Route.options.component!;
 
 /** One uploaded (non-readonly) clip - the only kind Delete is ever offered on. */
 const SEED_AUDIOS: AudioFile[] = [
-  { id: 100, title: 'Klubbmästerskap 2026', filename: '/storage/uploads/audio/100.wav', readonly: false },
+  { id: 100, title: 'Klubbmästerskap 2026', filename: '/userdata/audio/100.wav', readonly: false },
 ];
 
 /** A one-event, one-series program body for `POST /api/v2/programs`. */

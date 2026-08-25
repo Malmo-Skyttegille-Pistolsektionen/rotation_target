@@ -588,8 +588,8 @@ describe('unloading (D-22)', () => {
 describe('libraryChanged (D-24)', () => {
   /** A clip library, which the default seed deliberately does not have. */
   const SEED_AUDIOS: AudioFile[] = [
-    { id: 3, title: 'Eld upphör', filename: '/storage/shipped/audio/3.wav', readonly: true },
-    { id: 100, title: 'Klubbmästerskap', filename: '/storage/uploads/audio/100.wav', readonly: false },
+    { id: 3, title: 'Eld upphör', filename: '/embedded/audio/3.wav', readonly: true },
+    { id: 100, title: 'Klubbmästerskap', filename: '/userdata/audio/100.wav', readonly: false },
   ];
 
   const document = {
@@ -728,7 +728,7 @@ describe('diagnostics (D-25)', () => {
     const issues = Array.from({ length: 10 }, (_, index) => ({
       code: 'program_invalid',
       message: 'Program file is malformed and was skipped',
-      context: { file: `/storage/uploads/programs/${index}.json` },
+      context: { file: `/userdata/programs/${index}.json` },
     }));
     const bounded = createMockServer({ clock, seed: { programs: {}, audios: [], startupIssues: issues } });
     const port = await bounded.listen();
@@ -737,8 +737,8 @@ describe('diagnostics (D-25)', () => {
     // Eight kept, the oldest two dropped: the array reflects where the scan
     // finished, and an array of exactly eight may be a truncated one.
     expect(info.startupIssues).toHaveLength(8);
-    expect(info.startupIssues[0].context).toEqual({ file: '/storage/uploads/programs/2.json' });
-    expect(info.startupIssues[7].context).toEqual({ file: '/storage/uploads/programs/9.json' });
+    expect(info.startupIssues[0].context).toEqual({ file: '/userdata/programs/2.json' });
+    expect(info.startupIssues[7].context).toEqual({ file: '/userdata/programs/9.json' });
 
     await bounded.close();
   });
@@ -860,9 +860,11 @@ describe('disk seed', () => {
     const { audios } = loadSeedFromDisk();
     const writable = audios.filter((a) => !a.readonly);
     expect(writable).not.toHaveLength(0);
-    // `RT_UPLOADS_AUDIO_DIR` in firmware/main/config.h — the mock used to say
-    // `/storage/uploaded/`, which exists nowhere on the device.
-    expect(writable.every((a) => a.filename.startsWith('/storage/uploads/audio/'))).toBe(true);
+    // `kUploadAudioDir` in firmware/main/config.h. The mock has been wrong here
+    // twice: first `/storage/uploaded/`, which existed nowhere on the device,
+    // then `/storage/uploads/audio/` after #239 moved the mount to `userdata`
+    // and left the mock behind. This assertion is the thing that notices.
+    expect(writable.every((a) => a.filename.startsWith('/userdata/audio/'))).toBe(true);
   });
 });
 

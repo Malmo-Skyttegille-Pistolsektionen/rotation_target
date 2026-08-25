@@ -154,7 +154,7 @@ describe('frames', () => {
     const issue = {
       code: 'audio_playback_failed',
       message: 'Audio clip could not be opened',
-      context: { clip: '/storage/uploads/audio/103.wav' },
+      context: { clip: '/userdata/audio/103.wav' },
     };
 
     act(() => {
