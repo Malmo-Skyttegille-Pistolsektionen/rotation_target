@@ -113,10 +113,18 @@ FAT), where the FAT partition holds club-uploaded programs, audio and
 `wifi_credentials.py`. Flashing this firmware repartitions the device and
 destroys all of it — take a full 16 MB image first, it is the only way back.
 
-`idf.py flash` also rewrites the LittleFS image, discarding anything uploaded to
-the device. Use `idf.py app-flash` to update only the firmware — which since
-#227 carries the web app too, because it is embedded in the app image rather
-than staged into the filesystem.
+**`idf.py flash` no longer destroys uploads.** No image is built for the
+`userdata` partition at all (#227), so there is nothing to write over it — the
+guarantee is structural rather than a matter of remembering `app-flash`. The
+app slot it does write carries the firmware, the web app and the shipped audio
+together.
+
+**Do not change `partitions.csv` casually.** A table change cannot go out over
+the air and wipes NVS, so it costs a cable pass over every board plus
+re-provisioning each one. The procedure, including what to capture first, is in
+[`CONTRIBUTING.md`](CONTRIBUTING.md#changing-the-partition-table);
+`scripts/check_image_budget.py` fails CI well before the slot is full so that
+"we need a bigger slot" is a conversation rather than a surprise.
 
 ### WiFi
 
@@ -258,14 +266,20 @@ Load-bearing invariants:
   specification's four separately-shifted terms, which truncate differently
   and drift over a block. `host_test/test_ima_adpcm` pins the decoder against
   a vector ffmpeg produced, which is what makes "the same" checkable.
-- **The web app is a read-only VFS at `/embedded`, not files on the flash
-  filesystem** (#227): `tools/pack_assets.py` bakes `webapp/dist` into the app
-  image as one blob, and `storage/embedded_fs.cpp` registers it. Exposed as a
-  filesystem rather than a lookup API so that every reader keeps using
-  `fopen`/`stat` — the alternative, an `if embedded ... else file ...` at each
-  read site, is the shape that rots. `open()` for writing returns `EROFS`, so
-  "no update path can modify this" is a property of the filesystem rather than
-  of every caller's good behaviour.
+- **All shipped content is a read-only VFS at `/embedded`, not files on the
+  flash filesystem** (#227): `tools/pack_assets.py` bakes the web app, the
+  transcoded audio and the shipped programs into the app image as one blob, and
+  `storage/embedded_fs.cpp` registers it. Exposed as a filesystem rather than a
+  lookup API so that every reader keeps using `fopen`/`stat`/`opendir` — the
+  alternative, an `if embedded ... else file ...` at each read site, is the
+  shape that rots. `open()` for writing returns `EROFS`, so "no update path can
+  modify this" is a property of the filesystem rather than of every caller's
+  good behaviour.
+- **`userdata` holds uploads and nothing else, and nothing writes it but the
+  upload endpoints.** That is why `readonly` no longer depends on care: a
+  shipped program lives inside the binary, so an uploaded file cannot reach
+  where it is even in principle. D-15 (a loaded program cannot be updated via
+  `PUT`) is unaffected.
 - Programs live in a `std::map` for reference stability — `ProgramState` holds a
   bare `const rt::Program *` at whatever is loaded.
 - The `audios` map is reached from both the httpd and run-loop tasks and has its

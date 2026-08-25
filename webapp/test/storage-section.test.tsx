@@ -55,9 +55,11 @@ describe('per-partition space on Settings', () => {
     await deviceWith();
     renderSection();
 
-    // The whole point of the issue: `storage` was the only one reported, and
-    // the app slots are what say whether an OTA image will fit.
-    expect(await screen.findByTestId('partition-storage')).toBeTruthy();
+    // The whole point of the issue: the filesystem was the only one reported,
+    // and the app slots are what say whether an OTA image will fit. (The
+    // filesystem is `userdata` since #227 - it holds uploads and nothing
+    // else.)
+    expect(await screen.findByTestId('partition-userdata')).toBeTruthy();
     expect(screen.getByTestId('partition-ota_0')).toBeTruthy();
     expect(screen.getByTestId('partition-ota_1')).toBeTruthy();
     expect(screen.getByTestId('partition-nvs')).toBeTruthy();

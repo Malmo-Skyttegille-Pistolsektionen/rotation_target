@@ -460,23 +460,29 @@ jobs:
           #
           #   factory - everything at its offset, merged into one file that is
           #             written at 0x0. A new board, or one being put back to a
-          #             known state. Flashing it discards uploaded programs and
-          #             audio, because storage.bin is part of it.
-          #   ota     - the app alone, which is what POST /api/v2/ota accepts
-          #             and what an already-configured device wants: it leaves
-          #             NVS and the LittleFS image alone.
+          #             known state. It wipes NVS (so the device comes back up
+          #             in the setup portal) but NOT `userdata`: since #227 no
+          #             image is built for that partition at all, so uploaded
+          #             programs and clips survive a factory flash. Erasing
+          #             them is `esptool erase-region`, deliberately separate.
+          #   ota     - the app slot, which since #227 carries the firmware,
+          #             the web app and the shipped audio together. This is
+          #             what POST /api/v2/ota accepts, and it is now a complete
+          #             update rather than a firmware-only one.
           #
           # The individual images stay published beneath them. They are what a
           # partial flash needs, and dropping them would remove the only way to
           # update the app over a cable without also erasing the club's files.
+          #
+          # Offsets come from firmware/partitions.csv and moved with it in
+          # #227; they are not the ones a pre-#227 release used.
           esptool --chip esp32s3 merge-bin \
             --output "release/rotation_target-${VERSION}-factory.bin" \
             --flash-mode dio --flash-freq 80m --flash-size 16MB \
             0x0 build/bootloader/bootloader.bin \
             0x8000 build/partition_table/partition-table.bin \
-            0xf000 build/ota_data_initial.bin \
-            0x20000 build/rotation_target_backend.bin \
-            0x620000 build/storage.bin
+            0x1d000 build/ota_data_initial.bin \
+            0x20000 build/rotation_target_backend.bin
 
           cp build/rotation_target_backend.bin \
              "release/rotation_target-${VERSION}-ota.bin"
@@ -488,7 +494,6 @@ jobs:
              build/bootloader/bootloader.bin \
              build/partition_table/partition-table.bin \
              build/ota_data_initial.bin \
-             build/storage.bin \
              release/
           cd release
 
@@ -587,7 +592,6 @@ jobs:
             release/bootloader.bin \
             release/partition-table.bin \
             release/ota_data_initial.bin \
-            release/storage.bin \
             release/SHA256SUMS.txt)
           {
             echo "### Prerelease created"

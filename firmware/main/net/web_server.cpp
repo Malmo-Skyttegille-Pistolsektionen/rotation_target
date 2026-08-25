@@ -541,7 +541,7 @@ void register_diagnostics_routes() {
     const esp_partition_t *running = esp_ota_get_running_partition();
 
     size_t fs_total = 0, fs_used = 0;
-    esp_littlefs_info("storage", &fs_total, &fs_used);
+    esp_littlefs_info("userdata", &fs_total, &fs_used);
 
     // ESP_OK means an image is waiting to be pulled; anything else
     // (including "no coredump") is reported as absent.

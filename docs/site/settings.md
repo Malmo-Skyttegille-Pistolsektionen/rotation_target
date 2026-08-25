@@ -64,6 +64,17 @@ An empty list is the normal state and says the boot scan read everything.
 Partition sizes. Note the note: **size only — the device cannot report what is
 used here** for some partitions, so a figure being absent is not a fault.
 
+The one to look at is **`userdata`**. It holds what has been uploaded to the
+device — programs and audio clips — and nothing else. Everything that ships
+*with* the device is inside the firmware itself, so the shipped set growing can
+no longer eat the room for yours, and updating the device cannot touch what you
+put on it.
+
+`ota_0` and `ota_1` are the two copies of the firmware. One is running and the
+other is where an update is written, which is what lets a bad update be undone.
+Seeing one of them nearly empty is normal on a device that has never been
+updated.
+
 ## About
 
 **App** is the version of the page you are looking at. **Device** is the

@@ -44,12 +44,15 @@ bool make_dirs(const char *path) {
 bool init() {
   esp_vfs_littlefs_conf_t conf = {};
   conf.base_path = kStorageMount;
-  conf.partition_label = "storage";
-  // The image is built and flashed with the firmware (see the root
-  // CMakeLists), so a failure to mount means the flash is damaged or the
-  // partition table changed - reformatting would silently discard the shipped
-  // audio and programs, which is worse than refusing to come up.
-  conf.format_if_mount_failed = false;
+  conf.partition_label = "userdata";
+  // Formatted on first mount, and this is a reversal worth explaining. While
+  // `storage` also held the shipped audio and programs, reformatting on a bad
+  // mount would silently discard them, so it refused instead. `userdata` holds
+  // *only* uploads and no image is flashed into it at all (#227) - so on a new
+  // board there is nothing there to preserve and refusing to format would mean
+  // refusing to come up. A damaged partition on a device that had uploads is
+  // still a loss, but there is no reading it either way.
+  conf.format_if_mount_failed = true;
   conf.dont_mount = false;
 
   esp_err_t err = esp_vfs_littlefs_register(&conf);

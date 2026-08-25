@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 """Pack directory trees into one blob plus a C index, for embedding in the app image.
 
-    pack_assets.py <out.bin> <out_index.h> [<mount>=<dir> ...]
+    pack_assets.py <out.bin> <out_index.h> [[gz:]<mount>=<dir> ...]
 
 Each `<mount>=<dir>` puts that directory's contents under `/<mount>` in the
 embedded filesystem, so `webapp=../webapp/dist` makes `dist/index.html` reachable
 as `/webapp/index.html`. A directory that does not exist is skipped, which is how
 an API-only build (no `webapp/dist`) produces an empty filesystem rather than a
 build failure.
+
+The `gz:` prefix pre-compresses that mount's text assets and stores only the
+`.gz`. It is opt-in per mount because only one consumer can undo it: the HTTP
+static handler, which probes `<path>.gz` and sets Content-Encoding. The shipped
+programs and audio are read by loaders that would need a decompressor, so those
+mounts stay raw - and the audio is already ADPCM, which does not compress
+usefully anyway.
 
 Stdlib only, and deliberately so: ESP-IDF already requires Python 3, so this
 adds no build prerequisite. It also replaces the external `gzip` the staging
@@ -62,8 +69,14 @@ def main() -> int:
     # os.walk order is not defined. The mounts keep the order they were given:
     # it is the argument list, not the filesystem, so it is already stable.
     paths = []
+    compressed_mounts = set()
     for spec in sys.argv[3:]:
+        compress = spec.startswith("gz:")
+        if compress:
+            spec = spec[len("gz:") :]
         mount, _, root = spec.partition("=")
+        if compress:
+            compressed_mounts.add(mount)
         if not root or not os.path.isdir(root):
             continue
         found = []
@@ -80,7 +93,7 @@ def main() -> int:
         with open(path, "rb") as handle:
             data = handle.read()
 
-        if os.path.splitext(rel)[1].lower() in COMPRESSIBLE:
+        if rel.split("/")[1] in compressed_mounts and os.path.splitext(rel)[1].lower() in COMPRESSIBLE:
             # mtime=0 rather than the file's: the gzip header carries it, and a
             # rebuilt-but-identical file would otherwise change the digest.
             data = gzip.compress(data, compresslevel=9, mtime=0)

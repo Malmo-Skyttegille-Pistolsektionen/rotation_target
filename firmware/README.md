@@ -55,9 +55,14 @@ exists, so run `npm run build` in `webapp/` first — see
 updates it along with the firmware (#227); the shipped audio and programs are
 still on the filesystem and still do not.
 
-`idf.py flash` writes the LittleFS image too, which **replaces anything
-uploaded to the device**. Use `idf.py app-flash` to update only the firmware —
-which now also updates the web app.
+`idf.py flash` no longer touches what has been uploaded to the device: no image
+is built for the `userdata` partition at all (#227), so there is nothing to
+write over it. The app slot it writes carries the firmware, the web app and the
+shipped audio together.
+
+**`partitions.csv` is not a file to change casually** — a table change cannot
+go out over the air and wipes NVS, so it costs a cable pass over every board.
+See [*Changing the partition table*](CONTRIBUTING.md#changing-the-partition-table).
 
 ### WiFi
 

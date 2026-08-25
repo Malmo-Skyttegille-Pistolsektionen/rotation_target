@@ -1,11 +1,45 @@
-# Name,     Type, SubType,  Offset,   Size,     Flags
-# 16 MB flash (ESP32-S3-DevKitC-1 N16R8). The storage partition holds the
-# shipped audio (7.5 MB of WAVs) plus whatever is uploaded to the device, so it
-# takes the bulk of the part; 3 MB app slots are ~3x what this firmware needs
-# and leave room to grow without repartitioning a deployed device.
-nvs,         data, nvs,      0x9000,   0x6000,
-otadata,     data, ota,      0xf000,   0x2000,
-ota_0,       app,  ota_0,    0x20000,  0x300000,
-ota_1,       app,  ota_1,    ,         0x300000,
-storage,     data, littlefs, ,         0x9C0000,
-coredump,    data, coredump, ,         0x20000,
+# 16 MB flash (ESP32-S3-DevKitC-1 N16R8, and the RevolveNow Rev 1 board).
+#
+# Sums to exactly 0x1000000 with no gaps; the app slots are 64 KB-aligned,
+# which the bootloader requires. Changing this table costs a cable pass over
+# every device in the field AND wipes NVS - read firmware/CONTRIBUTING.md
+# before touching it.
+#
+# The comments below are per partition and sit above each row rather than
+# beside it: gen_esp32part.py only accepts a `#` at the start of a line, and a
+# trailing one is read as the Flags column.
+#
+# Name,     Type, SubType,  Offset,    Size,      Flags
+
+# 80 KB. Settings: WiFi credentials, hardware configuration, admin state.
+# Survives an OTA and a plain `idf.py flash`; erased by a factory reset (#222).
+nvs,        data, nvs,      0x9000,    0x14000,
+
+# 8 KB. Which app slot boots.
+otadata,    data, ota,      0x1D000,   0x2000,
+
+# 4 KB. Reserved and unused: NVS encryption keys. Real use needs the
+# `encrypted` flag plus eFuse flash encryption, which is one-way. It is here
+# only because adding it later would cost a second cable pass, and it comes out
+# of the 60 KB of dead flash the previous table left between otadata and ota_0.
+nvs_keys,   data, nvs_keys, 0x1F000,   0x1000,
+
+# 4.5 MB. Firmware, the web app, and the shipped audio and programs - one
+# artifact, one version, one OTA (#227). Measured occupancy is about 74%;
+# scripts/check_image_budget.py fails the build well before it is full, because
+# growing this slot is not something an OTA can do.
+ota_0,      app,  ota_0,    0x20000,   0x480000,
+
+# 4.5 MB. The other copy: one runs while the other is written, which is what
+# gives firmware, web app and audio A/B rollback without building anything.
+ota_1,      app,  ota_1,    0x4A0000,  0x480000,
+
+# 6.75 MB. Uploaded programs and clips. **NEVER written by any update path** -
+# not a guarded write, no write. No image is flashed into it, so `idf.py flash`
+# does not destroy uploads either; it is formatted on first mount. This is the
+# only partition holding data that may be the only copy in existence.
+userdata,   data, littlefs, 0x920000,  0x6C0000,
+
+# 128 KB. Crash dumps, pulled out of band - never served, because a RAM
+# snapshot can contain the WiFi password.
+coredump,   data, coredump, 0xFE0000,  0x20000,

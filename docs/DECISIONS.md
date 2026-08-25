@@ -45,6 +45,7 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-34 | Build metadata is four typed fields plus an untyped map | Decided | 2026-08-25 |
 | D-35 | Shipped content is a read-only VFS in the app image | Decided | 2026-08-25 |
 | D-36 | Shipped audio is IMA ADPCM, transcoded in the build | Decided | 2026-08-25 |
+| D-37 | One image, and uploads get a partition nothing updates | Decided | 2026-08-25 |
 | D-38 | Repo browsing is one card; titles ride on raw, not the API | Decided | 2026-08-25 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
@@ -1416,6 +1417,62 @@ proper low-pass filter would trade real quality for tidiness.
 bytes that arrived from outside this process into meaning, so it belongs where
 a host test and a sanitizer reach it. Behind a `FILE*` in an anonymous
 namespace nothing would ever have exercised a malformed block.
+
+## D-37 — One image, and uploads get a partition nothing updates *(Decided 2026-08-25)*
+
+**Decision:** `partitions.csv` is rewritten. The app slots grow from 3 MB to
+**4.5 MB** and carry firmware, web app, shipped audio and shipped programs
+together; `storage` is replaced by **`userdata`** (6.75 MB, uploads only) that
+**no update path writes** — not a guarded write, no write. `nvs` grows to
+80 KB and a 4 KB `nvs_keys` is parked, both paid for out of the 60 KB of dead
+flash the old table left between `otadata` and `ota_0`. The table sums to
+exactly 0x1000000 with no gaps and the app slots are 64 KB-aligned.
+
+Measured occupancy: **3.32 MB of 4.5 MB, 72%** — firmware 1.13, audio 1.96,
+web app 0.19, programs 0.075.
+
+**What it buys.** One OTA updates everything. **Full A/B rollback for all of
+it**, inherited from the existing app-slot mechanism rather than built. Version
+drift becomes impossible: one binary, one `esp_app_desc_t.version`. And uploads
+are safe **structurally** — `userdata` has no image built for it, so `idf.py
+flash` stops destroying them, which it did every single time before.
+
+**What it costs, stated plainly.** Adding an audio clip becomes a firmware
+release. Every OTA transfers ~3.3 MB rather than ~1.3 MB. And **one cable pass
+over three boards, which also wipes NVS** — each needs its hardware
+configuration captured beforehand and re-provisioning afterwards. Taken now
+because the fleet is three boards, all in hand, and no release has been cut:
+this cost is at its historic minimum and rises with every board built.
+
+**The guardrails land with the table, deliberately.** It becomes effectively
+write-once at the first tag, so `scripts/check_image_budget.py` fails CI at 80%
+of the slot and separately if the shipped audio passes 2.5 MB. Two ceilings
+because they fail differently: the app grows when somebody writes code, the
+audio grows when somebody adds a file, and knowing which happened is the point.
+
+**`userdata` is formatted on first mount**, reversing the old refusal. While
+`storage` also held the shipped content, reformatting on a bad mount would
+silently discard it, so it refused. `userdata` holds only uploads and no image
+is flashed into it, so on a new board there is nothing to preserve and refusing
+would mean refusing to boot.
+
+**`nvs_keys` does nothing today.** It would hold NVS encryption keys; real use
+needs the `encrypted` flag plus eFuse flash encryption, which is one-way. It is
+in the table only because adding it later would cost a second cable pass.
+
+**A side effect worth having:** `readonly` stops depending on care. It is a
+property of the directory a resource was loaded from, and shipped resources now
+live inside the binary — so an uploaded file cannot reach where they are even
+in principle. D-15 (a loaded program cannot be updated via `PUT`) is unaffected.
+
+**Rejected** (all recorded in #227): *a shipped-content A/B pair* — 2 × 8.5 MB
+against 16 MB, which is arithmetic rather than judgement. *A second OTA endpoint
+writing a littlefs image to `storage`* — destroys uploads, which share the
+partition; a file-level merge instead has no rollback. *Manifest-driven file
+sync* — its guarantee is delivered by the partition split at a fraction of the
+code, and it could still return later as a transfer optimisation without
+touching the table. *Shipping audio uncompressed* — 8.65 MB per slot, 17.3 MB
+for the pair; does not fit.
 
 ## Open questions
 
