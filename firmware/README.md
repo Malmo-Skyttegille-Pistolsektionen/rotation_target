@@ -44,7 +44,7 @@ idf.py -p /dev/ttyACM0 flash monitor
 > Keeping the credentials outside the tree removes the hazard entirely:
 >
 > ```bash
-> idf.py -D SDKCONFIG=$HOME/agents/rotation_target/sdkconfig build
+> idf.py -D SDKCONFIG=<path outside the repo>/sdkconfig build
 > ```
 
 > **`idf.py flash` uses esptool's stub loader, which fails on this board** and
