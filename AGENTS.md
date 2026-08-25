@@ -97,6 +97,10 @@ cd webapp && npm run build
 cd ../firmware && idf.py build
 ```
 
+Point `RT_WEBAPP_DIR` at a `dist` built elsewhere to override that. With no
+`dist` at all the device serves the API only, which looks like a broken web
+app rather than a missing one.
+
 **`resources/` is flashed into that same image**, and `readonly` is a property
 of the directory a program was loaded from, never of the document — an uploader
 must not be able to claim its program is shipped.
@@ -116,9 +120,10 @@ knowing before touching a board.
   presents exactly like a bad flash sector and is not one. Measurements and
   method live in [`firmware/docs/HARDWARE.md`](firmware/docs/HARDWARE.md);
   do not restate the numbers here, which is how three files came to disagree.
-- **Never `idf.py set-target` on an existing clone.** It regenerates
-  `sdkconfig`, which holds the WiFi credentials and is gitignored — there is no
-  other copy. Use `idf.py reconfigure`.
+- **Never `idf.py set-target` or `idf.py fullclean` on a configured clone** —
+  both regenerate `sdkconfig`, which holds the only copy of the WiFi
+  credentials. Use `idf.py reconfigure`. Why, and the way out, in
+  [`firmware/CONTRIBUTING.md`](firmware/CONTRIBUTING.md).
 
 ## Keep the repository root clean
 

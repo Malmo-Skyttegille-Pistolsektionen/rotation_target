@@ -21,8 +21,8 @@ project — please read the safety note before changing run or target behaviour.
   tests that pin the behaviour down.
 - `CONFIG_RT_TARGET_ACTIVE_LOW` must match the board. If it is wrong, the
   boot-time "hide" presents the targets instead of hiding them.
-- Anything you cannot verify on hardware, say so in the PR. "Compile-verified
-  only" is a perfectly acceptable statement; silence is not.
+- Anything you cannot verify on hardware, say so in the PR — see
+  [*Commits and pull requests*](#commits-and-pull-requests).
 
 ## Getting set up
 
@@ -37,7 +37,11 @@ idf.py build
 > regenerates `sdkconfig` from scratch, and `sdkconfig` is where the WiFi
 > credentials live — it is gitignored, so there is no other copy and nothing
 > will tell you they are gone until the device cannot join a network. Use
-> **`idf.py reconfigure`** on an existing clone.
+> **`idf.py reconfigure`** on an existing clone, which picks up new Kconfig
+> symbols and keeps the values. **`idf.py fullclean` destroys it the same way.**
+>
+> This command appears in every ESP-IDF tutorial, which is exactly why it needs
+> a warning here.
 >
 > Better still, keep the credentials outside the tree entirely and point the
 > build at them, so regenerating `sdkconfig` costs nothing:

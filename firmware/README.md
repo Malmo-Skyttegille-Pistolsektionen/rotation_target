@@ -36,16 +36,10 @@ idf.py build
 idf.py -p /dev/ttyACM0 flash monitor
 ```
 
-> ⚠️ **`idf.py set-target` regenerates `sdkconfig`**, which is where the WiFi
-> credentials live and is gitignored — so there is no other copy, and nothing
-> says they are gone until the device cannot join a network. On a clone you
-> have already built, use **`idf.py reconfigure`**.
->
-> Keeping the credentials outside the tree removes the hazard entirely:
->
-> ```bash
-> idf.py -D SDKCONFIG=<path outside the repo>/sdkconfig build
-> ```
+> ⚠️ **`idf.py set-target` and `idf.py fullclean` destroy `sdkconfig`** — the
+> only copy of the WiFi credentials. Use **`idf.py reconfigure`** on a clone you
+> have already built. Why, and how to keep the credentials out of the tree
+> entirely, in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 > **`idf.py flash` uses esptool's stub loader, which fails on this board** and
 > fails in a way that looks like bad flash. See
@@ -55,9 +49,8 @@ The shipped audio and programs live in the monorepo's sibling `resources/`
 directory. The build reads them from there by default; point `RT_RESOURCES_DIR`
 elsewhere to override.
 
-The webapp is bundled into the same image when `../webapp/dist` exists — run
-`npm run build` in `webapp/` first, or point `RT_WEBAPP_DIR` at a `dist` built
-elsewhere. Without one the device serves the API only.
+The webapp is bundled into the same image when `../webapp/dist` exists, so run
+`npm run build` in `webapp/` first — see [*The seams*](../AGENTS.md#the-seams).
 
 `idf.py flash` writes the LittleFS image too, which **replaces anything
 uploaded to the device**. Use `idf.py app-flash` to update only the firmware.
