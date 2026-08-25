@@ -27,7 +27,7 @@ idf_component_register(
          "repositories/programs.cpp" "repositories/audios.cpp"
          "executor/program_executor.cpp"
          "ota/ota.cpp"
-         "diagnostics/partitions.cpp" "console/console.cpp"
+         "diagnostics/partitions.cpp" "diagnostics/build_info.cpp" "console/console.cpp"
          ${RT_NET_SRCS}
          "net/web_server.cpp" "net/sse_hub.cpp"
     INCLUDE_DIRS "." "config" "io" "storage" "repositories" "executor" "net" "diagnostics" "console" "ota"

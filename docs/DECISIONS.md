@@ -42,6 +42,7 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-31 | Targets show at boot, and stay shown between series | Decided | 2026-08-22 |
 | D-32 | A skip names the program it is for; reset and stop do not | Decided | 2026-08-23 |
 | D-33 | Forgetting WiFi is a factory reset, held at the device, with no web step | Decided | 2026-08-25 |
+| D-34 | Build metadata is four typed fields plus an untyped map | Decided | 2026-08-25 |
 | D-38 | Repo browsing is one card; titles ride on raw, not the API | Decided | 2026-08-25 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
@@ -1216,6 +1217,55 @@ exists to prevent. *A second long hold at a different duration* — "hold three
 for one thing and ten for another" is unmemorable and the mistake lands on the
 destructive side. *An API endpoint* — a device on the wrong network cannot be
 reached to call it, which is the whole problem.
+## D-34 — Build metadata is four typed fields plus an untyped map *(Decided 2026-08-25)*
+
+**Decision:** `DiagnosticsInfo` gains an **optional** `build` object:
+`version`, `commit`, `dirty`, `buildTime` — and `details`, an untyped
+`map<string,string>` that is rendered and never branched on. Adding a key to
+`details` is a firmware-only change: no contract edit, no regenerated
+`generated.d.ts`, no mock-server update.
+
+**Why not all explicit fields:** the long tail of build metadata is long, and
+each field would otherwise cost a contract change and a round of drift checks
+for something no client reasons about. **Why not a pure map either:** the UI
+has to branch on *something* — whether to show a "modified build" marker, which
+version to compare — and anything branched on wants a type. The line is exactly
+there: typed if the UI reasons about it, untyped if the UI only displays it.
+
+**Optional, not required.** A device on firmware from before this exists omits
+it, and a client degrades to `version`. That is not hypothetical while a `npm
+run dev` bundle can be pointed at any board on the bench.
+
+**Identity is conditional on CI, not dropped or kept wholesale.** On a
+GitHub-hosted runner `build.host` is a throwaway like `fv-az1234-567`: it names
+nobody and traces which runner produced a release. On a local build it would be
+a developer's machine name, and this repository is public — so a local build
+reports `build.host = local` and no user identity at all. `git.commit.user.email`
+is skipped even though it is already in public history: it adds nothing the sha
+does not. `git.remote.origin.url` is skipped as a constant that leaks a private
+mirror URL if one was ever used.
+
+**The content digests are the point, not the git fields.** `content.webapp.sha256`
+and `content.audio.sha256` answer "is this device running the bundle I think it
+is" directly, rather than by inferring it from a version string. They are taken
+over the *sources* — `webapp/dist` and `resources/audios/files` — not the staged
+tree: the staged webapp is `gzip -9` output, and gzip versions do not promise
+identical bytes, so a source-identical bundle would otherwise change digest.
+
+**Generated on every build, not at configure time.** HEAD moves, a file is
+edited, a tag is cut — none of which reconfigures a warm build tree, so a
+configure-time answer describes whichever commit the tree was last configured
+on. `cmake/build_info.cmake` runs per build and writes through
+`copy_if_different`, so an unchanged answer costs no recompile. Nothing is
+committed (D-29).
+
+**`buildTime` breaks byte-reproducible builds.** Accepted; not a concern today,
+and `SOURCE_DATE_EPOCH` is the escape hatch if "verify what is deployed" ever
+becomes a story. CMake's `string(TIMESTAMP)` honours it already.
+
+**Rejected:** *a separate `GET /diagnostics/build`* — Settings already issues
+`/diagnostics/info` for the version rows and the startup issues, so a second
+route would be a second request for data that belongs in the same snapshot.
 ## D-38 — Repo browsing is one card; titles ride on raw, not the API *(Decided 2026-08-25)*
 
 **Decision:** the Pages editor's two repository cards — "this repo" and

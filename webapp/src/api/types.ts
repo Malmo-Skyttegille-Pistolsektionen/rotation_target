@@ -15,6 +15,7 @@ export type ProgramUpdate = components['schemas']['ProgramUpdate'];
 export type CreatedId = components['schemas']['CreatedId'];
 export type StartupIssue = components['schemas']['StartupIssue'];
 export type DiagnosticsInfo = components['schemas']['DiagnosticsInfo'];
+export type BuildInfo = components['schemas']['BuildInfo'];
 export type HardwareConfig = components['schemas']['HardwareConfig'];
 export type HardwareConfigState = components['schemas']['HardwareConfigState'];
 export type HardwareConfigPatch = components['schemas']['HardwareConfigPatch'];

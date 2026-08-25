@@ -39,6 +39,20 @@ endif()
 
 project(rotation_target_backend)
 
+# --- what produced this image (#228) ---------------------------------------
+#
+# Regenerated on every build rather than at configure time: HEAD moves, a file
+# is edited, a tag is cut - none of which reconfigures a warm tree, so a
+# configure-time answer would describe whichever commit the build directory was
+# last configured on. The script writes through `copy_if_different`, so an
+# unchanged answer costs nothing.
+set(RT_BUILD_INFO_DIR "${CMAKE_BINARY_DIR}/generated")
+set(RT_BUILD_INFO_HEADER "${RT_BUILD_INFO_DIR}/build_info.generated.h")
+set(RT_BUILD_INFO_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/cmake/build_info.cmake")
+file(MAKE_DIRECTORY "${RT_BUILD_INFO_DIR}")
+
+idf_build_get_property(RT_IDF_VER IDF_VER)
+
 # The shipped programs and audio come from the monorepo's `resources/` tree and
 # are flashed as a LittleFS image. They are staged into one tree first because
 # the on-device layout is not the one resources/ uses: `shipped/` is what the
@@ -144,3 +158,28 @@ endif()
 # the stamp is only ordering: stage first, then pack what staging produced.
 littlefs_create_partition_image(storage "${LITTLEFS_STAGE}" FLASH_IN_PROJECT
                                DEPENDS "${LITTLEFS_STAGE_STAMP}")
+
+# Declared here rather than in main/CMakeLists.txt because RT_WEBAPP_DIR and
+# RT_RESOURCES_DIR are settled above, and components are registered inside
+# project() - before any of it exists.
+set(RT_BUILD_INFO_ARGS
+    -D "RT_REPO_DIR=${CMAKE_CURRENT_LIST_DIR}"
+    -D "RT_VERSION=${PROJECT_VER}"
+    -D "RT_IDF_VERSION=${RT_IDF_VER}"
+    -D "RT_WEBAPP_DIR=${RT_WEBAPP_STAGE_DIR}"
+    -D "RT_RESOURCES_DIR=${RT_RESOURCES_DIR}"
+    -D "RT_OUTPUT=${RT_BUILD_INFO_HEADER}")
+
+# Once at configure time so the header exists before anything tries to include
+# it, and again on every build so it stays true.
+execute_process(COMMAND "${CMAKE_COMMAND}" ${RT_BUILD_INFO_ARGS} -P "${RT_BUILD_INFO_SCRIPT}")
+
+add_custom_target(rt_build_info ALL
+    COMMAND "${CMAKE_COMMAND}" ${RT_BUILD_INFO_ARGS} -P "${RT_BUILD_INFO_SCRIPT}"
+    BYPRODUCTS "${RT_BUILD_INFO_HEADER}"
+    COMMENT "Recording what produced this image"
+    VERBATIM)
+
+idf_component_get_property(RT_MAIN_LIB main COMPONENT_LIB)
+target_include_directories(${RT_MAIN_LIB} PRIVATE "${RT_BUILD_INFO_DIR}")
+add_dependencies(${RT_MAIN_LIB} rt_build_info)
