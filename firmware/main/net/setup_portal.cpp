@@ -172,8 +172,17 @@ std::string network_options() {
     // A hidden network has no name to put in the list; "Other" covers it.
     if (ap.ssid.empty()) continue;
     const std::string safe = html_escape(ap.ssid);
-    out += "<option value=\"" + safe + "\">" + safe + " (" + std::to_string(ap.rssi) + " dBm, " +
-           wifi_scan::auth_name(ap.auth) + ")</option>";
+    // Appended rather than concatenated: each `+` on the chain allocated a
+    // temporary the next one immediately copied, once per network in range.
+    out += "<option value=\"";
+    out += safe;
+    out += "\">";
+    out += safe;
+    out += " (";
+    out += std::to_string(ap.rssi);
+    out += " dBm, ";
+    out += wifi_scan::auth_name(ap.auth);
+    out += ")</option>";
   }
 
   // U+0001 rather than a word: an SSID may legitimately be "Other", and a

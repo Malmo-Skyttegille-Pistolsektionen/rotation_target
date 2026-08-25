@@ -37,6 +37,7 @@
 #include "net_mgr.h"
 #include "problem.h"
 #include "uri_path.h"
+#include "version.h"
 #include "program_executor.h"
 #include "programs.h"
 #include "sse_hub.h"
@@ -71,7 +72,9 @@ void discard_dead_upload() {
     ESP_LOGW(TAG, "Previous upload died mid-body - discarding its staged bytes");
     s_upload_in_flight = false;
   }
-  ::remove(kStagedUploadPath);
+  // Deliberately ignored: this is best-effort cleanup, and the next upload
+  // truncates the path anyway. The cast is how that is written down.
+  (void)::remove(kStagedUploadPath);
 }
 
 void esp_random_bytes(uint8_t *out, size_t len) {
@@ -738,14 +741,14 @@ void register_audio_routes() {
       ESP_LOGW(TAG, "Rejected upload '%s': past the %u-byte ceiling", filename,
                static_cast<unsigned>(kMaxUploadBytes));
       s_upload_in_flight = false;
-      ::remove(kStagedUploadPath);
+      (void)::remove(kStagedUploadPath);
       return ESP_FAIL;
     }
 
     FILE *f = fopen(kStagedUploadPath, index == 0 ? "wb" : "ab");
     if (f == nullptr) {
       s_upload_in_flight = false;
-      ::remove(kStagedUploadPath);
+      (void)::remove(kStagedUploadPath);
       return ESP_FAIL;
     }
     const size_t written = fwrite(data, 1, len, f);
@@ -755,7 +758,7 @@ void register_audio_routes() {
       // Out of space, most likely. Never leave the partial behind: a repeated
       // failed upload would otherwise fill the partition.
       s_upload_in_flight = false;
-      ::remove(kStagedUploadPath);
+      (void)::remove(kStagedUploadPath);
       return ESP_FAIL;
     }
 
@@ -763,22 +766,22 @@ void register_audio_routes() {
     return ESP_OK;
   });
 
-  s_audio_upload.addMiddleware(
-      [](PsychicRequest *req, PsychicResponse *res, PsychicMiddlewareNext next) -> esp_err_t {
-        // Gated as middleware, not inside onRequest: PsychicHandler::process
-        // runs the chain before handleRequest, and handleRequest is what
-        // streams the body to flash. Checking afterwards would let an
-        // unauthenticated caller write a file and only then be told no.
-        if (!require_admin(req, res)) return ESP_OK;
+  s_audio_upload.addMiddleware([](PsychicRequest *req, PsychicResponse *res,
+                                  const PsychicMiddlewareNext &next) -> esp_err_t {
+    // Gated as middleware, not inside onRequest: PsychicHandler::process
+    // runs the chain before handleRequest, and handleRequest is what
+    // streams the body to flash. Checking afterwards would let an
+    // unauthenticated caller write a file and only then be told no.
+    if (!require_admin(req, res)) return ESP_OK;
 
-        // The server is single-task (ENABLE_ASYNC is off), so no other upload
-        // can still be running: a flag still set here belongs to one whose
-        // connection died mid-body, which skipped onRequest - the only reset -
-        // and left its bytes staged. Clear both, or they prepend the file
-        // about to arrive.
-        discard_dead_upload();
-        return next();
-      });
+    // The server is single-task (ENABLE_ASYNC is off), so no other upload
+    // can still be running: a flag still set here belongs to one whose
+    // connection died mid-body, which skipped onRequest - the only reset -
+    // and left its bytes staged. Clear both, or they prepend the file
+    // about to arrive.
+    discard_dead_upload();
+    return next();
+  });
 
   s_audio_upload.onRequest([](PsychicRequest *req, PsychicResponse *res) -> esp_err_t {
     // sess_ctx is per-socket, not per-request, so a second upload on the same
@@ -791,7 +794,8 @@ void register_audio_routes() {
     // From here every failure path removes the staged file.
     struct Staged {
       ~Staged() {
-        if (armed) ::remove(kStagedUploadPath);
+        // Best-effort, and a destructor is no place to react to a failure.
+        if (armed) (void)::remove(kStagedUploadPath);
       }
       bool armed = true;
     } staged;
@@ -1051,20 +1055,20 @@ bool start() {
   //
   // PsychicHttp's built-in CorsMiddleware only emits one fixed origin, which
   // is why this is hand-rolled.
-  s_server.addMiddleware(
-      [](PsychicRequest *req, PsychicResponse *res, PsychicMiddlewareNext next) -> esp_err_t {
-        const char *origin = req->header("Origin");
-        if (origin != nullptr && *origin != '\0' && origin_allowed(origin)) {
-          const std::string reflected = origin;
-          res->addHeader("Access-Control-Allow-Origin", reflected.c_str());
-          res->addHeader("Access-Control-Allow-Credentials", "true");
-          res->addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-          res->addHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
-          res->addHeader("Access-Control-Max-Age", "600");
-          res->addHeader("Vary", "Origin");
-        }
-        return next();
-      });
+  s_server.addMiddleware([](PsychicRequest *req, PsychicResponse *res,
+                            const PsychicMiddlewareNext &next) -> esp_err_t {
+    const char *origin = req->header("Origin");
+    if (origin != nullptr && *origin != '\0' && origin_allowed(origin)) {
+      const std::string reflected = origin;
+      res->addHeader("Access-Control-Allow-Origin", reflected.c_str());
+      res->addHeader("Access-Control-Allow-Credentials", "true");
+      res->addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+      res->addHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+      res->addHeader("Access-Control-Max-Age", "600");
+      res->addHeader("Vary", "Origin");
+    }
+    return next();
+  });
 
   s_server.setPort(static_cast<uint16_t>(hardware_store::current().http_port));
 
@@ -1075,28 +1079,17 @@ bool start() {
 
   s_server.on("/api/v2/version", HTTP_GET, [](PsychicRequest *, PsychicResponse *res) {
     // Derived from git via esp_app_desc_t, not a hand-maintained constant -
-    // see CLAUDE.md's Conventions. The three-part split is what the webapp
-    // expects; a non-semver describe output degrades to zeroes rather than
-    // failing the call.
-    // Strict: sscanf alone accepted a bare `git describe` hash, because
-    // "9f7c98d" parses as major=9 and the device then reported 9.0.0. Require
-    // all three fields AND that what follows is a legitimate semver
-    // continuation - end of string, or the -N-gHASH / +meta that describe adds.
+    // see CLAUDE.md's Conventions. The parse itself lives in rt_logic, where a
+    // host test reaches it: an untagged build has no version to report, and
+    // rt::parse_semver leaves 0.0.0 rather than inventing one from the hash.
     const esp_app_desc_t *desc = esp_app_get_description();
-    unsigned major = 0, minor = 0, patch = 0;
-    int consumed = 0;
-    if (sscanf(desc->version, "%u.%u.%u%n", &major, &minor, &patch, &consumed) != 3 ||
-        consumed <= 0 ||
-        (desc->version[consumed] != '\0' && desc->version[consumed] != '-' &&
-         desc->version[consumed] != '+')) {
-      // An untagged build has no version to report; 0.0.0 says so honestly
-      // rather than inventing one from the hash.
-      major = minor = patch = 0;
-    }
+    rt::SemVer version;
+    rt::parse_semver(desc->version, version);
 
     return send_json(res, 200,
-                     "{\"major\":" + std::to_string(major) + ",\"minor\":" + std::to_string(minor) +
-                         ",\"patch\":" + std::to_string(patch) + "}");
+                     "{\"major\":" + std::to_string(version.major) +
+                         ",\"minor\":" + std::to_string(version.minor) +
+                         ",\"patch\":" + std::to_string(version.patch) + "}");
   });
 
   register_admin_mode_routes();
