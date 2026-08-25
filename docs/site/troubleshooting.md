@@ -89,6 +89,3 @@ three times again.
     failed, and that can include **the WiFi password**. That is why downloading
     one needs somebody standing at the board pressing its button, and it is why
     the file should go to somebody you would tell the password to.
-
-If admin mode is on, you also need to be signed in — the button is there but
-will not work until you are.

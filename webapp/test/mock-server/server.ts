@@ -951,12 +951,11 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
 
     // GET /diagnostics/bundle - the troubleshooting download (#201).
     //
-    // Admin *and* the configuration window, which is the interesting half: a
-    // coredump can hold the WiFi password and admin mode is off by default, so
-    // an admin-only gate would be no gate on a normal device. `hardwareWritable`
-    // rather than `configWindowOpen` because the firmware's
-    // `config_window_open()` is held shut by a run, and the two must agree
-    // about a device that would refuse.
+    // The configuration window and nothing else - notably NOT admin mode, which
+    // is write protection and irrelevant to a read. `hardwareWritable` rather
+    // than `configWindowOpen` because the firmware's `config_window_open()` is
+    // held shut by a run, and the two must agree about a device that would
+    // refuse.
     //
     // The body is an *empty* archive - the 22-byte end-of-central-directory
     // record and nothing else, which is a real zip every reader accepts.
@@ -964,7 +963,6 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     // Reimplementing the entry layout here would be a second copy of a format
     // whose real test is firmware/host_test/test_zip_writer.
     if (endpoint === '/diagnostics/bundle' && req.method === 'GET') {
-      if (!checkAdminAuth(req, res)) return;
       if (!hardwareWritable()) {
         problemResponse(
           res,

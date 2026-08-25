@@ -1,8 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useDiagnosticsApi } from '../api/diagnostics';
-import { useSettings } from '../context/SettingsContext';
-import { useAdminStatus } from '../hooks/useAdminStatus';
 import { useConfigWindow } from '../hooks/useConfigWindow';
 import { datedFilename, downloadBlob } from '../lib/download';
 import styles from './TroubleshootingSection.module.css';
@@ -18,14 +16,17 @@ import styles from './TroubleshootingSection.module.css';
  *
  * **Hidden unless the configuration window is open**, which is the same
  * three-presses-of-BOOT gesture that reveals Expert mode. A coredump is a raw
- * RAM snapshot and can hold the WiFi password; admin mode is off by default on
- * this device, so an admin-gated download would be an open one in the normal
- * case. The firmware refuses it on the same condition — this is not a hidden
- * button in front of an open door.
+ * RAM snapshot and can hold the WiFi password, so what has to be established
+ * is that whoever collects it is standing at the board. The firmware refuses
+ * on the same condition — this is not a hidden button in front of an open
+ * door.
+ *
+ * Admin mode is deliberately not consulted. It is write protection, for one
+ * operator running a competition without others interfering, and this is a
+ * read — gating it there would have blocked a club member from collecting a
+ * fault report during exactly the event where a fault matters most.
  */
 export function TroubleshootingSection(): React.ReactNode {
-  const { adminToken } = useSettings();
-  const { adminModeEnabled } = useAdminStatus();
   const { open: windowOpen } = useConfigWindow();
   const diagnosticsApi = useDiagnosticsApi();
   const [state, setState] = useState<'idle' | 'downloading'>('idle');
@@ -35,9 +36,6 @@ export function TroubleshootingSection(): React.ReactNode {
     queryKey: ['diagnostics'],
     queryFn: diagnosticsApi.info,
   });
-
-  // Same rule as the rest of the page: admin off means anyone may act.
-  const canManage = !adminModeEnabled || adminToken !== null;
 
   if (!windowOpen) return null;
 
@@ -86,13 +84,11 @@ export function TroubleshootingSection(): React.ReactNode {
         type='button'
         className={styles.button}
         data-testid='troubleshooting-download'
-        disabled={!canManage || state !== 'idle'}
+        disabled={state !== 'idle'}
         onClick={() => void download()}
       >
         {state === 'downloading' ? 'Preparing…' : 'Download troubleshooting bundle'}
       </button>
-
-      {!canManage && <p className={styles.muted}>Sign in to admin mode to download it.</p>}
 
       {notice !== null && (
         <p className={styles.notice} data-testid='troubleshooting-notice' role='status'>
