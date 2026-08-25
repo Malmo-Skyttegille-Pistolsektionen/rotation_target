@@ -44,6 +44,7 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-33 | Forgetting WiFi is a factory reset, held at the device, with no web step | Decided | 2026-08-25 |
 | D-34 | Build metadata is four typed fields plus an untyped map | Decided | 2026-08-25 |
 | D-35 | Shipped content is a read-only VFS in the app image | Decided | 2026-08-25 |
+| D-36 | Shipped audio is IMA ADPCM, transcoded in the build | Decided | 2026-08-25 |
 | D-38 | Repo browsing is one card; titles ride on raw, not the API | Decided | 2026-08-25 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
@@ -1359,6 +1360,62 @@ that opted in, which defeats the point of letting the path be typed at all.
 `idFromFilename(name) !== null`. A stray `notes.json` used to be listed and
 sorted to the front as id 0 — tolerable while the path was hardcoded to our own
 layout, and not once the path is whatever somebody typed.
+
+## D-36 — Shipped audio is IMA ADPCM, transcoded in the build *(Decided 2026-08-25)*
+
+**Decision:** the shipped clips are transcoded to **IMA ADPCM** by
+`firmware/tools/wav_to_adpcm.py` as part of `idf.py build`, and decoded by
+`rt::decode_ima_adpcm_block` on the way to the DAC. Measured on the real corpus:
+77 clips, 158.8 s, **7.63 MB → 1.96 MB, 3.9×**. Uploaded clips stay PCM;
+transcoding somebody's upload is out of scope, so both formats reach the same
+player and which one a file is comes out of its header.
+
+**Why ADPCM, given it is the *least* compressed of the options measured.** FLAC
+4.46 MB (lossless), IMA ADPCM 1.96 MB, MP3@64k 1.33 MB, Opus@48k 0.92 MB,
+Opus@32k 0.62 MB. **Size was never the binding constraint — latency was.** At
+1.96 MB the budget already closes, so Opus's extra 1.3 MB buys nothing while
+costing 26 ms of algorithmic delay, a ~200 KB library, and a 48 kHz output rate
+that would change the per-clip I2S clock. These are **spoken range commands**;
+they tell a shooter when to fire. Predictability outranks ratio.
+
+FLAC was the serious alternative — bit-exact, so quality parity is a fact
+rather than a judgement. It loses only because ADPCM proved sufficient, at
+2.5 MB more per slot plus a real decoder. **If ADPCM fails the on-hardware
+listening check it is the fallback and the budget still closes.**
+
+**A listening test on a laptop settled nothing** and is not cited as evidence
+here: all six codecs were indistinguishable from the original, including
+Opus@32k, which is not bit-transparent. A null result across *every* option
+means the instrument was the limit. Read it as "nothing here is grossly
+broken", not as licence to pick the smallest.
+
+**Standard IMA ADPCM WAV (`wFormatTag = 0x11`), not a private container.** A
+staged file drops into VLC and plays, which is the check that settles "does
+this sound right" without a board.
+
+**No ffmpeg.** It measured the options and must not be a build prerequisite: a
+large system package whose versions do not promise identical bytes, which would
+make builds non-reproducible. A stdlib-only Python encoder is ~150 lines and
+deterministic by construction, and ESP-IDF already requires Python 3.
+
+**The encoder and the decoder must agree on the reconstruction, exactly.** The
+IMA specification writes the step reconstruction as four separately-shifted
+terms; ffmpeg computes `((2n+1)*step)>>3` in one multiply. Those are
+algebraically equal and **numerically are not** — each term truncates on its
+own — so an encoder using one and a decoder the other drift apart over a block.
+Both use the ffmpeg form, and `host_test/test_ima_adpcm` pins the decoder
+against a vector ffmpeg produced, so "the same" is checkable rather than
+asserted.
+
+**Sample rates are left alone.** #227 proposed normalising the single 44.1 kHz
+clip to 24 kHz. Not done: the firmware sets the I2S clock per clip already, so
+a mixed-rate corpus costs nothing, and resampling in pure Python without a
+proper low-pass filter would trade real quality for tidiness.
+
+**The decoder lives in `rt_logic`**, like every other parser here: it turns
+bytes that arrived from outside this process into meaning, so it belongs where
+a host test and a sanitizer reach it. Behind a `FILE*` in an anonymous
+namespace nothing would ever have exercised a malformed block.
 
 ## Open questions
 

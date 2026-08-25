@@ -50,9 +50,15 @@ the device answer with an error after the fact.
 
 ![The Audios page](img/audios.png)
 
-Clips are **16-bit PCM WAV, mono or stereo**, up to the size the upload form
-states. Anything else is refused at upload rather than failing silently
-mid-exercise.
+Clips you upload are **16-bit PCM WAV, mono or stereo**, up to the size the
+upload form states. Anything else is refused at upload rather than failing
+silently mid-exercise. Nothing is done to them: what you upload is what plays.
+
+The clips that come *with* the device are compressed, which is why they take
+about a quarter of the room they used to and why there is more space for yours
+than there was. It makes no audible difference at the range — the same file is
+what the speaker gets either way — and the originals live in the project's
+source, so nothing is lost.
 
 **Play** sends the clip to the device's own amplifier — not to the browser —
 so it is a check on the wiring and the speaker, not on the file.

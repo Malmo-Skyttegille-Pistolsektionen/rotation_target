@@ -71,6 +71,40 @@ std::vector<uint8_t> make_wav(uint16_t audio_format = 1, uint16_t channels = 1,
   return v;
 }
 
+// An IMA ADPCM WAV as tools/wav_to_adpcm.py emits one: a 20-byte `fmt ` with
+// the samples-per-block extension, a `fact` chunk carrying the true sample
+// count, then blocks.
+std::vector<uint8_t> make_adpcm_wav(uint16_t channels = 1, uint16_t block_align = 256,
+                                    uint16_t bits = 4, uint32_t total_samples = 505,
+                                    bool with_fact = true) {
+  std::vector<uint8_t> v;
+  put_tag(v, "RIFF");
+  put_u32(v, 0);
+  put_tag(v, "WAVE");
+
+  put_tag(v, "fmt ");
+  put_u32(v, 20);
+  put_u16(v, 0x11);  // IMA ADPCM
+  put_u16(v, channels);
+  put_u32(v, 24000);
+  put_u32(v, 12000);
+  put_u16(v, block_align);
+  put_u16(v, bits);
+  put_u16(v, 2);  // cbSize
+  put_u16(v, 505);
+
+  if (with_fact) {
+    put_tag(v, "fact");
+    put_u32(v, 4);
+    put_u32(v, total_samples);
+  }
+
+  put_tag(v, "data");
+  put_u32(v, block_align);
+  for (uint32_t i = 0; i < block_align; i++) v.push_back(static_cast<uint8_t>(i));
+  return v;
+}
+
 }  // namespace
 
 void setUp() {}
@@ -213,6 +247,71 @@ void test_non_pcm_is_refused() {
   TEST_ASSERT_FALSE(rt::parse_wav_header(src, info));
 }
 
+// --- IMA ADPCM (#227) ------------------------------------------------------
+//
+// The shipped clips are transcoded at build time; uploaded ones stay PCM. So
+// both formats reach the same player and which one a file is has to come out
+// of the header rather than out of where the file was found.
+
+void test_an_ima_adpcm_wav_parses() {
+  MemorySource src(make_adpcm_wav());
+  rt::WavInfo info;
+
+  TEST_ASSERT_TRUE(rt::parse_wav_header(src, info));
+  TEST_ASSERT_EQUAL(static_cast<int>(rt::WavFormat::kImaAdpcm), static_cast<int>(info.format));
+  TEST_ASSERT_EQUAL_UINT16(256, info.block_bytes);
+  TEST_ASSERT_EQUAL_UINT32(505, info.total_samples);
+  TEST_ASSERT_EQUAL_UINT32(24000, info.sample_rate);
+}
+
+void test_pcm_still_reports_itself_as_pcm() {
+  MemorySource src(make_wav());
+  rt::WavInfo info;
+  TEST_ASSERT_TRUE(rt::parse_wav_header(src, info));
+  TEST_ASSERT_EQUAL(static_cast<int>(rt::WavFormat::kPcm16), static_cast<int>(info.format));
+}
+
+// `fact` is where the padding in the final block is undone. Optional, because
+// a file without one still plays - it just plays the padding too.
+void test_a_missing_fact_chunk_leaves_the_sample_count_unknown() {
+  MemorySource src(make_adpcm_wav(1, 256, 4, 0, false));
+  rt::WavInfo info;
+  TEST_ASSERT_TRUE(rt::parse_wav_header(src, info));
+  TEST_ASSERT_EQUAL_UINT32(0, info.total_samples);
+}
+
+// The player decodes a whole block into a fixed buffer, so an oversized
+// declaration has to be refused here rather than overrun two layers down.
+void test_an_oversized_block_is_refused() {
+  MemorySource src(make_adpcm_wav(1, rt::kMaxAdpcmBlockBytes + 1));
+  rt::WavInfo info;
+  TEST_ASSERT_FALSE(rt::parse_wav_header(src, info));
+}
+
+// A block that cannot even hold its own header.
+void test_a_block_smaller_than_a_header_is_refused() {
+  for (uint16_t block : {static_cast<uint16_t>(0), static_cast<uint16_t>(4)}) {
+    MemorySource src(make_adpcm_wav(1, block));
+    rt::WavInfo info;
+    TEST_ASSERT_FALSE(rt::parse_wav_header(src, info));
+  }
+}
+
+// Stereo IMA ADPCM interleaves the channels four bytes at a time. Nothing here
+// produces it, and half-decoding it would be noise at full volume on a range.
+void test_stereo_ima_adpcm_is_refused() {
+  MemorySource src(make_adpcm_wav(2));
+  rt::WavInfo info;
+  TEST_ASSERT_FALSE(rt::parse_wav_header(src, info));
+}
+
+// 0x11 is only ADPCM at 4 bits. Anything else claiming that tag is malformed.
+void test_ima_adpcm_at_other_bit_depths_is_refused() {
+  MemorySource src(make_adpcm_wav(1, 256, 16));
+  rt::WavInfo info;
+  TEST_ASSERT_FALSE(rt::parse_wav_header(src, info));
+}
+
 void test_eight_bit_is_refused() {
   MemorySource src(make_wav(1, 1, 16000, 8));
   rt::WavInfo info;
@@ -278,6 +377,13 @@ int main() {
   RUN_TEST(test_an_empty_file_is_refused);
   RUN_TEST(test_a_truncated_header_is_refused);
   RUN_TEST(test_non_pcm_is_refused);
+  RUN_TEST(test_an_ima_adpcm_wav_parses);
+  RUN_TEST(test_pcm_still_reports_itself_as_pcm);
+  RUN_TEST(test_a_missing_fact_chunk_leaves_the_sample_count_unknown);
+  RUN_TEST(test_an_oversized_block_is_refused);
+  RUN_TEST(test_a_block_smaller_than_a_header_is_refused);
+  RUN_TEST(test_stereo_ima_adpcm_is_refused);
+  RUN_TEST(test_ima_adpcm_at_other_bit_depths_is_refused);
   RUN_TEST(test_eight_bit_is_refused);
   RUN_TEST(test_more_than_two_channels_is_refused);
   RUN_TEST(test_a_zero_sample_rate_is_refused);

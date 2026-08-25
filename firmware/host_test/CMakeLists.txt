@@ -40,6 +40,7 @@ add_library(rt_logic STATIC
   "${RT_LOGIC_DIR}/program.cpp"
   "${RT_LOGIC_DIR}/executor.cpp"
   "${RT_LOGIC_DIR}/wav_header.cpp"
+  "${RT_LOGIC_DIR}/ima_adpcm.cpp"
   "${RT_LOGIC_DIR}/console_command.cpp"
   "${RT_LOGIC_DIR}/hardware_config.cpp"
   "${RT_LOGIC_DIR}/version.cpp"
