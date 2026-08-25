@@ -49,6 +49,11 @@ seconds and it restarts, having forgotten every network it knows.
 
 If you see white and did not mean it, let go — nothing has happened yet.
 
+If the LED goes white **on its own**, without anybody touching the button, the
+button is stuck or shorted. The device notices — it refuses to act on a button
+it has never seen released, so it will not reset itself — but the button will
+not work until the fault is fixed. The serial log says so in as many words.
+
 ## Three things worth saying, because none is guessable
 
 - **Blinking versus solid red is the important distinction.** Before

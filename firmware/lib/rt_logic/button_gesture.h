@@ -67,6 +67,18 @@ class ButtonGesture {
       : arm_hold_ms_(arm_hold_ms), factory_reset_ms_(factory_reset_ms), debounce_ms_(debounce_ms) {}
 
   Gesture update(bool pressed, int64_t now_ms) {
+    // A pin that reads pressed from the very first sample is a stuck pin, not
+    // a hold: nobody can be holding a button the device has never seen up.
+    //
+    // This is not hypothetical and not only about broken hardware. QEMU does
+    // not emulate the internal pull-up, so GPIO0 reads low forever there - and
+    // without this guard the emulated device factory-reset and rebooted every
+    // ten seconds, which is exactly what a shorted or jammed BOOT button would
+    // do to a real board. A destructive gesture must not be reachable by a pin
+    // that is simply broken.
+    if (!pressed) released_since_start_ = true;
+    if (!released_since_start_) return Gesture::kNone;
+
     if (pressed && !down_) {
       down_ = true;
       down_since_ms_ = now_ms;
@@ -111,11 +123,17 @@ class ButtonGesture {
   // gesture, and something has to put the borrowed status LED back.
   bool armed() const { return down_ && armed_; }
 
+  // Whether the button has never been seen released, so nothing it does can be
+  // acted on. For the caller to say so out loud - a button that silently does
+  // nothing is worse than one that reports being stuck.
+  bool stuck_pressed() const { return !released_since_start_; }
+
  private:
   int64_t arm_hold_ms_;
   int64_t factory_reset_ms_;
   int64_t debounce_ms_;
   bool down_ = false;
+  bool released_since_start_ = false;
   bool armed_ = false;
   bool reset_fired_ = false;
   int64_t down_since_ms_ = 0;

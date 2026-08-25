@@ -217,6 +217,13 @@ Load-bearing invariants:
   hold is a factory reset (#222, D-33). There is no power-on gesture and there
   cannot be — GPIO0 is strapping, so a board held low at reset enters ROM
   download mode and this firmware never runs.
+- **A gesture is refused until the button has been seen released.** A pin that
+  reads pressed from the very first sample is stuck, not held. Without this,
+  QEMU — which does not emulate the pull-up — factory-reset and rebooted the
+  emulated device every ten seconds, seventeen boots in one E2E run; a shorted
+  BOOT button does the same to a real board. **Any new destructive gesture
+  inherits this rule**: it must not be reachable by a pin that is simply
+  broken.
 - Programs live in a `std::map` for reference stability — `ProgramState` holds a
   bare `const rt::Program *` at whatever is loaded.
 - The `audios` map is reached from both the httpd and run-loop tasks and has its

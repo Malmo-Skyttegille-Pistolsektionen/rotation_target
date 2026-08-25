@@ -30,6 +30,11 @@ constexpr int kPressedLevel = 0;
 // invisible: 50 samples a second on a pin nobody touches for weeks.
 constexpr int kPollMs = 20;
 
+// How long GPIO0 may read pressed from boot before it is called stuck. Past
+// the factory-reset threshold, so a real hold that began the instant the task
+// started is never described as a fault.
+constexpr int64_t kStuckWarnMs = 15'000;
+
 // How long a press stays good for. Long enough to walk from the button to a
 // phone and submit a form, short enough that a press nobody remembers making
 // cannot authorise anything.
@@ -59,6 +64,11 @@ void task(void *) {
   // give it back. The gesture reports nothing on an abandoned hold - there is
   // no event, only a button that stopped being down.
   bool led_borrowed = false;
+  // Said once, and only after long enough that a genuine press cannot explain
+  // it. A button the firmware ignores because the pin is stuck would otherwise
+  // be indistinguishable from a button that does nothing, and the person
+  // holding it has no way to tell which.
+  bool warned_stuck = false;
   for (;;) {
     const bool pressed = gpio_get_level(kPin) == kPressedLevel;
     switch (gesture.update(pressed, now_ms())) {
@@ -90,6 +100,14 @@ void task(void *) {
         break;
       case rt::Gesture::kNone:
         break;
+    }
+
+    if (!warned_stuck && gesture.stuck_pressed() && now_ms() > kStuckWarnMs) {
+      warned_stuck = true;
+      ESP_LOGW(TAG,
+               "GPIO%d has read pressed since boot - treating it as stuck, so no gesture will be "
+               "acted on. A shorted button, a board without the pull-up, or an emulator.",
+               static_cast<int>(kPin));
     }
 
     if (led_borrowed && !gesture.armed()) {
