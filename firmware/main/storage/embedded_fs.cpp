@@ -248,8 +248,8 @@ bool init() {
     return false;
   }
 
-  const esp_err_t err = esp_vfs_register_fs(kEmbeddedMount, &kOps,
-                                            ESP_VFS_FLAG_STATIC | ESP_VFS_FLAG_CONTEXT_PTR, nullptr);
+  const esp_err_t err = esp_vfs_register_fs(
+      kEmbeddedMount, &kOps, ESP_VFS_FLAG_STATIC | ESP_VFS_FLAG_CONTEXT_PTR, nullptr);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Could not register %s: %s", kEmbeddedMount, esp_err_to_name(err));
     return false;
