@@ -196,12 +196,17 @@ jobs:
 
       # `reconfigure`, not `build`: clang-tidy needs the compilation database
       # and nothing else, and generating it does not require compiling anything.
+      #
+      # Its own build directory, and no `set-target`. The toolchain is fixed
+      # when a build directory is first configured, so a `set-target` here
+      # would settle on GCC and the clang reconfigure that followed would be
+      # refused - "CMAKE_TOOLCHAIN_FILE does not match currently selected
+      # IDF_TARGET". The target comes from sdkconfig.defaults either way.
       - name: Generate a clang compilation database
         shell: bash
         run: |
           . "$IDF_PATH/export.sh"
-          idf.py set-target esp32s3
-          idf.py -D IDF_TOOLCHAIN=clang -D RT_ALLOW_STALE_WEBAPP=ON reconfigure
+          idf.py -B build-tidy -D IDF_TOOLCHAIN=clang -D RT_ALLOW_STALE_WEBAPP=ON reconfigure
 
       # Narrow by design (firmware/.clang-tidy): the enabled set is the one
       # that finds bugs, and it starts at zero so it can stay there. A
@@ -210,7 +215,7 @@ jobs:
         shell: bash
         run: |
           . "$IDF_PATH/export.sh"
-          python3 scripts/run_clang_tidy.py build
+          python3 scripts/run_clang_tidy.py build-tidy
 
   qemu-smoke:
     # Lives in this workflow rather than one of its own: it wants exactly the
