@@ -21,6 +21,7 @@
 #include "admin_mode.h"
 #include "audio.h"
 #include "audios.h"
+#include "build_info.h"
 #include "config.h"
 #include "esp_app_desc.h"
 #include "esp_core_dump.h"
@@ -602,6 +603,25 @@ void register_diagnostics_routes() {
     out += "]";
     out += ",\"startupIssues\":";
     out += rt::issue_array_json(sse_hub::startup_issues());
+    // Four typed fields plus an untyped map (#228). Nothing branches on
+    // `details`, so a key added to the generated header is a firmware-only
+    // change - no contract edit, no regenerated types, no mock update.
+    out += ",\"build\":{\"version\":";
+    out += rt::json_quote(build_info::version());
+    out += ",\"commit\":";
+    out += rt::json_quote(build_info::commit());
+    out += ",\"dirty\":";
+    out += build_info::dirty() ? "true" : "false";
+    out += ",\"buildTime\":";
+    out += rt::json_quote(build_info::build_time());
+    out += ",\"details\":{";
+    for (size_t i = 0; i < build_info::detail_count(); i++) {
+      if (i > 0) out += ",";
+      out += rt::json_quote(build_info::details()[i].key);
+      out += ":";
+      out += rt::json_quote(build_info::details()[i].value);
+    }
+    out += "}}";
     out += "}";
 
     return send_json(res, 200, out);

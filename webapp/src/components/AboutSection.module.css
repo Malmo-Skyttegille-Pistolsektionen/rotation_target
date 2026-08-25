@@ -1,0 +1,145 @@
+.section {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #374151;
+  font-weight: 600;
+}
+
+.rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 1rem;
+  margin: 0;
+}
+
+.label {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+/* Monospace, because a detail key is an identifier and reads as one beside
+   its value. Wraps rather than scrolling: a nested scroller in a flex column
+   also computes overflow-x and clips content off the right edge on a phone. */
+.detailLabel {
+  color: #6b7280;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.value {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9rem;
+  color: #111827;
+  overflow-wrap: anywhere;
+}
+
+.muted {
+  color: #6b7280;
+  font-style: italic;
+}
+
+/* A neutral chip, not a signal colour: green, red and amber mean target shown,
+   target hidden and no delay armed, and nothing else may borrow them. Kept to
+   the weight of the row it sits in, per #228 - the collapsed view is meant to
+   look like today's. */
+.marker {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background-color: #f3f4f6;
+  color: #374151;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: 0.1em;
+}
+
+.mismatch {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  background-color: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  font-size: 0.85rem;
+}
+
+.disclosure,
+.copy {
+  align-self: flex-start;
+  height: var(--rt-control-height);
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #fff;
+  color: #213547;
+  font: inherit;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.disclosure:hover,
+.copy:hover {
+  background-color: #f3f4f6;
+}
+
+.disclosure:focus-visible,
+.copy:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* A nested panel inside the card: 6px radius and the sunken ground, which is
+   how this system layers - by tone, not by shadow. */
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background-color: #fafafa;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.copyStatus {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.plain {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background-color: #fff;
+  color: #111827;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  /* Its own scroller, and it is not a layout container - the one place wide
+     content is allowed to scroll instead of wrapping. */
+  overflow-x: auto;
+}

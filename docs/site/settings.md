@@ -16,7 +16,7 @@ which is which before changing anything:
 | Start delay | browser | Seconds counted down before a run starts |
 | Startup Issues | device | What the device could not read when it booted |
 | Storage | device | How much room the flash partitions have |
-| Version | device | What firmware and web app this is |
+| About | device | What firmware and web app this is, and exactly which build |
 
 ## Server Base URL
 
@@ -64,7 +64,7 @@ An empty list is the normal state and says the boot scan read everything.
 Partition sizes. Note the note: **size only — the device cannot report what is
 used here** for some partitions, so a figure being absent is not a fault.
 
-## Version
+## About
 
 **App** is the version of the page you are looking at. **Device** is the
 firmware's. One version number covers firmware, web app and shipped content,
@@ -85,3 +85,24 @@ If this section reports a mismatch, it means one of two things:
 
 A hard reload will not help with either. The browser is showing the version it
 was given; the two really are different.
+
+**Modified build** beside the device version means the firmware was built from
+a working copy with uncommitted changes. On a board flashed from a release that
+should not appear; on a board somebody has been developing against, it is
+normal.
+
+### Build details
+
+**Build details** opens a table naming exactly which build this is: the commit,
+when it was built, which branch it came from, the ESP-IDF version, and
+fingerprints of the web app and audio it was built with.
+
+None of it is worth reading day to day. It exists for one situation: **a board
+that has come back from a range day behaving oddly.** "Which firmware is this"
+is answerable from the version alone; "which commit, built where, with which
+audio set" is not, and those are the questions that get a fault diagnosed.
+
+**Copy** puts the whole block on the clipboard, ready to paste into a bug
+report — which is the only thing it is for. If your browser refuses (some do on
+a plain `http://` address, which is what the device serves), the text appears
+below instead so you can select it by hand.

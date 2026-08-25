@@ -7,7 +7,7 @@ import { AdminModeSection } from '../components/AdminModeSection';
 import { StartupIssuesSection } from '../components/StartupIssuesSection';
 import { StorageSection } from '../components/StorageSection';
 import { FirmwareSection } from '../components/FirmwareSection';
-import { VersionSection } from '../components/VersionSection';
+import { AboutSection } from '../components/AboutSection';
 import styles from './settings.module.css';
 
 export const Route = createFileRoute('/settings')({
@@ -41,7 +41,7 @@ function SettingsPage(): React.ReactNode {
       <FirmwareSection />
 
 
-      <VersionSection />
+      <AboutSection />
     </div>
   );
 }

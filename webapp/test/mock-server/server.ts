@@ -245,12 +245,42 @@ export interface MockSeed {
    */
   ipAddress?: string;
   /**
+   * The `build` block `GET /diagnostics/info` reports (#228). Defaults to a
+   * plausible clean build. Set it to `null` for a device on firmware from
+   * before the field existed, which is the case the app has to degrade for -
+   * `build` is optional in the contract.
+   */
+  build?: DiagnosticsInfo['build'] | null;
+  /**
    * The flash partition table `GET /diagnostics/info` reports. Defaults to the
    * device's real one (firmware/partitions.csv) with plausible usage; override
    * to put a partition near full, or to leave usage unknown.
    */
   partitions?: DiagnosticsInfo['partitions'];
 }
+
+/**
+ * A plausible clean build. The `details` keys are the firmware's, in the
+ * firmware's order - the app renders them and never branches on them, so this
+ * exists to be *shaped* like the real thing rather than to be asserted on.
+ */
+const DEFAULT_BUILD_INFO: NonNullable<DiagnosticsInfo['build']> = {
+  version: '2.0.0-mock',
+  commit: 'ab12cde',
+  dirty: false,
+  buildTime: '2026-08-21T09:12:44Z',
+  details: {
+    'git.branch': 'main',
+    'git.commit.id.full': 'ab12cde4567890abcdef1234567890abcdef1234',
+    'git.commit.id.describe': '2.0.0-mock',
+    'git.commit.time': '2026-08-21T09:10:02+02:00',
+    'git.total.commit.count': '341',
+    'build.idf.version': 'v6.0.2',
+    'build.host': 'local',
+    'content.webapp.sha256': 'f1834cba5bf386bac4a5c033a821399644383377193485e3bcef9d367a80b588',
+    'content.audio.sha256': '89e8ef07fb6972d977d716b2c00e08c86743b3559ecaadc6e8c80bf618cfb733',
+  },
+};
 
 /**
  * The shipped programs and audios under `test/data`, plus a writable copy of
@@ -899,6 +929,10 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         // truncated one, which is what the contract says and what the app warns
         // about.
         startupIssues,
+        // Mirrors the firmware's four typed fields plus the untyped map
+        // (#228). `null` in the seed means a device from before the field
+        // existed, and the key is omitted rather than sent as null.
+        ...(seed.build === null ? {} : { build: seed.build ?? DEFAULT_BUILD_INFO }),
       };
       jsonResponse(res, 200, info);
       return;

@@ -1072,7 +1072,44 @@ export interface components {
             /** @description App partitions only — whether this is the slot the device booted from. */
             running?: boolean;
         };
+        /**
+         * @description What produced the running image, so a board that comes back from a
+         *     range day behaving oddly can be traced to a commit.
+         *
+         *     Four typed fields, plus `details` — a free-form `map<string,string>`
+         *     rendered as a table and never branched on. The split is deliberate:
+         *     anything the UI reasons about wants a type, but adding a
+         *     build-metadata key should not be a contract change, a regenerated
+         *     `generated.d.ts` and a mock-server update every time. Keys in
+         *     `details` are firmware-only.
+         *
+         *     Identity is conditional on CI rather than dropped or kept wholesale.
+         *     On a GitHub-hosted runner `build.host` is a throwaway like
+         *     `fv-az1234-567`, which names no one and is genuinely useful for
+         *     tracing which runner produced a release. On a local build it would be
+         *     a developer's machine name, and this repository is public — so a local
+         *     build reports `build.host = local` and no user identity at all.
+         */
+        BuildInfo: {
+            /** @description `git describe` output — the same string `DiagnosticsInfo.version` carries, repeated here so `build` is self-contained when it is copied out of the UI and pasted into an issue. */
+            version: string;
+            /** @description Abbreviated commit sha, or empty when the image was built without a git repository (a tarball, or a container without the checkout). */
+            commit: string;
+            /** @description Whether the working tree had uncommitted changes. */
+            dirty: boolean;
+            /**
+             * Format: date-time
+             * @description When the image was built, UTC. Note this is what stops a build being byte-reproducible; `SOURCE_DATE_EPOCH` is the escape hatch if that ever matters.
+             */
+            buildTime: string;
+            /** @description Everything else, untyped. Rendered as a definition list and never branched on. Today it carries the git fields (`git.branch`, `git.commit.id.full`, `git.commit.time`, `git.closest.tag.name`, `git.closest.tag.commit.count`, `git.total.commit.count`), `build.idf.version`, `build.host`, and digests of the shipped content (`content.webapp.sha256`, `content.audio.sha256`). None of that is promised: keys come and go without a contract change, which is the point. */
+            details: {
+                [key: string]: string;
+            };
+        };
         DiagnosticsInfo: {
+            /** @description How this image was built, for tracing a device back to a commit. Optional: a device on firmware from before this field existed simply omits it, and a client must degrade to `version` rather than assume it is there. */
+            build?: components["schemas"]["BuildInfo"];
             /** @description `git describe` output, e.g. `2.0.0-3-gab12cde`. */
             version: string;
             /** @description The ESP-IDF version the firmware was built against. */
