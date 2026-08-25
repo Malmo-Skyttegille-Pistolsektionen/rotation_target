@@ -2,14 +2,55 @@ import { test, expect } from '@playwright/test';
 import { expectProblem, openApp, resetDevice } from './device';
 
 /**
- * Listing only. QEMU emulates no I2S, so `POST /audios/{id}/play` would be
- * accepted and then silent, and there is nothing a browser could observe —
- * playback is covered on real hardware, by ear. Uploads are left out for the
- * same reason plus a second one: they write to the LittleFS image the whole
- * suite shares.
+ * `POST /audios/{id}/play` is not covered here: QEMU emulates no I2S, so it
+ * would be accepted and then silent, and there is nothing a browser could
+ * observe - playback is covered on real hardware, by ear.
  */
 test.beforeEach(async ({ request }) => {
   await resetDevice(request);
+});
+
+/** A PCM16 mono WAV with enough samples to be a plausible upload, no more. */
+function minimalWav(dataBytes = 8): Buffer {
+  const header = Buffer.alloc(44);
+  header.write('RIFF', 0, 'ascii');
+  header.writeUInt32LE(36 + dataBytes, 4);
+  header.write('WAVE', 8, 'ascii');
+  header.write('fmt ', 12, 'ascii');
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20); // PCM
+  header.writeUInt16LE(1, 22); // mono
+  header.writeUInt32LE(16000, 24); // sample rate
+  header.writeUInt32LE(32000, 28); // byte rate
+  header.writeUInt16LE(2, 32); // block align
+  header.writeUInt16LE(16, 34); // bits per sample
+  header.write('data', 36, 'ascii');
+  header.writeUInt32LE(dataBytes, 40);
+  return Buffer.concat([header, Buffer.alloc(dataBytes)]);
+}
+
+test('an upload through the UI reaches the device (#250)', async ({ page }) => {
+  // #250: a standard multipart body was silently dropped before it ever
+  // reached the file-writing path, and nothing exercised the real client
+  // (the mock server never reproduced this - it is not multipart at all).
+  // The regression this guards is the file arriving; getting a 201 back
+  // needs a real DAC. QEMU sets CONFIG_RT_AUDIO_ENABLED=n, which stubs
+  // `audio::probe_wav` to always refuse (firmware/main/io/audio.cpp) - so the
+  // signal here is landing on that refusal instead of on "No file uploaded".
+  // A real board accepts this exact clip and returns 201.
+  await openApp(page);
+  await page.getByRole('link', { name: 'Audios' }).click();
+  await expect(page).toHaveURL(/\/audios$/);
+
+  await page.getByTestId('audios-upload-file').setInputFiles({
+    name: 'e2e-clip.wav',
+    mimeType: 'audio/wav',
+    buffer: minimalWav(),
+  });
+  await page.getByTestId('audios-upload-title').fill('E2E Clip');
+  await page.getByTestId('audios-upload-submit').click();
+
+  await expect(page.getByTestId('audios-feedback')).toContainText('Unsupported audio format');
 });
 
 test('the library is the clips the LittleFS image carries, all shipped', async ({ page, request }) => {

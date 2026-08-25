@@ -85,8 +85,13 @@ constexpr const char *kStorageMount = "/userdata";
 // principle - the invariant stops depending on care.
 constexpr const char *kShippedAudioDir = "/embedded/audio";
 constexpr const char *kShippedProgramDir = "/embedded/programs";
-// On `userdata`, created on first upload.
-constexpr const char *kUploadAudioDir = "/userdata/audio";
+// On `userdata`, created on first upload. The macro exists so a path that has
+// to stay under this directory (the audio upload's staging file, currently)
+// can be built by string-literal concatenation at compile time rather than
+// naming "/userdata/audio" a second time - which is exactly how it drifted
+// out from under a mount rename once already.
+#define RT_UPLOAD_AUDIO_DIR "/userdata/audio"
+constexpr const char *kUploadAudioDir = RT_UPLOAD_AUDIO_DIR;
 constexpr const char *kUploadProgramDir = "/userdata/programs";
 
 // The id ranges: below this is shipped, at or above it is uploaded. A shipped
