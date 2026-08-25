@@ -1380,9 +1380,22 @@ that would change the per-clip I2S clock. These are **spoken range commands**;
 they tell a shooter when to fire. Predictability outranks ratio.
 
 FLAC was the serious alternative — bit-exact, so quality parity is a fact
-rather than a judgement. It loses only because ADPCM proved sufficient, at
-2.5 MB more per slot plus a real decoder. **If ADPCM fails the on-hardware
-listening check it is the fallback and the budget still closes.**
+rather than a judgement. It costs 2.5 MB more per slot plus a real decoder —
+and **that framing is the trap, because it is not a fallback: it does not
+fit.** At 4.46 MB the FLAC corpus is around 180% of the 2,500,000 B audio
+share, and about 119% of the entire 3,774,873 B app-slot ceiling
+(`0x480000` × the 80% `APP_CEILING`) *before a byte of firmware code or the
+embedded web app*. `scripts/check_image_budget.py` fails the build on both
+counts. A 2.5 MB delta reads as affordable against a 4.5 MB slot only until
+you count that the slot is not otherwise empty, and that A/B means every
+shipped byte is paid for twice (#253).
+
+**So if ADPCM fails the on-hardware listening check, the in-budget
+alternatives are Opus and MP3** — at which point the latency argument above
+is the thing to re-examine, not the size one. Choosing FLAC anyway means
+repartitioning, paid for out of `userdata`, and uploads are stored as raw
+PCM rather than transcoded, so that trade comes straight out of upload
+seconds.
 
 **A listening test on a laptop settled nothing** and is not cited as evidence
 here: all six codecs were indistinguishable from the original, including
