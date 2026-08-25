@@ -14,6 +14,7 @@
 // without including the header that declares it, and it stays byte-identical
 // to upstream, so the ordering is fixed here rather than there.
 #include "dns_server.h"
+#include "ssid_choice.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
@@ -36,7 +37,7 @@ httpd_handle_t s_httpd = nullptr;
 
 const char kPageHead[] = R"HTML(<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Rotation target setup</title><style>
+<title>Rotation Target Setup</title><style>
 body{font-family:system-ui,sans-serif;margin:0;padding:1.5rem;background:#111;color:#eee}
 h1{font-size:1.25rem}form{max-width:22rem}label{display:block;margin:1rem 0 .25rem}
 input,select{width:100%;padding:.6rem;font-size:1rem;border:1px solid #444;border-radius:.3rem;
@@ -44,40 +45,56 @@ background:#1c1c1c;color:#eee;box-sizing:border-box}
 button{margin-top:1.25rem;width:100%;padding:.7rem;font-size:1rem;border:0;border-radius:.3rem;
 background:#2d7;color:#000;font-weight:600}
 p{color:#aaa;font-size:.85rem;line-height:1.4}
+.hint{margin:.3rem 0 0}
+.pw{position:relative}
+.pw input{padding-right:4.5rem}
+.pw button{position:absolute;right:.35rem;top:50%;transform:translateY(-50%);width:auto;
+margin:0;padding:.35rem .55rem;font-size:.8rem;background:#333;color:#eee;font-weight:400}
 .step{color:#eee;background:#1c1c1c;border-left:.2rem solid #2d7;padding:.6rem .7rem;
 margin-top:1.25rem}
 </style></head><body>
-<h1>Rotation target setup</h1>
+<h1>Rotation Target Setup</h1>
 <p>This device could not join a network. Choose the WiFi it should use.
 It will save the details and restart.</p>
 <form method="POST" action="/save">
 <label for="pick">Network</label>
-<select id="pick" onchange="pick(this)">)HTML";
+<select id="pick" name="picked">)HTML";
 
 // Spliced between the two halves: one <option> per network the scan found.
 const char kPageTail[] = R"HTML(</select>
-<div id="manual" style="display:none">
-<label for="s">Network name</label>
-<input id="s" name="ssid" maxlength="32" autocapitalize="none" autocorrect="off">
-</div>
-<p style="margin:.4rem 0 0"><a href="/rescan" style="color:#2d7;font-size:.85rem">Rescan
-networks</a></p>
+<p class="hint"><a href="/rescan" style="color:#2d7">Rescan networks</a></p>
+<label for="s">Or type the network name</label>
+<input id="s" name="ssid_manual" maxlength="32" autocapitalize="none" autocorrect="off"
+spellcheck="false" placeholder="Network name (optional)">
+<p class="hint">For a hidden network, or one the scan did not find. What you type here is
+used instead of the choice above.</p>
 <label for="p">Password</label>
-<input id="p" name="password" type="password" maxlength="63">
+<div class="pw">
+<input id="p" name="password" type="password" maxlength="63" autocapitalize="none"
+autocorrect="off" spellcheck="false">
+<button type="button" id="eye" onclick="reveal()" aria-controls="p" aria-pressed="false"
+aria-label="Show password">Show</button>
+</div>
 <p class="step"><b>Then press the BOOT button on the device</b> before saving.
 It is next to the USB sockets, marked BOOT or FLASH. This is what proves you are
 standing at the device rather than merely in range of it.</p>
 <button type="submit">Save and restart</button></form>
 <script>
-// The <select> is a convenience; `ssid` is always what gets submitted. A hidden
-// network has no name to offer, so choosing "Other" reveals the text field and
-// the operator types it - which is also the escape hatch if the scan missed one.
-function pick(sel){
-  var other = sel.value === '\x01other';
-  document.getElementById('manual').style.display = other ? 'block' : 'none';
-  var s = document.getElementById('s');
-  if (other) { s.value = ''; s.required = true; s.focus(); }
-  else { s.value = sel.value; s.required = false; }
+// The only scripted behaviour on this page, and nothing depends on it: with
+// JavaScript off the password simply stays hidden and the form still submits.
+// Which network was asked for is decided on the device (rt::chosen_ssid), not
+// here - the previous version needed script to reveal a field, and when that
+// failed there was no way to name a hidden network at all.
+function reveal(){
+  var field = document.getElementById('p');
+  var button = document.getElementById('eye');
+  var showing = field.type === 'password';
+  field.type = showing ? 'text' : 'password';
+  // The label says what the button will do next, and aria-pressed says what
+  // the state is now - a screen reader needs both.
+  button.textContent = showing ? 'Hide' : 'Show';
+  button.setAttribute('aria-label', showing ? 'Hide password' : 'Show password');
+  button.setAttribute('aria-pressed', showing ? 'true' : 'false');
 }
 </script>
 </body></html>)HTML";
@@ -185,10 +202,12 @@ std::string network_options() {
     out += ")</option>";
   }
 
-  // U+0001 rather than a word: an SSID may legitimately be "Other", and a
-  // sentinel a network could collide with is a bug waiting for the one site
-  // that has it.
-  out += "<option value=\"\x01other\">Other or hidden network...</option>";
+  // No "Other" entry, and no sentinel. It used to carry U+0001 so that a
+  // network genuinely called "Other" could not collide with it - sound
+  // reasoning, defeated by the transport: a control character in an HTML
+  // attribute is a parse error, browsers are not obliged to preserve it, and
+  // the reveal it was meant to trigger never fired. The text field below the
+  // list is always visible now, so there is no mode to signal.
   return out;
 }
 
@@ -264,12 +283,15 @@ esp_err_t save(httpd_req_t *req) {
     return ESP_OK;
   }
 
-  const std::string ssid = form_field(body, "ssid");
+  const std::string ssid =
+      rt::chosen_ssid(form_field(body, "picked"), form_field(body, "ssid_manual"));
   const std::string password = form_field(body, "password");
 
   if (ssid.empty() || ssid.size() > 32 || password.size() > 63) {
     httpd_resp_set_type(req, "text/html");
-    httpd_resp_send(req, "<p>Invalid network name or password. <a href=\"/\">Back</a></p>",
+    httpd_resp_send(req,
+                    "<p>Choose a network from the list, or type its name. "
+                    "<a href=\"/\">Back</a></p>",
                     HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
   }
