@@ -91,6 +91,19 @@ extern "C" void app_main() {
   // it can see downrange, and nothing moves in between.
   executor::init(kTargetsShownAtBoot);
 
+  // Before the network, deliberately, and this is the whole of #246.
+  // `run_setup_portal()` never returns, so a console started after it existed
+  // only on a device that had already joined - which is exactly the device
+  // that does not need one. The audience for `wifi-scan`, `wifi-info` and
+  // `factory-reset` is somebody at a bench with a cable wondering why a board
+  // will not join, and that board is in the portal.
+  //
+  // Nothing here waits on the network: `status` reports "not connected" until
+  // there is an address, which is a true answer rather than a missing one. It
+  // does read the repositories and the partition table, so it stays after
+  // those are loaded.
+  console::init();
+
   if (net_mgr::connect() == net_mgr::Result::kSetupPortal) {
     // No usable network. Serving the setup AP is the useful thing to do -
     // rebooting into the same failure would just loop, and the club would have
@@ -119,9 +132,6 @@ extern "C" void app_main() {
     esp_restart();
   }
 
-  // After the server, so `status` can report an address rather than a blank.
-
-  console::init();
   rgb_led::status_serving();
 
   ESP_LOGI(TAG, "Ready on http://%s", net_mgr::ip_address().c_str());
