@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ExportPanel } from '../components/ExportPanel';
 import { ProgramEditor, type EditorTarget } from '../components/ProgramEditor';
 import {
   GitHubApiError,
   fetchRepoProgramFile,
+  fetchRepoProgramSummary,
   idFromFilename,
   listRepoProgramFiles,
   type RepoProgramFile,
+  type RepoProgramSummary,
 } from '../lib/github-contents';
+import { PROGRAMS_PATH } from '../lib/pr-url';
 import { fetchRepoAudioCatalogue } from '../lib/github-contents';
 import { parseProgramDocument } from '../lib/program-document';
 import styles from './StandaloneEditorApp.module.css';
@@ -83,50 +86,90 @@ interface PickerProps {
 function Picker({ onOpened }: PickerProps): React.ReactNode {
   return (
     <div className={styles.picker}>
-      <RepoBrowser
-        title='Open from this repo'
-        defaultOwner={CANONICAL_OWNER}
-        defaultRepo={CANONICAL_REPO}
-        fixedRepo
-        onOpened={onOpened}
-      />
-      <RepoBrowser
-        title='Open from another repo'
-        defaultOwner=''
-        defaultRepo=''
-        fixedRepo={false}
-        onOpened={onOpened}
-      />
+      <RepoBrowser onOpened={onOpened} />
       <LocalFileOpener onOpened={onOpened} />
       <NewDocument onOpened={onOpened} />
     </div>
   );
 }
 
-interface RepoBrowserProps {
-  title: string;
-  defaultOwner: string;
-  defaultRepo: string;
-  /** The canonical-repo card skips the owner/repo inputs; the "another repo" one needs them. */
-  fixedRepo: boolean;
-  onOpened: (opened: Opened) => void;
-}
+/**
+ * How many title fetches are in flight at once.
+ *
+ * They do not spend API quota - the contents listing hands back
+ * `raw.githubusercontent.com` URLs, which are not the API (see
+ * `fetchRepoProgramSummary`) - but firing two hundred at a repository with two
+ * hundred programs is rude regardless, and the first few rows are the ones
+ * anybody is looking at.
+ */
+const TITLE_FETCH_CONCURRENCY = 4;
 
-/** Lists `resources/programs/files/` in a repo through the contents API and opens whichever file is picked. */
-function RepoBrowser({ title, defaultOwner, defaultRepo, fixedRepo, onOpened }: RepoBrowserProps): React.ReactNode {
-  const [owner, setOwner] = useState(defaultOwner);
-  const [repo, setRepo] = useState(defaultRepo);
+/**
+ * One card for every repository, including ours (#221).
+ *
+ * There used to be two - "this repo" and "another repo" - differing only in
+ * whether the owner and repo inputs were shown. Once the path and ref are
+ * fields as well, "this repo" is just a set of defaults, and two cards asked
+ * the user to decide which one applied before they had any reason to care.
+ * Somebody browsing our programs presses Browse and touches nothing.
+ *
+ * Titles arrive lazily. The list is usable the moment the single API request
+ * returns, each row upgrades from `42.json` to its title as that file lands,
+ * and a file that will not parse simply keeps its filename. Nothing waits on
+ * anything.
+ */
+function RepoBrowser({ onOpened }: PickerProps): React.ReactNode {
+  const [owner, setOwner] = useState(CANONICAL_OWNER);
+  const [repo, setRepo] = useState(CANONICAL_REPO);
+  const [path, setPath] = useState(PROGRAMS_PATH);
+  const [ref, setRef] = useState('');
   const [files, setFiles] = useState<RepoProgramFile[] | null>(null);
+  const [summaries, setSummaries] = useState<Record<string, RepoProgramSummary>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Abandons the title fetches from a previous browse. Without it, a slow
+  // response from the repository somebody has just navigated away from writes
+  // its titles into the list they are now looking at.
+  const titleFetchRef = useRef<AbortController | null>(null);
+  useEffect(() => () => titleFetchRef.current?.abort(), []);
+
+  function loadTitles(found: RepoProgramFile[]): void {
+    titleFetchRef.current?.abort();
+    const controller = new AbortController();
+    titleFetchRef.current = controller;
+
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      while (next < found.length && !controller.signal.aborted) {
+        const file = found[next++];
+        const summary = await fetchRepoProgramSummary(file, controller.signal);
+        if (controller.signal.aborted) return;
+        // Only when there is something to show: an empty summary would
+        // re-render every row for nothing.
+        if (summary.title !== null || summary.declaredId !== null) {
+          setSummaries((current) => ({ ...current, [file.path]: summary }));
+        }
+      }
+    };
+    for (let i = 0; i < TITLE_FETCH_CONCURRENCY; i++) void worker();
+  }
 
   async function browse(): Promise<void> {
     if (owner.trim() === '' || repo.trim() === '') return;
     setBusy(true);
     setError(null);
     setFiles(null);
+    setSummaries({});
     try {
-      setFiles(await listRepoProgramFiles({ owner: owner.trim(), repo: repo.trim() }));
+      const found = await listRepoProgramFiles({
+        owner: owner.trim(),
+        repo: repo.trim(),
+        path: path.trim() === '' ? undefined : path.trim(),
+        ref: ref.trim() === '' ? undefined : ref.trim(),
+      });
+      setFiles(found);
+      loadTitles(found);
     } catch (err) {
       setError(describeError(err));
     } finally {
@@ -139,7 +182,7 @@ function RepoBrowser({ title, defaultOwner, defaultRepo, fixedRepo, onOpened }: 
     setError(null);
     try {
       const text = await fetchRepoProgramFile(file);
-      onOpened({ text, origin: `${owner.trim()}/${repo.trim()}/${file.path}`, suggestedId: idFromFilename(file.name) });
+      onOpened({ text, origin: repoOrigin(owner, repo, ref, file), suggestedId: idFromFilename(file.name) });
     } catch (err) {
       setError(describeError(err));
     } finally {
@@ -148,36 +191,60 @@ function RepoBrowser({ title, defaultOwner, defaultRepo, fixedRepo, onOpened }: 
   }
 
   return (
-    <section className={styles.card} data-testid={`picker-repo-${fixedRepo ? 'canonical' : 'other'}`}>
-      <h2 className={styles.cardTitle}>{title}</h2>
-      {!fixedRepo && (
-        <div className={styles.repoRow}>
-          <label className={styles.field}>
-            <span>Owner</span>
-            <input
-              className={styles.input}
-              value={owner}
-              placeholder='owner'
-              data-testid='picker-other-owner'
-              onChange={(event) => setOwner(event.target.value)}
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Repo</span>
-            <input
-              className={styles.input}
-              value={repo}
-              placeholder='repo'
-              data-testid='picker-other-repo'
-              onChange={(event) => setRepo(event.target.value)}
-            />
-          </label>
-        </div>
-      )}
+    <section className={styles.card} data-testid='picker-repo'>
+      <h2 className={styles.cardTitle}>Open from repo</h2>
+      <p className={styles.hint}>
+        Pre-filled with this project&rsquo;s own repository — press Browse to see its programs, or point the fields at
+        another club&rsquo;s.
+      </p>
+      <div className={styles.repoRow}>
+        <label className={styles.field}>
+          <span>Owner</span>
+          <input
+            className={styles.input}
+            value={owner}
+            placeholder='owner'
+            data-testid='picker-repo-owner'
+            onChange={(event) => setOwner(event.target.value)}
+          />
+        </label>
+        <label className={styles.field}>
+          <span>Repo</span>
+          <input
+            className={styles.input}
+            value={repo}
+            placeholder='repo'
+            data-testid='picker-repo-repo'
+            onChange={(event) => setRepo(event.target.value)}
+          />
+        </label>
+      </div>
+      <div className={styles.repoRow}>
+        <label className={styles.field}>
+          <span>Path</span>
+          <input
+            className={styles.input}
+            value={path}
+            placeholder={PROGRAMS_PATH}
+            data-testid='picker-repo-path'
+            onChange={(event) => setPath(event.target.value)}
+          />
+        </label>
+        <label className={styles.field}>
+          <span>Ref</span>
+          <input
+            className={styles.input}
+            value={ref}
+            placeholder='branch, tag or commit — blank for the default branch'
+            data-testid='picker-repo-ref'
+            onChange={(event) => setRef(event.target.value)}
+          />
+        </label>
+      </div>
       <button
         className={styles.button}
         disabled={busy || owner.trim() === '' || repo.trim() === ''}
-        data-testid={`picker-repo-browse-${fixedRepo ? 'canonical' : 'other'}`}
+        data-testid='picker-repo-browse'
         onClick={() => void browse()}
       >
         {busy && files === null ? 'Loading…' : 'Browse programs'}
@@ -189,11 +256,16 @@ function RepoBrowser({ title, defaultOwner, defaultRepo, fixedRepo, onOpened }: 
       )}
       {files && (
         <ul className={styles.fileList} data-testid='picker-repo-files'>
-          {files.length === 0 && <li className={styles.hint}>No program files found.</li>}
+          {files.length === 0 && <li className={styles.hint}>No program files found at that path.</li>}
           {files.map((file) => (
             <li key={file.path}>
-              <button className={styles.fileButton} disabled={busy} onClick={() => void open(file)}>
-                {file.name}
+              <button
+                className={styles.fileButton}
+                disabled={busy}
+                data-testid={`picker-repo-file-${file.name}`}
+                onClick={() => void open(file)}
+              >
+                {fileLabel(file, summaries[file.path])}
               </button>
             </li>
           ))}
@@ -201,6 +273,31 @@ function RepoBrowser({ title, defaultOwner, defaultRepo, fixedRepo, onOpened }: 
       )}
     </section>
   );
+}
+
+/**
+ * What a row says. The filename until its title arrives, then the same shape
+ * the device's Programs page uses - id first, because that is what a program
+ * is addressed by.
+ *
+ * The id shown is the *filename's*, not the document's: the filename is the
+ * authority on the id everywhere else in this system (the firmware says so
+ * explicitly), and a document declaring a different one is a discrepancy worth
+ * seeing rather than hiding.
+ */
+function fileLabel(file: RepoProgramFile, summary: RepoProgramSummary | undefined): string {
+  const id = idFromFilename(file.name);
+  if (!summary?.title) return file.name;
+  const label = id === null ? summary.title : `${String(id)} — ${summary.title}`;
+  return summary.declaredId !== null && summary.declaredId !== id
+    ? `${label} (document says id ${String(summary.declaredId)})`
+    : label;
+}
+
+/** The "where this came from" line carried into the pull request body, naming the ref when there is one. */
+function repoOrigin(owner: string, repo: string, ref: string, file: RepoProgramFile): string {
+  const at = ref.trim() === '' ? '' : `@${ref.trim()}`;
+  return `${owner.trim()}/${repo.trim()}${at}/${file.path}`;
 }
 
 function LocalFileOpener({ onOpened }: PickerProps): React.ReactNode {

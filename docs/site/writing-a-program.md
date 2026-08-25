@@ -128,3 +128,20 @@ keep it through a reflash, it has to go into the repository — see
 The [program editor](https://malmo-skyttegille-pistolsektionen.github.io/rotation_target/editor/) does both halves of that for you: open the
 program in it, press **Continue**, and it offers the file to download and a
 prefilled pull request against this repository.
+
+### Opening a program from a repository
+
+**Open from repo** is filled in with this project already: press **Browse
+programs** and the shipped set appears, listed by title rather than by
+filename, so you can tell *Provserie* from *Fältträning* without opening both.
+
+Two fields are worth knowing about:
+
+- **Ref** — a branch, a tag, or a commit. Leave it blank for the latest;
+  set it to a release tag to open a program exactly as that release shipped it.
+- **Path** — where the programs live in that repository. The default is where
+  they live in *ours*; another club's repository may be laid out differently,
+  and a wrong path looks like an empty repository rather than a mistake.
+
+Changing **Owner** and **Repo** points it at somebody else's programs, which is
+what makes a program written at another club openable here.
