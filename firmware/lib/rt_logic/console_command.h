@@ -31,6 +31,11 @@ enum class Command {
   // a surface to secure for no gain.
   kWifiScan,
   kWifiInfo,
+  // `factory-reset` - reports what it would destroy; `factory-reset confirm`
+  // does it. The button gesture (#222) is the route for somebody with no
+  // cable; this is the route for somebody who already has one, and it can say
+  // in words what a white LED cannot.
+  kFactoryReset,
 };
 
 // What followed `boot-targets` on the line.
@@ -43,6 +48,12 @@ enum class BootTargets {
 
 // The argument of a `boot-targets` line. Case-insensitive, like the command.
 BootTargets parse_boot_targets(std::string_view line);
+
+// Whether a `factory-reset` line carries the confirmation word. Anything else
+// after the command - including a near miss like `yes` - is not a
+// confirmation, because the reply the device printed says exactly what to
+// type and a destructive command should take only what it asked for.
+bool factory_reset_confirmed(std::string_view line);
 
 // Parses one line. Leading and trailing whitespace is ignored, and matching is
 // case-insensitive: someone typing at a serial terminal at a range should not

@@ -11,6 +11,9 @@ const char *TAG = "wifi_store";
 constexpr const char *kNamespace = "rotation";
 constexpr const char *kSsidKey = "wifi_ssid";
 constexpr const char *kPassKey = "wifi_pass";
+// Set by forget(), cleared by save(). See the header for why erasing the
+// credential keys alone does not forget a network.
+constexpr const char *kNoSeedsKey = "wifi_noseeds";
 
 bool read_key(nvs_handle_t handle, const char *key, std::string &out) {
   size_t len = 0;
@@ -23,33 +26,18 @@ bool read_key(nvs_handle_t handle, const char *key, std::string &out) {
   return true;
 }
 
-}  // namespace
-
-Credentials load() {
-  Credentials out{CONFIG_RT_WIFI_SSID, CONFIG_RT_WIFI_PASSWORD};
-
-  nvs_handle_t handle;
-  if (nvs_open(kNamespace, NVS_READONLY, &handle) != ESP_OK) return out;
-
-  std::string ssid;
-  if (read_key(handle, kSsidKey, ssid) && !ssid.empty()) {
-    out.ssid = ssid;
-    // A saved network may legitimately be open, so an absent password key is
-    // not a reason to fall back to the compiled-in one.
-    std::string password;
-    out.password = read_key(handle, kPassKey, password) ? password : "";
-    ESP_LOGI(TAG, "Using provisioned network '%s'", out.ssid.c_str());
-  }
-
-  nvs_close(handle);
-  return out;
-}
-
-namespace {
-
 // "changeme" is the Kconfig default and means "nothing configured here".
 bool is_set(const std::string &ssid) {
   return !ssid.empty() && ssid != "changeme";
+}
+
+bool seeds_suppressed() {
+  nvs_handle_t handle;
+  if (nvs_open(kNamespace, NVS_READONLY, &handle) != ESP_OK) return false;
+  uint8_t flag = 0;
+  const bool set = nvs_get_u8(handle, kNoSeedsKey, &flag) == ESP_OK && flag != 0;
+  nvs_close(handle);
+  return set;
 }
 
 void append_unique(std::vector<Credentials> &out, const Credentials &candidate) {
@@ -78,8 +66,14 @@ std::vector<Credentials> load_all() {
     nvs_close(handle);
   }
 
-  append_unique(out, {CONFIG_RT_WIFI_SSID, CONFIG_RT_WIFI_PASSWORD});
-  append_unique(out, {CONFIG_RT_WIFI_SSID_2, CONFIG_RT_WIFI_PASSWORD_2});
+  // A device that was asked to forget its networks must not fall back onto the
+  // one the image was built for - see forget() in the header.
+  if (seeds_suppressed()) {
+    ESP_LOGI(TAG, "Seed networks suppressed by a factory reset");
+  } else {
+    append_unique(out, {CONFIG_RT_WIFI_SSID, CONFIG_RT_WIFI_PASSWORD});
+    append_unique(out, {CONFIG_RT_WIFI_SSID_2, CONFIG_RT_WIFI_PASSWORD_2});
+  }
 
   ESP_LOGI(TAG, "%d network(s) to try", static_cast<int>(out.size()));
   return out;
@@ -91,6 +85,10 @@ bool save(const std::string &ssid, const std::string &password) {
   nvs_handle_t handle;
   if (nvs_open(kNamespace, NVS_READWRITE, &handle) != ESP_OK) return false;
 
+  // The seeds come back with a successful provisioning: the device now has a
+  // network of its own, so the build's network is a harmless second choice
+  // again rather than the thing the reset was trying to escape.
+  nvs_erase_key(handle, kNoSeedsKey);
   bool ok = nvs_set_str(handle, kSsidKey, ssid.c_str()) == ESP_OK &&
             nvs_set_str(handle, kPassKey, password.c_str()) == ESP_OK &&
             nvs_commit(handle) == ESP_OK;
@@ -100,14 +98,16 @@ bool save(const std::string &ssid, const std::string &password) {
   return ok;
 }
 
-bool clear() {
+bool forget() {
   nvs_handle_t handle;
   if (nvs_open(kNamespace, NVS_READWRITE, &handle) != ESP_OK) return false;
 
   nvs_erase_key(handle, kSsidKey);
   nvs_erase_key(handle, kPassKey);
-  const bool ok = nvs_commit(handle) == ESP_OK;
+  const bool ok = nvs_set_u8(handle, kNoSeedsKey, 1) == ESP_OK && nvs_commit(handle) == ESP_OK;
   nvs_close(handle);
+
+  ESP_LOGW(TAG, "%s every stored and compiled-in network", ok ? "Forgot" : "Failed to forget");
   return ok;
 }
 

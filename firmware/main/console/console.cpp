@@ -21,6 +21,7 @@
 
 #include "audios.h"
 #include "config.h"
+#include "factory_reset.h"
 #include "console_command.h"
 #include "net_mgr.h"
 #include "partitions.h"
@@ -296,6 +297,25 @@ void handle_wifi_info() {
 
 #endif  // CONFIG_RT_NET_OPENETH
 
+// `factory-reset [confirm]`. Two steps, because there is no undo and because
+// the first step is the only chance to say what survives - somebody typing
+// this at a range is usually already having a bad day and should not have to
+// guess whether their uploaded programs are about to go.
+void handle_factory_reset(const std::string &line) {
+  if (!rt::console::factory_reset_confirmed(line)) {
+    say("this erases every stored setting and restarts the device:\r\n"
+        "  - the WiFi network it knows, including the one built into this image\r\n"
+        "  - the hardware configuration (pins, hostname, display name)\r\n"
+        "uploaded programs and audio clips are NOT touched.\r\n"
+        "the device comes back offering its setup portal.\r\n"
+        "\r\ntype 'factory-reset confirm' to do it\r\n");
+    return;
+  }
+  say("erasing stored settings and restarting...\r\n");
+  // Does not return.
+  factory_reset::perform("console command");
+}
+
 void handle(const std::string &line) {
   switch (rt::console::parse_command(line)) {
     case rt::console::Command::kNone:
@@ -312,6 +332,9 @@ void handle(const std::string &line) {
     case rt::console::Command::kWifiInfo:
       handle_wifi_info();
       break;
+    case rt::console::Command::kFactoryReset:
+      handle_factory_reset(line);
+      break;
     case rt::console::Command::kHelp:
       say("status         network, targets, storage, and what the boot scan found\r\n"
           "boot-targets   where the targets rest at boot: 'shown' or 'hidden'\r\n"
@@ -321,6 +344,10 @@ void handle(const std::string &line) {
           "               security. The same list the setup portal offers.\r\n"
           "wifi-info      what this device is joined to: signal, channel, IP,\r\n"
           "               gateway, DNS, MAC.\r\n"
+          "factory-reset  erase every stored setting and restart into the setup\r\n"
+          "               portal. Uploaded programs and clips are kept. Says what\r\n"
+          "               it would do; needs 'factory-reset confirm' to do it.\r\n"
+          "               Same as holding BOOT for ten seconds.\r\n"
           "help           this\r\n");
       break;
     case rt::console::Command::kUnknown:

@@ -48,6 +48,7 @@ Command parse_command(std::string_view line) {
   if (equals_ignoring_case(word, "boot-targets")) return Command::kBootTargets;
   if (equals_ignoring_case(word, "wifi-scan")) return Command::kWifiScan;
   if (equals_ignoring_case(word, "wifi-info")) return Command::kWifiInfo;
+  if (equals_ignoring_case(word, "factory-reset")) return Command::kFactoryReset;
   return Command::kUnknown;
 }
 
@@ -57,6 +58,10 @@ BootTargets parse_boot_targets(std::string_view line) {
   if (equals_ignoring_case(argument, "shown")) return BootTargets::kShown;
   if (equals_ignoring_case(argument, "hidden")) return BootTargets::kHidden;
   return BootTargets::kInvalid;
+}
+
+bool factory_reset_confirmed(std::string_view line) {
+  return equals_ignoring_case(tail(line), "confirm");
 }
 
 std::string first_word(std::string_view line) {

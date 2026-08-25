@@ -17,9 +17,6 @@ struct Credentials {
   std::string password;
 };
 
-// NVS if a network has been provisioned, otherwise the Kconfig defaults.
-Credentials load();
-
 // Every network worth trying, in the order to try them: the provisioned one
 // first, then the Kconfig seeds. Duplicates and unset entries are dropped, so
 // the result may be empty.
@@ -30,11 +27,23 @@ Credentials load();
 // forgetting one every time it moves.
 std::vector<Credentials> load_all();
 
+// Saving also lifts the suppression forget() sets, so a device provisioned
+// after a factory reset gets its seeds back.
 bool save(const std::string &ssid, const std::string &password);
 
-// Forget the provisioned network, so the next boot falls back to the Kconfig
-// defaults and then to the setup portal.
-bool clear();
+// Forget every network this device would try: the provisioned one, and the
+// compiled-in Kconfig seeds.
+//
+// Erasing the provisioned keys is not enough on its own, and that is the whole
+// of #222. The seeds are the network the *image* was built for, and load_all()
+// offers them whenever NVS is silent - so a device whose credentials had been
+// erased joined the build's network again and never raised the portal. Forcing
+// the portal needed a throwaway build carrying deliberately wrong credentials.
+//
+// So a marker records that somebody asked for the networks to be forgotten,
+// and load_all() honours it. save() clears the marker, so provisioning through
+// the portal restores the seeds as a fallback for the next site.
+bool forget();
 
 // Whether credentials have ever been saved. False on an out-of-box device.
 bool provisioned();

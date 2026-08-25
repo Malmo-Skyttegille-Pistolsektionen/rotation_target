@@ -59,6 +59,43 @@ goes blinking red, then green.
 
 From here it is on your network, and the rest of this page applies.
 
+## Moving the device to a different network
+
+If the device can no longer reach the network it knows — the club changed its
+WiFi, or the board has been taken somewhere else — it gives up after about ten
+seconds and raises the setup portal by itself. Nothing to do: wait for **blue**
+and [configure it from there](#the-setup-portal).
+
+The awkward case is the other one: **the network it knows still exists, and you
+want it on a different one anyway.** Handing a spare board to another club is
+the usual reason. The device joins ours quite happily and never offers the
+portal, so there is nothing to configure it through.
+
+For that, **hold the BOOT button for ten seconds**.
+
+| While you hold | LED | Meaning |
+|---|---|---|
+| 0–3 seconds | unchanged | Nothing has happened yet |
+| after 3 seconds | **white** | It is counting. Let go now and nothing is changed |
+| after 10 seconds | restarts | Done |
+
+It comes back up **blue**, offering its setup portal, exactly like a board that
+has never been configured.
+
+!!! warning "What a ten-second hold erases"
+
+    - **Every network it knows**, including the one built into its firmware —
+      which is the point, otherwise it would simply rejoin ours.
+    - **Its hardware settings**: pin numbers, hostname and display name go back
+      to the defaults, so it will answer to `rotation-target.local` again.
+
+    **Your programs and audio clips are kept.** Anything uploaded to the device
+    stays on it, including through a change of owner — that is a separate thing
+    from which network it is on, and it may be the only copy.
+
+If you have a USB cable and a serial terminal, `factory-reset` at the device's
+console does the same thing and says what it is about to do first.
+
 ## Finding the device
 
 Join the same WiFi the device is on, then open its address.

@@ -3,7 +3,9 @@
 #include <atomic>
 
 #include "button_gesture.h"
+#include "factory_reset.h"
 #include "press_sequence.h"
+#include "rgb_led.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -53,6 +55,10 @@ int64_t now_ms() {
 void task(void *) {
   rt::ButtonGesture gesture;
   rt::PressSequence unlock;
+  // Whether the LED is currently borrowed by a hold, so releasing early can
+  // give it back. The gesture reports nothing on an abandoned hold - there is
+  // no event, only a button that stopped being down.
+  bool led_borrowed = false;
   for (;;) {
     const bool pressed = gpio_get_level(kPin) == kPressedLevel;
     switch (gesture.update(pressed, now_ms())) {
@@ -69,15 +75,27 @@ void task(void *) {
           ESP_LOGI(TAG, "Button pressed");
         }
         break;
-      case rt::Gesture::kLongHold:
-        // #209 will restart into safe mode here. Logged rather than silently
-        // ignored so that holding the button does something observable, and so
-        // the gesture is exercised on real hardware before anything depends on
-        // it.
-        ESP_LOGW(TAG, "Button held - safe-mode restart is not implemented yet (#209)");
+      case rt::Gesture::kHoldArmed:
+        // Nothing is destroyed here. The LED is the whole point: a ten-second
+        // hold that shows nothing for ten seconds is indistinguishable from a
+        // button that does not work, and the person holding it lets go.
+        led_borrowed = true;
+        rgb_led::hold_armed();
+        ESP_LOGW(TAG, "Hold registered - keep holding for %d s to factory reset, or let go now",
+                 static_cast<int>(rt::kDefaultFactoryResetMs / 1000));
+        break;
+      case rt::Gesture::kFactoryReset:
+        // Does not return.
+        factory_reset::perform("button held");
         break;
       case rt::Gesture::kNone:
         break;
+    }
+
+    if (led_borrowed && !gesture.armed()) {
+      led_borrowed = false;
+      rgb_led::restore();
+      ESP_LOGI(TAG, "Button released - factory reset abandoned");
     }
     // The lapse has no event of its own anywhere else in the system: it is
     // simply a moment passing. Watched here because this task is already awake,

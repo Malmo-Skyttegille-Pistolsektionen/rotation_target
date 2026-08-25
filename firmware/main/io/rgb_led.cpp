@@ -25,6 +25,8 @@ void status_offline() {}
 void status_online() {}
 void status_serving() {}
 void status_portal() {}
+void hold_armed() {}
+void restore() {}
 
 #else
 
@@ -81,6 +83,15 @@ void yellow() {
 void blue() {
   set(0, 0, 60);
 }
+void white() {
+  set(60, 60, 60);
+}
+
+// What restore() has to put back. The colour is not enough on its own: joining
+// is a blink, and re-applying "whatever is on the pixel right now" would freeze
+// it mid-blink at whichever half the button happened to interrupt.
+enum class Status { kNone, kJoining, kOffline, kOnline, kServing, kPortal };
+Status s_status = Status::kNone;
 
 // Latched rather than asked of the server, so the policy stays here and the
 // LED does not depend on the web server's lifetime.
@@ -88,6 +99,7 @@ bool s_serving = false;
 }  // namespace
 
 void status_joining() {
+  s_status = Status::kJoining;
   // Starts false so the first call - app_main, before any join attempt - lands
   // on red rather than off. Getting this backwards leaves the device dark for
   // the whole of boot, which reads as "no power".
@@ -101,10 +113,12 @@ void status_joining() {
 }
 
 void status_offline() {
+  s_status = Status::kOffline;
   red();
 }
 
 void status_online() {
+  s_status = Status::kOnline;
   if (s_serving) {
     green();
   } else {
@@ -113,12 +127,43 @@ void status_online() {
 }
 
 void status_serving() {
+  s_status = Status::kServing;
   s_serving = true;
   green();
 }
 
 void status_portal() {
+  s_status = Status::kPortal;
   blue();
+}
+
+void hold_armed() {
+  // Deliberately not recorded in s_status: this is borrowed, and restore() has
+  // to be able to undo it.
+  white();
+}
+
+void restore() {
+  switch (s_status) {
+    // Solid rather than resuming mid-blink. The next join attempt is at most
+    // 2.4 s away and toggles it back into the blink by itself.
+    case Status::kJoining:
+    case Status::kOffline:
+      red();
+      break;
+    case Status::kOnline:
+      status_online();
+      break;
+    case Status::kServing:
+      green();
+      break;
+    case Status::kPortal:
+      blue();
+      break;
+    case Status::kNone:
+      off();
+      break;
+  }
 }
 
 #endif  // CONFIG_RT_RGB_LED_ENABLED
