@@ -230,7 +230,13 @@ int32_t add_uploaded(const std::string &title, const std::string &staged_path) {
 
   if (!write_upload_index()) {
     s_audios.erase(id);
-    ::remove(final_path.c_str());
+    // Rolling the upload back. A failure here leaves a clip on flash that no
+    // index mentions - invisible, and taking space that the next upload will
+    // be told it does not have.
+    if (::remove(final_path.c_str()) != 0) {
+      ESP_LOGE(TAG, "Could not remove %s after a failed index write; it is now orphaned",
+               final_path.c_str());
+    }
     ESP_LOGE(TAG, "Could not rewrite the upload index");
     return -1;
   }
@@ -247,7 +253,13 @@ RemoveResult remove(int32_t id) {
   // reading corrupts the read rather than deferring the unlink.
   if (audio::is_playing(it->second.path)) return RemoveResult::kPlaying;
 
-  ::remove(it->second.path.c_str());
+  // Said out loud rather than ignored: the entry goes from the map either way -
+  // leaving it would list a clip the client has been told is gone - so a failed
+  // unlink means a file on flash that nothing will ever reference or clean up.
+  if (::remove(it->second.path.c_str()) != 0) {
+    ESP_LOGE(TAG, "Deleted audio %d from the index but could not remove %s; it is now orphaned",
+             static_cast<int>(id), it->second.path.c_str());
+  }
   s_audios.erase(it);
 
   if (!write_upload_index()) {

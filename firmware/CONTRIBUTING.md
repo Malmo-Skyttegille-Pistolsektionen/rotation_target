@@ -72,10 +72,21 @@ pre-commit run --all-files
 
 # 4. Firmware still builds
 idf.py build
+
+# 5. Static analysis. Needs its own configure - the ordinary build's
+#    compile_commands.json is a GCC one and no clang can read it.
+idf.py -B build-tidy -D IDF_TOOLCHAIN=clang reconfigure
+python3 scripts/run_clang_tidy.py build-tidy
 ```
 
-CI runs all four. The clang-format hook rewrites files in place, so a first run
+CI runs all five. The clang-format hook rewrites files in place, so a first run
 failing and a second passing is normal — re-stage what it changed.
+
+**clang-tidy starts at zero findings** over a deliberately narrow set of checks
+(`.clang-tidy`). If it flags something, fix it or change the config with a
+reason — a suppression comment says "the tool complained" where a fix or a
+config change says what we decided. `readability-*` is off on purpose; it was
+580 of 661 findings and is a style argument this codebase has settled.
 
 ## Where code goes
 

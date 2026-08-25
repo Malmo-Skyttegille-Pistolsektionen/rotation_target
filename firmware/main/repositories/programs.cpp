@@ -68,12 +68,15 @@ bool write_program(int32_t id, const rt::Program &program) {
     // ::remove, not remove: unqualified lookup finds programs::remove(int32_t)
     // in the enclosing namespace and stops there, so <cstdio>'s remove is never
     // considered - and a partial file left behind would be rescanned forever.
-    ::remove(staging.c_str());
+    // The result is deliberately ignored: the write already failed, and the
+    // staging name does not end in `.json`, so a leftover is skipped by the
+    // boot scan anyway.
+    (void)::remove(staging.c_str());
     return false;
   }
   if (::rename(staging.c_str(), path.c_str()) != 0) {
     ESP_LOGE(TAG, "Cannot rename %s to %s", staging.c_str(), path.c_str());
-    ::remove(staging.c_str());
+    (void)::remove(staging.c_str());
     return false;
   }
   return true;

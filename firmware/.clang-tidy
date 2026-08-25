@@ -1,0 +1,61 @@
+# Static analysis for our firmware. Vendored trees are never linted (AGENTS.md);
+# they are excluded by which files CI runs this over, not by this file.
+#
+# The enabled set is deliberately narrow (#225). Turning clang-tidy on
+# repo-wide produced 661 unique findings, 580 of them `readability-*`, and the
+# failure mode that follows is somebody adding `|| true`. So: the categories
+# that find bugs, none of the ones that argue about style, and it starts at
+# zero rather than at a backlog.
+#
+# `readability-*` is off entirely and is not an oversight. It is 88% of the
+# findings and almost all of it is a style argument this codebase has already
+# settled - single-line `if (...) return;` guards, embedded timeouts and buffer
+# sizes as literals, and short names like `id`, `ok`, `fd`.
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  performance-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-multi-level-implicit-pointer-conversion,
+  -cert-err33-c,
+  -performance-enum-size
+
+# Our directories only. Without this, every finding inside ESP-IDF and the
+# vendored headers is reported against whichever of our files included them.
+HeaderFilterRegex: '.*/firmware/(main|lib/rt_logic)/.*'
+
+# HeaderFilterRegex alone is not enough for the path-sensitive checks:
+# `clang-analyzer-*` reports at the location it reasoned about, which for a
+# leak inside ArduinoJson is a line in ArduinoJson.h, and it arrives whatever
+# the header filter says. Vendored code is never ours to fix (AGENTS.md).
+ExcludeHeaderFilterRegex: '.*/(psychic_http|arduinojson|dns_server|managed_components)/.*'
+
+# Findings fail the build. A warning-only mode nobody reads is worse than
+# nothing, which is the whole reason this starts narrow enough to be at zero.
+WarningsAsErrors: '*'
+
+CheckOptions:
+  # cert-err33-c is off above and this replaces the half of it that is worth
+  # having. Its default function list is dominated by `snprintf`, where
+  # truncation is the accepted embedded idiom and 37 sites would each need a
+  # `(void)` cast for no gain. What does matter is a *file mutation* whose
+  # failure is silent: a cleanup `remove()` that quietly does not remove leaves
+  # a stale staged upload behind.
+  #
+  # `fclose` is deliberately NOT here, and it is the interesting omission. A
+  # failing `fclose` after a write means buffered data never reached flash,
+  # which on this device can mean losing the only copy of an uploaded program -
+  # genuinely worth checking. But clang-tidy cannot tell a write close from a
+  # read close, and twelve of the fifteen sites are reads, where the return
+  # value means nothing. Enabling it would have bought three real checks and
+  # twelve `(void)` casts. The three write paths deserve a considered fix
+  # rather than a lint-driven sweep; noted on #225.
+  - key: bugprone-unused-return-value.CheckedFunctions
+    value: '::remove;::rename'
+  # `(void)f()` is how a deliberately ignored result is written down. Without
+  # this the only way to silence a site is a NOLINT comment, which says "the
+  # tool complained" where the cast says "we meant this".
+  - key: bugprone-unused-return-value.AllowCastToVoid
+    value: true

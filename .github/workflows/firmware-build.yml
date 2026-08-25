@@ -161,6 +161,57 @@ jobs:
             firmware/build/storage.bin
           if-no-files-found: error
 
+  # A job of its own rather than a step in `firmware` above, despite #225's
+  # instinct to fold it in where a compilation database already exists. The
+  # database that build produces is a GCC one, and it is not clang-compatible:
+  # it invokes xtensa-esp32s3-elf-g++ with `-specs=.../picolibc.specs`,
+  # `-mdisable-hardware-atomics` and three GCC-only codegen flags, none of
+  # which any clang accepts. Reusing it would mean hand-repairing a command
+  # line; reconfiguring with the clang toolchain makes ESP-IDF emit a correct
+  # one. That is a second configure either way, so it may as well run in
+  # parallel and keep the build's signal fast.
+  clang-tidy:
+    name: clang-tidy
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: false
+
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # Not in the image's default tool set, and not optional: upstream LLVM
+      # has no Xtensa backend, so a plain clang-tidy fails on this firmware
+      # with `unknown target triple`. This is Espressif's own build of it.
+      - name: Install esp-clang
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          python3 "$IDF_PATH/tools/idf_tools.py" install esp-clang
+
+      # `reconfigure`, not `build`: clang-tidy needs the compilation database
+      # and nothing else, and generating it does not require compiling anything.
+      - name: Generate a clang compilation database
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py set-target esp32s3
+          idf.py -D IDF_TOOLCHAIN=clang -D RT_ALLOW_STALE_WEBAPP=ON reconfigure
+
+      # Narrow by design (firmware/.clang-tidy): the enabled set is the one
+      # that finds bugs, and it starts at zero so it can stay there. A
+      # warning-only mode nobody reads would be worse than nothing.
+      - name: clang-tidy
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          python3 scripts/run_clang_tidy.py build
+
   qemu-smoke:
     # Lives in this workflow rather than one of its own: it wants exactly the
     # same triggers, paths filter and cancel-in-progress group as the firmware
