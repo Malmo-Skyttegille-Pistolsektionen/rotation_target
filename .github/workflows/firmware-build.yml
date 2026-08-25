@@ -184,7 +184,7 @@ jobs:
   # one. That is a second configure either way, so it may as well run in
   # parallel and keep the build's signal fast.
   clang-tidy:
-    name: clang-tidy
+    name: firmware static analysis
     runs-on: ubuntu-latest
     container: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
     defaults:
@@ -235,7 +235,7 @@ jobs:
     # same triggers, paths filter and cancel-in-progress group as the firmware
     # build, and there is no cache to keep separate - the espressif/idf image
     # already ships qemu-xtensa.
-    name: qemu boot smoke
+    name: firmware boot smoke
     runs-on: ubuntu-latest
     container: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
     defaults:

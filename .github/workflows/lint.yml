@@ -55,7 +55,7 @@ jobs:
       - run: pre-commit run --all-files --show-diff-on-failure --color=always
 
   workflows:
-    name: yamllint + actionlint
+    name: workflow lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
