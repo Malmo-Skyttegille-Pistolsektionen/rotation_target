@@ -84,15 +84,19 @@ export interface paths {
          *     for, and a dump alone was a trap once the board had been reflashed.
          *
          *     **A RAM snapshot can contain the WiFi password**, which is what this
-         *     endpoint's gate is about. Admin mode is off by default on this device —
-         *     a range does not want a password passed around while people are
-         *     shooting — so admin credentials alone would be no gate at all in the
-         *     normal case. The bundle is therefore behind the **configuration
-         *     window** as well: three presses of the device's BOOT button within ten
-         *     seconds, the same gesture that reveals Expert mode, which proves
-         *     somebody is standing at the board and meant it. A running program holds
-         *     that window shut, so a bundle cannot be pulled out from under a
-         *     sequence that is driving targets.
+         *     endpoint's gate is about. What has to be established is that whoever is
+         *     collecting it is *standing at the board*, so the gate is the
+         *     **configuration window**: three presses of the device's BOOT button
+         *     within ten seconds, the same gesture that reveals Expert mode. A
+         *     running program holds that window shut, so a bundle cannot be pulled
+         *     out from under a sequence that is driving targets.
+         *
+         *     **Admin mode is not part of this, deliberately.** It is write
+         *     protection — one operator running a competition without others
+         *     interfering — and it is off by default. Requiring it would add nothing
+         *     in the state where the dump is actually exposed, and in the state where
+         *     it is on it would stop a club member collecting a fault report during
+         *     the event where a fault matters most. It locks writing; this is a read.
          *
          *     The filename in `Content-Disposition` is
          *     `<hostname>-<version>-<resetReason>.zip`. There is no date in it: this
@@ -1347,17 +1351,15 @@ export interface operations {
                     "application/zip": string;
                 };
             };
-            401: components["responses"]["Unauthorized"];
             /**
              * @description `/problems/hardware_config_window_closed` — nobody has completed
              *     the three-press sequence recently, so the configuration window is
-             *     shut. The same refusal, from the same window, as
-             *     `PUT /config/hardware`: one window, one problem type, whichever
-             *     endpoint it is guarding.
+             *     shut, or a program is running. The same refusal, from the same
+             *     window, as `PUT /config/hardware`: one window, one problem type,
+             *     whichever endpoint it is guarding.
              *
-             *     Separate from 401, which is about admin credentials: this is not a
-             *     question of who you are but of whether somebody is standing at the
-             *     device. Both apply, and both must pass.
+             *     The only refusal this operation has. There is no `401`: nothing
+             *     here is gated on admin mode.
              */
             403: {
                 headers: {

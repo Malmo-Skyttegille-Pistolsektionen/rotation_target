@@ -693,93 +693,93 @@ void register_diagnostics_routes() {
   // can still be decoded once the board has been reflashed - which is what
   // made a bare coredump a trap.
   //
-  // Behind the configuration window, not merely behind admin mode. Admin mode
-  // is off by default here - a range does not want a password passed around
-  // while people are shooting - so an admin-gated endpoint is an ungated one
-  // on a device in its normal state, and this is a RAM snapshot that can hold
-  // the WiFi password. Three presses of BOOT is the gesture that proves
-  // somebody is standing at the board and meant it, and it is already what
-  // Expert mode is behind. A run holds the window shut, so this cannot be
-  // pulled from under a sequence that is driving targets either.
-  s_server.on(
-      "/api/v2/diagnostics/bundle", HTTP_GET, [](PsychicRequest *req, PsychicResponse *res) {
-        if (!require_admin(req, res)) return ESP_OK;
+  // Behind the configuration window, and behind nothing else. This is a RAM
+  // snapshot that can hold the WiFi password, so what has to be established is
+  // that whoever is collecting it is *standing at the board*: three presses of
+  // BOOT, the gesture Expert mode is already behind. A run holds the window
+  // shut, so it cannot be pulled from under a sequence driving targets either.
+  //
+  // Deliberately NOT behind require_admin, which every other guarded route
+  // uses. Admin mode is write protection - one operator running a competition
+  // without others interfering - and it is off by default. So on the guard it
+  // would add nothing in the state that matters, while in the state it is on
+  // it would stop a club member collecting a fault report during the event
+  // where a fault matters most. It is a lock on writing, and this is a read.
+  s_server.on("/api/v2/diagnostics/bundle", HTTP_GET, [](PsychicRequest *, PsychicResponse *res) {
+    if (!boot_button::config_window_open()) {
+      return send_problem(res, rt::problem::kHardwareConfigWindowClosed,
+                          "Press the BOOT button on the device (marked BOOT or FLASH) three times "
+                          "within ten seconds to open a five-minute configuration window, then "
+                          "try again.");
+    }
 
-        if (!boot_button::config_window_open()) {
-          return send_problem(
-              res, rt::problem::kHardwareConfigWindowClosed,
-              "Press the BOOT button on the device (marked BOOT or FLASH) three times "
-              "within ten seconds to open a five-minute configuration window, then "
-              "try again.");
+    const std::string info = diagnostics_info_json();
+
+    const esp_partition_t *part = nullptr;
+    size_t dump_offset = 0, dump_size = 0;
+    bool with_dump = coredump_extent(&part, &dump_offset, &dump_size);
+
+    // A stored entry carries its CRC in the header that precedes it, and
+    // nothing here can seek backwards, so the dump is read once to sum and
+    // once to send. On flash that is a few milliseconds; buffering 128 KB to
+    // avoid it is memory this device does not have.
+    std::vector<uint8_t> buffer(kBundleChunkBytes);
+    uint32_t dump_crc = 0;
+    for (size_t read = 0; with_dump && read < dump_size; read += kBundleChunkBytes) {
+      const size_t want = std::min(kBundleChunkBytes, dump_size - read);
+      if (esp_partition_read(part, dump_offset + read, buffer.data(), want) != ESP_OK) {
+        // Still worth having without it: the diagnostics are most of what
+        // a triage needs, and a download that fails outright leaves the
+        // operator with nothing at all.
+        ESP_LOGW(TAG, "Could not read the coredump - serving the bundle without it");
+        with_dump = false;
+        break;
+      }
+      dump_crc = rt::crc32(dump_crc, buffer.data(), want);
+    }
+
+    const std::string name = filename_safe(hardware_store::current().hostname) + "-" +
+                             filename_safe(esp_app_get_description()->version) + "-" +
+                             filename_safe(diagnostics::reset_reason_name(esp_reset_reason())) +
+                             ".zip";
+    // No date in it: this device never learns one. The browser adds that
+    // on the way to the Downloads folder.
+    const std::string disposition = "attachment; filename=\"" + name + "\"";
+
+    res->setCode(200);
+    res->setContentType("application/zip");
+    res->addHeader("Content-Disposition", disposition.c_str());
+    res->sendHeaders();
+
+    rt::ZipWriter zip(send_bundle_chunk, res);
+    const uint8_t *json = reinterpret_cast<const uint8_t *>(info.data());
+    zip.begin("diagnostics.json", static_cast<uint32_t>(info.size()),
+              rt::crc32(0, json, info.size()));
+    zip.write(json, info.size());
+
+    if (with_dump) {
+      // Named for what it is: the coredump *partition*, not a bare ELF.
+      // `idf.py coredump-info` reads it as it stands, and calling it `.elf`
+      // invites somebody to open it with something that will not.
+      zip.begin("coredump.bin", static_cast<uint32_t>(dump_size), dump_crc);
+      for (size_t sent = 0; zip.ok() && sent < dump_size; sent += kBundleChunkBytes) {
+        const size_t want = std::min(kBundleChunkBytes, dump_size - sent);
+        if (esp_partition_read(part, dump_offset + sent, buffer.data(), want) != ESP_OK) {
+          break;
         }
+        zip.write(buffer.data(), want);
+      }
+    }
 
-        const std::string info = diagnostics_info_json();
-
-        const esp_partition_t *part = nullptr;
-        size_t dump_offset = 0, dump_size = 0;
-        bool with_dump = coredump_extent(&part, &dump_offset, &dump_size);
-
-        // A stored entry carries its CRC in the header that precedes it, and
-        // nothing here can seek backwards, so the dump is read once to sum and
-        // once to send. On flash that is a few milliseconds; buffering 128 KB to
-        // avoid it is memory this device does not have.
-        std::vector<uint8_t> buffer(kBundleChunkBytes);
-        uint32_t dump_crc = 0;
-        for (size_t read = 0; with_dump && read < dump_size; read += kBundleChunkBytes) {
-          const size_t want = std::min(kBundleChunkBytes, dump_size - read);
-          if (esp_partition_read(part, dump_offset + read, buffer.data(), want) != ESP_OK) {
-            // Still worth having without it: the diagnostics are most of what
-            // a triage needs, and a download that fails outright leaves the
-            // operator with nothing at all.
-            ESP_LOGW(TAG, "Could not read the coredump - serving the bundle without it");
-            with_dump = false;
-            break;
-          }
-          dump_crc = rt::crc32(dump_crc, buffer.data(), want);
-        }
-
-        const std::string name = filename_safe(hardware_store::current().hostname) + "-" +
-                                 filename_safe(esp_app_get_description()->version) + "-" +
-                                 filename_safe(diagnostics::reset_reason_name(esp_reset_reason())) +
-                                 ".zip";
-        // No date in it: this device never learns one. The browser adds that
-        // on the way to the Downloads folder.
-        const std::string disposition = "attachment; filename=\"" + name + "\"";
-
-        res->setCode(200);
-        res->setContentType("application/zip");
-        res->addHeader("Content-Disposition", disposition.c_str());
-        res->sendHeaders();
-
-        rt::ZipWriter zip(send_bundle_chunk, res);
-        const uint8_t *json = reinterpret_cast<const uint8_t *>(info.data());
-        zip.begin("diagnostics.json", static_cast<uint32_t>(info.size()),
-                  rt::crc32(0, json, info.size()));
-        zip.write(json, info.size());
-
-        if (with_dump) {
-          // Named for what it is: the coredump *partition*, not a bare ELF.
-          // `idf.py coredump-info` reads it as it stands, and calling it `.elf`
-          // invites somebody to open it with something that will not.
-          zip.begin("coredump.bin", static_cast<uint32_t>(dump_size), dump_crc);
-          for (size_t sent = 0; zip.ok() && sent < dump_size; sent += kBundleChunkBytes) {
-            const size_t want = std::min(kBundleChunkBytes, dump_size - sent);
-            if (esp_partition_read(part, dump_offset + sent, buffer.data(), want) != ESP_OK) {
-              break;
-            }
-            zip.write(buffer.data(), want);
-          }
-        }
-
-        zip.finish();
-        if (!zip.ok()) {
-          // Nothing to answer with: the 200 and its headers are long gone. The
-          // client sees a short archive and says so; this is the only place the
-          // reason can be recorded.
-          ESP_LOGW(TAG, "Bundle download did not complete");
-        }
-        return res->finishChunking();
-      });
+    zip.finish();
+    if (!zip.ok()) {
+      // Nothing to answer with: the 200 and its headers are long gone. The
+      // client sees a short archive and says so; this is the only place the
+      // reason can be recorded.
+      ESP_LOGW(TAG, "Bundle download did not complete");
+    }
+    return res->finishChunking();
+  });
 }
 
 void register_target_routes() {

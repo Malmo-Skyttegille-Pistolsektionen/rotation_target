@@ -150,17 +150,19 @@ describe('the troubleshooting bundle on Settings', () => {
     expect(saved[0].blob.size).toBeGreaterThan(0);
   });
 
-  it('will not offer the download to a browser that is not signed in', async () => {
-    // Admin mode turned on by somebody else, so this browser holds no token.
-    // Both gates apply and both must pass: an open window is not enough.
+  it('is not blocked by admin mode, which locks writing and not reading', async () => {
+    // Admin mode turned on by somebody else, so this browser holds no token -
+    // a competition, locked down to one operator. Collecting a fault report
+    // does not interfere with that, and the person most likely to want one is
+    // whoever is not driving. The window is what guards the dump.
     await device();
     await enableAdminElsewhere(PORT, 'competition-2026');
     renderSection();
 
-    const button = await screen.findByTestId('troubleshooting-download');
+    fireEvent.click(await screen.findByTestId('troubleshooting-download'));
+
     await waitFor(() => {
-      expect((button as HTMLButtonElement).disabled).toBe(true);
+      expect(saved).toHaveLength(1);
     });
-    expect(screen.getByText('Sign in to admin mode to download it.')).toBeTruthy();
   });
 });

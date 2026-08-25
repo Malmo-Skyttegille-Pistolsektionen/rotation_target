@@ -1366,22 +1366,33 @@ layout, and not once the path is whatever somebody typed.
 
 **Decision:** `GET /api/v2/diagnostics/bundle` serves a `application/zip`
 holding `diagnostics.json` — the `GET /diagnostics/info` body, byte for byte —
-and `coredump.bin`, the raw coredump partition, when there is one. It requires
-admin credentials **and** an open configuration window: three presses of the
-BOOT button within ten seconds, the gesture that already reveals Expert mode.
-The Settings page hides the panel on the same condition.
+and `coredump.bin`, the raw coredump partition, when there is one. Its only
+gate is an open configuration window: three presses of the BOOT button within
+ten seconds, the gesture that already reveals Expert mode. The Settings page
+hides the panel on the same condition.
+
+**Admin mode is deliberately not part of it** — corrected after this first
+shipped requiring it as well. Admin mode is **write protection**: it exists so
+one operator can run a competition without others interfering, and it is off by
+default because a range does not want a password passed around while people are
+shooting. It is not an identity, a role, or a privilege tier, and treating it
+as one is how `require_admin` ended up on a read.
+
+The gate it produced was wrong in both directions. With admin off — the default,
+and the state in which the dump is actually exposed — it protects nothing. With
+admin on, it stops a club member collecting a fault report during exactly the
+event where a fault matters most, and collecting one interferes with nothing.
+It was never the thing guarding the dump; the window is.
 
 **Why not admin alone.** #201 was opened as a question about parity with
 AutoLee, which serves the dump digest-gated. That does not port, and the reason
-is a difference between the two products rather than a difference of opinion:
-**AutoLee always has a password; this device usually has none.** Admin mode
-defaults to off here because a range does not want a password passed around
-while people are shooting. So "admin-gated" describes an endpoint that, on a
-device in its normal state, anyone on the range WiFi can read — over plain
-HTTP, and a coredump is a RAM snapshot that can hold the WiFi password.
+is a difference between the two products: **AutoLee has a per-device password
+that is always set; this device's admin mode is an interference lock that is
+usually off.** They are not the same mechanism wearing different names, which
+is what made the parity framing misleading.
 
-**Why the button is the right gate rather than a second password.** The window
-already exists and already means the right thing. It was built for hardware
+**Why the button is the right gate rather than a password of any kind.** The
+window already exists and already means the right thing. It was built for hardware
 configuration (#144) to prove *intent*, which is why it takes a rhythm
 rather than a single press: a rhythm cannot be stumbled into. Proving somebody
 is standing at the board is exactly the property the old answer — "retrieving a
@@ -1393,7 +1404,8 @@ sequence that is driving targets, and that came free.
 It reuses `/problems/hardware_config_window_closed` rather than adding a
 synonym. One window, one refusal, whatever endpoint it is guarding; the slug
 carries the name of the first endpoint behind it, which is a cost worth paying
-against a second type meaning the same thing.
+against a second type meaning the same thing. It is the operation's only
+refusal — there is no `401`, because there is nothing here to authenticate to.
 
 **Why a bundle rather than the dump.** A coredump decodes only against the
 exact firmware ELF that produced it. Ours reported a SHA mismatch against the

@@ -319,12 +319,19 @@ byte — and `coredump.bin`, the raw coredump partition, when there is one. One
 file to attach to a message; the diagnostics are what makes the dump decodable
 once the board has been reflashed (D-39, #201).
 
-Admin credentials **and** an open configuration window — three presses of the
-BOOT button within ten seconds, the gesture Expert mode is behind. Admin mode
-is off by default on this device, so admin alone would be no gate at all in the
-normal case, and this is the one response that can carry the WiFi password. A
-run holds that window shut, so `403 /problems/hardware_config_window_closed` is
-also the answer while a program is running.
+Behind an open configuration window — three presses of the BOOT button within
+ten seconds, the gesture Expert mode is behind — and behind nothing else. This
+is the one response that can carry the WiFi password, so what has to be
+established is that whoever collects it is standing at the board. A run holds
+that window shut, so `403 /problems/hardware_config_window_closed` is also the
+answer while a program is running. That 403 is the only refusal; there is no
+`401`.
+
+**Not behind `require_admin`, unlike every other guarded route.** Admin mode is
+write protection — one operator running a competition without others
+interfering — and it is off by default, so requiring it would add nothing in
+the state where the dump is exposed while blocking a fault report during the
+event where a fault matters most. It locks writing; this is a read (D-39).
 
 `Content-Disposition` names it `<hostname>-<version>-<resetReason>.zip`, with no
 date: the device has no clock. Served chunked, so there is no `Content-Length`.
