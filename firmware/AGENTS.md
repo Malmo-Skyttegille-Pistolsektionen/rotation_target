@@ -154,6 +154,22 @@ first run failing and a second passing is normal — re-stage what it changed.
 > string-replacement anchor that matched yesterday may not match today. Assert
 > that an anchor was found rather than letting a replacement silently no-op.
 
+**There is no static analysis for the firmware yet** (#225) — clang-format is
+formatting, and has never had an opinion about what the code does.
+
+What does run is `.github/scripts/check_build_membership.py`, in `lint.yml`:
+every `.cpp` under `main/` and `lib/` is named by some `CMakeLists.txt`, and
+every `.h` is included by something that is. **Adding a source file without
+registering it is a CI failure, not a silent no-op.** No C++ linter could
+cover this — clang-tidy and cppcheck analyse translation units, and a file
+nothing compiles has none, which is how `expert_password.{h,cpp}` sat in the
+tree looking live.
+
+Headers are resolved by basename, matching what `main/CMakeLists.txt` sets up:
+every group is on `INCLUDE_DIRS`, so `#include "targets.h"` works from anywhere.
+`host_test/` sources count as roots, since a header exercised only by a test is
+still built.
+
 ## Architecture
 
 **`lib/rt_logic/` is the tested core; `main/` is the firmware.** Anything that
