@@ -125,6 +125,23 @@ and the `userdata` partition uploads land in is a different partition entirely.
 under a single bare-semver tag, derived from git at build time. Never add a
 version constant to any source file. See [`docs/RELEASING.md`](docs/RELEASING.md).
 
+**A job's `name:` is a required-check contract held in another repository.**
+The `protect-main` ruleset lists required checks by their display name, and it
+lives in `.github-private`, not here. Renaming a job therefore breaks the gate
+in both directions: a required check that stops reporting under its old name
+blocks every pull request forever, and a name required before it exists does
+the same.
+
+So **name a check for the guarantee it makes, never for the tool that
+happens to make it** — `firmware static analysis`, not `clang-tidy`. Then
+swapping the tool, adding a second one beside it, or folding the job into a
+broader one is a change to this repository alone. `pre-commit` is the
+exception and stays: it is a framework whose name *is* the contract.
+
+Renaming one anyway is a two-step, in this order: rename here and let it
+report under the new name, **then** update the ruleset. The reverse order,
+and doing both at once, both wedge the gate shut until an admin bypasses it.
+
 ## Hardware rules that bite everyone
 
 Full detail in [`firmware/AGENTS.md`](firmware/AGENTS.md); these two are worth

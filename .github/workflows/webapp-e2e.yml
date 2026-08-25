@@ -41,7 +41,7 @@ concurrency:
 
 jobs:
   e2e:
-    name: playwright vs. QEMU
+    name: webapp end-to-end
     runs-on: ubuntu-latest
     # One job, in the IDF container, rather than a firmware job that hands a
     # flash image to a browser job: the emulator is Espressif's qemu-xtensa

@@ -122,7 +122,7 @@ reads back as v0.0 and the tuning is skipped.
 
 `run-qemu.sh --headless` is the CI shape: no TTY needed, serial goes to stdout.
 
-The `qemu boot smoke` job in `.github/workflows/firmware-build.yml` is the
+The `firmware boot smoke` job in `.github/workflows/firmware-build.yml` is the
 worked example: build, boot, poll, assert `/api/v2/version`, `/api/v2/programs`,
 one SSE `stateUpdate` and the API-only `GET /` 404.
 
