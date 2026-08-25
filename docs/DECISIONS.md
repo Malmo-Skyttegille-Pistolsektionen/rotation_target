@@ -1362,6 +1362,67 @@ that opted in, which defeats the point of letting the path be typed at all.
 sorted to the front as id 0 — tolerable while the path was hardcoded to our own
 layout, and not once the path is whatever somebody typed.
 
+## D-39 — The coredump ships in a bundle, behind the button, not behind admin *(Decided 2026-08-25)*
+
+**Decision:** `GET /api/v2/diagnostics/bundle` serves a `application/zip`
+holding `diagnostics.json` — the `GET /diagnostics/info` body, byte for byte —
+and `coredump.bin`, the raw coredump partition, when there is one. It requires
+admin credentials **and** an open configuration window: three presses of the
+BOOT button within ten seconds, the gesture that already reveals Expert mode.
+The Settings page hides the panel on the same condition.
+
+**Why not admin alone.** #201 was opened as a question about parity with
+AutoLee, which serves the dump digest-gated. That does not port, and the reason
+is a difference between the two products rather than a difference of opinion:
+**AutoLee always has a password; this device usually has none.** Admin mode
+defaults to off here because a range does not want a password passed around
+while people are shooting. So "admin-gated" describes an endpoint that, on a
+device in its normal state, anyone on the range WiFi can read — over plain
+HTTP, and a coredump is a RAM snapshot that can hold the WiFi password.
+
+**Why the button is the right gate rather than a second password.** The window
+already exists and already means the right thing. It was built for hardware
+configuration (#144) to prove *intent*, which is why it takes a rhythm
+rather than a single press: a rhythm cannot be stumbled into. Proving somebody
+is standing at the board is exactly the property the old answer — "retrieving a
+dump stays an out-of-band job needing physical access" — was protecting, and
+this keeps it while removing the cable, the laptop and the ESP-IDF install. A
+run holds the window shut, so the bundle also cannot be pulled out from under a
+sequence that is driving targets, and that came free.
+
+It reuses `/problems/hardware_config_window_closed` rather than adding a
+synonym. One window, one refusal, whatever endpoint it is guarding; the slug
+carries the name of the first endpoint behind it, which is a cost worth paying
+against a second type meaning the same thing.
+
+**Why a bundle rather than the dump.** A coredump decodes only against the
+exact firmware ELF that produced it. Ours reported a SHA mismatch against the
+running build within hours, because the board had been reflashed. An endpoint
+serving a bare dump is a trap; one that ships the build identity beside it is
+not. Most of the contents already existed as `GET /diagnostics/info`, so the
+bundle is that response plus the dump — built by one function, so the file in
+the zip cannot drift from the endpoint it claims to be.
+
+**Why ZIP, stored.** The recipient is a club member who double-clicks it. A tar
+does not open on Windows 10 without extra software; a bespoke container needs a
+script we would have to ship and explain. Stored rather than deflated because
+the encoder is the only part that would need real memory, and a coredump is
+mostly stack and compresses poorly. The cost is that a CRC must be known before
+its entry's header goes out, so the dump is read twice from flash — a few
+milliseconds, against 128 KB of buffer this device does not have.
+
+**No date in the filename.** The device has no wall clock and never learns one.
+It names the bundle `<hostname>-<version>-<resetReason>.zip`; the browser, which
+does know the date, inserts it before the extension. Each side supplies the half
+only it can know, so there is no second copy of the rule to go stale.
+
+**Not covered by E2E.** The emulator reads GPIO0 as pressed from boot, which the
+stuck-pin guard correctly refuses to treat as a gesture, so the configuration
+window cannot be opened there at all — the same reason `PUT /config/hardware`
+has no E2E coverage of its accepted path. The ZIP layout is covered by
+`firmware/host_test/test_zip_writer`, whose expectations were checked against
+Python's `zipfile` and `unzip -t`.
+
 ## D-36 — Shipped audio is IMA ADPCM, transcoded in the build *(Decided 2026-08-25)*
 
 **Decision:** the shipped clips are transcoded to **IMA ADPCM** by

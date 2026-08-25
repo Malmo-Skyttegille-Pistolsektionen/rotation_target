@@ -281,10 +281,10 @@ already been reclaimed is invisible in the current figure. `targetGpioLevel` is
 read back off the pad rather than remembered, so the pair with `targetGpio`
 distinguishes "the firmware never drove it" from "something else is holding it".
 
-**The coredump itself is deliberately not exposed.** It is a raw RAM snapshot
-and can contain the WiFi password in plaintext, so retrieving one stays an
-out-of-band job needing physical access. `coredumpPresent` only tells you there
-is something to go and fetch.
+**The coredump is not in this response and never will be.** It is a raw RAM
+snapshot and can contain the WiFi password in plaintext. It is served, bundled
+with this response, by `GET /api/v2/diagnostics/bundle` below;
+`coredumpPresent` says whether that bundle would carry one.
 
 ### `startupIssues`
 
@@ -311,6 +311,23 @@ have a client to reach and go out over SSE as before. That single-writer,
 publish-then-read shape is also why the store needs no lock: every write
 happens before the server can accept the request that reads it. A program
 rescan, or any other pre-server emitter on a second task, would change that.
+
+### `GET /api/v2/diagnostics/bundle`
+
+A `application/zip` holding `diagnostics.json` — the response above, byte for
+byte — and `coredump.bin`, the raw coredump partition, when there is one. One
+file to attach to a message; the diagnostics are what makes the dump decodable
+once the board has been reflashed (D-39, #201).
+
+Admin credentials **and** an open configuration window — three presses of the
+BOOT button within ten seconds, the gesture Expert mode is behind. Admin mode
+is off by default on this device, so admin alone would be no gate at all in the
+normal case, and this is the one response that can carry the WiFi password. A
+run holds that window shut, so `403 /problems/hardware_config_window_closed` is
+also the answer while a program is running.
+
+`Content-Disposition` names it `<hostname>-<version>-<resetReason>.zip`, with no
+date: the device has no clock. Served chunked, so there is no `Content-Length`.
 
 ## Uploads
 

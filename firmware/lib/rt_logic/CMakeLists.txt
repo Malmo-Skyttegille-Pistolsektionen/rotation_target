@@ -4,7 +4,7 @@
 # tests) - same sources, same tested code, two build systems.
 idf_component_register(
     SRCS "program.cpp" "executor.cpp" "wav_header.cpp" "console_command.cpp"
-         "hardware_config.cpp" "version.cpp" "ima_adpcm.cpp"
+         "hardware_config.cpp" "version.cpp" "ima_adpcm.cpp" "zip_writer.cpp"
     INCLUDE_DIRS "."
     REQUIRES arduinojson
 )

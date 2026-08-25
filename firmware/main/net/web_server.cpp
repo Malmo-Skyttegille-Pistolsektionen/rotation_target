@@ -15,8 +15,10 @@
 
 #include <sys/stat.h>
 
+#include <algorithm>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include "admin_mode.h"
 #include "audio.h"
@@ -30,6 +32,7 @@
 #include "esp_littlefs.h"
 #include "partitions.h"
 #include "esp_ota_ops.h"
+#include "esp_partition.h"
 #include "esp_log.h"
 #include "esp_random.h"
 #include "esp_timer.h"
@@ -44,6 +47,7 @@
 #include "sse_hub.h"
 #include "storage.h"
 #include "targets.h"
+#include "zip_writer.h"
 
 namespace web_server {
 namespace {
@@ -534,104 +538,248 @@ void append_partition_json(std::string &out, const diagnostics::PartitionUsage &
 }
 
 // Answers "what happened to the device last Tuesday" without a USB cable.
-// Deliberately public, like every other GET: it carries no credential and no
-// program data - only the firmware's own identity and health. The coredump
-// itself is NOT exposed here; it is a raw RAM snapshot and can contain the
-// WiFi password, so retrieving it stays an out-of-band, physical-access job.
+//
+// A free function rather than the body of the route because the troubleshooting
+// bundle ships this exact string as its `diagnostics.json` (#201). One builder
+// is what makes the file in the zip the response it claims to be, rather than a
+// second rendering of the same fields that drifts the first time one is added.
+std::string diagnostics_info_json() {
+  const esp_app_desc_t *desc = esp_app_get_description();
+  const esp_partition_t *running = esp_ota_get_running_partition();
+
+  size_t fs_total = 0, fs_used = 0;
+  esp_littlefs_info("userdata", &fs_total, &fs_used);
+
+  // ESP_OK means an image is waiting to be pulled; anything else
+  // (including "no coredump") is reported as absent.
+  size_t dump_addr = 0, dump_size = 0;
+  const bool coredump = esp_core_dump_image_get(&dump_addr, &dump_size) == ESP_OK;
+
+  std::string out = "{\"version\":";
+  out += rt::json_quote(desc->version);
+  out += ",\"idfVersion\":";
+  out += rt::json_quote(IDF_VER);
+  out += ",\"buildDate\":";
+  out += rt::json_quote(std::string(desc->date) + " " + desc->time);
+  out += ",\"resetReason\":";
+  out += rt::json_quote(diagnostics::reset_reason_name(esp_reset_reason()));
+  out += ",\"uptimeSeconds\":";
+  out += std::to_string(esp_timer_get_time() / 1000000);
+  out += ",\"freeHeapBytes\":";
+  out += std::to_string(esp_get_free_heap_size());
+  // The low-water mark, not the current free figure: a leak that
+  // has already been reclaimed is invisible in the latter.
+  out += ",\"minFreeHeapBytes\":";
+  out += std::to_string(esp_get_minimum_free_heap_size());
+  out += ",\"freePsramBytes\":";
+  out += std::to_string(heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+  out += ",\"runningPartition\":";
+  out += rt::json_quote(running != nullptr ? running->label : "unknown");
+  out += ",\"coredumpPresent\":";
+  out += coredump ? "true" : "false";
+  out += ",\"storageTotalBytes\":";
+  out += std::to_string(fs_total);
+  out += ",\"storageUsedBytes\":";
+  out += std::to_string(fs_used);
+  out += ",\"programCount\":";
+  out += std::to_string(programs::all().size());
+  out += ",\"audioCount\":";
+  out += std::to_string(audios::all().size());
+  out += ",\"ipAddress\":";
+  out += rt::json_quote(net_mgr::ip_address());
+  // What the target pin is configured as, and what is actually on the pad -
+  // the pair that distinguishes "the firmware never drove it" from
+  // "something else is holding it".
+  out += ",\"targetGpio\":";
+  out += std::to_string(targets::pin());
+  out += ",\"targetGpioLevel\":";
+  out += std::to_string(targets::level());
+  out += ",\"adminModeEnabled\":";
+  out += s_admin.enabled() ? "true" : "false";
+  // The backend_issues raised before this server existed, which is the only
+  // way they can reach a client at all - sse_hub had nowhere to send them.
+  // Already-serialized payloads, joined into the array.
+  // Every partition in the table, so the app slots and NVS are visible
+  // alongside the filesystem - only `storage` was reported before, and it is
+  // not the only one that can fill (#132). Emitted in flash-offset order,
+  // which is the order partitions.csv reads in.
+  out += ",\"partitions\":[";
+  bool first = true;
+  for (const auto &part : diagnostics::partitions()) {
+    if (!first) out += ",";
+    first = false;
+    append_partition_json(out, part);
+  }
+  out += "]";
+  out += ",\"startupIssues\":";
+  out += rt::issue_array_json(sse_hub::startup_issues());
+  // Four typed fields plus an untyped map (#228). Nothing branches on
+  // `details`, so a key added to the generated header is a firmware-only
+  // change - no contract edit, no regenerated types, no mock update.
+  out += ",\"build\":{\"version\":";
+  out += rt::json_quote(build_info::version());
+  out += ",\"commit\":";
+  out += rt::json_quote(build_info::commit());
+  out += ",\"dirty\":";
+  out += build_info::dirty() ? "true" : "false";
+  out += ",\"buildTime\":";
+  out += rt::json_quote(build_info::build_time());
+  out += ",\"details\":{";
+  for (size_t i = 0; i < build_info::detail_count(); i++) {
+    if (i > 0) out += ",";
+    out += rt::json_quote(build_info::details()[i].key);
+    out += ":";
+    out += rt::json_quote(build_info::details()[i].value);
+  }
+  out += "}}";
+  out += "}";
+
+  return out;
+}
+
+// The characters a filename may carry into a `Content-Disposition` header.
+// Everything else is replaced rather than escaped: the parts being joined are
+// a `git describe` string and an operator-chosen hostname, and a header is the
+// one place where letting an unexpected byte through is a header-splitting bug
+// rather than an ugly filename.
+std::string filename_safe(const std::string &in) {
+  std::string out;
+  out.reserve(in.size());
+  for (const char c : in) {
+    const bool plain = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                       c == '.' || c == '_' || c == '-';
+    out += plain ? c : '-';
+  }
+  return out.empty() ? "unknown" : out;
+}
+
+// Bytes read from flash per pass. Small enough that two of these on the heap is
+// nothing next to an OTA, large enough that a 128 KB partition is 64 reads.
+constexpr size_t kBundleChunkBytes = 2048;
+
+// Hands one chunk to the client. `sendChunk` takes a non-const pointer it only
+// reads from, which is why the cast is here rather than in the writer.
+bool send_bundle_chunk(void *ctx, const uint8_t *data, size_t len) {
+  auto *res = static_cast<PsychicResponse *>(ctx);
+  return res->sendChunk(const_cast<uint8_t *>(data), len) == ESP_OK;
+}
+
+// Where the coredump image sits inside its partition, or false when there is
+// nothing to serve. `esp_core_dump_image_get` answers in absolute flash
+// addresses; everything downstream wants an offset it can hand to
+// `esp_partition_read`, which is also the bounds check.
+bool coredump_extent(const esp_partition_t **part, size_t *offset, size_t *size) {
+  size_t addr = 0;
+  if (esp_core_dump_image_get(&addr, size) != ESP_OK || *size == 0) return false;
+
+  *part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP,
+                                   nullptr);
+  if (*part == nullptr || addr < (*part)->address) return false;
+
+  *offset = addr - (*part)->address;
+  return *offset + *size <= (*part)->size;
+}
+
 void register_diagnostics_routes() {
+  // Deliberately public, like every other GET: it carries no credential and no
+  // program data - only the firmware's own identity and health.
   s_server.on("/api/v2/diagnostics/info", HTTP_GET, [](PsychicRequest *, PsychicResponse *res) {
-    const esp_app_desc_t *desc = esp_app_get_description();
-    const esp_partition_t *running = esp_ota_get_running_partition();
-
-    size_t fs_total = 0, fs_used = 0;
-    esp_littlefs_info("userdata", &fs_total, &fs_used);
-
-    // ESP_OK means an image is waiting to be pulled; anything else
-    // (including "no coredump") is reported as absent.
-    size_t dump_addr = 0, dump_size = 0;
-    const bool coredump = esp_core_dump_image_get(&dump_addr, &dump_size) == ESP_OK;
-
-    std::string out = "{\"version\":";
-    out += rt::json_quote(desc->version);
-    out += ",\"idfVersion\":";
-    out += rt::json_quote(IDF_VER);
-    out += ",\"buildDate\":";
-    out += rt::json_quote(std::string(desc->date) + " " + desc->time);
-    out += ",\"resetReason\":";
-    out += rt::json_quote(diagnostics::reset_reason_name(esp_reset_reason()));
-    out += ",\"uptimeSeconds\":";
-    out += std::to_string(esp_timer_get_time() / 1000000);
-    out += ",\"freeHeapBytes\":";
-    out += std::to_string(esp_get_free_heap_size());
-    // The low-water mark, not the current free figure: a leak that
-    // has already been reclaimed is invisible in the latter.
-    out += ",\"minFreeHeapBytes\":";
-    out += std::to_string(esp_get_minimum_free_heap_size());
-    out += ",\"freePsramBytes\":";
-    out += std::to_string(heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-    out += ",\"runningPartition\":";
-    out += rt::json_quote(running != nullptr ? running->label : "unknown");
-    out += ",\"coredumpPresent\":";
-    out += coredump ? "true" : "false";
-    out += ",\"storageTotalBytes\":";
-    out += std::to_string(fs_total);
-    out += ",\"storageUsedBytes\":";
-    out += std::to_string(fs_used);
-    out += ",\"programCount\":";
-    out += std::to_string(programs::all().size());
-    out += ",\"audioCount\":";
-    out += std::to_string(audios::all().size());
-    out += ",\"ipAddress\":";
-    out += rt::json_quote(net_mgr::ip_address());
-    // What the target pin is configured as, and what is actually on the pad -
-    // the pair that distinguishes "the firmware never drove it" from
-    // "something else is holding it".
-    out += ",\"targetGpio\":";
-    out += std::to_string(targets::pin());
-    out += ",\"targetGpioLevel\":";
-    out += std::to_string(targets::level());
-    out += ",\"adminModeEnabled\":";
-    out += s_admin.enabled() ? "true" : "false";
-    // The backend_issues raised before this server existed, which is the only
-    // way they can reach a client at all - sse_hub had nowhere to send them.
-    // Already-serialized payloads, joined into the array.
-    // Every partition in the table, so the app slots and NVS are visible
-    // alongside the filesystem - only `storage` was reported before, and it is
-    // not the only one that can fill (#132). Emitted in flash-offset order,
-    // which is the order partitions.csv reads in.
-    out += ",\"partitions\":[";
-    bool first = true;
-    for (const auto &part : diagnostics::partitions()) {
-      if (!first) out += ",";
-      first = false;
-      append_partition_json(out, part);
-    }
-    out += "]";
-    out += ",\"startupIssues\":";
-    out += rt::issue_array_json(sse_hub::startup_issues());
-    // Four typed fields plus an untyped map (#228). Nothing branches on
-    // `details`, so a key added to the generated header is a firmware-only
-    // change - no contract edit, no regenerated types, no mock update.
-    out += ",\"build\":{\"version\":";
-    out += rt::json_quote(build_info::version());
-    out += ",\"commit\":";
-    out += rt::json_quote(build_info::commit());
-    out += ",\"dirty\":";
-    out += build_info::dirty() ? "true" : "false";
-    out += ",\"buildTime\":";
-    out += rt::json_quote(build_info::build_time());
-    out += ",\"details\":{";
-    for (size_t i = 0; i < build_info::detail_count(); i++) {
-      if (i > 0) out += ",";
-      out += rt::json_quote(build_info::details()[i].key);
-      out += ":";
-      out += rt::json_quote(build_info::details()[i].value);
-    }
-    out += "}}";
-    out += "}";
-
-    return send_json(res, 200, out);
+    return send_json(res, 200, diagnostics_info_json());
   });
+
+  // The troubleshooting bundle: everything somebody would otherwise have to
+  // come and fetch with a cable, in one file a club member can attach to a
+  // message (#201). `diagnostics.json` names the build, so the dump inside it
+  // can still be decoded once the board has been reflashed - which is what
+  // made a bare coredump a trap.
+  //
+  // Behind the configuration window, not merely behind admin mode. Admin mode
+  // is off by default here - a range does not want a password passed around
+  // while people are shooting - so an admin-gated endpoint is an ungated one
+  // on a device in its normal state, and this is a RAM snapshot that can hold
+  // the WiFi password. Three presses of BOOT is the gesture that proves
+  // somebody is standing at the board and meant it, and it is already what
+  // Expert mode is behind. A run holds the window shut, so this cannot be
+  // pulled from under a sequence that is driving targets either.
+  s_server.on(
+      "/api/v2/diagnostics/bundle", HTTP_GET, [](PsychicRequest *req, PsychicResponse *res) {
+        if (!require_admin(req, res)) return ESP_OK;
+
+        if (!boot_button::config_window_open()) {
+          return send_problem(
+              res, rt::problem::kHardwareConfigWindowClosed,
+              "Press the BOOT button on the device (marked BOOT or FLASH) three times "
+              "within ten seconds to open a five-minute configuration window, then "
+              "try again.");
+        }
+
+        const std::string info = diagnostics_info_json();
+
+        const esp_partition_t *part = nullptr;
+        size_t dump_offset = 0, dump_size = 0;
+        bool with_dump = coredump_extent(&part, &dump_offset, &dump_size);
+
+        // A stored entry carries its CRC in the header that precedes it, and
+        // nothing here can seek backwards, so the dump is read once to sum and
+        // once to send. On flash that is a few milliseconds; buffering 128 KB to
+        // avoid it is memory this device does not have.
+        std::vector<uint8_t> buffer(kBundleChunkBytes);
+        uint32_t dump_crc = 0;
+        for (size_t read = 0; with_dump && read < dump_size; read += kBundleChunkBytes) {
+          const size_t want = std::min(kBundleChunkBytes, dump_size - read);
+          if (esp_partition_read(part, dump_offset + read, buffer.data(), want) != ESP_OK) {
+            // Still worth having without it: the diagnostics are most of what
+            // a triage needs, and a download that fails outright leaves the
+            // operator with nothing at all.
+            ESP_LOGW(TAG, "Could not read the coredump - serving the bundle without it");
+            with_dump = false;
+            break;
+          }
+          dump_crc = rt::crc32(dump_crc, buffer.data(), want);
+        }
+
+        const std::string name = filename_safe(hardware_store::current().hostname) + "-" +
+                                 filename_safe(esp_app_get_description()->version) + "-" +
+                                 filename_safe(diagnostics::reset_reason_name(esp_reset_reason())) +
+                                 ".zip";
+        // No date in it: this device never learns one. The browser adds that
+        // on the way to the Downloads folder.
+        const std::string disposition = "attachment; filename=\"" + name + "\"";
+
+        res->setCode(200);
+        res->setContentType("application/zip");
+        res->addHeader("Content-Disposition", disposition.c_str());
+        res->sendHeaders();
+
+        rt::ZipWriter zip(send_bundle_chunk, res);
+        const uint8_t *json = reinterpret_cast<const uint8_t *>(info.data());
+        zip.begin("diagnostics.json", static_cast<uint32_t>(info.size()),
+                  rt::crc32(0, json, info.size()));
+        zip.write(json, info.size());
+
+        if (with_dump) {
+          // Named for what it is: the coredump *partition*, not a bare ELF.
+          // `idf.py coredump-info` reads it as it stands, and calling it `.elf`
+          // invites somebody to open it with something that will not.
+          zip.begin("coredump.bin", static_cast<uint32_t>(dump_size), dump_crc);
+          for (size_t sent = 0; zip.ok() && sent < dump_size; sent += kBundleChunkBytes) {
+            const size_t want = std::min(kBundleChunkBytes, dump_size - sent);
+            if (esp_partition_read(part, dump_offset + sent, buffer.data(), want) != ESP_OK) {
+              break;
+            }
+            zip.write(buffer.data(), want);
+          }
+        }
+
+        zip.finish();
+        if (!zip.ok()) {
+          // Nothing to answer with: the 200 and its headers are long gone. The
+          // client sees a short archive and says so; this is the only place the
+          // reason can be recorded.
+          ESP_LOGW(TAG, "Bundle download did not complete");
+        }
+        return res->finishChunking();
+      });
 }
 
 void register_target_routes() {

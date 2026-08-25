@@ -123,12 +123,37 @@ async function getResponseError(response: Response): Promise<{ message: string; 
   return { message, problem: null };
 }
 
-async function request<T>(
+/**
+ * A response with a file in it: the troubleshooting bundle (#201) is the only
+ * one, and it is bytes rather than JSON.
+ *
+ * `filename` is what the device asked for in `Content-Disposition`. Null when
+ * the header is absent or unparseable, which is a caller's cue to name the
+ * download itself rather than to treat the response as broken.
+ */
+export interface DownloadedFile {
+  blob: Blob;
+  filename: string | null;
+}
+
+/**
+ * The `filename="..."` of a `Content-Disposition`, if there is one.
+ *
+ * Deliberately only the quoted form: it is the only one the device emits, and
+ * the rest of RFC 6266 — `filename*`, percent-encoding, continuations — is a
+ * parser this app has no second producer to need.
+ */
+function filenameFrom(disposition: string | null): string | null {
+  const match = disposition === null ? null : /filename="([^"]+)"/.exec(disposition);
+  return match ? match[1] : null;
+}
+
+async function send(
   endpoint: string,
   options?: RequestInit,
   adminToken?: string | null,
   onAuthError?: () => void,
-): Promise<T> {
+): Promise<Response> {
   const headers: Record<string, string> = {};
 
   if (adminToken) {
@@ -158,8 +183,31 @@ async function request<T>(
     throw new ApiError(response.status, message, problem);
   }
 
+  return response;
+}
+
+async function request<T>(
+  endpoint: string,
+  options?: RequestInit,
+  adminToken?: string | null,
+  onAuthError?: () => void,
+): Promise<T> {
+  const response = await send(endpoint, options, adminToken, onAuthError);
   const text = await response.text();
   return text ? JSON.parse(text) : ({} as T);
+}
+
+async function requestFile(
+  endpoint: string,
+  options?: RequestInit,
+  adminToken?: string | null,
+  onAuthError?: () => void,
+): Promise<DownloadedFile> {
+  const response = await send(endpoint, options, adminToken, onAuthError);
+  return {
+    blob: await response.blob(),
+    filename: filenameFrom(response.headers.get('Content-Disposition')),
+  };
 }
 
 // For use outside of React components (no auth error handling)
@@ -172,6 +220,9 @@ export function createAuthenticatedClient(adminToken: string | null, onAuthError
   return {
     request: async <T>(endpoint: string, options?: RequestInit): Promise<T> => {
       return request<T>(endpoint, options, adminToken, onAuthError);
+    },
+    requestFile: async (endpoint: string, options?: RequestInit): Promise<DownloadedFile> => {
+      return requestFile(endpoint, options, adminToken, onAuthError);
     },
   };
 }

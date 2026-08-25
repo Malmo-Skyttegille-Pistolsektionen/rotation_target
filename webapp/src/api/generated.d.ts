@@ -39,10 +39,11 @@ export interface paths {
          * @description Public, like every other `GET`: it carries no credential and no
          *     program data, only the firmware's own identity and health.
          *
-         *     The coredump itself is deliberately **not** exposed — it is a raw RAM
-         *     snapshot and can contain the WiFi password, so retrieving one stays an
-         *     out-of-band job needing physical access. `coredumpPresent` only says
-         *     whether there is something to go and fetch.
+         *     The coredump is not in here and never will be — it is a raw RAM
+         *     snapshot and can contain the WiFi password. It is served, in a bundle
+         *     with this response, by `GET /diagnostics/bundle`, behind the physical
+         *     gesture that guards Expert mode. `coredumpPresent` says whether that
+         *     bundle would carry one.
          *
          *     `startupIssues` is the one field here that is not a health counter: it
          *     is the set of `backend_issue` events the device raised before this
@@ -51,6 +52,58 @@ export interface paths {
          *     to ask for them; nothing pushes them.
          */
         get: operations["getDiagnosticsInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/diagnostics/bundle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a troubleshooting bundle
+         * @description Everything post-incident triage needs, in one file somebody can attach
+         *     to a message — a `application/zip` download containing:
+         *
+         *     | Entry | What it is |
+         *     |---|---|
+         *     | `diagnostics.json` | the `GET /diagnostics/info` body, byte for byte |
+         *     | `coredump.bin` | the raw `coredump` partition — **absent** when `coredumpPresent` is false |
+         *
+         *     `coredump.bin` is the partition image, not a bare ELF:
+         *     `idf.py coredump-info` reads it as it stands. It can only be decoded
+         *     against the exact firmware that produced it, which is why the
+         *     diagnostics travel with it — `build.commit` names the image to look
+         *     for, and a dump alone was a trap once the board had been reflashed.
+         *
+         *     **A RAM snapshot can contain the WiFi password**, which is what this
+         *     endpoint's gate is about. Admin mode is off by default on this device —
+         *     a range does not want a password passed around while people are
+         *     shooting — so admin credentials alone would be no gate at all in the
+         *     normal case. The bundle is therefore behind the **configuration
+         *     window** as well: three presses of the device's BOOT button within ten
+         *     seconds, the same gesture that reveals Expert mode, which proves
+         *     somebody is standing at the board and meant it. A running program holds
+         *     that window shut, so a bundle cannot be pulled out from under a
+         *     sequence that is driving targets.
+         *
+         *     The filename in `Content-Disposition` is
+         *     `<hostname>-<version>-<resetReason>.zip`. There is no date in it: this
+         *     device has no clock and never learns one, so a client that has a date
+         *     is the one that should add it.
+         *
+         *     Served chunked, with no `Content-Length` — the archive is streamed from
+         *     flash rather than built in memory, so its size is not known when the
+         *     headers go out.
+         */
+        get: operations["getDiagnosticsBundle"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1125,7 +1178,7 @@ export interface components {
             freePsramBytes: number;
             /** @description The OTA partition label, e.g. `ota_0`, or `unknown`. */
             runningPartition: string;
-            /** @description Whether a coredump image is waiting to be pulled out of band. The dump itself is never served. */
+            /** @description Whether a coredump image is waiting to be collected — that is, whether `GET /diagnostics/bundle` would carry a `coredump.bin`. False is the normal case: nothing has panicked since the partition was last erased, which is not something any update path does. */
             coredumpPresent: boolean;
             /** @description The `storage` partition's size. Kept alongside `partitions`, which reports the same figure — this pair predates it and clients still read it. */
             storageTotalBytes: number;
@@ -1270,6 +1323,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiagnosticsInfo"];
+                };
+            };
+        };
+    };
+    getDiagnosticsBundle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The bundle. */
+            200: {
+                headers: {
+                    /** @description `attachment` with the generated filename. Characters outside `[A-Za-z0-9._-]` in the hostname or version are replaced with `-`. */
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /**
+             * @description `/problems/hardware_config_window_closed` — nobody has completed
+             *     the three-press sequence recently, so the configuration window is
+             *     shut. The same refusal, from the same window, as
+             *     `PUT /config/hardware`: one window, one problem type, whichever
+             *     endpoint it is guarding.
+             *
+             *     Separate from 401, which is about admin credentials: this is not a
+             *     question of who you are but of whether somebody is standing at the
+             *     device. Both apply, and both must pass.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };

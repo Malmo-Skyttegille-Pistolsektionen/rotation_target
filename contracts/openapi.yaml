@@ -189,10 +189,11 @@ paths:
         Public, like every other `GET`: it carries no credential and no
         program data, only the firmware's own identity and health.
 
-        The coredump itself is deliberately **not** exposed — it is a raw RAM
-        snapshot and can contain the WiFi password, so retrieving one stays an
-        out-of-band job needing physical access. `coredumpPresent` only says
-        whether there is something to go and fetch.
+        The coredump is not in here and never will be — it is a raw RAM
+        snapshot and can contain the WiFi password. It is served, in a bundle
+        with this response, by `GET /diagnostics/bundle`, behind the physical
+        gesture that guards Expert mode. `coredumpPresent` says whether that
+        bundle would carry one.
 
         `startupIssues` is the one field here that is not a health counter: it
         is the set of `backend_issue` events the device raised before this
@@ -206,6 +207,83 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DiagnosticsInfo"
+
+  /diagnostics/bundle:
+    get:
+      tags: [diagnostics]
+      summary: Download a troubleshooting bundle
+      operationId: getDiagnosticsBundle
+      description: |
+        Everything post-incident triage needs, in one file somebody can attach
+        to a message — a `application/zip` download containing:
+
+        | Entry | What it is |
+        |---|---|
+        | `diagnostics.json` | the `GET /diagnostics/info` body, byte for byte |
+        | `coredump.bin` | the raw `coredump` partition — **absent** when `coredumpPresent` is false |
+
+        `coredump.bin` is the partition image, not a bare ELF:
+        `idf.py coredump-info` reads it as it stands. It can only be decoded
+        against the exact firmware that produced it, which is why the
+        diagnostics travel with it — `build.commit` names the image to look
+        for, and a dump alone was a trap once the board had been reflashed.
+
+        **A RAM snapshot can contain the WiFi password**, which is what this
+        endpoint's gate is about. Admin mode is off by default on this device —
+        a range does not want a password passed around while people are
+        shooting — so admin credentials alone would be no gate at all in the
+        normal case. The bundle is therefore behind the **configuration
+        window** as well: three presses of the device's BOOT button within ten
+        seconds, the same gesture that reveals Expert mode, which proves
+        somebody is standing at the board and meant it. A running program holds
+        that window shut, so a bundle cannot be pulled out from under a
+        sequence that is driving targets.
+
+        The filename in `Content-Disposition` is
+        `<hostname>-<version>-<resetReason>.zip`. There is no date in it: this
+        device has no clock and never learns one, so a client that has a date
+        is the one that should add it.
+
+        Served chunked, with no `Content-Length` — the archive is streamed from
+        flash rather than built in memory, so its size is not known when the
+        headers go out.
+      security:
+        - adminBearer: []
+        - adminCookie: []
+        - {}
+      responses:
+        "200":
+          description: The bundle.
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              description: >-
+                `attachment` with the generated filename. Characters outside
+                `[A-Za-z0-9._-]` in the hostname or version are replaced with
+                `-`.
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            `/problems/hardware_config_window_closed` — nobody has completed
+            the three-press sequence recently, so the configuration window is
+            shut. The same refusal, from the same window, as
+            `PUT /config/hardware`: one window, one problem type, whichever
+            endpoint it is guarding.
+
+            Separate from 401, which is about admin credentials: this is not a
+            question of who you are but of whether somebody is standing at the
+            device. Both apply, and both must pass.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
 
   /admin-mode/status:
     get:
@@ -2201,8 +2279,10 @@ components:
         coredumpPresent:
           type: boolean
           description: >-
-            Whether a coredump image is waiting to be pulled out of band. The
-            dump itself is never served.
+            Whether a coredump image is waiting to be collected — that is,
+            whether `GET /diagnostics/bundle` would carry a `coredump.bin`.
+            False is the normal case: nothing has panicked since the partition
+            was last erased, which is not something any update path does.
         storageTotalBytes:
           type: integer
           minimum: 0

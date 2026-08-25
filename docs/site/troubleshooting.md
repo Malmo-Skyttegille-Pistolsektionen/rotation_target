@@ -55,3 +55,40 @@ to pause. If another series follows, the device has already selected it and
 is waiting at its first event; press Start to run it. If that was the last
 series, the program has finished — Start would replay it from the beginning,
 or Unload to pick something else.
+
+## Sending a fault report
+
+When the device has misbehaved and nobody at the range can say why, send a
+**troubleshooting bundle** rather than a description of the symptoms. It is one
+zip file holding what the device knows about itself — its version, how much
+memory and storage it has left, why it last restarted, and what it complained
+about at startup — plus, if it crashed, the crash dump itself.
+
+The crash dump is the part that matters, and the part that used to need a cable
+and a laptop with developer tools on it. It also has to be read against the
+exact firmware that produced it, which stops being the firmware on the board as
+soon as somebody updates it — so the bundle carries that identity alongside the
+dump.
+
+**To download one:**
+
+1. Press the device's **BOOT** button — the small button next to the USB
+   sockets, marked `BOOT` or `FLASH` — **three times within ten seconds.**
+2. Open **Settings** in the web app. A **Troubleshooting** panel appears at
+   the bottom of the page.
+3. Press **Download troubleshooting bundle** and attach the file to your
+   message.
+
+The panel is only there for five minutes after those three presses, and it does
+not appear at all while a program is running. If it is missing, press the button
+three times again.
+
+!!! warning "Who you can send it to"
+
+    A crash dump is a copy of what was in the device's memory at the moment it
+    failed, and that can include **the WiFi password**. That is why downloading
+    one needs somebody standing at the board pressing its button, and it is why
+    the file should go to somebody you would tell the password to.
+
+If admin mode is on, you also need to be signed in — the button is there but
+will not work until you are.
