@@ -845,8 +845,9 @@ void register_audio_routes() {
   s_server.on("/api/v2/audios", HTTP_POST, &s_audio_upload);
 }
 
-constexpr const char *kWebappDir = "/storage/webapp/";
-constexpr const char *kWebappIndex = "/storage/webapp/index.html";
+// kWebappDir and kWebappIndex are in config.h: the web app is inside the app
+// image now (#227), not on the filesystem, and where it lives is a property of
+// the build rather than of this server.
 
 // Whether the build bundled a webapp at all. An API-only image has no
 // index.html to fall back to and keeps the JSON 404 for everything.

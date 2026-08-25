@@ -49,11 +49,15 @@ The shipped audio and programs live in the monorepo's sibling `resources/`
 directory. The build reads them from there by default; point `RT_RESOURCES_DIR`
 elsewhere to override.
 
-The webapp is bundled into the same image when `../webapp/dist` exists, so run
-`npm run build` in `webapp/` first — see [*The seams*](../AGENTS.md#the-seams).
+The webapp is embedded in the **application image** when `../webapp/dist`
+exists, so run `npm run build` in `webapp/` first — see
+[*The seams*](../AGENTS.md#the-seams). Because it rides in the app slot, an OTA
+updates it along with the firmware (#227); the shipped audio and programs are
+still on the filesystem and still do not.
 
 `idf.py flash` writes the LittleFS image too, which **replaces anything
-uploaded to the device**. Use `idf.py app-flash` to update only the firmware.
+uploaded to the device**. Use `idf.py app-flash` to update only the firmware —
+which now also updates the web app.
 
 ### WiFi
 

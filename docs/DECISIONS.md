@@ -43,6 +43,7 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-32 | A skip names the program it is for; reset and stop do not | Decided | 2026-08-23 |
 | D-33 | Forgetting WiFi is a factory reset, held at the device, with no web step | Decided | 2026-08-25 |
 | D-34 | Build metadata is four typed fields plus an untyped map | Decided | 2026-08-25 |
+| D-35 | Shipped content is a read-only VFS in the app image | Decided | 2026-08-25 |
 | D-38 | Repo browsing is one card; titles ride on raw, not the API | Decided | 2026-08-25 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
@@ -1266,6 +1267,57 @@ becomes a story. CMake's `string(TIMESTAMP)` honours it already.
 **Rejected:** *a separate `GET /diagnostics/build`* — Settings already issues
 `/diagnostics/info` for the version rows and the startup issues, so a second
 route would be a second request for data that belongs in the same snapshot.
+## D-35 — Shipped content is a read-only VFS in the app image *(Decided 2026-08-25)*
+
+**Decision:** content that ships with the firmware is baked into the
+**application image** and exposed as a **read-only VFS** mounted at
+`/embedded`, not staged into the `storage` LittleFS partition.
+`firmware/tools/pack_assets.py` concatenates the tree into one blob with an
+index; `firmware/main/storage/embedded_fs.cpp` registers it. The web app moves
+first (this decision); the shipped audio and programs follow in #227's later
+stages.
+
+**Why in the app image:** an OTA writes the inactive app slot and nothing else.
+With the web app on the filesystem, a firmware update over the air shipped new
+firmware against the *old* bundle, and only a cable could bring the two back
+into step (#223). In the app slot it is one artifact, one version, one OTA —
+and the A/B rollback the slots already provide covers the web app for free,
+without building anything. D-29's single tag stops being a convention artifacts
+can violate and becomes a property of the image.
+
+**Why a VFS and not a lookup API.** Every reader of shipped content — the
+vendored static file handler, the SPA fallback, and later the audio and program
+loaders — goes through `fopen`, `stat` and `fread`. Registering a filesystem
+means none of them has to know where the bytes came from. The alternative, an
+`if embedded … else file …` at each read site, is a branch that has to be added
+to every new reader and is the shape that rots. It also keeps the vendored
+psychic_http untouched, which matters: it is never reformatted and fixes go on
+our side of the boundary.
+
+**Read-only is enforced, not documented.** `open()` for writing returns
+`EROFS`. "No update path can modify shipped content" is then a property of the
+filesystem rather than of every caller's good behaviour — the same reasoning
+that makes `readonly` a property of the directory a file came from rather than
+of the document.
+
+**The packer replaces the external `gzip`.** It was a soft prerequisite (a
+warning and uncompressed assets when missing); Python's `gzip` with `mtime=0`
+removes the dependency *and* makes the bytes reproducible, which the
+`content.webapp.sha256` digest depends on — a digest that changed because a
+different gzip version was installed would say the bundle changed when it had
+not.
+
+**`.incbin`, not ESP-IDF's `target_add_binary_data`.** That helper reads the
+file with CMake's `file(READ … HEX)` and runs several regexes over the result.
+Workable for a few kilobytes; this is hundreds of kilobytes today and megabytes
+once the shipped audio joins it. `.incbin` costs nothing — at the price of one
+`OBJECT_DEPENDS`, because nothing tracks an included binary as a dependency and
+without it a rebuilt web app would assemble the previous blob.
+
+**Rejected:** *a webapp A/B littlefs pair* — permits webapp/firmware drift,
+which is the disease, so it loses on merits rather than on cost. *A second OTA
+endpoint writing a littlefs image* — destroys uploads, which share the
+partition. Both are recorded in #227.
 ## D-38 — Repo browsing is one card; titles ride on raw, not the API *(Decided 2026-08-25)*
 
 **Decision:** the Pages editor's two repository cards — "this repo" and

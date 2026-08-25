@@ -23,7 +23,7 @@ idf_component_register(
     SRCS "app_main.cpp"
          "config/hardware_store.cpp" "config/factory_reset.cpp"
          "io/targets.cpp" "io/audio.cpp" "io/rgb_led.cpp" "io/boot_button.cpp"
-         "storage/storage.cpp"
+         "storage/storage.cpp" "storage/embedded_fs.cpp"
          "repositories/programs.cpp" "repositories/audios.cpp"
          "executor/program_executor.cpp"
          "ota/ota.cpp"

@@ -19,6 +19,7 @@
 #include "boot_button.h"
 #include "sse_hub.h"
 #include "rgb_led.h"
+#include "embedded_fs.h"
 #include "storage.h"
 #include "console.h"
 #include "targets.h"
@@ -64,6 +65,13 @@ extern "C" void app_main() {
   boot_button::init();
 
   targets::init();
+
+  // Before storage: the web app and everything else baked into the image is
+  // available whatever the filesystem is doing, and a device that comes up
+  // without its LittleFS partition can still be looked at.
+  if (!embedded_fs::init()) {
+    ESP_LOGE(TAG, "Embedded content unavailable - the web app will not be served");
+  }
 
   if (!storage::init()) {
     // Without the filesystem there are no programs and no audio, so there is

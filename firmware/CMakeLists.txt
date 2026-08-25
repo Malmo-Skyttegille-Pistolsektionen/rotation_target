@@ -104,13 +104,6 @@ if(RT_WEBAPP_STAGE_DIR)
                             "point it at the frontend's built `dist` directory")
     endif()
     file(GLOB_RECURSE RT_WEBAPP_INPUTS CONFIGURE_DEPENDS "${RT_WEBAPP_STAGE_DIR}/*")
-    list(APPEND RT_STAGE_INPUTS ${RT_WEBAPP_INPUTS})
-    # Not fatal - the device still serves the uncompressed files correctly, just
-    # slowly. See cmake/stage_littlefs.cmake for what the compression buys.
-    find_program(GZIP_EXECUTABLE gzip)
-    if(NOT GZIP_EXECUTABLE)
-        message(WARNING "gzip not found - webapp assets will be served uncompressed")
-    endif()
 else()
     message(STATUS "No webapp at ${RT_WEBAPP_DIR} - building without one (API only)")
 endif()
@@ -139,9 +132,7 @@ add_custom_command(
     OUTPUT "${LITTLEFS_STAGE_STAMP}"
     COMMAND "${CMAKE_COMMAND}"
             -D "RT_RESOURCES_DIR=${RT_RESOURCES_DIR}"
-            -D "RT_WEBAPP_DIR=${RT_WEBAPP_STAGE_DIR}"
             -D "LITTLEFS_STAGE=${LITTLEFS_STAGE}"
-            -D "GZIP_EXECUTABLE=${GZIP_EXECUTABLE}"
             -P "${LITTLEFS_STAGE_SCRIPT}"
     COMMAND "${CMAKE_COMMAND}" -E touch "${LITTLEFS_STAGE_STAMP}"
     DEPENDS ${RT_STAGE_INPUTS} "${LITTLEFS_STAGE_SCRIPT}"
@@ -149,10 +140,6 @@ add_custom_command(
     VERBATIM)
 
 add_custom_target(rt_littlefs_stage DEPENDS "${LITTLEFS_STAGE_STAMP}")
-if(TARGET rt_webapp_fresh)
-    # Ordering only: fail before staging copies a stale bundle, not after.
-    add_dependencies(rt_littlefs_stage rt_webapp_fresh)
-endif()
 
 # The image target always re-runs (the component cannot watch the base dir), so
 # the stamp is only ordering: stage first, then pack what staging produced.
@@ -180,6 +167,71 @@ add_custom_target(rt_build_info ALL
     COMMENT "Recording what produced this image"
     VERBATIM)
 
+# --- the web app, inside the app image (#227) -------------------------------
+#
+# It used to be staged into the LittleFS `storage` partition, which an OTA does
+# not write - so a firmware update over the air shipped new firmware against the
+# *old* bundle, and only a cable could bring the two back into step. Here it is
+# part of the application, so one OTA updates both and the A/B rollback the app
+# slots already provide covers the web app for free.
+#
+# tools/pack_assets.py concatenates the tree into one blob and emits the index
+# main/storage/embedded_fs.cpp reads. It also does the gzipping the staging
+# script used to shell out to `gzip` for, which is why there is no gzip
+# prerequisite any more - and why the same input now produces the same bytes on
+# every machine, which `content.webapp.sha256` depends on.
+set(RT_EMBEDDED_DIR "${CMAKE_BINARY_DIR}/embedded")
+set(RT_EMBEDDED_BLOB "${RT_EMBEDDED_DIR}/embedded.bin")
+set(RT_EMBEDDED_INDEX "${CMAKE_BINARY_DIR}/generated/embedded_index.generated.h")
+set(RT_PACK_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/tools/pack_assets.py")
+file(MAKE_DIRECTORY "${RT_EMBEDDED_DIR}" "${CMAKE_BINARY_DIR}/generated")
+
+idf_build_get_property(RT_PYTHON PYTHON)
+
+set(RT_PACK_ARGS "${RT_EMBEDDED_BLOB}" "${RT_EMBEDDED_INDEX}")
+if(RT_WEBAPP_STAGE_DIR)
+    list(APPEND RT_PACK_ARGS "webapp=${RT_WEBAPP_STAGE_DIR}")
+endif()
+
+# Once at configure time so the blob and the index exist before anything tries
+# to assemble or include them, and again on every build so they stay true - the
+# because `idf.py build` on a warm tree does not reconfigure just because
+# `webapp/dist` was rebuilt - which is issue #39, one layer up.
+execute_process(COMMAND "${RT_PYTHON}" "${RT_PACK_SCRIPT}" ${RT_PACK_ARGS}
+                RESULT_VARIABLE RT_PACK_RESULT)
+if(NOT RT_PACK_RESULT EQUAL 0)
+    message(FATAL_ERROR "tools/pack_assets.py failed")
+endif()
+
+add_custom_target(rt_pack_assets ALL
+    COMMAND "${RT_PYTHON}" "${RT_PACK_SCRIPT}" ${RT_PACK_ARGS}
+    BYPRODUCTS "${RT_EMBEDDED_BLOB}" "${RT_EMBEDDED_INDEX}"
+    COMMENT "Packing the embedded web app into the app image"
+    VERBATIM)
+if(TARGET rt_webapp_fresh)
+    # Ordering only: fail before the packer embeds a stale bundle, not after.
+    add_dependencies(rt_pack_assets rt_webapp_fresh)
+endif()
+
+set(RT_EMBEDDED_ASM "${RT_EMBEDDED_DIR}/embedded_blob.S")
+configure_file("${CMAKE_CURRENT_LIST_DIR}/main/storage/embedded_blob.S.in"
+               "${RT_EMBEDDED_ASM}" @ONLY)
+
+# `.incbin` reads the blob at assembly time and nothing tracks that as a
+# dependency, so without this a rebuilt web app would assemble the *previous*
+# blob - the same failure #39 was, one layer down.
+set_source_files_properties("${RT_EMBEDDED_ASM}" PROPERTIES OBJECT_DEPENDS "${RT_EMBEDDED_BLOB}")
+
+# Attached here rather than in main/CMakeLists.txt: components are registered
+# inside project(), before RT_WEBAPP_DIR and everything derived from it exists.
+
+# One stanza for both generated things. `main` is registered inside project(),
+# so this cannot live in main/CMakeLists.txt - RT_WEBAPP_DIR and everything
+# derived from it does not exist yet at that point.
+#
+# The two generated headers share ${RT_BUILD_INFO_DIR}, so one include
+# directory covers build_info.generated.h and embedded_index.generated.h alike.
 idf_component_get_property(RT_MAIN_LIB main COMPONENT_LIB)
+target_sources(${RT_MAIN_LIB} PRIVATE "${RT_EMBEDDED_ASM}")
 target_include_directories(${RT_MAIN_LIB} PRIVATE "${RT_BUILD_INFO_DIR}")
-add_dependencies(${RT_MAIN_LIB} rt_build_info)
+add_dependencies(${RT_MAIN_LIB} rt_build_info rt_pack_assets)

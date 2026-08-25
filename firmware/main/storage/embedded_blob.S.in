@@ -1,0 +1,22 @@
+/* Configured into the build directory by firmware/CMakeLists.txt.
+ *
+ * `.incbin` rather than ESP-IDF's target_add_binary_data(): that helper reads
+ * the file with CMake's file(READ ... HEX) and runs several regexes over the
+ * result, which is workable for a few kilobytes and is not what this is - the
+ * blob is hundreds of kilobytes today and megabytes once the shipped audio
+ * joins it (#227). The assembler reads the file directly and takes no time at
+ * all.
+ *
+ * .rodata.embedded is the section IDF's own helper uses, so the linker script
+ * places this exactly where an embedded file would have gone.
+ */
+    .section .rodata.embedded
+    .align 4
+    .global rt_embedded_start
+    .global rt_embedded_end
+rt_embedded_start:
+    .incbin "@RT_EMBEDDED_BLOB@"
+rt_embedded_end:
+    /* A symbol needs something after it to be a valid end marker when the blob
+       is empty, which an API-only build produces. */
+    .byte 0
