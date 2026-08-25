@@ -34,9 +34,7 @@ constexpr uint8_t kImaAdpcmMaxIndex = 88;
 // How many samples a block of `block_bytes` holds, for a mono stream. The
 // header sample is stored verbatim and each remaining byte carries two.
 constexpr size_t ima_adpcm_samples_per_block(size_t block_bytes) {
-  return block_bytes < kImaAdpcmHeaderBytes
-             ? 0
-             : 1 + (block_bytes - kImaAdpcmHeaderBytes) * 2;
+  return block_bytes < kImaAdpcmHeaderBytes ? 0 : 1 + (block_bytes - kImaAdpcmHeaderBytes) * 2;
 }
 
 // Decodes one mono block into 16-bit samples. Returns how many were written,

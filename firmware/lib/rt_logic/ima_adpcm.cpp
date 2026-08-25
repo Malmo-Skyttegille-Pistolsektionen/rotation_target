@@ -66,7 +66,8 @@ size_t decode_ima_adpcm_block(const uint8_t *block, size_t block_bytes, int16_t 
       out[written++] = static_cast<int16_t>(predictor);
 
       const int32_t next = static_cast<int32_t>(index) + kIndexTable[code];
-      index = static_cast<uint8_t>(next < 0 ? 0 : (next > kImaAdpcmMaxIndex ? kImaAdpcmMaxIndex : next));
+      index = static_cast<uint8_t>(
+          next < 0 ? 0 : (next > kImaAdpcmMaxIndex ? kImaAdpcmMaxIndex : next));
     }
   }
   return written;
