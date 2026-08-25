@@ -131,6 +131,14 @@ message, or anywhere else outside the gitignored `sdkconfig`.
 (committed).** At runtime they live in NVS via `wifi_store`; Kconfig is only a
 first-boot seed, and a failed initial join hands over to `setup_portal::run()`.
 
+**Erasing NVS does not forget a network.** The Kconfig seeds are still there,
+so a device with empty NVS rejoins the network the image was built for and
+never raises the portal — which is why forcing the portal used to need a
+throwaway build with wrong credentials. `wifi_store::forget()` (D-33) sets a
+marker that suppresses the seeds; a successful `save()` lifts it. Anything that
+means "this device should stop knowing where it lives" has to go through
+`forget()`, not through erasing keys.
+
 ### Host tests
 
 The whole run state machine and every parser, deterministically, no hardware:
@@ -226,6 +234,20 @@ Load-bearing invariants:
   the same path from any task, and is a no-op before the server exists.
 - **`readonly` is a property of the directory a file was loaded from, never of
   the document.** An uploader must not be able to claim its program is shipped.
+- **One task owns GPIO0** (`io/boot_button.cpp`), because two pollers would
+  each swallow the transitions the other waited for. It classifies via
+  `rt::ButtonGesture`: one press authorises the setup portal (#208), three
+  within ten seconds open the configuration window (#144), and a ten-second
+  hold is a factory reset (#222, D-33). There is no power-on gesture and there
+  cannot be — GPIO0 is strapping, so a board held low at reset enters ROM
+  download mode and this firmware never runs.
+- **A gesture is refused until the button has been seen released.** A pin that
+  reads pressed from the very first sample is stuck, not held. Without this,
+  QEMU — which does not emulate the pull-up — factory-reset and rebooted the
+  emulated device every ten seconds, seventeen boots in one E2E run; a shorted
+  BOOT button does the same to a real board. **Any new destructive gesture
+  inherits this rule**: it must not be reachable by a pin that is simply
+  broken.
 - Programs live in a `std::map` for reference stability — `ProgramState` holds a
   bare `const rt::Program *` at whatever is loaded.
 - The `audios` map is reached from both the httpd and run-loop tasks and has its

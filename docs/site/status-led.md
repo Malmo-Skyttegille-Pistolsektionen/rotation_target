@@ -38,7 +38,23 @@ sequence instead: blinking red, then green.
 raise the portal. That is a fault rather than a state to act on — see
 [Troubleshooting](troubleshooting.md).
 
-## Two things worth saying, because neither is guessable
+## White — you are holding the button
+
+**White** is not a state the device gets into on its own. It appears three
+seconds into a hold of the **BOOT** button and means the device is counting
+towards a [factory reset](connecting.md#moving-the-device-to-a-different-network).
+
+Let go and it goes back to whatever colour it was showing. Keep holding to ten
+seconds and it restarts, having forgotten every network it knows.
+
+If you see white and did not mean it, let go — nothing has happened yet.
+
+If the LED goes white **on its own**, without anybody touching the button, the
+button is stuck or shorted. The device notices — it refuses to act on a button
+it has never seen released, so it will not reset itself — but the button will
+not work until the fault is fixed. The serial log says so in as many words.
+
+## Three things worth saying, because none is guessable
 
 - **Blinking versus solid red is the important distinction.** Before
   [#122](https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target/issues/122)
@@ -46,6 +62,9 @@ raise the portal. That is a fault rather than a state to act on — see
   which is exactly the question you have at the range.
 - **Yellow is a fault indicator, not a stage.** It exists to be seen only when
   something is wrong.
+- **White is the only colour that answers to you rather than reporting on the
+  device.** Every other colour is something to read; white is feedback on
+  something you are doing to it right now.
 
 The LED is deliberately dim: the device sits on a range in the dark and a
 bright indicator is a distraction downrange. Photographs for these docs should

@@ -41,6 +41,7 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-30 | The webapp has written visual rules, derived from the shipped code | Decided | 2026-08-21 |
 | D-31 | Targets show at boot, and stay shown between series | Decided | 2026-08-22 |
 | D-32 | A skip names the program it is for; reset and stop do not | Decided | 2026-08-23 |
+| D-33 | Forgetting WiFi is a factory reset, held at the device, with no web step | Decided | 2026-08-25 |
 | D-38 | Repo browsing is one card; titles ride on raw, not the API | Decided | 2026-08-25 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
@@ -1169,6 +1170,52 @@ call. *An id on `reset` and `stop` too, for one rule covering every run-control
 verb* — rejected above; the ambiguity D-27 and this decision close is specific
 to calls that choose where execution goes, and `reset`/`stop` do not.
 
+## D-33 — Forgetting WiFi is a factory reset, held at the device, with no web step *(Decided 2026-08-25)*
+
+**Decision:** a **ten-second hold of the BOOT button** erases the whole `nvs`
+partition and restarts. The status LED goes **white** at three seconds and
+letting go before ten abandons it. `factory-reset confirm` at the serial
+console does the same thing. **Uploaded programs and audio clips are not
+touched.** There is no API endpoint and no web app control.
+
+Critically, the reset also **suppresses the compiled-in `CONFIG_RT_WIFI_SSID`
+seeds** (`wifi_store::forget()`). The first successful provisioning through the
+portal lifts the suppression, so the build's network returns as a fallback for
+the next site.
+
+**Why the seed suppression is the decision and not an implementation detail:**
+stored credentials are an *overlay*. With NVS empty the device falls back to the
+Kconfig values, joins the network the image was built for, and never raises the
+portal — proven while testing #217, where forcing the portal needed a throwaway
+build carrying deliberately wrong credentials. So "erase NVS" does not forget a
+network, and a reset without this line closes nothing.
+
+**Why a hold and not the web app:** the alternative shape considered was #144's
+— a gesture opens a window, the destructive act is confirmed in the web app,
+where it can be explained. Rejected. This is the gesture somebody reaches for
+when the device is not doing what they want, and requiring a browser to finish
+it means the recovery path depends on the thing being recovered. The router
+convention is also already in people's hands: hold the button for ten seconds.
+Nothing has to be taught.
+
+**Why ten seconds and not three:** #209 freed the three-second slot when it was
+closed, so it was available. Ten was chosen anyway — it is what a domestic
+router's reset button takes, and the extra seven seconds are the confirmation
+that the rejected web step would have provided. The white LED at three seconds
+is what makes the wait usable rather than a guess.
+
+**Why uploads survive:** they are in a different partition, they may be the only
+copy in existence, and nothing about "this device has the wrong settings" is
+answered by destroying them. A board handed to another club keeps what was
+uploaded to it, which is what people expect of a machine rather than of an
+account.
+
+**Rejected:** *folding it into a safe-mode boot* — #209 is closed, and one
+gesture meaning two different recoveries is the confusion the gesture map
+exists to prevent. *A second long hold at a different duration* — "hold three
+for one thing and ten for another" is unmemorable and the mistake lands on the
+destructive side. *An API endpoint* — a device on the wrong network cannot be
+reached to call it, which is the whole problem.
 ## D-38 — Repo browsing is one card; titles ride on raw, not the API *(Decided 2026-08-25)*
 
 **Decision:** the Pages editor's two repository cards — "this repo" and
