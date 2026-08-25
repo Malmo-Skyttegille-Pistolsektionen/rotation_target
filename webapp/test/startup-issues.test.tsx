@@ -76,13 +76,13 @@ describe('D-25: boot-time issues, served rather than streamed', () => {
     // The visible fix for "a program silently disappeared from the list": the
     // boot scan skipped it, and the SSE frame saying so reached nobody because
     // there was no server yet.
-    await deviceReporting([malformed('/storage/uploads/programs/103.json')]);
+    await deviceReporting([malformed('/userdata/programs/103.json')]);
     renderSection();
 
     const issue = await screen.findByTestId('startup-issue-0');
     expect(within(issue).getByText('program_invalid')).toBeTruthy();
     expect(issue.textContent).toContain('Program file is malformed and was skipped');
-    expect(issue.textContent).toContain('file: /storage/uploads/programs/103.json');
+    expect(issue.textContent).toContain('file: /userdata/programs/103.json');
     expect(screen.queryByTestId('startup-issues-empty')).toBeNull();
   });
 
@@ -91,7 +91,7 @@ describe('D-25: boot-time issues, served rather than streamed', () => {
     // told apart from "there were more". The contract says so rather than
     // papering over it with a count field, and so does the page.
     await deviceReporting(
-      Array.from({ length: 8 }, (_, index) => malformed(`/storage/uploads/programs/${index}.json`)),
+      Array.from({ length: 8 }, (_, index) => malformed(`/userdata/programs/${index}.json`)),
     );
     renderSection();
 
@@ -100,7 +100,7 @@ describe('D-25: boot-time issues, served rather than streamed', () => {
   });
 
   it('does not warn about truncation when the list is short', async () => {
-    await deviceReporting([malformed('/storage/uploads/programs/7.json')]);
+    await deviceReporting([malformed('/userdata/programs/7.json')]);
     renderSection();
 
     await screen.findByTestId('startup-issue-0');
@@ -115,7 +115,7 @@ describe('D-25: boot-time issues, served rather than streamed', () => {
     // Nothing pushes these (D-25), so asking again is the only way to see a
     // list from a device that has restarted since the page was opened.
     await server.close();
-    await deviceReporting([malformed('/storage/uploads/programs/103.json')]);
+    await deviceReporting([malformed('/userdata/programs/103.json')]);
 
     fireEvent.click(screen.getByTestId('startup-issues-refresh'));
     await waitFor(() => expect(screen.getByTestId('startup-issue-0')).toBeTruthy());

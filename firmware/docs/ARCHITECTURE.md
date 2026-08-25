@@ -65,16 +65,25 @@ lock would let one slow socket stall the run loop.
 
 ## Storage
 
-One LittleFS partition (`storage`, 9.75 MB — see `partitions.csv`), built from
-`resources/` at compile time and flashed with the firmware:
+Two filesystems, and the split is the point (#227, D-35/D-37).
 
 ```
-/storage/shipped/audio/     audios.json + 77 WAVs   read-only
-/storage/shipped/programs/  <id>.json               read-only
-/storage/uploads/audio/     audios.json + WAVs      writable
-/storage/uploads/programs/  <id>.json               writable
-/storage/webapp/            the built frontend, if uploaded
+/embedded/audio/     audios.json + 77 ADPCM WAVs   read-only, in the app image
+/embedded/programs/  <id>.json                     read-only, in the app image
+/embedded/webapp/    the built frontend            read-only, in the app image
+/userdata/audio/     audios.json + WAVs            writable, `userdata` partition
+/userdata/programs/  <id>.json                     writable, `userdata` partition
 ```
+
+**`/embedded` is not a partition.** It is `.rodata` in the application binary,
+exposed as a read-only VFS (`main/storage/embedded_fs.cpp`) so that every
+reader keeps using `fopen`/`stat`/`opendir`. An OTA replaces it along with the
+firmware, which is what makes one image one update; `open()` for writing
+returns `EROFS`, so nothing can modify it even by mistake.
+
+**`/userdata` (6.75 MB LittleFS) holds uploads and nothing else**, and **no
+update path writes it** — no image is built for that partition at all, so even
+`idf.py flash` leaves uploads alone. It is formatted on first mount.
 
 **Read-only is a property of the directory, not the document.** A program's
 `readonly` flag is imposed by the loader from where the file came from, never

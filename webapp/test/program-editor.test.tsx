@@ -33,8 +33,8 @@ const SHIPPED: Program = { ...PROGRAM_FALT_TRANING, id: 40, readonly: true };
 const UPLOADED: Program = { ...PROGRAM_FALT_TRANING, id: 140, title: 'Klubbserie', readonly: false };
 
 const AUDIOS: AudioFile[] = [
-  { id: 26, title: 'Ladda!', filename: '/storage/shipped/audio/26.wav', readonly: true },
-  { id: 33, title: 'Eld!', filename: '/storage/shipped/audio/33.wav', readonly: true },
+  { id: 26, title: 'Ladda!', filename: '/embedded/audio/26.wav', readonly: true },
+  { id: 33, title: 'Eld!', filename: '/embedded/audio/33.wav', readonly: true },
 ];
 
 let server: MockServer;

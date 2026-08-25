@@ -316,7 +316,7 @@ export function loadSeedFromDisk(dataDir: string = DATA_DIR): MockSeed {
   const audios: AudioFile[] = Object.entries(audiosData).map(([id, audio]) => ({
     id: Number(id),
     title: audio.title,
-    filename: `/storage/shipped/audio/${audio.filename}`,
+    filename: `/embedded/audio/${audio.filename}`,
     readonly: true,
   }));
 
@@ -325,7 +325,7 @@ export function loadSeedFromDisk(dataDir: string = DATA_DIR): MockSeed {
     audios.push({
       id: Number(id) + 1000,
       title: audio.title,
-      filename: `/storage/uploads/audio/${audio.filename}`,
+      filename: `/userdata/audio/${audio.filename}`,
       readonly: false,
     });
   }
@@ -1472,7 +1472,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       audios.push({
         id,
         title: upload.title,
-        filename: `/storage/uploads/audio/${id}.wav`,
+        filename: `/userdata/audio/${id}.wav`,
         readonly: false,
       });
       broadcastLibraryChanged('audio');

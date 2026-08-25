@@ -42,9 +42,9 @@ void test_context_is_omitted_when_empty() {
 
 void test_context_is_an_object() {
   TEST_ASSERT_EQUAL_STRING(
-      R"({"code":"audio_playback_failed","message":"Nope","context":{"clip":"/storage/audio/3.wav"}})",
+      R"({"code":"audio_playback_failed","message":"Nope","context":{"clip":"/embedded/audio/3.wav"}})",
       rt::backend_issue_json(rt::issue_code::kAudioPlaybackFailed, "Nope",
-                             {{"clip", "/storage/audio/3.wav"}})
+                             {{"clip", "/embedded/audio/3.wav"}})
           .c_str());
 }
 

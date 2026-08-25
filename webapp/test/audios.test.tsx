@@ -24,9 +24,9 @@ const AudiosView = Route.options.component!;
 
 /** Deliberately out of id order: the view is what sorts. */
 const SEED_AUDIOS: AudioFile[] = [
-  { id: 3, title: 'Eld upphör', filename: '/storage/shipped/audio/3.wav', readonly: true },
-  { id: 1, title: 'Färdiga', filename: '/storage/shipped/audio/1.wav', readonly: true },
-  { id: 100, title: 'Klubbmästerskap 2026', filename: '/storage/uploads/audio/100.wav', readonly: false },
+  { id: 3, title: 'Eld upphör', filename: '/embedded/audio/3.wav', readonly: true },
+  { id: 1, title: 'Färdiga', filename: '/embedded/audio/1.wav', readonly: true },
+  { id: 100, title: 'Klubbmästerskap 2026', filename: '/userdata/audio/100.wav', readonly: false },
 ];
 
 /** A minimal RIFF/WAVE header — enough for the mock's format check. */
@@ -369,8 +369,8 @@ describe('play and delete', () => {
 describe('backend_issue', () => {
   const playbackFailed: BackendIssuePayload = {
     code: 'audio_playback_failed',
-    message: 'Could not open /storage/uploads/audio/100.wav',
-    context: { clip: '/storage/uploads/audio/100.wav' },
+    message: 'Could not open /userdata/audio/100.wav',
+    context: { clip: '/userdata/audio/100.wav' },
   };
 
   it('shows what useSSE parked in the cache, and a dismissal outlives the mount', async () => {
@@ -382,8 +382,8 @@ describe('backend_issue', () => {
     queryClient.setQueryData(['backend-issue'], playbackFailed);
 
     const banner = await screen.findByTestId('backend-issue-banner');
-    expect(text(banner)).toContain('Could not open /storage/uploads/audio/100.wav');
-    expect(text(banner)).toContain('clip: /storage/uploads/audio/100.wav');
+    expect(text(banner)).toContain('Could not open /userdata/audio/100.wav');
+    expect(text(banner)).toContain('clip: /userdata/audio/100.wav');
 
     fireEvent.click(within(banner).getByLabelText('Dismiss'));
     await waitFor(() => expect(screen.queryByTestId('backend-issue-banner')).toBeNull());
@@ -418,7 +418,7 @@ describe('backend_issue', () => {
 
     queryClient.setQueryData(['backend-issue'], {
       code: 'program_invalid',
-      message: 'Skipped /storage/uploads/programs/7.json',
+      message: 'Skipped /userdata/programs/7.json',
     } satisfies BackendIssuePayload);
 
     // Nothing to wait for, so let a render pass go by before asserting.
