@@ -68,6 +68,15 @@ constexpr size_t kAudioChunkBytes = 1024;
 
 // LittleFS mount point for the `storage` partition (see partitions.csv).
 constexpr const char *kStorageMount = "/storage";
+
+// The read-only filesystem baked into the app image (#227). Not a partition:
+// it is .rodata in the application, so an OTA replaces it along with the
+// firmware and nothing can write to it at all. See storage/embedded_fs.h.
+constexpr const char *kEmbeddedMount = "/embedded";
+// The built web app, served from there. Text assets are pre-compressed and only
+// the `.gz` is shipped; the vendored static handler probes for it.
+constexpr const char *kWebappDir = "/embedded/webapp/";
+constexpr const char *kWebappIndex = "/embedded/webapp/index.html";
 // Flashed with the firmware, never written to at runtime.
 constexpr const char *kShippedAudioDir = "/storage/shipped/audio";
 constexpr const char *kShippedProgramDir = "/storage/shipped/programs";

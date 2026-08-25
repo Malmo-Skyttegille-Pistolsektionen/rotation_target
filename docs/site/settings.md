@@ -68,23 +68,21 @@ used here** for some partitions, so a figure being absent is not a fault.
 
 **App** is the version of the page you are looking at. **Device** is the
 firmware's. One version number covers firmware, web app and shipped content,
-so on a device flashed over USB the two match.
+and the web app is part of the firmware image itself — so a page served *by*
+the device always matches it, however the device was updated.
 
-They can still come apart, because **a firmware update sent over the network
-replaces the firmware only.** The web app and the shipped programs and audio
-are stored separately on the device and are left as they were, so a device
-updated that way keeps serving the web app it was last flashed with.
+That includes an update sent over the network, which used to be the awkward
+case: it replaced the firmware and left the web app behind, so a device could
+serve a page older than the firmware running it until somebody flashed it over
+USB. That cannot happen any more. The shipped programs and audio are still
+stored separately and are still not updated over the network.
 
-If this section reports a mismatch, it means one of two things:
+So a mismatch now means one thing: **this page did not come from that device.**
+A development build, or a copy served from a laptop, pointed at a board built
+from a different commit.
 
-- **The device was updated over the network.** Expected, and the fix is to
-  flash it over USB, which brings both back into step.
-- **The page came from somewhere other than this device** — a development
-  build, or a copy served from a laptop — pointed at a board flashed with a
-  different version.
-
-A hard reload will not help with either. The browser is showing the version it
-was given; the two really are different.
+A hard reload will not help. The browser is showing the version it was given;
+the two really are different.
 
 **Modified build** beside the device version means the firmware was built from
 a working copy with uncommitted changes. On a board flashed from a release that

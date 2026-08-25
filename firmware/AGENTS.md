@@ -114,7 +114,9 @@ FAT), where the FAT partition holds club-uploaded programs, audio and
 destroys all of it — take a full 16 MB image first, it is the only way back.
 
 `idf.py flash` also rewrites the LittleFS image, discarding anything uploaded to
-the device. Use `idf.py app-flash` to update only the firmware.
+the device. Use `idf.py app-flash` to update only the firmware — which since
+#227 carries the web app too, because it is embedded in the app image rather
+than staged into the filesystem.
 
 ### WiFi
 
@@ -248,6 +250,14 @@ Load-bearing invariants:
   BOOT button does the same to a real board. **Any new destructive gesture
   inherits this rule**: it must not be reachable by a pin that is simply
   broken.
+- **The web app is a read-only VFS at `/embedded`, not files on the flash
+  filesystem** (#227): `tools/pack_assets.py` bakes `webapp/dist` into the app
+  image as one blob, and `storage/embedded_fs.cpp` registers it. Exposed as a
+  filesystem rather than a lookup API so that every reader keeps using
+  `fopen`/`stat` — the alternative, an `if embedded ... else file ...` at each
+  read site, is the shape that rots. `open()` for writing returns `EROFS`, so
+  "no update path can modify this" is a property of the filesystem rather than
+  of every caller's good behaviour.
 - Programs live in a `std::map` for reference stability — `ProgramState` holds a
   bare `const rt::Program *` at whatever is loaded.
 - The `audios` map is reached from both the httpd and run-loop tasks and has its

@@ -87,7 +87,7 @@ wrong twice: the `libraryChanged` event, and the target state at series
 completion (#135). `webapp/src/lib/run-position.ts` mirrors
 `firmware/lib/rt_logic/run_position.h` the same way.
 
-**`webapp/dist` is staged into the firmware image, not rebuilt by it.** The
+**`webapp/dist` is embedded in the application image, not rebuilt by it.** The
 firmware build bakes whatever `dist` currently holds. A firmware build after a
 web app change but without `npm run build` ships the old bundle, silently, and
 the device looks like it ignored the change. Build the web app first:
@@ -100,6 +100,16 @@ cd ../firmware && idf.py build
 Point `RT_WEBAPP_DIR` at a `dist` built elsewhere to override that. With no
 `dist` at all the device serves the API only, which looks like a broken web
 app rather than a missing one.
+
+It goes **inside the app image**, not into the `storage` LittleFS partition
+(#227). That is what makes an OTA a complete update: an OTA writes the inactive
+app slot and nothing else, so a web app on the filesystem could only be
+replaced with a cable, and firmware and bundle drifted apart until somebody
+did. `firmware/tools/pack_assets.py` concatenates `dist` into one blob with an
+index; `firmware/main/storage/embedded_fs.cpp` registers it as a read-only VFS
+at `/embedded`, so every reader keeps using `fopen`/`stat` and none of them
+knows the difference. The packer also does the gzipping, so there is no `gzip`
+prerequisite and the bytes are reproducible.
 
 **`resources/` is flashed into that same image**, and `readonly` is a property
 of the directory a program was loaded from, never of the document — an uploader

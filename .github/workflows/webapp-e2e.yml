@@ -2,10 +2,10 @@
 name: webapp-e2e
 
 # The webapp driven by a browser against the real firmware, booted in QEMU out
-# of the LittleFS image the board is flashed with. Nothing here is mocked: the
-# bundle under test is the one `RT_WEBAPP_DIR` bakes into that image, and the
-# API and SSE stream come from the firmware binary itself. That is the point -
-# it is what makes webapp/mock drift impossible to ship.
+# of the same image the board is flashed with. Nothing here is mocked: the
+# bundle under test is the one `RT_WEBAPP_DIR` bakes into the application image
+# (#227), and the API and SSE stream come from the firmware binary itself. That
+# is the point - it is what makes webapp/mock drift impossible to ship.
 #
 # A workflow of its own rather than a job in webapp-build.yml or
 # firmware-build.yml: it is the only thing here that needs both toolchains, its
@@ -111,10 +111,14 @@ jobs:
         run: |
           . "$IDF_PATH/export.sh"
           # RT_WEBAPP_DIR defaults to ../webapp/dist, so the build above is
-          # what lands in the LittleFS image.
+          # what lands in the application image (#227 - the bundle is embedded
+          # in the app, not staged into the LittleFS partition).
           scripts/run-qemu.sh --build-only
-          test -d build-qemu/littlefs_stage/webapp || {
-            echo "::error::the LittleFS image carries no webapp - check RT_WEBAPP_DIR"
+          # The generated index is the packer's own record of what it embedded,
+          # so this asserts the bundle is really in the binary rather than that
+          # a staging directory happens to exist.
+          grep -q '"/webapp/index.html' build-qemu/generated/embedded_index.generated.h || {
+            echo "::error::the app image carries no webapp - check RT_WEBAPP_DIR"
             exit 1
           }
 

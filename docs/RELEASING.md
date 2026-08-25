@@ -1,9 +1,10 @@
 # Releasing
 
-**One product, one version, one tag.** The webapp bundle and the shipped
-programs and audio are baked into the same LittleFS image the firmware boots
-from, so a build of this repository is a single artifact — there is no such
-thing as a webapp release or a resources release. Tags are bare semver:
+**One product, one version, one tag.** The webapp bundle is baked into the
+**application image**, and the shipped programs and audio into the LittleFS
+image the firmware boots from, so a build of this repository is a single
+artifact — there is no such thing as a webapp release or a resources release.
+Tags are bare semver:
 
 ```
 2.0.0
@@ -98,7 +99,7 @@ prepare  ->  checks  ->  [approval]  ->  build + prerelease + assets
   proves the bundle about to be baked in drives the firmware it is baked into.
 - **build** sits behind the `release` environment (see below), creates the tag
   **locally**, builds the webapp, builds the firmware with that bundle inside
-  the LittleFS image, and reads `esp_app_desc_t.version` back out of the image
+  the application image, and reads `esp_app_desc_t.version` back out of it
   to assert it is exactly the version being released. Still nothing durable.
 - **publish** pushes the tag and creates the GitHub release as a **prerelease**
   with the assets attached in the same call — so the release never exists in a
@@ -131,7 +132,7 @@ Two of them are what somebody actually reaches for:
 | Asset | What it is for |
 |---|---|
 | `rotation_target-<version>-factory.bin` | A new board, or one being put back to a known state. Everything at its offset in one file, written at `0x0`. **Discards uploaded programs and audio**, because the LittleFS image is part of it. ~16 MB. |
-| `rotation_target-<version>-ota.bin` | An already-configured device. The app alone — this is what `POST /api/v2/ota` accepts, and it leaves NVS and the uploaded files alone. |
+| `rotation_target-<version>-ota.bin` | An already-configured device. The app slot — **firmware and web app together** since #227 — and this is what `POST /api/v2/ota` accepts. It leaves NVS and the uploaded files alone. The shipped audio and programs are still on the filesystem and are *not* updated by it. |
 
 Flashing the factory image needs no offsets:
 

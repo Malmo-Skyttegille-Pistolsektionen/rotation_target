@@ -85,7 +85,7 @@ should work.
 |---|---|
 | [`contracts/`](contracts/README.md) | The canonical API contract: OpenAPI for REST v2, AsyncAPI for SSE v2, the program schema |
 | [`firmware/`](firmware/README.md) | The ESP-IDF firmware: target IO, audio, storage, REST + SSE server |
-| [`webapp/`](webapp/README.md) | The React front end, bundled into the firmware's LittleFS image |
+| [`webapp/`](webapp/README.md) | The React front end, embedded in the firmware's application image |
 | [`resources/`](resources/README.md) | Shipped programs and audio clips flashed onto the device |
 | [`docs/`](docs/) | The [decision log](docs/DECISIONS.md), [how releases are cut](docs/RELEASING.md), and the source of the documentation site |
 

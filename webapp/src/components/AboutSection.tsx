@@ -9,18 +9,19 @@ import styles from './AboutSection.module.css';
  * What this app is, what it is talking to, and — behind a disclosure — exactly
  * which build that is.
  *
- * The webapp and the firmware are one artifact: this bundle is baked into the
- * LittleFS image the device boots from, and both take their version from the
- * same `git describe` against the same release tag (D-29). So the two rows
- * below normally read identically, and a *mismatch* is the interesting case -
- * it means the bundle in the browser is not the one running on the device.
+ * The webapp and the firmware are one artifact: this bundle is embedded in the
+ * application image the device boots (#227), and both take their version from
+ * the same `git describe` against the same release tag (D-29). So the two rows
+ * below normally read identically, and a *mismatch* is the interesting case.
  *
- * Two things cause it, and the copy names both because they need opposite
- * responses. A `npm run dev` session pointed at a real board is expected and
- * temporary. A firmware upload (#127) is neither: OTA writes the app partition
- * and leaves the LittleFS image alone, so the device keeps serving the bundle
- * it already had and this mismatch persists across reboots until the storage
- * partition is flashed over USB.
+ * Since #227 there is only one thing it can mean: **this page did not come from
+ * that device.** A `npm run dev` session pointed at a real board, or a bundle
+ * served from a laptop. It used to mean a second thing - an OTA wrote the app
+ * partition and left the web app on the filesystem behind, so a device served a
+ * bundle older than its firmware until somebody flashed it over USB (#127).
+ * That cannot happen any more: the two are the same image, so an OTA moves both
+ * or neither. The banner is kept for the case that remains, and because a
+ * device still running pre-#227 firmware can still drift.
  *
  * Everything comes from `GET /diagnostics/info` rather than
  * `GET /api/v2/version`, for two reasons: this page already issues that request
@@ -71,10 +72,10 @@ export function AboutSection(): React.ReactNode {
 
       {mismatch && (
         <p className={styles.mismatch} data-testid='version-mismatch'>
-          This app was built from a different commit than the firmware it is talking to. Normally they ship together.
-          Either this is a development build pointed at a device flashed with another one, or the firmware was updated
-          over the air — that replaces the application only, so the device still serves the web app it was flashed with.
-          Flashing over USB brings the two back into step.
+          This app was built from a different commit than the firmware it is talking to. They ship as one image, so a
+          page served <em>by</em> the device always matches it. This page came from somewhere else — a development
+          server, or a copy on a laptop — pointed at a board built from a different commit. Reloading will not help;
+          the two really are different.
         </p>
       )}
 
