@@ -1,12 +1,40 @@
+# Exact versions, no ranges. Org policy (.github/renovate.json5 upstream):
+# "a range means the version you get depends on when you install", and an
+# upgrade should be a PR that CI had to pass rather than something that
+# arrives on its own.
+#
+# These are watched: .github/renovate.json5 teaches Renovate to read this file
+# against the component registry's API, because it has no built-in manager for
+# it. Without that, pinning here would mean freezing - which is what these
+# three had quietly done, `espressif/mdns` sitting nine minors above its own
+# `^1.2.0` floor and `joltwallet/littlefs` eight above `^1.14.8`.
+#
+# Bump by editing here and running `idf.py reconfigure`, which rewrites
+# dependencies.lock. Never edit the lock by hand.
 dependencies:
-  # The version this firmware is built and tested against. CI pins v6.0.2.
-  idf: ">=6.0"
-  # LittleFS for the `storage` partition: the shipped audio and programs, plus
-  # uploads. Chosen over SPIFFS for real directory support - the shipped and
+  # The toolchain this firmware is built and tested against, exactly. CI's
+  # container is digest-pinned to the same v6.0.2, and firmware/CONTRIBUTING.md
+  # says so too - this is the copy the component manager enforces.
+  #
+  # Deliberately not a range. ">=6.0" claimed IDF 7.x support that nobody has
+  # ever built, let alone run on a board; on an untested toolchain a refusal
+  # here is better than a binary.
+  #
+  # This version is written in FOUR places and they must move together:
+  #   - here
+  #   - `container: espressif/idf:vX.Y.Z@sha256:...` (three jobs, two files)
+  #   - `ref: vX.Y.Z` on the two ESP-IDF checkouts in firmware-build.yml
+  #   - firmware/CONTRIBUTING.md, in prose
+  # An exact pin here is what makes a mismatch loud: the component manager
+  # refuses the build rather than quietly using whichever IDF is on the
+  # machine. Renovate watches all four (.github/renovate.json5).
+  idf: "6.0.2"
+  # LittleFS for the `userdata` partition: uploads, and nothing else since
+  # #227. Chosen over SPIFFS for real directory support - the shipped and
   # uploaded trees are separate directories, and that separation is what makes
   # a program read-only or not.
-  joltwallet/littlefs: "^1.14.8"
+  joltwallet/littlefs: "1.22.3"
   # The onboard WS2812 on the ESP32-S3-DevKitC-1.
-  espressif/led_strip: "^3.0.0"
+  espressif/led_strip: "3.0.3"
   # http://rotation-target.local, so the webapp does not need the DHCP lease.
-  espressif/mdns: "^1.2.0"
+  espressif/mdns: "1.11.3"
