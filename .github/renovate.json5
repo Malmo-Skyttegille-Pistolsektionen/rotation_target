@@ -1,3 +1,104 @@
 {
   extends: ["github>Malmo-Skyttegille-Pistolsektionen/.github//.github/renovate.json5"],
+
+  // ESP-IDF managed components are invisible to every built-in manager: there
+  // is no `idf_component.yml` manager, and the org preset's customManagers
+  // match only `.github/actions/**` and `.github/workflows/**`. So the three
+  // components in firmware/main/idf_component.yml sat in the worst place a
+  // dependency can be - a range in the manifest, and nothing watching it.
+  // `espressif/mdns` was nine minors above its own `^1.2.0` floor and
+  // `joltwallet/littlefs` eight above `^1.14.8`, with no PR ever raised.
+  //
+  // The registry has a plain JSON API, so it can be a custom datasource.
+  customDatasources: {
+    "esp-component-registry": {
+      defaultRegistryUrlTemplate: "https://components.espressif.com/api/components/{{packageName}}",
+      // `versions` is newest-first and every entry carries `created_at` and
+      // `yanked_at`. The timestamp is not decoration: the org preset holds
+      // patch and minor releases for `minimumReleaseAge: "3 days"`, and
+      // without a releaseTimestamp that hold cannot be applied at all.
+      //
+      // Yanked versions are dropped. Not hypothetical - joltwallet/littlefs
+      // 1.16.5 is yanked today, and it is a *higher* version than several
+      // that are not, so an unfiltered list would offer it.
+      transformTemplates: [
+        '{"releases": versions[yanked_at = null].{"version": version, "releaseTimestamp": created_at}}',
+      ],
+    },
+  },
+
+  // NOTE: this array REPLACES the org preset's rather than merging with it,
+  // which is why the first entry below is a copy rather than a reference.
+  // Dropping it would stop `# renovate:` comments being tracked in
+  // .github/actions/, and this repository has one (setup-git-cliff).
+  //
+  // The copy is the thing to watch here. If the org preset's entry changes,
+  // this one has to change with it - and nothing enforces that. The better
+  // home for the ESP entry is the org preset itself, where AutoLee would get
+  // it too; this is the local version until that move is made.
+  customManagers: [
+    // --- copied verbatim from the org preset. Keep in step. ---
+    {
+      customType: "regex",
+      managerFilePatterns: [
+        "/^\\.github/actions/.+/action\\.ya?ml$/",
+        "/^\\.github/workflows/.+\\.ya?ml$/",
+      ],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>\\S+)\\s+default: \"(?<currentValue>[^\"]+)\"",
+        "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>\\S+)\\s+VERSION=\"(?<currentValue>[^\"]+)\"",
+        "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>\\S+)\\s+[^\\n]*?(?:==|@)(?<currentValue>[0-9][^\\s\"']*)",
+      ],
+    },
+
+    // --- this repository's own ---
+
+    // The registry components. Matched on `namespace/name: "x.y.z"` at exactly
+    // two spaces of indent, which is the dependency list and not the prose
+    // above it - several comment lines in that file contain a slash.
+    {
+      customType: "regex",
+      managerFilePatterns: ["/^firmware/main/idf_component\\.yml$/"],
+      matchStrings: [
+        "\\n  (?<depName>[a-z0-9][a-z0-9_.-]*\\/[a-z0-9][a-z0-9_.-]*): \"(?<currentValue>[0-9][^\"]*)\"",
+      ],
+      datasourceTemplate: "custom.esp-component-registry",
+      versioningTemplate: "semver",
+    },
+
+    // ESP-IDF itself, which is not a registry component. Tracked against the
+    // git tags, which carry a `v` the manifest does not.
+    //
+    // A bump here is only part of the move - see the note below on the other
+    // three places the same version is written.
+    {
+      customType: "regex",
+      managerFilePatterns: ["/^firmware/main/idf_component\\.yml$/"],
+      matchStrings: ["\\n  idf: \"(?<currentValue>[0-9][^\"]*)\""],
+      depNameTemplate: "espressif/esp-idf",
+      datasourceTemplate: "github-tags",
+      extractVersionTemplate: "^v(?<version>.+)$",
+      versioningTemplate: "semver",
+    },
+
+    // The IDF checkouts in firmware-build.yml, which exist only to get Unity
+    // for the host tests. `actions/checkout`'s `ref:` is an action input, so
+    // no built-in manager reads it and the org preset's `# renovate:` comment
+    // convention does not cover this shape either - it wants `default:`,
+    // `VERSION=` or an `@`/`==`. Left alone these two lines are the ones that
+    // stay behind when everything else moves.
+    //
+    // Anchored on the repository line above the ref, so it matches only the
+    // ESP-IDF checkouts and not the several other `ref:` uses in these files.
+    {
+      customType: "regex",
+      managerFilePatterns: ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      matchStrings: [
+        "repository: espressif/esp-idf\\s+ref: (?<currentValue>v[0-9][^\\s]*)",
+      ],
+      depNameTemplate: "espressif/esp-idf",
+      datasourceTemplate: "github-tags",
+      versioningTemplate: "semver",
+    },
+  ],
 }
