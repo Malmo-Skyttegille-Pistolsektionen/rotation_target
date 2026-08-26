@@ -352,6 +352,13 @@ void start_ap() {
   // never connected here - it exists so the radio can still listen.
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
 
+  // The station path disables modem sleep for SSE latency; here it is for the
+  // AP's life. With the default power save and an idle station interface, the
+  // modem sleeps against a DTIM schedule no AP is providing, and the SoftAP's
+  // beacons become erratic to absent - observed as a portal that three client
+  // devices could see for a short window after boot and never again.
+  ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
+
   // `esp_wifi_init()` loads whatever station config the driver previously
   // persisted into its in-RAM copy. The moment APSTA brings the station
   // interface up, the driver tries to associate with that stale network - and
