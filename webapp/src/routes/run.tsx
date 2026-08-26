@@ -9,7 +9,7 @@ import { Timeline } from '../components/Timeline';
 import { CountdownModal } from '../components/CountdownModal';
 import { StartDelayControl } from '../components/StartDelayControl';
 import { useSettings } from '../context/SettingsContext';
-import { useAdminStatus } from '../hooks/useAdminStatus';
+import { useControlLockStatus } from '../hooks/useControlLockStatus';
 import { unloadFailureNotice } from '../lib/program-notices';
 import styles from './run.module.css';
 
@@ -93,16 +93,16 @@ export function RunView(): React.ReactNode {
   const [pendingLoad, setPendingLoad] = useState<{ id: number; previousProgramId: number | null } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const { settings } = useSettings();
-  const { adminModeEnabled } = useAdminStatus();
-  const { adminToken } = useSettings();
+  const { controlLockEnabled } = useControlLockStatus();
+  const { controlLockToken } = useSettings();
   const { startDelaySeconds } = settings;
   const programsApi = useProgramsApi();
   const audiosApi = useAudiosApi();
   const queryClient = useQueryClient();
 
-  // Check if user can control (admin mode off OR authenticated)
-  const isAdminAuthenticated = adminModeEnabled && adminToken !== null;
-  const canControl = !adminModeEnabled || isAdminAuthenticated;
+  // Can this browser drive? The lock off, or the lock on and held here.
+  const isHoldingLock = controlLockEnabled && controlLockToken !== null;
+  const canControl = !controlLockEnabled || isHoldingLock;
 
   const { data: programs } = useQuery({
     queryKey: ['programs'],
@@ -516,7 +516,7 @@ export function RunView(): React.ReactNode {
             ) : (
               <div className={styles.viewOnlyBadge} data-testid='run-view-only'>
                 <span className={styles.viewOnlyIcon}>👁</span>
-                <span>View Only - Login as admin to control</span>
+                <span>View only — log in to control</span>
               </div>
             )}
           </div>

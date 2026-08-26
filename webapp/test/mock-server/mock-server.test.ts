@@ -221,12 +221,12 @@ describe('REST surface', () => {
     expect(await res.json()).toMatchObject({ type: '/problems/skip_program_mismatch' });
   });
 
-  it('gates writes on a token once admin mode is enabled', async () => {
+  it('gates writes on a token once the control lock is on', async () => {
     const { token } = await (
-      await api('/admin-mode/enable', { method: 'POST', body: JSON.stringify({ password: 'range-2026' }) })
+      await api('/control-lock/enable', { method: 'POST', body: JSON.stringify({ password: 'range-2026' }) })
     ).json();
 
-    expect((await api('/admin-mode/status')).status).toBe(200);
+    expect((await api('/control-lock/status')).status).toBe(200);
     expect((await api('/programs')).status).toBe(200);
     expect((await api('/programs/40/load', { method: 'POST' })).status).toBe(401);
     expect(
@@ -473,10 +473,10 @@ describe('program storage', () => {
     sse.close();
   });
 
-  it('gates create, replace and delete on the admin token', async () => {
+  it('gates create, replace and delete on the control lock token', async () => {
     const { id } = await (await upload()).json();
     const { token } = await (
-      await api('/admin-mode/enable', { method: 'POST', body: JSON.stringify({ password: 'range-2026' }) })
+      await api('/control-lock/enable', { method: 'POST', body: JSON.stringify({ password: 'range-2026' }) })
     ).json();
     const authorized = { Authorization: `Bearer ${token}` };
 
@@ -573,9 +573,9 @@ describe('unloading (D-22)', () => {
     expect((await api('/programs/unload', { method: 'POST' })).status).toBe(200);
   });
 
-  it('is gated on the admin token like every other mutation', async () => {
+  it('is gated on the control lock token like every other mutation', async () => {
     const { token } = await (
-      await api('/admin-mode/enable', { method: 'POST', body: JSON.stringify({ password: 'range-2026' }) })
+      await api('/control-lock/enable', { method: 'POST', body: JSON.stringify({ password: 'range-2026' }) })
     ).json();
 
     expect((await api('/programs/unload', { method: 'POST' })).status).toBe(401);
@@ -743,11 +743,11 @@ describe('diagnostics (D-25)', () => {
     await bounded.close();
   });
 
-  it('is public - no token needed once admin mode is on', async () => {
-    await api('/admin-mode/enable', { method: 'POST', body: JSON.stringify({ password: 'range-2026' }) });
+  it('is public - no token needed once the control lock is on', async () => {
+    await api('/control-lock/enable', { method: 'POST', body: JSON.stringify({ password: 'range-2026' }) });
     const res = await api('/diagnostics/info');
     expect(res.status).toBe(200);
-    expect(((await res.json()) as DiagnosticsInfo).adminModeEnabled).toBe(true);
+    expect(((await res.json()) as DiagnosticsInfo).controlLockEnabled).toBe(true);
   });
 });
 
@@ -975,8 +975,8 @@ describe('hardware configuration', () => {
     });
   });
 
-  it('gates writes on the admin token, but not the read', async () => {
-    expect((await api('/admin-mode/enable', { method: 'POST', body: JSON.stringify({ password: 'pw' }) })).status).toBe(
+  it('gates writes on the control lock token, but not the read', async () => {
+    expect((await api('/control-lock/enable', { method: 'POST', body: JSON.stringify({ password: 'pw' }) })).status).toBe(
       200,
     );
 

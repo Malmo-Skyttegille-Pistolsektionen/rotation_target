@@ -11,8 +11,8 @@ function withoutId({ title, description, readonly, series }: Program): ProgramUp
 }
 
 export function useProgramsApi() {
-  const { adminToken, logoutAdmin } = useSettings();
-  const client = createAuthenticatedClient(adminToken, logoutAdmin);
+  const { controlLockToken, logoutControlLock } = useSettings();
+  const client = createAuthenticatedClient(controlLockToken, logoutControlLock);
 
   return {
     list: () => client.request<ProgramSummary[]>('/programs'),

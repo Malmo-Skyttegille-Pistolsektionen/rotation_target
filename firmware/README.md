@@ -91,7 +91,7 @@ address it logs on boot.
 ### Host tests
 
 The run state machine, the program JSON contract, the `stateUpdate` serializer
-and admin mode all run on the build machine — no hardware, no sleeps:
+and the control lock all run on the build machine — no hardware, no sleeps:
 
 ```bash
 cd host_test && cmake -B build && cmake --build build -j && cd build && ctest --output-on-failure

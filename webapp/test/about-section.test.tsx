@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Same-origin with the mock, as the app runs for real - the firmware serves
-// the bundle. See the note in useAdminStatus.test.tsx.
+// the bundle. See the note in useControlLockStatus.test.tsx.
 // @vitest-environment-options { "url": "http://127.0.0.1:18086" }
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -14,7 +14,7 @@ import { createFakeClock } from './mock-server/clock';
 import { createMockServer, type MockServer, type MockSeed } from './mock-server/server';
 
 // Distinct per suite - vitest runs files in parallel, so a shared port is an
-// EADDRINUSE flake (18080 useAdminStatus, 18081 audios, 18082 programs,
+// EADDRINUSE flake (18080 useControlLockStatus, 18081 audios, 18082 programs,
 // 18083 program-editor, 18084 run, 18085 startup-issues, 18086 here). Pick the
 // next free number for a new suite.
 const PORT = 18086;

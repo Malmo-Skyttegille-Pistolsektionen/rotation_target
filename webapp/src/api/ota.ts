@@ -9,8 +9,8 @@ import { createAuthenticatedClient } from './client';
  * unreachable — that is success, not failure.
  */
 export function useOtaApi() {
-  const { adminToken, logoutAdmin } = useSettings();
-  const client = createAuthenticatedClient(adminToken, logoutAdmin);
+  const { controlLockToken, logoutControlLock } = useSettings();
+  const client = createAuthenticatedClient(controlLockToken, logoutControlLock);
 
   return {
     upload: (file: File): Promise<{ status: string; restarting: boolean }> => {

@@ -20,7 +20,7 @@
 #include <string>
 #include <vector>
 
-#include "admin_mode.h"
+#include "control_lock.h"
 #include "audio.h"
 #include "audios.h"
 #include "build_info.h"
@@ -104,7 +104,7 @@ int64_t now_ms() {
   return esp_timer_get_time() / 1000;
 }
 
-rt::AdminMode s_admin(esp_random_bytes, now_ms);
+rt::ControlLock s_control_lock(esp_random_bytes, now_ms);
 
 // --- response helpers ------------------------------------------------------
 
@@ -127,9 +127,9 @@ esp_err_t send_message(PsychicResponse *res, const std::string &message) {
 
 // --- auth ------------------------------------------------------------------
 
-// Guards an endpoint that is only protected while admin mode is enabled.
+// Guards an endpoint that is only protected while the control lock is on.
 // Returns false once it has already answered the request.
-bool require_admin(PsychicRequest *req, PsychicResponse *res) {
+bool require_control_lock(PsychicRequest *req, PsychicResponse *res) {
   // header() and getCookie() both return PsychicRequest::_tmp.c_str() - one
   // per-request scratch string that each call overwrites - so the header has
   // to be copied out before the cookie is read, or it turns into the cookie.
@@ -137,21 +137,22 @@ bool require_admin(PsychicRequest *req, PsychicResponse *res) {
   const std::string authorization = raw != nullptr ? raw : "";
 
   std::string cookie;
-  const char *raw_cookie = req->getCookie("admin");
+  const char *raw_cookie = req->getCookie("control_lock");
   if (raw_cookie != nullptr) cookie = raw_cookie;
 
-  if (s_admin.authorize(authorization, cookie)) return true;
+  if (s_control_lock.authorize(authorization, cookie)) return true;
 
   ESP_LOGD(TAG, "Rejected %s %s", req->methodStr(), req->uri());
-  send_problem(res, rt::problem::kAdminCredentialsRequired, "Invalid or missing admin credentials");
+  send_problem(res, rt::problem::kControlLockCredentialsRequired,
+               "The controls are locked - log in to start or change anything");
   return false;
 }
 
 // SameSite=Lax means the cookie only rides along when the webapp is served
 // from the device itself; a webapp on another origin authenticates with the
 // bearer token instead. Deliberately not HttpOnly - the webapp reads it back.
-esp_err_t send_admin_session(PsychicResponse *res, const std::string &token) {
-  const std::string cookie = "admin=" + token + "; Path=/; SameSite=Lax";
+esp_err_t send_control_lock_session(PsychicResponse *res, const std::string &token) {
+  const std::string cookie = "control_lock=" + token + "; Path=/; SameSite=Lax";
   res->addHeader("Set-Cookie", cookie.c_str());
   return send_json(res, 200, "{\"token\":" + rt::json_quote(token) + "}");
 }
@@ -211,59 +212,63 @@ using rt::path_id;
 
 // --- routes ----------------------------------------------------------------
 
-void register_admin_mode_routes() {
-  s_server.on("/api/v2/admin-mode/status", HTTP_GET, [](PsychicRequest *, PsychicResponse *res) {
-    return send_json(res, 200,
-                     std::string("{\"enabled\":") + (s_admin.enabled() ? "true" : "false") + "}");
+void register_control_lock_routes() {
+  s_server.on("/api/v2/control-lock/status", HTTP_GET, [](PsychicRequest *, PsychicResponse *res) {
+    return send_json(
+        res, 200,
+        std::string("{\"enabled\":") + (s_control_lock.enabled() ? "true" : "false") + "}");
   });
 
-  s_server.on("/api/v2/admin-mode/enable", HTTP_POST,
+  s_server.on("/api/v2/control-lock/enable", HTTP_POST,
               [](PsychicRequest *req, PsychicResponse *res) {
-                if (s_admin.enabled()) {
-                  return send_problem(res, rt::problem::kAdminModeAlreadyEnabled,
-                                      "Admin mode is already enabled. Log in or disable it "
-                                      "before enabling again.");
+                if (s_control_lock.enabled()) {
+                  return send_problem(res, rt::problem::kControlLockAlreadyEnabled,
+                                      "The control lock is already on. Log in, or turn it off "
+                                      "before turning it on again.");
                 }
-                const std::string token = s_admin.enable(password_from(req));
+                const std::string token = s_control_lock.enable(password_from(req));
                 if (token.empty())
                   return send_problem(res, rt::problem::kInvalidPassword, "Invalid password");
 
-                ESP_LOGI(TAG, "Admin mode enabled");
-                return send_admin_session(res, token);
+                ESP_LOGI(TAG, "Control lock on");
+                return send_control_lock_session(res, token);
               });
 
-  s_server.on("/api/v2/admin-mode/login", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
-    if (!s_admin.enabled()) {
-      return send_problem(res, rt::problem::kAdminModeNotEnabled,
-                          "Admin mode is not enabled. Enable it before logging in.");
-    }
-    const std::string token = s_admin.login(password_from(req));
-    if (token.empty()) return send_problem(res, rt::problem::kInvalidPassword, "Invalid password");
-    return send_admin_session(res, token);
-  });
+  s_server.on("/api/v2/control-lock/login", HTTP_POST,
+              [](PsychicRequest *req, PsychicResponse *res) {
+                if (!s_control_lock.enabled()) {
+                  return send_problem(res, rt::problem::kControlLockNotEnabled,
+                                      "The control lock is not on. Turn it on before logging in.");
+                }
+                const std::string token = s_control_lock.login(password_from(req));
+                if (token.empty())
+                  return send_problem(res, rt::problem::kInvalidPassword, "Invalid password");
+                return send_control_lock_session(res, token);
+              });
 
-  s_server.on("/api/v2/admin-mode/logout", HTTP_POST,
+  s_server.on("/api/v2/control-lock/logout", HTTP_POST,
               [](PsychicRequest *req, PsychicResponse *res) {
                 // Ends this session only. disable() turns protection off
                 // entirely, which is the opposite of what a client logging out
                 // of a shared range laptop wants.
                 const char *header = req->header("Authorization");
-                std::string token = rt::AdminMode::bearer_token(header != nullptr ? header : "");
+                std::string token = rt::ControlLock::bearer_token(header != nullptr ? header : "");
                 if (token.empty()) {
-                  const char *cookie = req->getCookie("admin");
+                  const char *cookie = req->getCookie("control_lock");
                   if (cookie != nullptr) token = cookie;
                 }
-                s_admin.logout(token);
-                res->addHeader("Set-Cookie", "admin=; Path=/; SameSite=Lax; Max-Age=0");
+                s_control_lock.logout(token);
+                res->addHeader("Set-Cookie", "control_lock=; Path=/; SameSite=Lax; Max-Age=0");
                 return send_message(res, "Logged out");
               });
 
-  s_server.on("/api/v2/admin-mode/disable", HTTP_POST,
+  s_server.on("/api/v2/control-lock/disable", HTTP_POST,
               [](PsychicRequest *req, PsychicResponse *res) {
-                if (!require_admin(req, res)) return ESP_OK;
-                s_admin.disable();
-                ESP_LOGI(TAG, "Admin mode disabled");
-                return send_message(res, "Admin mode disabled");
+                if (!require_control_lock(req, res)) return ESP_OK;
+                s_control_lock.disable();
+                ESP_LOGI(TAG, "Control lock off");
+                return send_message(
+                    res, "Control lock off - anyone on the network can operate the device again");
               });
 }
 
@@ -279,7 +284,7 @@ void register_program_routes() {
   // wrong spoken commands. Same shape as #79 and #80: the device enforces, the
   // client only explains.
   s_server.on("/api/v2/programs/start", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
-    if (!require_admin(req, res)) return ESP_OK;
+    if (!require_control_lock(req, res)) return ESP_OK;
 
     // The reciprocal of the OTA's own refusal: an upload is in flight and a
     // restart is moments away, so a program started now would be cut off
@@ -313,21 +318,21 @@ void register_program_routes() {
   });
 
   s_server.on("/api/v2/programs/stop", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
-    if (!require_admin(req, res)) return ESP_OK;
+    if (!require_control_lock(req, res)) return ESP_OK;
     if (!executor::stop())
       return send_problem(res, rt::problem::kProgramNotRunning, "Program not running");
     return send_message(res, "Program paused");
   });
 
   s_server.on("/api/v2/programs/reset", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
-    if (!require_admin(req, res)) return ESP_OK;
+    if (!require_control_lock(req, res)) return ESP_OK;
     if (!executor::reset())
       return send_problem(res, rt::problem::kNoProgramLoaded, "No program loaded");
     return send_message(res, "Program reset");
   });
 
   s_server.on("/api/v2/programs/unload", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
-    if (!require_admin(req, res)) return ESP_OK;
+    if (!require_control_lock(req, res)) return ESP_OK;
 
     // Refused mid-run rather than stopping the run itself: unloading is
     // bookkeeping, and a call that reads as bookkeeping must not end a series
@@ -348,7 +353,7 @@ void register_program_routes() {
   // run control rather than two.
   s_server.on(
       "/api/v2/programs/series/*", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
-        if (!require_admin(req, res)) return ESP_OK;
+        if (!require_control_lock(req, res)) return ESP_OK;
 
         int32_t index = 0;
         if (!path_id(req->uri(), "/api/v2/programs/series/", "/skip_to", index)) {
@@ -392,7 +397,7 @@ void register_program_routes() {
   });
 
   s_server.on("/api/v2/programs", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
-    if (!require_admin(req, res)) return ESP_OK;
+    if (!require_control_lock(req, res)) return ESP_OK;
 
     const char *body = req->body();
     const size_t length = static_cast<size_t>(req->contentLength());
@@ -424,7 +429,7 @@ void register_program_routes() {
   // Currently the only PUT route, so this wildcard shadows nothing; a fixed
   // PUT path under /api/v2/programs/ would have to be registered above it.
   s_server.on("/api/v2/programs/*", HTTP_PUT, [](PsychicRequest *req, PsychicResponse *res) {
-    if (!require_admin(req, res)) return ESP_OK;
+    if (!require_control_lock(req, res)) return ESP_OK;
 
     int32_t id = 0;
     if (!path_id(req->uri(), "/api/v2/programs/", "", id)) {
@@ -481,7 +486,7 @@ void register_program_routes() {
   });
 
   s_server.on("/api/v2/programs/*", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
-    if (!require_admin(req, res)) return ESP_OK;
+    if (!require_control_lock(req, res)) return ESP_OK;
 
     int32_t id = 0;
     if (!path_id(req->uri(), "/api/v2/programs/", "/load", id)) {
@@ -493,7 +498,7 @@ void register_program_routes() {
   });
 
   s_server.on("/api/v2/programs/*", HTTP_DELETE, [](PsychicRequest *req, PsychicResponse *res) {
-    if (!require_admin(req, res)) return ESP_OK;
+    if (!require_control_lock(req, res)) return ESP_OK;
 
     int32_t id = 0;
     if (!path_id(req->uri(), "/api/v2/programs/", "/delete", id)) {
@@ -605,8 +610,8 @@ std::string diagnostics_info_json() {
   out += std::to_string(targets::pin());
   out += ",\"targetGpioLevel\":";
   out += std::to_string(targets::level());
-  out += ",\"adminModeEnabled\":";
-  out += s_admin.enabled() ? "true" : "false";
+  out += ",\"controlLockEnabled\":";
+  out += s_control_lock.enabled() ? "true" : "false";
   // The backend_issues raised before this server existed, which is the only
   // way they can reach a client at all - sse_hub had nowhere to send them.
   // Already-serialized payloads, joined into the array.
@@ -710,8 +715,8 @@ void register_diagnostics_routes() {
   // BOOT, the gesture Expert mode is already behind. A run holds the window
   // shut, so it cannot be pulled from under a sequence driving targets either.
   //
-  // Deliberately NOT behind require_admin, which every other guarded route
-  // uses. Admin mode is write protection - one operator running a competition
+  // Deliberately NOT behind require_control_lock, which every other guarded route
+  // uses. The control lock is write protection - one operator running a competition
   // without others interfering - and it is off by default. So on the guard it
   // would add nothing in the state that matters, while in the state it is on
   // it would stop a club member collecting a fault report during the event
@@ -795,19 +800,19 @@ void register_diagnostics_routes() {
 
 void register_target_routes() {
   s_server.on("/api/v2/targets/show", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
-    if (!require_admin(req, res)) return ESP_OK;
+    if (!require_control_lock(req, res)) return ESP_OK;
     executor::set_targets(true);
     return send_message(res, "Targets shown");
   });
 
   s_server.on("/api/v2/targets/hide", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
-    if (!require_admin(req, res)) return ESP_OK;
+    if (!require_control_lock(req, res)) return ESP_OK;
     executor::set_targets(false);
     return send_message(res, "Targets hidden");
   });
 
   s_server.on("/api/v2/targets/toggle", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
-    if (!require_admin(req, res)) return ESP_OK;
+    if (!require_control_lock(req, res)) return ESP_OK;
     const bool shown = executor::toggle_targets();
     return send_message(res, shown ? "Targets shown" : "Targets hidden");
   });
@@ -823,7 +828,7 @@ void register_audio_routes() {
   });
 
   s_server.on("/api/v2/audios/*", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
-    if (!require_admin(req, res)) return ESP_OK;
+    if (!require_control_lock(req, res)) return ESP_OK;
 
     int32_t id = 0;
     if (!path_id(req->uri(), "/api/v2/audios/", "/play", id)) {
@@ -841,7 +846,7 @@ void register_audio_routes() {
   });
 
   s_server.on("/api/v2/audios/*", HTTP_DELETE, [](PsychicRequest *req, PsychicResponse *res) {
-    if (!require_admin(req, res)) return ESP_OK;
+    if (!require_control_lock(req, res)) return ESP_OK;
 
     int32_t id = 0;
     if (!path_id(req->uri(), "/api/v2/audios/", "/delete", id)) {
@@ -954,7 +959,7 @@ void register_audio_routes() {
     // runs the chain before handleRequest, and handleRequest is what
     // streams the body to flash. Checking afterwards would let an
     // unauthenticated caller write a file and only then be told no.
-    if (!require_admin(req, res)) return ESP_OK;
+    if (!require_control_lock(req, res)) return ESP_OK;
 
     // The server is single-task (ENABLE_ASYNC is off), so no other upload
     // can still be running: a flag still set here belongs to one whose
@@ -1093,7 +1098,7 @@ void register_config_routes() {
   });
 
   s_server.on("/api/v2/config/hardware", HTTP_PUT, [](PsychicRequest *req, PsychicResponse *res) {
-    if (!require_admin(req, res)) return ESP_OK;
+    if (!require_control_lock(req, res)) return ESP_OK;
 
     const char *body = req->body();
     JsonDocument doc;
@@ -1166,7 +1171,7 @@ void register_config_routes() {
 
   s_server.on(
       "/api/v2/config/hardware/reset", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
-        if (!require_admin(req, res)) return ESP_OK;
+        if (!require_control_lock(req, res)) return ESP_OK;
 
         // The same two guards as the PUT, and for a stronger reason: this
         // rewrites every value at once. On a device configured for a
@@ -1304,7 +1309,7 @@ void register_wifi_routes() {
   });
 
   s_server.on("/api/v2/wifi", HTTP_PUT, [](PsychicRequest *req, PsychicResponse *res) {
-    if (!require_admin(req, res)) return ESP_OK;
+    if (!require_control_lock(req, res)) return ESP_OK;
 
     const char *body = req->body();
     JsonDocument doc;
@@ -1453,7 +1458,7 @@ bool start() {
                          ",\"patch\":" + std::to_string(version.patch) + "}");
   });
 
-  register_admin_mode_routes();
+  register_control_lock_routes();
   register_program_routes();
   register_diagnostics_routes();
   register_target_routes();

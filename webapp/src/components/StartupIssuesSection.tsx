@@ -21,7 +21,7 @@ const MAX_STARTUP_ISSUES = 8;
  *
  * On Settings rather than a diagnostics page of its own: this app has no
  * diagnostics route, and the boot facts sit with the other device-level
- * controls — the server address and admin mode — that an operator comes to
+ * controls — the server address and the control lock — that an operator comes to
  * this page for. A route for one read-only array would be a nav entry and a
  * router chunk for less.
  */

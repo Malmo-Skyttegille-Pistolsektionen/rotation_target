@@ -4,7 +4,7 @@ const STORAGE_PREFIX = 'rt_settings_';
 const STORAGE_KEYS = {
   serverBaseUrl: `${STORAGE_PREFIX}server_base_url`,
   startDelaySeconds: `${STORAGE_PREFIX}start_delay_seconds`,
-  adminToken: `${STORAGE_PREFIX}admin_token`,
+  controlLockToken: `${STORAGE_PREFIX}control_lock_token`,
 } as const;
 
 import { DEFAULT_BASE_URL } from '../api/base-url';
@@ -62,11 +62,11 @@ export interface Settings {
 
 export interface SettingsContextType {
   settings: Settings;
-  adminToken: string | null;
+  controlLockToken: string | null;
   setServerBaseUrl: (url: string) => void;
   setStartDelaySeconds: (seconds: number) => void;
-  setAdminToken: (token: string | null) => void;
-  logoutAdmin: () => void;
+  setControlLockToken: (token: string | null) => void;
+  logoutControlLock: () => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
@@ -95,14 +95,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     };
   });
 
-  // Not `setAdminToken`: that name belongs to the context method below, which
+  // Not `setControlLockToken`: that name belongs to the context method below, which
   // wraps this setter with the localStorage write.
   // eslint-disable-next-line @eslint-react/use-state
-  const [adminToken, setAdminTokenState] = useState<string | null>(() => {
+  const [controlLockToken, setControlLockTokenState] = useState<string | null>(() => {
     if (typeof window === 'undefined') {
       return null;
     }
-    return localStorage.getItem(STORAGE_KEYS.adminToken);
+    return localStorage.getItem(STORAGE_KEYS.controlLockToken);
   });
 
   function setServerBaseUrl(url: string): void {
@@ -116,18 +116,18 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     setSettings((prev) => ({ ...prev, startDelaySeconds: validSeconds }));
   }
 
-  function setAdminToken(token: string | null): void {
+  function setControlLockToken(token: string | null): void {
     if (token) {
-      localStorage.setItem(STORAGE_KEYS.adminToken, token);
+      localStorage.setItem(STORAGE_KEYS.controlLockToken, token);
     } else {
-      localStorage.removeItem(STORAGE_KEYS.adminToken);
+      localStorage.removeItem(STORAGE_KEYS.controlLockToken);
     }
-    setAdminTokenState(token);
+    setControlLockTokenState(token);
   }
 
-  function logoutAdmin(): void {
-    localStorage.removeItem(STORAGE_KEYS.adminToken);
-    setAdminTokenState(null);
+  function logoutControlLock(): void {
+    localStorage.removeItem(STORAGE_KEYS.controlLockToken);
+    setControlLockTokenState(null);
   }
 
   useEffect(() => {
@@ -140,8 +140,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
         setSettings((prev) => ({ ...prev, serverBaseUrl: e.newValue! }));
       } else if (e.key === STORAGE_KEYS.startDelaySeconds && e.newValue) {
         setSettings((prev) => ({ ...prev, startDelaySeconds: clampStartDelaySeconds(Number(e.newValue)) }));
-      } else if (e.key === STORAGE_KEYS.adminToken) {
-        setAdminTokenState(e.newValue);
+      } else if (e.key === STORAGE_KEYS.controlLockToken) {
+        setControlLockTokenState(e.newValue);
       }
     };
 
@@ -151,11 +151,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
 
   const value: SettingsContextType = {
     settings,
-    adminToken,
+    controlLockToken,
     setServerBaseUrl,
     setStartDelaySeconds,
-    setAdminToken,
-    logoutAdmin,
+    setControlLockToken,
+    logoutControlLock,
   };
 
   return <SettingsContext value={value}>{children}</SettingsContext>;

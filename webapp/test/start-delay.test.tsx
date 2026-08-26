@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Same-origin with the mock, as the app runs for real - the firmware serves
-// the bundle. See the note in useAdminStatus.test.tsx.
+// the bundle. See the note in useControlLockStatus.test.tsx.
 // @vitest-environment-options { "url": "http://127.0.0.1:18090" }
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -25,7 +25,7 @@ import { openSSE, type SSEReader } from './mock-server/sse-reader';
 // there because about-section's number is written into three comments
 // elsewhere.
 //
-// Taken: 18080 useAdminStatus, 18081 audios, 18082 programs, 18083
+// Taken: 18080 useControlLockStatus, 18081 audios, 18082 programs, 18083
 // program-editor, 18084 run, 18085 startup-issues, 18086 about-section,
 // 18087, 18088, 18089, 18090 here, 18092 hardware-section, 18097 config-window.
 // Pick a free number for a new suite, and grep before you do.
@@ -77,7 +77,7 @@ beforeEach(async () => {
   FakeEventSource.reset();
   server.reset();
   localStorage.clear();
-  document.cookie = 'admin=; Path=/; Max-Age=0';
+  document.cookie = 'control_lock=; Path=/; Max-Age=0';
   updateBaseUrl(window.location.origin);
   vi.stubGlobal('EventSource', FakeEventSource);
   vi.spyOn(console, 'log').mockImplementation(() => {});

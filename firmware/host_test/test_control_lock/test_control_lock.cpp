@@ -1,8 +1,8 @@
 // ============================================================================
-//  In-memory admin mode: enable/login/disable and what authorizes a request.
+//  The in-memory control lock: enable/login/disable and what authorizes a request.
 //  Ported from tests/unit/repositories/test_admin_mode.py.
 // ============================================================================
-#include "admin_mode.h"
+#include "control_lock.h"
 #include "unity.h"
 
 namespace {
@@ -23,10 +23,10 @@ int64_t fake_now() {
   return g_now_ms;
 }
 
-rt::AdminMode *admin = nullptr;
+rt::ControlLock *lock = nullptr;
 
-rt::AdminMode &mode() {
-  return *admin;
+rt::ControlLock &mode() {
+  return *lock;
 }
 
 }  // namespace
@@ -34,12 +34,12 @@ rt::AdminMode &mode() {
 void setUp() {
   g_counter = 0;
   g_now_ms = 1'000'000;
-  admin = new rt::AdminMode(counting_bytes, fake_now);
+  lock = new rt::ControlLock(counting_bytes, fake_now);
 }
 
 void tearDown() {
-  delete admin;
-  admin = nullptr;
+  delete lock;
+  lock = nullptr;
 }
 
 // --- enable ----------------------------------------------------------------
@@ -149,7 +149,7 @@ void test_a_token_expires() {
   TEST_ASSERT_FALSE(mode().authorize("Bearer " + token, ""));
 }
 
-void test_an_expired_token_does_not_disable_admin_mode() {
+void test_an_expired_token_does_not_disable_control_lock() {
   // Expiry must not fall open - the endpoints stay protected.
   mode().enable("hunter2");
   g_now_ms += rt::kTokenTtlMs + 1;
@@ -223,7 +223,7 @@ int main() {
   RUN_TEST(test_disable_invalidates_issued_tokens);
 
   RUN_TEST(test_a_token_expires);
-  RUN_TEST(test_an_expired_token_does_not_disable_admin_mode);
+  RUN_TEST(test_an_expired_token_does_not_disable_control_lock);
   RUN_TEST(test_the_token_store_is_capped_oldest_first);
   RUN_TEST(test_logout_invalidates_only_that_token);
   RUN_TEST(test_logout_of_an_unknown_token_is_refused);

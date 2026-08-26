@@ -11,5 +11,5 @@ rules:
   # firmware.
   no-server-example.com: off
   # Several endpoints have no failure mode: they take no input, read no id and
-  # are not admin-gated. Inventing a 4xx for them would be fiction.
+  # are not behind the control lock. Inventing a 4xx for them would be fiction.
   operation-4xx-response: off

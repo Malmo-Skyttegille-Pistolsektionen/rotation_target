@@ -79,14 +79,14 @@ describe('unloadFailureNotice', () => {
   });
 
   it('falls back to detail for any other refusal', () => {
-    const notice = unloadFailureNotice(apiError('/problems/admin_credentials_required', 'Nope', 401));
+    const notice = unloadFailureNotice(apiError('/problems/control_lock_credentials_required', 'Nope', 401));
     expect(notice.message).toContain('Could not unload the program.');
   });
 });
 
 describe('failureNotice', () => {
   it('sends an unauthenticated caller to Settings', () => {
-    const notice = failureNotice(apiError('/problems/admin_credentials_required', 'Nope', 401), 'Could not load.');
+    const notice = failureNotice(apiError('/problems/control_lock_credentials_required', 'Nope', 401), 'Could not load.');
     expect(notice.message).toContain('sign in under Settings');
   });
 

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Same-origin with the mock, as the app runs for real — the firmware serves
-// the bundle. See the note in useAdminStatus.test.tsx.
+// the bundle. See the note in useControlLockStatus.test.tsx.
 // @vitest-environment-options { "url": "http://127.0.0.1:18091" }
 import { describe, expect, it } from 'vitest';
 

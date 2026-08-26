@@ -10,7 +10,7 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './e2e',
   // One emulated device, one client. Parallel workers would race each other's
-  // program state and admin mode.
+  // program state and the control lock.
   workers: 1,
   fullyParallel: false,
   // `.only` left in a spec would silently shrink the suite in CI.

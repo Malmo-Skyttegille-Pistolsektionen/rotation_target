@@ -208,23 +208,23 @@ rewound to event 0 with the targets shown again;
 
 ## Auth
 
-Admin mode is off until a client enables it, and it lives in RAM only — a
+The control lock is off until a client enables it, and it lives in RAM only — a
 reboot returns the device to the unprotected state. The rule is simple enough
 to state once: **every `GET` is public; every mutating endpoint is protected
-while admin mode is on, except the three that have to work without a session —
-`admin-mode/enable`, `admin-mode/login` and `admin-mode/logout`.**
+while the control lock is on, except the three that have to work without a session —
+`control-lock/enable`, `control-lock/login` and `control-lock/logout`.**
 
-- `Authorization: Bearer <token>`, or `Cookie: admin=<token>`. The header is
+- `Authorization: Bearer <token>`, or `Cookie: control_lock=<token>`. The header is
   checked first; the cookie is the fallback
-- `POST /api/v2/admin-mode/enable` sets the password (any non-empty string) and
-  returns a token; `409` if admin mode is already on
-- `POST /api/v2/admin-mode/login` exchanges the active password for another
-  token; `409` if admin mode is off
-- Both send `Set-Cookie: admin=<token>; Path=/; SameSite=Lax`
-- `POST /api/v2/admin-mode/disable` clears the password and invalidates every
+- `POST /api/v2/control-lock/enable` sets the password (any non-empty string) and
+  returns a token; `409` if the control lock is already on
+- `POST /api/v2/control-lock/login` exchanges the active password for another
+  token; `409` if the control lock is off
+- Both send `Set-Cookie: control_lock=<token>; Path=/; SameSite=Lax`
+- `POST /api/v2/control-lock/disable` clears the password and invalidates every
   issued token — note this turns protection *off*, it is not "log out"
-- `POST /api/v2/admin-mode/logout` invalidates only the presenting token and
-  clears the cookie, leaving admin mode on. This is what a client leaving a
+- `POST /api/v2/control-lock/logout` invalidates only the presenting token and
+  clears the cookie, leaving the control lock on. This is what a client leaving a
   shared range laptop wants. It is itself unprotected, and answers `200`
   whether or not the token it was given was live: there is nothing to protect,
   since all it can do is invalidate a credential the caller already holds
@@ -233,7 +233,7 @@ while admin mode is on, except the three that have to work without a session —
 
 Tokens are 16 bytes from `esp_fill_random()`, hex-encoded.
 
-**CORS allows credentials, against an allowlist.** The webapp sends the admin
+**CORS allows credentials, against an allowlist.** The webapp sends the control lock
 cookie and bearer token with every call, and a browser refuses
 `Access-Control-Allow-Origin: *` on a credentialed request — so the origin is
 echoed rather than wildcarded. It is echoed only if it matches the device's own
@@ -264,7 +264,7 @@ incident is diagnosable without a USB cable:
   "programCount": 7, "audioCount": 77,
   "ipAddress": "192.168.1.42",
   "targetGpio": 5, "targetGpioLevel": 1,
-  "adminModeEnabled": false,
+  "controlLockEnabled": false,
   "startupIssues": [                // empty on a clean boot
     {
       "code": "program_invalid",
@@ -327,7 +327,7 @@ that window shut, so `403 /problems/hardware_config_window_closed` is also the
 answer while a program is running. That 403 is the only refusal; there is no
 `401`.
 
-**Not behind `require_admin`, unlike every other guarded route.** Admin mode is
+**Not behind `require_control_lock`, unlike every other guarded route.** The control lock is
 write protection — one operator running a competition without others
 interfering — and it is off by default, so requiring it would add nothing in
 the state where the dump is exposed while blocking a fault report during the

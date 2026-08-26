@@ -32,7 +32,7 @@ const char *TAG = "main";
 void init_nvs() {
   esp_err_t err = nvs_flash_init();
   if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-    // Only WiFi's own calibration data lives here - admin mode is deliberately
+    // Only WiFi's own calibration data lives here - the control lock is deliberately
     // RAM-only - so erasing costs nothing but a slower first association.
     ESP_ERROR_CHECK(nvs_flash_erase());
     err = nvs_flash_init();

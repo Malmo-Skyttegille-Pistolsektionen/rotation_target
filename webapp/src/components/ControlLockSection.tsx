@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import { useSettings } from '../context/SettingsContext';
-import { useAdminStatus } from '../hooks/useAdminStatus';
-import styles from './AdminModeSection.module.css';
+import { useControlLockStatus } from '../hooks/useControlLockStatus';
+import styles from './ControlLockSection.module.css';
 
 function getActionErrorMessage(error: unknown, fallbackMessage: string): string {
   if (error instanceof Error && error.message) {
@@ -12,10 +12,10 @@ function getActionErrorMessage(error: unknown, fallbackMessage: string): string 
   return fallbackMessage;
 }
 
-export function AdminModeSection(): React.ReactNode {
-  const { adminToken } = useSettings();
+export function ControlLockSection(): React.ReactNode {
+  const { controlLockToken } = useSettings();
   const {
-    adminModeEnabled,
+    controlLockEnabled,
     isLoading,
     enable,
     login,
@@ -24,12 +24,12 @@ export function AdminModeSection(): React.ReactNode {
     isEnablePending,
     isLoginPending,
     isDisablePending,
-  } = useAdminStatus();
+  } = useControlLockStatus();
   const [password, setPassword] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
 
   const isPending = isEnablePending || isLoginPending || isDisablePending;
-  const isAuthenticated = adminModeEnabled && adminToken !== null;
+  const isAuthenticated = controlLockEnabled && controlLockToken !== null;
 
   const handleEnable = async (): Promise<void> => {
     if (!password.trim()) {
@@ -41,7 +41,7 @@ export function AdminModeSection(): React.ReactNode {
       await enable(password);
       setPassword('');
     } catch (error) {
-      setActionError(getActionErrorMessage(error, 'Failed to enable admin mode.'));
+      setActionError(getActionErrorMessage(error, 'Could not turn the control lock on.'));
     }
   };
 
@@ -55,7 +55,7 @@ export function AdminModeSection(): React.ReactNode {
       await login(password);
       setPassword('');
     } catch (error) {
-      setActionError(getActionErrorMessage(error, 'Failed to log in as admin.'));
+      setActionError(getActionErrorMessage(error, 'Could not log in.'));
     }
   };
 
@@ -65,7 +65,7 @@ export function AdminModeSection(): React.ReactNode {
     try {
       await disable();
     } catch (error) {
-      setActionError(getActionErrorMessage(error, 'Failed to disable admin mode.'));
+      setActionError(getActionErrorMessage(error, 'Could not turn the control lock off.'));
     }
   };
 
@@ -77,23 +77,23 @@ export function AdminModeSection(): React.ReactNode {
   if (isLoading) {
     return (
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Admin Mode</h2>
-        <div className={styles.loadingText}>Loading admin status...</div>
+        <h2 className={styles.sectionTitle}>Control lock</h2>
+        <div className={styles.loadingText}>Asking the device…</div>
       </section>
     );
   }
 
-  // State A: Admin Mode OFF
-  if (!adminModeEnabled) {
+  // State A: the lock is off, and anybody may drive.
+  if (!controlLockEnabled) {
     return (
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Admin Mode</h2>
-        <div className={styles.adminForm}>
+        <h2 className={styles.sectionTitle}>Control lock</h2>
+        <div className={styles.form}>
           <div className={styles.statusRow}>
-            <span className={clsx(styles.statusBadge, styles.statusOff)} data-testid='admin-status'>
+            <span className={clsx(styles.statusBadge, styles.statusOff)} data-testid='control-lock-status'>
               OFF
             </span>
-            <span className={styles.statusDescription}>Full public access - anyone can control</span>
+            <span className={styles.statusDescription}>Full public access — anyone on the network can operate this device</span>
           </div>
           <div className={styles.inputRow}>
             <input
@@ -101,15 +101,15 @@ export function AdminModeSection(): React.ReactNode {
               className={styles.input}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder='Enter admin password to enable'
-              data-testid='admin-password'
+              placeholder='Choose a password'
+              data-testid='control-lock-password'
             />
             <button
               className={clsx(styles.button, styles.buttonPrimary)}
               onClick={handleEnable}
               disabled={!password.trim() || isPending}
             >
-              {isPending ? 'Enabling...' : 'Enable Admin Mode'}
+              {isPending ? 'Locking…' : 'Turn the lock on'}
             </button>
           </div>
           {actionError && <div className={styles.errorMessage}>{actionError}</div>}
@@ -118,17 +118,17 @@ export function AdminModeSection(): React.ReactNode {
     );
   }
 
-  // State B: Admin Mode ON, Not Authenticated
+  // State B: the lock is on and this browser is not holding it.
   if (!isAuthenticated) {
     return (
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Admin Mode</h2>
-        <div className={styles.adminForm}>
+        <h2 className={styles.sectionTitle}>Control lock</h2>
+        <div className={styles.form}>
           <div className={styles.statusRow}>
-            <span className={clsx(styles.statusBadge, styles.statusLocked)} data-testid='admin-status'>
+            <span className={clsx(styles.statusBadge, styles.statusLocked)} data-testid='control-lock-status'>
               ON 🔒
             </span>
-            <span className={styles.statusDescription}>View only - login required to control</span>
+            <span className={styles.statusDescription}>View only — log in to start or change anything</span>
           </div>
           <div className={styles.inputRow}>
             <input
@@ -136,45 +136,48 @@ export function AdminModeSection(): React.ReactNode {
               className={styles.input}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder='Enter admin password'
-              data-testid='admin-password'
+              placeholder='Password'
+              data-testid='control-lock-password'
             />
             <button
               className={clsx(styles.button, styles.buttonPrimary)}
               onClick={handleLogin}
               disabled={!password.trim() || isPending}
             >
-              {isLoginPending ? 'Logging in...' : 'Login as Admin'}
+              {isLoginPending ? 'Logging in…' : 'Log in'}
             </button>
           </div>
-          <div className={styles.infoText}>Login to control the app or disable admin mode.</div>
+          <div className={styles.infoText}>
+            Whoever turned the lock on chose this password. Logging in lets you operate the device; turning the
+            lock off returns it to full public access for everyone.
+          </div>
           {actionError && <div className={styles.errorMessage}>{actionError}</div>}
         </div>
       </section>
     );
   }
 
-  // State C: Admin Mode ON, Authenticated
+  // State C: the lock is on and this browser is holding it.
   return (
     <section className={styles.section}>
-      <h2 className={styles.sectionTitle}>Admin Mode</h2>
-      <div className={styles.adminForm}>
+      <h2 className={styles.sectionTitle}>Control lock</h2>
+      <div className={styles.form}>
         <div className={styles.statusRow}>
-          <span className={clsx(styles.statusBadge, styles.statusActive)} data-testid='admin-status'>
+          <span className={clsx(styles.statusBadge, styles.statusActive)} data-testid='control-lock-status'>
             ON ✓
           </span>
-          <span className={styles.statusDescription}>You have full admin access</span>
+          <span className={styles.statusDescription}>You are holding the lock — nobody else can start or change anything</span>
         </div>
         <div className={styles.buttonRow}>
           <button className={clsx(styles.button, styles.buttonSecondary)} onClick={handleLogout} disabled={isPending}>
-            Logout
+            Log out
           </button>
           <button
             className={clsx(styles.button, styles.buttonDestructive)}
             onClick={handleDisable}
             disabled={isPending}
           >
-            {isPending ? 'Disabling...' : 'Disable Admin Mode'}
+            {isPending ? 'Unlocking…' : 'Turn the lock off'}
           </button>
         </div>
         {actionError && <div className={styles.errorMessage}>{actionError}</div>}

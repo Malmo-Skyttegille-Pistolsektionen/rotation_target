@@ -31,10 +31,10 @@ export function issueLines(issues: DocumentIssue[]): string[] {
  * contract asks a client to do.
  */
 export function failureNotice(err: unknown, prefix: string): Notice {
-  if (problemType(err) === '/problems/admin_credentials_required') {
+  if (problemType(err) === '/problems/control_lock_credentials_required') {
     return {
       kind: 'error',
-      message: `${prefix} Admin mode is on and this browser is not signed in — sign in under Settings.`,
+      message: `${prefix} The controls are locked and this browser is not signed in \u2014 sign in under Settings.`,
     };
   }
   return { kind: 'error', message: `${prefix} ${err instanceof Error ? err.message : String(err)}` };

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Same-origin with the mock, as the app runs for real — the firmware serves
-// the bundle. See the note in useAdminStatus.test.tsx.
+// the bundle. See the note in useControlLockStatus.test.tsx.
 // @vitest-environment-options { "url": "http://127.0.0.1:18084" }
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -19,9 +19,9 @@ import { openSSE, type SSEReader } from './mock-server/sse-reader';
 import { requestElsewhere } from './other-client';
 
 // Distinct per suite: vitest runs files in parallel, so a shared port is an
-// EADDRINUSE flake (18080 useAdminStatus, 18081 audios, 18082 programs).
+// EADDRINUSE flake (18080 useControlLockStatus, 18081 audios, 18082 programs).
 // Distinct per suite - vitest runs files in parallel, so a shared port is an
-// EADDRINUSE flake (18080 useAdminStatus, 18081 audios, 18082 programs,
+// EADDRINUSE flake (18080 useControlLockStatus, 18081 audios, 18082 programs,
 // 18083 program-editor, 18084 here). Pick the next free number for a new suite.
 const PORT = 18084;
 
@@ -166,7 +166,7 @@ beforeEach(async () => {
   server.reset();
   localStorage.clear();
   localStorage.setItem('rt_settings_start_delay_seconds', String(START_DELAY_SECONDS));
-  document.cookie = 'admin=; Path=/; Max-Age=0';
+  document.cookie = 'control_lock=; Path=/; Max-Age=0';
   updateBaseUrl(window.location.origin);
   vi.stubGlobal('EventSource', FakeEventSource);
   vi.spyOn(console, 'log').mockImplementation(() => {});

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Same-origin with the mock, as the app runs for real - the firmware serves
-// the bundle. See the note in useAdminStatus.test.tsx.
+// the bundle. See the note in useControlLockStatus.test.tsx.
 // @vitest-environment-options { "url": "http://127.0.0.1:18083" }
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
@@ -120,7 +120,7 @@ afterAll(async () => {
 beforeEach(() => {
   server.reset();
   localStorage.clear();
-  document.cookie = 'admin=; Path=/; Max-Age=0';
+  document.cookie = 'control_lock=; Path=/; Max-Age=0';
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 });
 

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Same-origin with the mock, as the app runs for real — the firmware serves
-// the bundle. See the note in useAdminStatus.test.tsx.
+// the bundle. See the note in useControlLockStatus.test.tsx.
 // @vitest-environment-options { "url": "http://127.0.0.1:18099" }
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -11,7 +11,7 @@ import { SettingsProvider } from '../src/context/SettingsContext';
 import { WifiConfigSection } from '../src/components/WifiConfigSection';
 import { createFakeClock } from './mock-server/clock';
 import { createMockServer, type MockServer } from './mock-server/server';
-import { enableAdminElsewhere, requestElsewhere } from './other-client';
+import { enableControlLockElsewhere, requestElsewhere } from './other-client';
 
 // Distinct per suite - vitest runs files in parallel, so a shared port is an
 // EADDRINUSE flake. Pick the next free number for a new suite.
@@ -188,9 +188,9 @@ describe('changing the network from Expert mode', () => {
 
   // Unlike the troubleshooting bundle, this *is* a write - so the lock that
   // exists to stop one person interfering with another applies to it.
-  it('is locked out while admin mode is on and this browser holds no token', async () => {
+  it('is locked out while the control lock is on and this browser holds no token', async () => {
     await device();
-    await enableAdminElsewhere(PORT, 'competition-2026');
+    await enableControlLockElsewhere(PORT, 'competition-2026');
     renderSection();
 
     expect(await screen.findByTestId('wifi-config-locked')).toBeTruthy();

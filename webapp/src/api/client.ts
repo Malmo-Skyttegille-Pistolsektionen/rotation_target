@@ -151,13 +151,13 @@ function filenameFrom(disposition: string | null): string | null {
 async function send(
   endpoint: string,
   options?: RequestInit,
-  adminToken?: string | null,
+  controlLockToken?: string | null,
   onAuthError?: () => void,
 ): Promise<Response> {
   const headers: Record<string, string> = {};
 
-  if (adminToken) {
-    headers['Authorization'] = `Bearer ${adminToken}`;
+  if (controlLockToken) {
+    headers['Authorization'] = `Bearer ${controlLockToken}`;
   }
 
   if (options?.body && typeof options.body === 'string') {
@@ -175,7 +175,7 @@ async function send(
 
   if (!response.ok) {
     // If 401 and we have a token, the token is invalid (password changed)
-    if (response.status === 401 && adminToken && onAuthError) {
+    if (response.status === 401 && controlLockToken && onAuthError) {
       onAuthError();
     }
 
@@ -189,10 +189,10 @@ async function send(
 async function request<T>(
   endpoint: string,
   options?: RequestInit,
-  adminToken?: string | null,
+  controlLockToken?: string | null,
   onAuthError?: () => void,
 ): Promise<T> {
-  const response = await send(endpoint, options, adminToken, onAuthError);
+  const response = await send(endpoint, options, controlLockToken, onAuthError);
   const text = await response.text();
   return text ? JSON.parse(text) : ({} as T);
 }
@@ -200,10 +200,10 @@ async function request<T>(
 async function requestFile(
   endpoint: string,
   options?: RequestInit,
-  adminToken?: string | null,
+  controlLockToken?: string | null,
   onAuthError?: () => void,
 ): Promise<DownloadedFile> {
-  const response = await send(endpoint, options, adminToken, onAuthError);
+  const response = await send(endpoint, options, controlLockToken, onAuthError);
   return {
     blob: await response.blob(),
     filename: filenameFrom(response.headers.get('Content-Disposition')),
@@ -216,23 +216,23 @@ export async function client<T>(endpoint: string, options?: RequestInit): Promis
 }
 
 // For use inside React components with proper auth error handling
-export function createAuthenticatedClient(adminToken: string | null, onAuthError: () => void) {
+export function createAuthenticatedClient(controlLockToken: string | null, onAuthError: () => void) {
   return {
     request: async <T>(endpoint: string, options?: RequestInit): Promise<T> => {
-      return request<T>(endpoint, options, adminToken, onAuthError);
+      return request<T>(endpoint, options, controlLockToken, onAuthError);
     },
     requestFile: async (endpoint: string, options?: RequestInit): Promise<DownloadedFile> => {
-      return requestFile(endpoint, options, adminToken, onAuthError);
+      return requestFile(endpoint, options, controlLockToken, onAuthError);
     },
   };
 }
 
 export function useClient() {
-  const { adminToken, logoutAdmin } = useSettings();
+  const { controlLockToken, logoutControlLock } = useSettings();
 
   return {
     request: async <T>(endpoint: string, options?: RequestInit): Promise<T> => {
-      return request<T>(endpoint, options, adminToken, logoutAdmin);
+      return request<T>(endpoint, options, controlLockToken, logoutControlLock);
     },
   };
 }

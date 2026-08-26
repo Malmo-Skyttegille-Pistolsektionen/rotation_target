@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Same-origin with the mock, as the app runs for real — the firmware serves
-// the bundle. See the note in useAdminStatus.test.tsx.
+// the bundle. See the note in useControlLockStatus.test.tsx.
 // @vitest-environment-options { "url": "http://127.0.0.1:18093" }
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -10,7 +10,7 @@ import { SettingsProvider } from '../src/context/SettingsContext';
 import { TroubleshootingSection } from '../src/components/TroubleshootingSection';
 import { createFakeClock } from './mock-server/clock';
 import { createMockServer, type MockServer } from './mock-server/server';
-import { enableAdminElsewhere } from './other-client';
+import { enableControlLockElsewhere } from './other-client';
 
 // Distinct per suite - vitest runs files in parallel, so a shared port is an
 // EADDRINUSE flake. Pick the next free number for a new suite.
@@ -81,7 +81,7 @@ afterEach(async () => {
 describe('the troubleshooting bundle on Expert mode', () => {
   // The gate, and the reason the section exists in this shape: the bundle can
   // carry a copy of the device's memory, so it is behind the three-press
-  // gesture rather than merely behind admin mode, which is off by default.
+  // gesture rather than merely behind the control lock, which is off by default.
   it('is not on the page at all while the configuration window is shut', async () => {
     await device({ configWindowOpen: false });
     renderSection();
@@ -150,13 +150,13 @@ describe('the troubleshooting bundle on Expert mode', () => {
     expect(saved[0].blob.size).toBeGreaterThan(0);
   });
 
-  it('is not blocked by admin mode, which locks writing and not reading', async () => {
-    // Admin mode turned on by somebody else, so this browser holds no token -
+  it('is not blocked by the control lock, which locks writing and not reading', async () => {
+    // The lock turned on by somebody else, so this browser holds no token -
     // a competition, locked down to one operator. Collecting a fault report
     // does not interfere with that, and the person most likely to want one is
     // whoever is not driving. The window is what guards the dump.
     await device();
-    await enableAdminElsewhere(PORT, 'competition-2026');
+    await enableControlLockElsewhere(PORT, 'competition-2026');
     renderSection();
 
     fireEvent.click(await screen.findByTestId('troubleshooting-download'));

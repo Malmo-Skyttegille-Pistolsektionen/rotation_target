@@ -61,8 +61,8 @@ export function fileRejectionReason(file: File): string | null {
 }
 
 export function useAudiosApi() {
-  const { adminToken, logoutAdmin } = useSettings();
-  const client = createAuthenticatedClient(adminToken, logoutAdmin);
+  const { controlLockToken, logoutControlLock } = useSettings();
+  const client = createAuthenticatedClient(controlLockToken, logoutControlLock);
 
   return {
     list: async (): Promise<AudioFile[]> => {

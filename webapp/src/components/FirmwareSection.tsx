@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useOtaApi } from '../api/ota';
 import { useSettings } from '../context/SettingsContext';
-import { useAdminStatus } from '../hooks/useAdminStatus';
+import { useControlLockStatus } from '../hooks/useControlLockStatus';
 import styles from './FirmwareSection.module.css';
 
 /**
@@ -17,11 +17,11 @@ import styles from './FirmwareSection.module.css';
  * extension, because sending 40 MB of the wrong file to find out is rude.
  */
 export function FirmwareSection(): React.ReactNode {
-  const { adminToken } = useSettings();
-  const { adminModeEnabled } = useAdminStatus();
+  const { controlLockToken } = useSettings();
+  const { controlLockEnabled } = useControlLockStatus();
   const otaApi = useOtaApi();
-  // Same rule as the Programs page: admin off means anyone may manage.
-  const canManage = !adminModeEnabled || adminToken !== null;
+  // Same rule as the Programs page: the lock off means anyone may manage.
+  const canManage = !controlLockEnabled || controlLockToken !== null;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<'idle' | 'uploading' | 'restarting'>('idle');
   const [notice, setNotice] = useState<string | null>(null);
@@ -77,7 +77,7 @@ export function FirmwareSection(): React.ReactNode {
         {state === 'uploading' ? 'Uploading…' : state === 'restarting' ? 'Restarting…' : 'Upload firmware…'}
       </button>
 
-      {!canManage && <p className={styles.muted}>Turn on admin mode to update the firmware.</p>}
+      {!canManage && <p className={styles.muted}>Log in to update the firmware.</p>}
 
       {notice !== null && (
         <p className={styles.notice} data-testid='firmware-notice' role='status'>

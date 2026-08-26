@@ -1,7 +1,7 @@
 /**
  * A request from *another* client — Node's http rather than the browser's
  * fetch, so the response's `Set-Cookie` never lands in the page's jar. The
- * mock accepts that cookie as proof of admin, which would otherwise
+ * mock accepts that cookie as proof of the lock, which would otherwise
  * authenticate the very requests a view-only test wants to see rejected.
  */
 import http from 'http';
@@ -46,8 +46,8 @@ export function requestElsewhere(
   });
 }
 
-/** Turns admin mode on as some other client would, and hands back its token. */
-export async function enableAdminElsewhere(port: number, password: string): Promise<string> {
-  const { body } = await requestElsewhere(port, 'POST', '/api/v2/admin-mode/enable', { password });
+/** Turns the control lock on as some other client would, and hands back its token. */
+export async function enableControlLockElsewhere(port: number, password: string): Promise<string> {
+  const { body } = await requestElsewhere(port, 'POST', '/api/v2/control-lock/enable', { password });
   return (JSON.parse(body) as { token: string }).token;
 }

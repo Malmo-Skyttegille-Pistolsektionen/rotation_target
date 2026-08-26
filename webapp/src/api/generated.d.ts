@@ -91,7 +91,7 @@ export interface paths {
          *     running program holds that window shut, so a bundle cannot be pulled
          *     out from under a sequence that is driving targets.
          *
-         *     **Admin mode is not part of this, deliberately.** It is write
+         *     **The control lock is not part of this, deliberately.** It is write
          *     protection — one operator running a competition without others
          *     interfering — and it is off by default. Requiring it would add nothing
          *     in the state where the dump is actually exposed, and in the state where
@@ -116,15 +116,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin-mode/status": {
+    "/control-lock/status": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Whether admin mode is on */
-        get: operations["getAdminModeStatus"];
+        /** Whether the control lock is on */
+        get: operations["getControlLockStatus"];
         put?: never;
         post?: never;
         delete?: never;
@@ -133,7 +133,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin-mode/enable": {
+    "/control-lock/enable": {
         parameters: {
             query?: never;
             header?: never;
@@ -143,19 +143,19 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Turn admin mode on and open a session
+         * Turn the control lock on and open a session
          * @description Sets the password — any non-empty string, chosen by this call — and
-         *     returns the first session token. Refused while admin mode is already
+         *     returns the first session token. Refused while the lock is already
          *     on: log in or disable it first.
          */
-        post: operations["enableAdminMode"];
+        post: operations["enableControlLockMode"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/admin-mode/login": {
+    "/control-lock/login": {
         parameters: {
             query?: never;
             header?: never;
@@ -165,14 +165,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Open another session with the active password */
-        post: operations["loginAdminMode"];
+        post: operations["loginControlLockMode"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/admin-mode/logout": {
+    "/control-lock/logout": {
         parameters: {
             query?: never;
             header?: never;
@@ -183,23 +183,23 @@ export interface paths {
         put?: never;
         /**
          * Invalidate the presenting session
-         * @description Ends this session only, leaving admin mode on — which is what a client
+         * @description Ends this session only, leaving the lock on — which is what a client
          *     walking away from a shared range laptop wants, and the opposite of
          *     `disable`.
          *
          *     The token is taken from the `Authorization` header, falling back to
-         *     the `admin` cookie. **This endpoint is not itself protected**: it
+         *     the `control_lock` cookie. **This endpoint is not itself protected**: it
          *     always answers `200` and always clears the cookie, whether or not the
          *     presented token was a live session (or was presented at all).
          */
-        post: operations["logoutAdminMode"];
+        post: operations["logoutControlLockMode"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/admin-mode/disable": {
+    "/control-lock/disable": {
         parameters: {
             query?: never;
             header?: never;
@@ -209,12 +209,12 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Turn admin mode off
+         * Turn the control lock off
          * @description Clears the password and invalidates every issued token. Note this
          *     turns protection *off* — every endpoint becomes writable by anyone on
-         *     the network again. It is not "log out"; see `/admin-mode/logout`.
+         *     the network again. It is not "log out"; see `/control-lock/logout`.
          */
-        post: operations["disableAdminMode"];
+        post: operations["disableControlLockMode"];
         delete?: never;
         options?: never;
         head?: never;
@@ -674,7 +674,7 @@ export interface paths {
          *
          *     ## Why both guards
          *
-         *     Admin mode, because this is a write, and one operator running a
+         *     The control lock, because this is a write, and one operator running a
          *     competition should not have another move the device off the network
          *     mid-run.
          *
@@ -749,7 +749,7 @@ export interface paths {
          *     firmware is never overwritten. Once it has landed the device compares
          *     the image's `project_name` against its own and refuses anything that
          *     is not this project — secure boot is off, so that check is the only
-         *     thing between an admin session and arbitrary firmware. A refused image
+         *     thing between a held lock and arbitrary firmware. A refused image
          *     is aborted rather than finalised, so it is never the boot partition
          *     even for an instant.
          *
@@ -1181,7 +1181,7 @@ export interface components {
              *     `program_invalid` `backend_issue` code in `asyncapi.yaml`.
              * @enum {string}
              */
-            type: "/problems/admin_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/admin_mode_already_enabled" | "/problems/admin_mode_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/wifi_unavailable" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/ota_image_refused" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/hardware_config_invalid" | "/problems/hardware_config_serial_only" | "/problems/hardware_config_window_closed" | "/problems/wifi_credentials_invalid" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed" | "/problems/wifi_store_failed";
+            type: "/problems/control_lock_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/control_lock_already_enabled" | "/problems/control_lock_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/wifi_unavailable" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/ota_image_refused" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/hardware_config_invalid" | "/problems/hardware_config_serial_only" | "/problems/hardware_config_window_closed" | "/problems/wifi_credentials_invalid" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed" | "/problems/wifi_store_failed";
             /**
              * @description A short summary of the type, identical for every occurrence of it. Not for display — it does not describe this occurrence.
              * @example Program is read-only
@@ -1378,7 +1378,7 @@ export interface components {
             targetGpio: number;
             /** @description The level actually on the pad, read back rather than remembered — the pair with `targetGpio` distinguishes "the firmware never drove it" from "something else is holding it". */
             targetGpioLevel: number;
-            adminModeEnabled: boolean;
+            controlLockEnabled: boolean;
             /**
              * @description The `backend_issue` events raised during boot, before the HTTP
              *     server was listening — today that is `program_invalid` from the
@@ -1434,7 +1434,8 @@ export interface components {
     };
     responses: {
         /**
-         * @description - `/problems/admin_credentials_required` — admin mode is on and no
+         * @description - `/problems/control_lock_credentials_required` — the control lock is on
+         *       and no
          *       valid token was presented.
          */
         Unauthorized: {
@@ -1446,9 +1447,9 @@ export interface components {
             };
         };
         /** @description A session token, also set as a cookie. */
-        AdminSession: {
+        ControlLockSession: {
             headers: {
-                /** @description `admin=<token>; Path=/; SameSite=Lax` */
+                /** @description `control_lock=<token>; Path=/; SameSite=Lax` */
                 "Set-Cookie"?: string;
                 [name: string]: unknown;
             };
@@ -1540,7 +1541,7 @@ export interface operations {
              *     whichever endpoint it is guarding.
              *
              *     The only refusal this operation has. There is no `401`: nothing
-             *     here is gated on admin mode.
+             *     here is gated on the control lock.
              */
             403: {
                 headers: {
@@ -1552,7 +1553,7 @@ export interface operations {
             };
         };
     };
-    getAdminModeStatus: {
+    getControlLockStatus: {
         parameters: {
             query?: never;
             header?: never;
@@ -1574,7 +1575,7 @@ export interface operations {
             };
         };
     };
-    enableAdminMode: {
+    enableControlLockMode: {
         parameters: {
             query?: never;
             header?: never;
@@ -1587,7 +1588,7 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["AdminSession"];
+            200: components["responses"]["ControlLockSession"];
             /**
              * @description - `/problems/invalid_password` — the password was empty, or the
              *       body carried none.
@@ -1601,7 +1602,7 @@ export interface operations {
                 };
             };
             /**
-             * @description - `/problems/admin_mode_already_enabled` — log in or disable it
+             * @description - `/problems/control_lock_already_enabled` — log in or disable it
              *       first.
              */
             409: {
@@ -1614,7 +1615,7 @@ export interface operations {
             };
         };
     };
-    loginAdminMode: {
+    loginControlLockMode: {
         parameters: {
             query?: never;
             header?: never;
@@ -1627,7 +1628,7 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["AdminSession"];
+            200: components["responses"]["ControlLockSession"];
             /** @description - `/problems/invalid_password` — wrong password. */
             401: {
                 headers: {
@@ -1638,7 +1639,7 @@ export interface operations {
                 };
             };
             /**
-             * @description - `/problems/admin_mode_not_enabled` — there is nothing to log in
+             * @description - `/problems/control_lock_not_enabled` — there is nothing to log in
              *       to.
              */
             409: {
@@ -1651,7 +1652,7 @@ export interface operations {
             };
         };
     };
-    logoutAdminMode: {
+    logoutControlLockMode: {
         parameters: {
             query?: never;
             header?: never;
@@ -1660,10 +1661,10 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Logged out. `Set-Cookie: admin=; Path=/; SameSite=Lax; Max-Age=0` clears the cookie. */
+            /** @description Logged out. `Set-Cookie: control_lock=; Path=/; SameSite=Lax; Max-Age=0` clears the cookie. */
             200: {
                 headers: {
-                    /** @description Clears the `admin` cookie. */
+                    /** @description Clears the `control_lock` cookie. */
                     "Set-Cookie"?: string;
                     [name: string]: unknown;
                 };
@@ -1673,7 +1674,7 @@ export interface operations {
             };
         };
     };
-    disableAdminMode: {
+    disableControlLockMode: {
         parameters: {
             query?: never;
             header?: never;
@@ -1682,7 +1683,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Admin mode disabled. */
+            /** @description The control lock is off. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2304,7 +2305,7 @@ export interface operations {
              *     the three-press sequence recently, so the configuration window is
              *     shut.
              *
-             *     Separate from 401, which is about admin credentials: this is not a
+             *     Separate from 401, which is about the control lock: this is not a
              *     question of who you are but of whether somebody is standing at the
              *     device. Both apply, and both must pass.
              */
@@ -2548,7 +2549,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description Admin mode is on and the request carried no valid session. */
+            /** @description The control lock is on and the request carried no valid session. */
             401: {
                 headers: {
                     [name: string]: unknown;

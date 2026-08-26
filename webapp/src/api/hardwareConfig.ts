@@ -19,8 +19,8 @@ import { createAuthenticatedClient } from './client';
 export type { HardwareConfigPatch };
 
 export function useHardwareConfigApi() {
-  const { adminToken, logoutAdmin } = useSettings();
-  const client = createAuthenticatedClient(adminToken, logoutAdmin);
+  const { controlLockToken, logoutControlLock } = useSettings();
+  const client = createAuthenticatedClient(controlLockToken, logoutControlLock);
 
   return {
     get: (): Promise<HardwareConfigState> => client.request<HardwareConfigState>('/config/hardware'),

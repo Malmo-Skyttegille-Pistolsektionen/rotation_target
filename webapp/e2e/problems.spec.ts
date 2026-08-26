@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { ADMIN_PASSWORD, expectProblem, resetDevice } from './device';
+import { CONTROL_LOCK_PASSWORD, expectProblem, resetDevice } from './device';
 
 /**
  * One refusal per group, proven against the real firmware (D-19).
@@ -46,7 +46,7 @@ test('not found: an unmatched API route and a missing program', async ({ request
 });
 
 test('conflict/state: starting with nothing loaded', async ({ request }) => {
-  // resetDevice leaves nothing loaded, and leaves admin mode off - so this is
+  // resetDevice leaves nothing loaded, and leaves the control lock off - so this is
   // the device's own refusal, not an auth one.
   // The body is required since D-27, and its check runs first - so reaching the
   // nothing-loaded refusal means naming a program the device does not hold.
@@ -99,18 +99,18 @@ test('upload: a POST with no file part', async ({ request }) => {
 });
 
 test('auth: a protected call with no credentials, and a wrong password', async ({ playwright, request }, testInfo) => {
-  // The only group that needs admin mode on: while it is off every endpoint is
+  // The only group that needs the lock on: while it is off every endpoint is
   // open, so there is no 401 to provoke. Turned off again at the end, which is
   // the state every other spec's beforeAll expects to find.
-  const enable = await request.post(`${API}/admin-mode/enable`, { data: { password: ADMIN_PASSWORD } });
+  const enable = await request.post(`${API}/control-lock/enable`, { data: { password: CONTROL_LOCK_PASSWORD } });
   const session =
     enable.status() === 409
-      ? await request.post(`${API}/admin-mode/login`, { data: { password: ADMIN_PASSWORD } })
+      ? await request.post(`${API}/control-lock/login`, { data: { password: CONTROL_LOCK_PASSWORD } })
       : enable;
   const { token } = (await session.json()) as { token: string };
   const auth = { headers: { Authorization: `Bearer ${token}` } };
 
-  // A context of its own, because `enable` above set the `admin` cookie on the
+  // A context of its own, because `enable` above set the `control_lock` cookie on the
   // shared one and the device accepts that cookie as a credential. Calling
   // from the shared context would be authenticated, and would have answered
   // `400 no_program_loaded` — a green test proving nothing.
@@ -120,37 +120,37 @@ test('auth: a protected call with no credentials, and a wrong password', async (
 
   try {
     await expectProblem(await anonymous.post(`${API}/programs/start`), {
-      type: '/problems/admin_credentials_required',
-      title: 'Admin credentials required',
+      type: '/problems/control_lock_credentials_required',
+      title: 'Control lock credentials required',
       status: 401,
-      detail: 'Invalid or missing admin credentials',
+      detail: 'The controls are locked - log in to start or change anything',
     });
 
-    await expectProblem(await request.post(`${API}/admin-mode/login`, { data: { password: 'wrong' } }), {
+    await expectProblem(await request.post(`${API}/control-lock/login`, { data: { password: 'wrong' } }), {
       type: '/problems/invalid_password',
       title: 'Invalid password',
       status: 401,
       detail: 'Invalid password',
     });
 
-    await expectProblem(await request.post(`${API}/admin-mode/enable`, { data: { password: ADMIN_PASSWORD } }), {
-      type: '/problems/admin_mode_already_enabled',
-      title: 'Admin mode already enabled',
+    await expectProblem(await request.post(`${API}/control-lock/enable`, { data: { password: CONTROL_LOCK_PASSWORD } }), {
+      type: '/problems/control_lock_already_enabled',
+      title: 'Control lock already on',
       status: 409,
-      detail: 'Admin mode is already enabled. Log in or disable it before enabling again.',
+      detail: 'The control lock is already on. Log in, or turn it off before turning it on again.',
     });
   } finally {
     await anonymous.dispose();
-    const disable = await request.post(`${API}/admin-mode/disable`, auth);
-    // Loud, because every spec after this one starts by expecting admin mode
+    const disable = await request.post(`${API}/control-lock/disable`, auth);
+    // Loud, because every spec after this one starts by expecting the lock
     // off: a silent failure here fails them instead of this test.
-    expect(disable.ok(), `could not disable admin mode: ${disable.status()}`).toBeTruthy();
+    expect(disable.ok(), `could not turn the control lock off: ${disable.status()}`).toBeTruthy();
   }
 
-  await expectProblem(await request.post(`${API}/admin-mode/login`, { data: { password: ADMIN_PASSWORD } }), {
-    type: '/problems/admin_mode_not_enabled',
-    title: 'Admin mode not enabled',
+  await expectProblem(await request.post(`${API}/control-lock/login`, { data: { password: CONTROL_LOCK_PASSWORD } }), {
+    type: '/problems/control_lock_not_enabled',
+    title: 'Control lock not on',
     status: 409,
-    detail: 'Admin mode is not enabled. Enable it before logging in.',
+    detail: 'The control lock is not on. Turn it on before logging in.',
   });
 });

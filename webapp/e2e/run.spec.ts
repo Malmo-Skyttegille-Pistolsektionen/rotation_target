@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { ADMIN_PASSWORD, enableAdminViaUi, expectProblem, openApp, resetDevice, TEST_PROGRAM } from './device';
+import { CONTROL_LOCK_PASSWORD, enableControlLockViaUi, expectProblem, openApp, resetDevice, TEST_PROGRAM } from './device';
 
 test.beforeEach(async ({ request }) => {
   await resetDevice(request);
@@ -30,7 +30,7 @@ async function readTicker(page: Page): Promise<number | null> {
 
 test('load, start, watch the timeline advance off real SSE, stop', async ({ page }, testInfo) => {
   await openApp(page);
-  await enableAdminViaUi(page);
+  await enableControlLockViaUi(page);
   await page.getByRole('link', { name: 'Run' }).click();
 
   // --- load ------------------------------------------------------------
@@ -144,7 +144,7 @@ test('a program switch during the start delay cancels the start', async ({ page,
   }, START_DELAY_SECONDS);
 
   await openApp(page);
-  await enableAdminViaUi(page);
+  await enableControlLockViaUi(page);
   await page.getByRole('link', { name: 'Run' }).click();
 
   await page.getByTestId('run-program-select').selectOption(String(TEST_PROGRAM.id));
@@ -153,7 +153,7 @@ test('a program switch during the start delay cancels the start', async ({ page,
   // Another client on the range - a second tab, somebody's phone. Its session
   // is opened before the countdown starts, so only the load itself has to fit
   // inside the delay.
-  const session = await request.post('/api/v2/admin-mode/login', { data: { password: ADMIN_PASSWORD } });
+  const session = await request.post('/api/v2/control-lock/login', { data: { password: CONTROL_LOCK_PASSWORD } });
   expect(session.ok(), `could not log in as a second client: ${session.status()}`).toBeTruthy();
   const { token } = (await session.json()) as { token: string };
 
@@ -199,13 +199,13 @@ test('the device refuses a start for a program it no longer holds', async ({ pag
   }, START_DELAY_SECONDS);
 
   await openApp(page);
-  await enableAdminViaUi(page);
+  await enableControlLockViaUi(page);
   await page.getByRole('link', { name: 'Run' }).click();
 
   await page.getByTestId('run-program-select').selectOption(String(TEST_PROGRAM.id));
   await expect(page.getByTestId('run-program-id')).toHaveText(String(TEST_PROGRAM.id));
 
-  const session = await request.post('/api/v2/admin-mode/login', { data: { password: ADMIN_PASSWORD } });
+  const session = await request.post('/api/v2/control-lock/login', { data: { password: CONTROL_LOCK_PASSWORD } });
   expect(session.ok(), `could not log in as a second client: ${session.status()}`).toBeTruthy();
   const { token } = (await session.json()) as { token: string };
   const auth = { headers: { Authorization: `Bearer ${token}` } };
@@ -254,7 +254,7 @@ test('the device refuses a start for a program it no longer holds', async ({ pag
  */
 test('the start delay is set beside Start, and 0 starts without a countdown', async ({ page }) => {
   await openApp(page);
-  await enableAdminViaUi(page);
+  await enableControlLockViaUi(page);
   await page.getByRole('link', { name: 'Run' }).click();
 
   await page.getByTestId('run-program-select').selectOption(String(TEST_PROGRAM.id));
@@ -287,7 +287,7 @@ test('the start delay is set beside Start, and 0 starts without a countdown', as
  */
 test('unload clears the loaded program, and is refused while a series runs', async ({ page }) => {
   await openApp(page);
-  await enableAdminViaUi(page);
+  await enableControlLockViaUi(page);
   await page.getByRole('link', { name: 'Run' }).click();
 
   await expect(page.getByTestId('run-unload')).toBeDisabled();

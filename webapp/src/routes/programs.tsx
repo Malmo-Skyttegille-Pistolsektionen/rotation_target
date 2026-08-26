@@ -10,7 +10,7 @@ import { ProgramDetails } from '../components/ProgramDetails';
 import { ProgramEditor, type EditorTarget } from '../components/ProgramEditor';
 import { downloadJson, programFilename } from '../lib/download';
 import { useSettings } from '../context/SettingsContext';
-import { useAdminStatus } from '../hooks/useAdminStatus';
+import { useControlLockStatus } from '../hooks/useControlLockStatus';
 import { type DocumentIssue, parseProgramDocument } from '../lib/program-document';
 import {
   failureNotice,
@@ -39,8 +39,8 @@ interface PendingUpload {
 export function ProgramsView(): React.ReactNode {
   const queryClient = useQueryClient();
   const programsApi = useProgramsApi();
-  const { adminModeEnabled } = useAdminStatus();
-  const { adminToken } = useSettings();
+  const { controlLockEnabled } = useControlLockStatus();
+  const { controlLockToken } = useSettings();
 
   const [notice, setNotice] = useState<Notice | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -58,9 +58,9 @@ export function ProgramsView(): React.ReactNode {
   // this, so a state update would not be visible to the change handler.
   const uploadTargetRef = useRef<UploadTarget>({ kind: 'create' });
 
-  // Same gate the run view uses: writes are open while admin mode is off, and
+  // Same gate the run view uses: writes are open while the lock is off, and
   // need this browser's token once it is on.
-  const canManage = !adminModeEnabled || adminToken !== null;
+  const canManage = !controlLockEnabled || controlLockToken !== null;
 
   const {
     data: programs,
@@ -263,7 +263,7 @@ export function ProgramsView(): React.ReactNode {
         ) : (
           <div className={styles.viewOnlyBadge} data-testid='programs-view-only'>
             <span aria-hidden='true'>👁</span>
-            <span>View Only — log in as admin to manage programs</span>
+            <span>View only — log in to manage programs</span>
           </div>
         )}
       </header>

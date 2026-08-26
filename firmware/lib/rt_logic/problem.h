@@ -40,15 +40,16 @@ struct ProblemType {
 // SSE, so it says so with the same word. test_problem asserts they stay equal.
 #define RT_PROBLEM_TYPES(X)                                                                     \
   /* auth */                                                                                    \
-  X(kAdminCredentialsRequired, "admin_credentials_required", "Admin credentials required", 401) \
+  X(kControlLockCredentialsRequired, "control_lock_credentials_required",                       \
+    "Control lock credentials required", 401)                                                   \
   X(kInvalidPassword, "invalid_password", "Invalid password", 401)                              \
   /* not found */                                                                               \
   X(kRouteNotFound, "route_not_found", "Route not found", 404)                                  \
   X(kProgramNotFound, "program_not_found", "Program not found", 404)                            \
   X(kAudioNotFound, "audio_not_found", "Audio not found", 404)                                  \
   /* conflict / state */                                                                        \
-  X(kAdminModeAlreadyEnabled, "admin_mode_already_enabled", "Admin mode already enabled", 409)  \
-  X(kAdminModeNotEnabled, "admin_mode_not_enabled", "Admin mode not enabled", 409)              \
+  X(kControlLockAlreadyEnabled, "control_lock_already_enabled", "Control lock already on", 409) \
+  X(kControlLockNotEnabled, "control_lock_not_enabled", "Control lock not on", 409)             \
   X(kNoProgramLoaded, "no_program_loaded", "No program loaded", 400)                            \
   X(kProgramNotRunning, "program_not_running", "Program not running", 400)                      \
   X(kProgramRunning, "program_running", "A program is running", 409)                            \

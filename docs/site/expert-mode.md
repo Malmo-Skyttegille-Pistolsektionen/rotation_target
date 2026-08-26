@@ -95,7 +95,7 @@ day behaving oddly.
     somebody you would tell the password to.
 
 That is why it is behind the button press, and it is *only* behind the button
-press: [admin mode](settings.md#admin-mode) does not block it. Collecting a
+press: [the control lock](settings.md#control-lock) does not block it. Collecting a
 fault report is a read, it interferes with nobody, and the person most likely
 to want one during a competition is whoever is not driving.
 

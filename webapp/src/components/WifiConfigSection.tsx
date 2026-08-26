@@ -3,7 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useWifiApi } from '../api/wifi';
 import { useSettings } from '../context/SettingsContext';
-import { useAdminStatus } from '../hooks/useAdminStatus';
+import { useControlLockStatus } from '../hooks/useControlLockStatus';
 import { chosenSsid } from '../lib/ssid-choice';
 import styles from './WifiConfigSection.module.css';
 
@@ -29,12 +29,12 @@ import styles from './WifiConfigSection.module.css';
  * — afterwards there is no page to explain it on.
  */
 export function WifiConfigSection(): React.ReactNode {
-  const { adminToken } = useSettings();
-  const { adminModeEnabled } = useAdminStatus();
+  const { controlLockToken } = useSettings();
+  const { controlLockEnabled } = useControlLockStatus();
   const wifiApi = useWifiApi();
 
-  // Same rule as the rest of the app: admin off means anyone may manage.
-  const canManage = !adminModeEnabled || adminToken !== null;
+  // Same rule as the rest of the app: the lock off means anyone may manage.
+  const canManage = !controlLockEnabled || controlLockToken !== null;
 
   const [picked, setPicked] = useState('');
   const [typed, setTyped] = useState('');
@@ -257,7 +257,7 @@ export function WifiConfigSection(): React.ReactNode {
 
       {!canManage && (
         <p className={styles.hint} data-testid='wifi-config-locked'>
-          Admin mode is on — log in to change this.
+          The controls are locked — log in to change this.
         </p>
       )}
 

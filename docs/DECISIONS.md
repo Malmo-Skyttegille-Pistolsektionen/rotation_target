@@ -58,7 +58,7 @@ MicroPython backend is archived (still the behavioural reference);
 **Why:** changes that must be atomic kept getting split across repos:
 program `duration` documented as tenths-of-a-second while every backend used
 milliseconds (100× off, in a third repo); the webapp hardcoding
-`http://localhost:8080`; the shipped admin-mode API absent from the canonical
+`http://localhost:8080`; the shipped control-lock API absent from the canonical
 spec.
 
 **Rejected:** git submodules (ruled out); a release-artifact pipeline (work
@@ -434,7 +434,7 @@ means nothing on a device with no request ids. `type` is a stable relative URI
 system speaks one error language on both channels rather than two.
 
 **Why:** the API has 39 error sites and the shape is `{"error": "prose"}`.
-Four distinct reasons already answer `409` — admin not enabled, audio playing,
+Four distinct reasons already answer `409` — the control lock not on, audio playing,
 program loaded, program read-only — and the audio-deletion guard adds three
 more. A client that must react differently to them (the Programs tab does:
 "loaded" means offer to load another, "read-only" means offer upload-as-new)
@@ -480,9 +480,9 @@ accidentally change its status.
 
 | Group | Types |
 |---|---|
-| auth | `admin_credentials_required` (401), `invalid_password` (401) |
+| auth | `control_lock_credentials_required` (401), `invalid_password` (401) |
 | not found | `route_not_found`, `program_not_found`, `audio_not_found` (404) |
-| conflict/state | `admin_mode_already_enabled`, `admin_mode_not_enabled`, `program_running`, `program_loaded`, `start_program_mismatch`, `program_readonly`, `audio_readonly`, `audio_in_use`, `audio_playing` (409); `no_program_loaded`, `program_not_running` (400) |
+| conflict/state | `control_lock_already_enabled`, `control_lock_not_enabled`, `program_running`, `program_loaded`, `start_program_mismatch`, `program_readonly`, `audio_readonly`, `audio_in_use`, `audio_playing` (409); `no_program_loaded`, `program_not_running` (400) |
 | validation | `program_invalid`, `program_id_mismatch`, `series_index_invalid`, `start_id_required` (400) |
 | upload | `upload_missing_file`, `upload_missing_title`, `audio_format_unsupported` (400) |
 | internal | `program_store_failed`, `audio_store_failed` (500) |
@@ -632,7 +632,7 @@ pinning a dependency back to dodge the question without saying so.
 
 ## D-22 — `POST /programs/unload` *(Decided 2026-08-21)*
 
-**Decision:** add `POST /api/v2/programs/unload`, admin-gated like every other
+**Decision:** add `POST /api/v2/programs/unload`, lock-gated like every other
 mutation. It clears the selection and publishes a `stateUpdate` with
 `loadedProgramId: null`. **A run in progress is `409`** (`A program is running -
 stop it before unloading`). **Unloading nothing is `200` and publishes
@@ -1362,7 +1362,7 @@ that opted in, which defeats the point of letting the path be typed at all.
 sorted to the front as id 0 — tolerable while the path was hardcoded to our own
 layout, and not once the path is whatever somebody typed.
 
-## D-39 — The coredump ships in a bundle, behind the button, not behind admin *(Decided 2026-08-25)*
+## D-39 — The coredump ships in a bundle, behind the button, not behind the control lock *(Decided 2026-08-25)*
 
 **Decision:** `GET /api/v2/diagnostics/bundle` serves a `application/zip`
 holding `diagnostics.json` — the `GET /diagnostics/info` body, byte for byte —
@@ -1371,23 +1371,23 @@ gate is an open configuration window: three presses of the BOOT button within
 ten seconds, the gesture that already reveals Expert mode. The Settings page
 hides the panel on the same condition.
 
-**Admin mode is deliberately not part of it** — corrected after this first
-shipped requiring it as well. Admin mode is **write protection**: it exists so
+**The control lock is deliberately not part of it** — corrected after this first
+shipped requiring it as well. The control lock is **write protection**: it exists so
 one operator can run a competition without others interfering, and it is off by
 default because a range does not want a password passed around while people are
 shooting. It is not an identity, a role, or a privilege tier, and treating it
-as one is how `require_admin` ended up on a read.
+as one is how `require_control_lock` ended up on a read.
 
-The gate it produced was wrong in both directions. With admin off — the default,
+The gate it produced was wrong in both directions. With the lock off — the default,
 and the state in which the dump is actually exposed — it protects nothing. With
-admin on, it stops a club member collecting a fault report during exactly the
+the lock on, it stops a club member collecting a fault report during exactly the
 event where a fault matters most, and collecting one interferes with nothing.
 It was never the thing guarding the dump; the window is.
 
-**Why not admin alone.** #201 was opened as a question about parity with
+**Why not the control lock alone.** #201 was opened as a question about parity with
 AutoLee, which serves the dump digest-gated. That does not port, and the reason
 is a difference between the two products: **AutoLee has a per-device password
-that is always set; this device's admin mode is an interference lock that is
+that is always set; this device's the control lock is an interference lock that is
 usually off.** They are not the same mechanism wearing different names, which
 is what made the parity framing misleading.
 
@@ -1434,6 +1434,62 @@ window cannot be opened there at all — the same reason `PUT /config/hardware`
 has no E2E coverage of its accepted path. The ZIP layout is covered by
 `firmware/host_test/test_zip_writer`, whose expectations were checked against
 Python's `zipfile` and `unzip -t`.
+
+## D-40 — "Admin mode" is renamed `control-lock`, everywhere *(Decided 2026-08-26)*
+
+**Decision:** the write lock is called **`control-lock`** in every surface it
+appears in — routes, problem types, the response field, the security schemes,
+the cookie, the firmware symbols, the webapp identifiers and the prose. Nothing
+called "admin" survives except the word's unrelated uses (a GitHub org admin,
+and the `admin_mode.py` the original was ported from, which is a real
+historical filename).
+
+**Why it was worth a rename.** "Admin mode" names a *role*, an *identity*, a
+*privilege tier*. It is none of those: it is a lock on **changing** the device,
+held by whoever is running the exercise. `docs/site/settings.md` already
+described it correctly — "Full public access" against "View only" — and the
+name said something else.
+
+That gap was not hypothetical. D-39 records the bug it caused: a **read** (the
+troubleshooting bundle) went behind `require_admin`, protecting nothing in the
+default state and obstructing a fault report in the state where it was on. The
+word led the author there.
+
+**How the name was chosen.** One test, applied to every candidate: *would the
+author of that bug, seeing only the identifier, still have gated a read?*
+
+- `single-operator` fails it. "Only the operator may download diagnostics" is a
+  plausible sentence, so the same mistake stays typeable. It names who drives,
+  not what is gated.
+- `write-lock` passes it but is wrong about this device: **starting a program
+  is not writing anything**, and start, stop, upload and delete are what the
+  lock actually covers.
+- `range-lock` implies the range is closed. It is not — the range is in full
+  use, and it is the controls that are held. The misleading half was *range*,
+  not *lock*.
+- `control-lock` covers all four operations, names no person, and makes
+  `require_control_lock()` on a `GET` handler read as wrong at a glance.
+
+Names from the lockout/armed family (`lockout`, `armed`, `hold`, `safe`) were
+ruled out on sight: those are live range-safety vocabulary, and a name that
+borrows a safety word to mean something else is worse than a clumsy name.
+
+**The UI does not say `control_lock`.** The settings page keeps its human copy —
+"Full public access" and "View only" — and a blocked control says "The controls
+are locked". The code says what is gated; the page says what the operator can
+do.
+
+**Breaking, deliberately, and affordable exactly now.** Every row of it — the
+route segment, the problem slugs, the field, the schemes, the cookie — is a
+breaking change for a deployed client. There is no deployed client: `git tag`
+is empty and no release has been cut, which is the same basis as D-16, D-19,
+D-23 and D-27. After 1.0.0 this would cost an `/api/v3`. The
+`breaking change detection` job fails on it, which is correct: it means a human
+decided on purpose.
+
+**The guarantee to keep saying out loud:** it gates *changing* the device, never
+*looking at* it. Every `require_control_lock` on the tree was re-read against
+that sentence as part of this.
 
 ## D-36 — Shipped audio is IMA ADPCM, transcoded in the build *(Decided 2026-08-25)*
 
@@ -1566,7 +1622,7 @@ for the pair; does not fit.
   archive-or-keep follow-up)
 - **LICENSE / copyright unification** across the imported repos (org vs
   individual).
-- **Admin mode is off after every boot** — acceptable security posture, or a
+- **The control lock is off after every boot** — acceptable security posture, or a
   cross-component contract change?
 - **CORS:** firmware allowlist vs MicroPython reflect-any — the contract
   must pick one.
