@@ -49,7 +49,22 @@ Command parse_command(std::string_view line) {
   if (equals_ignoring_case(word, "wifi-scan")) return Command::kWifiScan;
   if (equals_ignoring_case(word, "wifi-info")) return Command::kWifiInfo;
   if (equals_ignoring_case(word, "factory-reset")) return Command::kFactoryReset;
+  if (equals_ignoring_case(word, "play")) return Command::kPlay;
   return Command::kUnknown;
+}
+
+PlayArg parse_play(std::string_view line, int32_t &id) {
+  const std::string_view argument = tail(line);
+  if (argument.empty()) return PlayArg::kMissing;
+  // Digits only, and few enough of them that the value fits an int32_t.
+  if (argument.size() > 9) return PlayArg::kInvalid;
+  int32_t value = 0;
+  for (char c : argument) {
+    if (c < '0' || c > '9') return PlayArg::kInvalid;
+    value = value * 10 + (c - '0');
+  }
+  id = value;
+  return PlayArg::kId;
 }
 
 BootTargets parse_boot_targets(std::string_view line) {

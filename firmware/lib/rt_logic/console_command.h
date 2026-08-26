@@ -36,6 +36,11 @@ enum class Command {
   // cable; this is the route for somebody who already has one, and it can say
   // in words what a white LED cannot.
   kFactoryReset,
+  // `play [id]` - no argument lists the clips, an id queues that clip. Serial
+  // access to the same playback the API offers, because the person testing a
+  // DAC at a bench (or a range with no usable network) has a cable and no
+  // browser.
+  kPlay,
 };
 
 // What followed `boot-targets` on the line.
@@ -48,6 +53,17 @@ enum class BootTargets {
 
 // The argument of a `boot-targets` line. Case-insensitive, like the command.
 BootTargets parse_boot_targets(std::string_view line);
+
+// What followed `play` on the line.
+enum class PlayArg {
+  kMissing,  // no argument: list the clips, do not play
+  kId,       // a well-formed id, delivered through the out-parameter
+  kInvalid,  // something that is not a clip id
+};
+
+// The argument of a `play` line. An id is decimal digits only, bounded so it
+// cannot overflow; whether a clip with that id exists is the caller's question.
+PlayArg parse_play(std::string_view line, int32_t &id);
 
 // Whether a `factory-reset` line carries the confirmation word. Anything else
 // after the command - including a near miss like `yes` - is not a
