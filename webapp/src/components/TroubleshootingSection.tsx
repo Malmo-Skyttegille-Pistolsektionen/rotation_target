@@ -14,12 +14,17 @@ import styles from './TroubleshootingSection.module.css';
  * one the moment the board is reflashed. The bundle carries that identity with
  * it.
  *
- * **Hidden unless the configuration window is open**, which is the same
- * three-presses-of-BOOT gesture that reveals Expert mode. A coredump is a raw
- * RAM snapshot and can hold the WiFi password, so what has to be established
- * is that whoever collects it is standing at the board. The firmware refuses
- * on the same condition — this is not a hidden button in front of an open
- * door.
+ * **On the Expert mode page**, because the firmware gates it on the
+ * configuration window — three presses of BOOT — and that gesture is what
+ * decides where a control lives (#263). It sat on Settings until then and
+ * simply vanished when the window shut, which is a poor thing to do on the page
+ * whose promise is that nothing on it can hurt you.
+ *
+ * A coredump is a raw RAM snapshot and can hold the WiFi password, so what has
+ * to be established is that whoever collects it is standing at the board. The
+ * firmware refuses on the same condition — this is not a hidden button in front
+ * of an open door, and the check below stays for the case where the window
+ * lapses while the page is open.
  *
  * Admin mode is deliberately not consulted. It is write protection, for one
  * operator running a competition without others interfering, and this is a
@@ -64,9 +69,9 @@ export function TroubleshootingSection(): React.ReactNode {
       <h2 className={styles.sectionTitle}>Troubleshooting</h2>
 
       <p className={styles.explain}>
-        A zip holding everything this page shows plus, if the device has crashed, the crash dump itself — enough for
-        somebody who is not standing here to work out what happened. Attach it to a message rather than describing the
-        symptoms.
+        A zip holding the device details from Settings plus, if the device has crashed, the crash dump itself — enough
+        for somebody who is not standing here to work out what happened. Attach it to a message rather than describing
+        the symptoms.
       </p>
 
       <p className={styles.explain}>

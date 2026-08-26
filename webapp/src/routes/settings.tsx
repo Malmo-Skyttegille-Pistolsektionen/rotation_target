@@ -7,8 +7,8 @@ import { AdminModeSection } from '../components/AdminModeSection';
 import { StartupIssuesSection } from '../components/StartupIssuesSection';
 import { StorageSection } from '../components/StorageSection';
 import { FirmwareSection } from '../components/FirmwareSection';
+import { WifiSection } from '../components/WifiSection';
 import { AboutSection } from '../components/AboutSection';
-import { TroubleshootingSection } from '../components/TroubleshootingSection';
 import styles from './settings.module.css';
 
 export const Route = createFileRoute('/settings')({
@@ -39,13 +39,14 @@ function SettingsPage(): React.ReactNode {
 
       <StorageSection />
 
+      {/* Read-only, and the change is in Expert mode: moving the device to
+          another network restarts it, which is not something this page should
+          be able to do. */}
+      <WifiSection />
+
       <FirmwareSection />
 
       <AboutSection />
-
-      {/* Last, and only while the configuration window is open: it is the one
-          thing on this page that hands out a copy of the device's memory. */}
-      <TroubleshootingSection />
     </div>
   );
 }

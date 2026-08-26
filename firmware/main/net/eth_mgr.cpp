@@ -97,6 +97,17 @@ int rssi() {
   return 0;
 }
 
+bool radio_present() {
+  return false;
+}
+
+// Empty rather than the Ethernet MAC. The field it feeds is the station's, and
+// answering with a different interface's address would be a plausible-looking
+// wrong answer to "which client on the router is this device".
+std::string mac_address() {
+  return "";
+}
+
 std::string ip_address() {
   if (s_ip_lock == nullptr) return {};
   xSemaphoreTake(s_ip_lock, portMAX_DELAY);

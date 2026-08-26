@@ -59,6 +59,7 @@ struct ProblemType {
   X(kAudioReadonly, "audio_readonly", "Audio is read-only", 409)                                \
   X(kAudioInUse, "audio_in_use", "Audio is used by the loaded program", 409)                    \
   X(kAudioPlaying, "audio_playing", "Audio is currently playing", 409)                          \
+  X(kWifiUnavailable, "wifi_unavailable", "This device has no WiFi radio", 409)                 \
   /* firmware update */                                                                         \
   X(kOtaImageRefused, "ota_image_refused", "Firmware image refused", 400)                       \
   /* validation */                                                                              \
@@ -72,13 +73,15 @@ struct ProblemType {
     "That setting changes only from the serial console", 400)                                   \
   X(kHardwareConfigWindowClosed, "hardware_config_window_closed",                               \
     "The configuration window is closed", 403)                                                  \
+  X(kWifiCredentialsInvalid, "wifi_credentials_invalid", "Invalid WiFi credentials", 400)       \
   /* upload */                                                                                  \
   X(kUploadMissingFile, "upload_missing_file", "No file uploaded", 400)                         \
   X(kUploadMissingTitle, "upload_missing_title", "Missing title", 400)                          \
   X(kAudioFormatUnsupported, "audio_format_unsupported", "Unsupported audio format", 400)       \
   /* internal */                                                                                \
   X(kProgramStoreFailed, "program_store_failed", "Could not store program", 500)                \
-  X(kAudioStoreFailed, "audio_store_failed", "Could not store audio", 500)
+  X(kAudioStoreFailed, "audio_store_failed", "Could not store audio", 500)                      \
+  X(kWifiStoreFailed, "wifi_store_failed", "Could not store WiFi credentials", 500)
 
 namespace problem {
 #define RT_PROBLEM_DEFINE(name, slug, title, status) \

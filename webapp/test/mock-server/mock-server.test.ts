@@ -1031,3 +1031,113 @@ describe('the boot target state is serial-only', () => {
     expect(state.saved.targetGpio).toBe(HARDWARE_DEFAULTS.targetGpio);
   });
 });
+
+describe('WiFi (#263)', () => {
+  // Public, like every other GET. The device's own network placement is not a
+  // secret from anyone who can already see the device.
+  it('reports the association without a password member of any kind', async () => {
+    const status = (await (await api('/wifi')).json()) as Record<string, unknown>;
+    expect(status).toMatchObject({ radioPresent: true, connected: true, provisioned: true });
+    expect(Object.keys(status)).not.toContain('password');
+  });
+
+  // Behind the window rather than public, unlike every other GET: a scan takes
+  // the radio off its channel, so it is a read that costs the network it is
+  // served over.
+  it('refuses a scan while the configuration window is shut', async () => {
+    const shut = createMockServer({ clock, seed: { programs: {}, audios: [], configWindowOpen: false } });
+    const shutBase = `http://127.0.0.1:${await shut.listen()}/api/v2`;
+    try {
+      await expectProblem(await fetch(`${shutBase}/wifi/networks`), {
+        type: '/problems/hardware_config_window_closed',
+        title: 'The configuration window is closed',
+        status: 403,
+        detail:
+          'Press the BOOT button on the device (marked BOOT or FLASH) three times within ten seconds to open a five-minute configuration window, then try again.',
+      });
+    } finally {
+      await shut.close();
+    }
+  });
+
+  it('lists what the scan heard, strongest first and one entry per SSID', async () => {
+    const { networks } = (await (await api('/wifi/networks')).json()) as {
+      networks: { ssid: string; rssi: number }[];
+    };
+    expect(networks.length).toBeGreaterThan(0);
+    expect([...networks].sort((a, b) => b.rssi - a.rssi)).toEqual(networks);
+    expect(new Set(networks.map((n) => n.ssid)).size).toBe(networks.length);
+  });
+
+  it('saves credentials and moves the device onto the network', async () => {
+    const saved = await api('/wifi', { method: 'PUT', body: JSON.stringify({ ssid: 'Elsewhere', password: 'hunter22' }) });
+    expect(saved.status).toBe(200);
+
+    const status = (await (await api('/wifi')).json()) as { ssid: string; provisioned: boolean };
+    expect(status.ssid).toBe('Elsewhere');
+    // On a real device this is the marker a factory reset had cleared: saving
+    // lifts the suppression, so the compiled seeds come back as fallbacks.
+    expect(status.provisioned).toBe(true);
+  });
+
+  it('refuses a nameless network rather than storing one', async () => {
+    await expectProblem(await api('/wifi', { method: 'PUT', body: JSON.stringify({ ssid: '' }) }), {
+      type: '/problems/wifi_credentials_invalid',
+      title: 'Invalid WiFi credentials',
+      status: 400,
+      detail: 'Choose a network from the list, or type its name',
+    });
+  });
+
+  it('refuses the bounds the 802.11 frames impose', async () => {
+    await expectProblem(await api('/wifi', { method: 'PUT', body: JSON.stringify({ ssid: 'x'.repeat(33) }) }), {
+      type: '/problems/wifi_credentials_invalid',
+      title: 'Invalid WiFi credentials',
+      status: 400,
+      detail: 'A network name is at most 32 characters',
+    });
+    await expectProblem(
+      await api('/wifi', { method: 'PUT', body: JSON.stringify({ ssid: 'ok', password: 'p'.repeat(64) }) }),
+      {
+        type: '/problems/wifi_credentials_invalid',
+        title: 'Invalid WiFi credentials',
+        status: 400,
+        detail: 'A WiFi password is at most 63 characters',
+      },
+    );
+  });
+
+  // The Ethernet build (CONFIG_RT_NET_OPENETH, QEMU) has no radio. The GET
+  // still answers - so a client can tell "no radio" from "firmware older than
+  // this endpoint", which an absent route cannot say - and the other two
+  // refuse rather than pretending.
+  it('answers the read and refuses the rest on a build with no radio', async () => {
+    const wired = createMockServer({
+      clock,
+      seed: {
+        programs: {},
+        audios: [],
+        wifi: { radioPresent: false, connected: false, ssid: '', rssi: 0, bars: 0, macAddress: '' },
+      },
+    });
+    const wiredBase = `http://127.0.0.1:${await wired.listen()}/api/v2`;
+    try {
+      const status = (await (await fetch(`${wiredBase}/wifi`)).json()) as { radioPresent: boolean };
+      expect(status.radioPresent).toBe(false);
+
+      for (const request of [
+        fetch(`${wiredBase}/wifi/networks`),
+        fetch(`${wiredBase}/wifi`, { method: 'PUT', body: JSON.stringify({ ssid: 'Anything' }) }),
+      ]) {
+        await expectProblem(await request, {
+          type: '/problems/wifi_unavailable',
+          title: 'This device has no WiFi radio',
+          status: 409,
+          detail: 'This firmware is built for wired Ethernet and has no WiFi radio',
+        });
+      }
+    } finally {
+      await wired.close();
+    }
+  });
+});

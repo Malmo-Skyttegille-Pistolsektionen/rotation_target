@@ -35,7 +35,10 @@
 #include "esp_partition.h"
 #include "esp_log.h"
 #include "esp_random.h"
+#include "esp_system.h"
 #include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "issue_buffer.h"
 #include "json_util.h"
 #include "net_mgr.h"
@@ -48,6 +51,14 @@
 #include "storage.h"
 #include "targets.h"
 #include "zip_writer.h"
+
+// Only on the build that has a radio: main/CMakeLists.txt compiles neither of
+// these into the Ethernet build, so the routes that use them are compiled out
+// with them. See register_wifi_routes().
+#if !CONFIG_RT_NET_OPENETH
+#include "wifi_scan.h"
+#include "wifi_store.h"
+#endif
 
 namespace web_server {
 namespace {
@@ -1179,6 +1190,184 @@ void register_config_routes() {
       });
 }
 
+// --- wifi ------------------------------------------------------------------
+
+// The one place the WifiStatus shape is written, whichever build is asking.
+// Both callers pass what they can actually measure rather than this reaching
+// for wifi_scan and wifi_store, which the Ethernet build does not link.
+//
+// No password member, in any form. The stored passphrase leaves this device in
+// exactly one place - the coredump inside GET /diagnostics/bundle - and that
+// endpoint is gated on physical presence for that reason. A read anybody on
+// the network may make is not the second place.
+std::string wifi_status_json(bool radio, const std::string &ssid, int rssi, int bars,
+                             bool provisioned) {
+  // Not `!ip_address().empty()`: the address outlives a drop, so a device
+  // reconnecting would report itself connected to a network it has left.
+  const bool connected = radio && !ssid.empty();
+
+  std::string out = "{\"radioPresent\":";
+  out += radio ? "true" : "false";
+  out += ",\"connected\":";
+  out += connected ? "true" : "false";
+  out += ",\"ssid\":";
+  out += rt::json_quote(ssid);
+  out += ",\"rssi\":";
+  out += std::to_string(connected ? rssi : 0);
+  out += ",\"bars\":";
+  out += std::to_string(connected ? bars : 0);
+  out += ",\"ipAddress\":";
+  out += rt::json_quote(net_mgr::ip_address());
+  out += ",\"macAddress\":";
+  out += rt::json_quote(net_mgr::mac_address());
+  out += ",\"provisioned\":";
+  out += provisioned ? "true" : "false";
+  out += "}";
+  return out;
+}
+
+#if CONFIG_RT_NET_OPENETH
+
+// No radio here, and neither wifi_scan nor wifi_store is linked into this
+// build (main/CMakeLists.txt). The GET still answers, so a client can tell
+// "this device has no radio" from "this firmware is older than the endpoint" -
+// which an absent route cannot say. The other two refuse.
+void register_wifi_routes() {
+  s_server.on("/api/v2/wifi", HTTP_GET, [](PsychicRequest *, PsychicResponse *res) {
+    return send_json(res, 200, wifi_status_json(false, "", 0, 0, false));
+  });
+
+  const auto refuse = [](PsychicRequest *, PsychicResponse *res) {
+    return send_problem(res, rt::problem::kWifiUnavailable,
+                        "This firmware is built for wired Ethernet and has no WiFi radio");
+  };
+  s_server.on("/api/v2/wifi", HTTP_PUT, refuse);
+  s_server.on("/api/v2/wifi/networks", HTTP_GET, refuse);
+}
+
+#else
+
+// Restart on its own task so the handler can return and the 200 can drain out
+// of the socket first, the same shape as the OTA reboot. Blocking the httpd
+// task for a second and a half instead would stall every other client on the
+// device while it waited.
+void wifi_reboot_task(void *) {
+  vTaskDelay(pdMS_TO_TICKS(1500));
+  ESP_LOGW(TAG, "WiFi credentials saved - restarting to join the new network");
+  esp_restart();
+}
+
+void register_wifi_routes() {
+  s_server.on("/api/v2/wifi", HTTP_GET, [](PsychicRequest *, PsychicResponse *res) {
+    const std::string joined = net_mgr::ssid();
+    const int strength = net_mgr::rssi();
+    return send_json(
+        res, 200,
+        wifi_status_json(true, joined, strength, wifi_scan::bars(static_cast<int8_t>(strength)),
+                         wifi_store::provisioned()));
+  });
+
+  // Behind the window rather than public, unlike every other GET: a scan takes
+  // the radio off its channel for about two seconds, so this is a read that
+  // costs the network it is served over. Only somebody standing at the device
+  // with a reason should be spending that.
+  s_server.on("/api/v2/wifi/networks", HTTP_GET, [](PsychicRequest *, PsychicResponse *res) {
+    if (!boot_button::config_window_open()) {
+      return send_problem(res, rt::problem::kHardwareConfigWindowClosed,
+                          "Press the BOOT button on the device (marked BOOT or FLASH) three times "
+                          "within ten seconds to open a five-minute configuration window, then "
+                          "try again.");
+    }
+
+    const std::vector<wifi_scan::AccessPoint> found =
+        wifi_scan::strongest_per_ssid(wifi_scan::scan());
+
+    std::string out = "{\"networks\":[";
+    bool first = true;
+    for (const wifi_scan::AccessPoint &ap : found) {
+      if (!first) out += ",";
+      first = false;
+      out += "{\"ssid\":";
+      out += rt::json_quote(ap.ssid);
+      out += ",\"rssi\":";
+      out += std::to_string(ap.rssi);
+      out += ",\"bars\":";
+      out += std::to_string(wifi_scan::bars(ap.rssi));
+      out += ",\"channel\":";
+      out += std::to_string(ap.channel);
+      out += ",\"auth\":";
+      out += rt::json_quote(wifi_scan::auth_name(ap.auth));
+      out += "}";
+    }
+    out += "]}";
+    return send_json(res, 200, out);
+  });
+
+  s_server.on("/api/v2/wifi", HTTP_PUT, [](PsychicRequest *req, PsychicResponse *res) {
+    if (!require_admin(req, res)) return ESP_OK;
+
+    const char *body = req->body();
+    JsonDocument doc;
+    if (body == nullptr || deserializeJson(doc, body) != DeserializationError::Ok ||
+        !doc.is<JsonObject>()) {
+      return send_problem(res, rt::problem::kWifiCredentialsInvalid,
+                          "Expected a JSON object with an ssid and an optional password");
+    }
+
+    // Before the window, because "stop the run" is the more useful of the two
+    // instructions - and this one does not merely take effect at the next
+    // restart, it *causes* the restart. Taking the device off the network
+    // mid-sequence strands whoever is on the line.
+    if (executor::is_running()) {
+      return send_problem(res, rt::problem::kProgramRunning,
+                          "A program is running - stop it before moving the device to another "
+                          "network, because saving restarts the device");
+    }
+
+    // #208: being on the network proves nothing, since the setup AP's password
+    // is compile-time, identical on every device and published. What has to be
+    // established is that somebody is standing at the device, and three
+    // presses of BOOT is that same proof.
+    if (!boot_button::config_window_open()) {
+      return send_problem(res, rt::problem::kHardwareConfigWindowClosed,
+                          "Press the BOOT button on the device (marked BOOT or FLASH) three times "
+                          "within ten seconds to open a five-minute configuration window, then "
+                          "try again.");
+    }
+
+    const std::string ssid = doc["ssid"] | "";
+    const std::string password = doc["password"] | "";
+
+    // The same bounds the 802.11 frames impose, checked here so a value that
+    // NVS would store but the driver would truncate is refused with a sentence
+    // instead of becoming a device that will not join anything.
+    if (ssid.empty()) {
+      return send_problem(res, rt::problem::kWifiCredentialsInvalid,
+                          "Choose a network from the list, or type its name");
+    }
+    if (ssid.size() > 32) {
+      return send_problem(res, rt::problem::kWifiCredentialsInvalid,
+                          "A network name is at most 32 characters");
+    }
+    if (password.size() > 63) {
+      return send_problem(res, rt::problem::kWifiCredentialsInvalid,
+                          "A WiFi password is at most 63 characters");
+    }
+
+    if (!wifi_store::save(ssid, password)) {
+      return send_problem(res, rt::problem::kWifiStoreFailed,
+                          "Could not write the credentials to NVS - the device stays on the "
+                          "network it is on");
+    }
+
+    xTaskCreate(wifi_reboot_task, "wifi_reboot", 2048, nullptr, 5, nullptr);
+    return send_message(res, "Saved. The device is restarting to join \"" + ssid +
+                                 "\" - this page will lose contact with it.");
+  });
+}
+
+#endif  // CONFIG_RT_NET_OPENETH
+
 void register_static_routes() {
   // Only .gz survives the build for the text assets (firmware/CMakeLists.txt),
   // so the uncompressed name is not the one to probe for.
@@ -1270,6 +1459,7 @@ bool start() {
   register_target_routes();
   register_audio_routes();
   register_config_routes();
+  register_wifi_routes();
   // Lives in its own translation unit: the ESP-IDF OTA calls have a lifetime
   // discipline of their own (a handle that must be aborted, not ended, before
   // it is finalised) and do not belong mixed into the request handlers here.

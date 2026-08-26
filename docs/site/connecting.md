@@ -66,12 +66,20 @@ WiFi, or the board has been taken somewhere else — it gives up after about ten
 seconds and raises the setup portal by itself. Nothing to do: wait for **blue**
 and [configure it from there](#the-setup-portal).
 
-The awkward case is the other one: **the network it knows still exists, and you
-want it on a different one anyway.** Handing a spare board to another club is
-the usual reason. The device joins ours quite happily and never offers the
-portal, so there is nothing to configure it through.
+The other case is: **the network it knows still exists, and you want it on a
+different one anyway.** The device joins ours quite happily and never offers
+the portal, so there is nothing to configure it through.
 
-For that, **hold the BOOT button for ten seconds**.
+For that, use [Expert mode](expert-mode.md#wifi) — press the device's BOOT
+button three times within ten seconds, and the web app offers the same form the
+setup portal does. The device restarts onto the new network and keeps
+everything else: its programs, its clips, and its hardware settings.
+
+**The ten-second hold below is the bigger hammer**, and it is now needed only
+for handing a board to another club, or for a board that has to forget the
+network built into its firmware. It throws away more than the network.
+
+To do that, **hold the BOOT button for ten seconds**.
 
 | While you hold | LED | Meaning |
 |---|---|---|
