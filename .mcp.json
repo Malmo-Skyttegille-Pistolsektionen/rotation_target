@@ -3,6 +3,10 @@
     "espressif-documentation": {
       "type": "http",
       "url": "https://mcp.espressif.com/docs"
+    },
+    "esp-component-registry": {
+      "type": "http",
+      "url": "https://components.espressif.com/mcp"
     }
   }
 }
