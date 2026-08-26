@@ -163,7 +163,12 @@ knowing before touching a board.
 New configuration goes in `.github/` or beside the component it configures.
 The root is the first thing anyone opening the repository sees, and a tool's
 config file is rarely what they came for. Put a file there only when the tool
-genuinely cannot look anywhere else — `pre-commit` is the one that cannot.
+genuinely cannot look anywhere else. Two do:
+
+- **`.pre-commit-config.yaml`** — the framework reads the root and nowhere else.
+- **`.mcp.json`** — MCP servers shared with everyone working in this repository.
+  Claude Code reads it only from the root, and it is the reason the file is
+  there rather than in `.github/`. Editors that do not speak MCP ignore it.
 
 Before adding a root file, check whether the tool takes a path flag, reads an
 environment variable, or already searches `.github/`. Most do.
