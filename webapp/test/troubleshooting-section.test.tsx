@@ -78,7 +78,7 @@ afterEach(async () => {
   await server.close();
 });
 
-describe('the troubleshooting bundle on Settings', () => {
+describe('the troubleshooting bundle on Expert mode', () => {
   // The gate, and the reason the section exists in this shape: the bundle can
   // carry a copy of the device's memory, so it is behind the three-press
   // gesture rather than merely behind admin mode, which is off by default.

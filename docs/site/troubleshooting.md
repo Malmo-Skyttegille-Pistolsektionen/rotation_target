@@ -74,14 +74,14 @@ dump.
 
 1. Press the device's **BOOT** button — the small button next to the USB
    sockets, marked `BOOT` or `FLASH` — **three times within ten seconds.**
-2. Open **Settings** in the web app. A **Troubleshooting** panel appears at
-   the bottom of the page.
+2. Open the **Expert mode** tab that appears in the web app, and scroll to
+   **Troubleshooting** at the bottom.
 3. Press **Download troubleshooting bundle** and attach the file to your
    message.
 
-The panel is only there for five minutes after those three presses, and it does
+The tab is only there for five minutes after those three presses, and it does
 not appear at all while a program is running. If it is missing, press the button
-three times again.
+three times again. [Expert mode](expert-mode.md) covers what else is on it.
 
 !!! warning "Who you can send it to"
 

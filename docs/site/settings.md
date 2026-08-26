@@ -16,7 +16,13 @@ which is which before changing anything:
 | Start delay | browser | Seconds counted down before a run starts |
 | Startup Issues | device | What the device could not read when it booted |
 | Storage | device | How much room the flash partitions have |
+| WiFi | device | Which network it is on, and how good the link is |
 | About | device | What firmware and web app this is, and exactly which build |
+
+Nothing on this page can stop the device working. The settings that can —
+which network it joins, which pins it drives, and the crash dump download —
+are on [Expert mode](expert-mode.md), behind a button press on the board
+itself.
 
 ## Server Base URL
 
@@ -75,6 +81,30 @@ other is where an update is written, which is what lets a bad update be undone.
 Seeing one of them nearly empty is normal on a device that has never been
 updated.
 
+## WiFi
+
+Which network the device joined, how strong the signal is, the address it is
+reachable at, and the MAC address a router lists it under. All of it is a
+readout — nothing here changes anything.
+
+**Which network matters, not just that there is one.** A device remembers the
+network it was set up on *and* the one its firmware was built for, and joins
+whichever it can see. A board that has been to two places may be on either, and
+this is where you find out which.
+
+**Signal** is shown as bars and as a number in dBm. The number is negative and
+closer to zero is stronger — around −50 is excellent, −70 is workable, and
+below about −80 is where a device starts dropping off the network. It is the
+figure to watch while moving a board around looking for somewhere to mount it.
+
+If it says **no network has been saved**, nobody has set this device up here.
+It is running on whatever network its firmware was built for, which cannot be
+read back or changed without rebuilding it — so if it is working, it is working
+by luck of being in the right building.
+
+To *change* the network, see [Expert mode](expert-mode.md#wifi). It restarts
+the device, which is why it is not on this page.
+
 ## About
 
 **App** is the version of the page you are looking at. **Device** is the
@@ -118,12 +148,10 @@ below instead so you can select it by hand.
 
 ## Troubleshooting
 
-A panel that appears **below About**, and only in the five minutes after
-somebody presses the device's BOOT button three times. It downloads one zip
-file holding the device's own details and, if it has crashed, the crash dump —
-the thing to attach to a message when a board has come back from a range day
-behaving oddly.
+The crash dump download has moved to [Expert mode](expert-mode.md#troubleshooting).
+It is behind the device's BOOT button because a crash dump can contain the WiFi
+password, and everything behind that button is now on one page rather than
+appearing and disappearing on this one.
 
-It is behind the button press because a crash dump can contain the WiFi
-password. [Sending a fault report](troubleshooting.md#sending-a-fault-report)
-has the steps and what it means for who you send it to.
+[Sending a fault report](troubleshooting.md#sending-a-fault-report) has the
+steps and what it means for who you send it to.

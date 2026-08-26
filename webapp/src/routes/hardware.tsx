@@ -1,10 +1,12 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { HardwareSection } from '../components/HardwareSection';
+import { WifiConfigSection } from '../components/WifiConfigSection';
+import { TroubleshootingSection } from '../components/TroubleshootingSection';
 import { useConfigWindow } from '../hooks/useConfigWindow';
 import styles from './settings.module.css';
 
 /**
- * Expert mode: the hardware a device is configured for (#144).
+ * Expert mode: everything behind the three-press window (#144, #263).
  *
  * Its own page rather than a section on Settings, and reachable only while the
  * device's configuration window is open. Everything here changes what the
@@ -15,6 +17,13 @@ import styles from './settings.module.css';
  *  - A wrong hostname changes mDNS, so the device stops answering to the name
  *    everybody uses to reach it. Worse than a wrong pin, which at least leaves
  *    the web app reachable to fix it from.
+ *  - A wrong network takes the device off the one this page is served over.
+ *
+ * The membership rule is the gesture, not the subject: **if the firmware gates
+ * it on the configuration window, it belongs here.** The troubleshooting bundle
+ * used to sit on Settings and disappear when the window shut, which put a
+ * control that vanishes without explanation on the page whose whole promise is
+ * that nothing on it can hurt you.
  */
 export const Route = createFileRoute('/hardware')({
   component: HardwarePage,
@@ -52,7 +61,20 @@ function HardwarePage(): React.ReactNode {
           should decide whether to *offer* these settings rather than let
           somebody fill a form that cannot be submitted - and the window can
           lapse while the page is open, or the page be reached by a bookmark. */}
-      {open && <HardwareSection />}
+      {open && (
+        <>
+          {/* Before the pins: it is the one somebody arrives here for while
+              the device is otherwise working, and the pins are a once-per-board
+              job. */}
+          <WifiConfigSection />
+
+          <HardwareSection />
+
+          {/* Last: it hands out a copy of the device's memory, so it is the
+              heaviest thing on the page rather than the first thing offered. */}
+          <TroubleshootingSection />
+        </>
+      )}
     </div>
   );
 }

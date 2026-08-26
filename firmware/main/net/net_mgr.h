@@ -45,4 +45,15 @@ std::string ip_address();
 std::string ssid();
 int rssi();
 
+// Whether this build has a radio at all: false on the Ethernet build, where
+// the two answers above are constants rather than readings. GET /api/v2/wifi
+// reports it so a client can tell "no radio" from "firmware older than this
+// endpoint" - both of which would otherwise look like an empty SSID.
+bool radio_present();
+
+// "30:ed:a0:a8:ab:78" for the station interface, empty where there is none.
+// The form a router's client list and a MAC filter identify this device by,
+// which is how the question gets asked when a device will not join.
+std::string mac_address();
+
 }  // namespace net_mgr

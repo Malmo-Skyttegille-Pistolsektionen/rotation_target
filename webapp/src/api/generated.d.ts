@@ -623,6 +623,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/wifi": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The network this device is on
+         * @description Public, like every other `GET`, and it carries **no password** — not
+         *     the stored one, not a masked form of it, in any state. What is here is
+         *     what somebody standing next to the device can already read off the
+         *     access point: which network it joined, how strong the link is, and
+         *     where to reach it.
+         *
+         *     Which of the configured networks the device actually joined is not a
+         *     cosmetic question. The credential store tries the provisioned network
+         *     first and the compiled seeds after it (`wifi_store::load_all`), so a
+         *     device that moved between two sites may be on either, and until now the
+         *     only way to find out was the serial console's `status`.
+         *
+         *     `radioPresent` is false on the Ethernet build (`CONFIG_RT_NET_OPENETH`,
+         *     QEMU), where every other field is empty or zero. The route still
+         *     answers there rather than 404ing, so a client can tell "this device has
+         *     no radio" from "this firmware is older than this endpoint".
+         */
+        get: operations["getWifiStatus"];
+        /**
+         * Join a different network
+         * @description Saves the credentials to NVS and **restarts the device**, which is the
+         *     only way they take effect: the station's configuration is read at boot,
+         *     and re-associating in place would leave the HTTP server answering on an
+         *     address that no longer routes.
+         *
+         *     The `200` therefore goes out *before* the restart, and the client that
+         *     sent the request loses the connection a moment later — deliberately, and
+         *     on the network it is being moved off. A client should say so before
+         *     sending, because a page that simply stops responding looks like a crash
+         *     rather than a success.
+         *
+         *     **If the new network cannot be joined, the setup portal comes up** and
+         *     the device is reachable at `http://192.168.4.1` on its own access point
+         *     (`<hostname>-setup-XXXX`). That is the recovery path, not a failure
+         *     state — but it is invisible from a browser that just lost its page, so
+         *     it is worth telling the operator in advance.
+         *
+         *     Saving also lifts the suppression a factory reset sets, so the compiled
+         *     seed networks come back as fallbacks (`wifi_store::save`).
+         *
+         *     ## Why both guards
+         *
+         *     Admin mode, because this is a write, and one operator running a
+         *     competition should not have another move the device off the network
+         *     mid-run.
+         *
+         *     The configuration window on top of it, because of #208: the setup
+         *     portal stopped accepting credentials on the strength of *being on the
+         *     network*, since the setup AP's password is compile-time, identical on
+         *     every device, and published in a public repository. What it wanted
+         *     instead was proof that somebody is standing at the device, and it took
+         *     a BOOT press. Three presses within ten seconds is the same proof and a
+         *     deliberate gesture, so this endpoint takes that.
+         *
+         *     No `PUT` on the Ethernet build: there is nothing to join.
+         */
+        put: operations["putWifiCredentials"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wifi/networks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Scan for networks in range
+         * @description An active scan across every channel, one entry per SSID, strongest
+         *     first — the same list the setup portal offers, from the same
+         *     `wifi_scan` code. All channels rather than a fast scan, because a
+         *     hidden SSID is never found by the latter, and unnamed networks are
+         *     dropped because there is nothing selectable to show.
+         *
+         *     **A scan interrupts the link it is running over.** The radio leaves the
+         *     current channel to sweep the others, so the association this request
+         *     arrived on stalls for the couple of seconds the scan takes, and an SSE
+         *     stream may drop and reconnect. That is why this is behind the
+         *     configuration window rather than public: it is a `GET` that costs the
+         *     network, and only somebody standing at the device with a reason should
+         *     be spending it.
+         *
+         *     An empty `networks` array is a real answer — nothing in range, or a
+         *     scan the driver refused. It is not an error.
+         */
+        get: operations["getWifiNetworks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ota": {
         parameters: {
             query?: never;
@@ -977,6 +1085,79 @@ export interface components {
             restartRequired: boolean;
         };
         /**
+         * @description The station side of the radio, as it stands.
+         *
+         *     **No password member exists in this schema**, in any form. That is not
+         *     an omission to be filled in later: the stored passphrase leaves the
+         *     device in exactly one place, the coredump inside
+         *     `GET /diagnostics/bundle`, and that endpoint is gated on physical
+         *     presence for precisely this reason. A read anyone on the network may
+         *     make is not the second place.
+         */
+        WifiStatus: {
+            /** @description Whether this build has a WiFi radio at all. False on the Ethernet build (`CONFIG_RT_NET_OPENETH`, QEMU), where every field below is empty or zero and the other two operations refuse with `/problems/wifi_unavailable`. */
+            radioPresent: boolean;
+            /** @description Whether the station currently holds an association. A device serving this response is normally connected — but it may be answering over the Ethernet build, or in the moment between a drop and a reconnect, which the reconnect backoff can stretch to 30 seconds. */
+            connected: boolean;
+            /** @description The network joined, empty when not associated. Which one this is matters: the store tries the provisioned network first and the compiled seeds after it, so a device that has been to two sites may be on either. */
+            ssid: string;
+            /**
+             * Format: int32
+             * @description Signal strength in dBm, so negative and closer to zero is stronger. 0 when not associated, which is not a valid reading and should be shown as "unknown" rather than as a very strong signal.
+             */
+            rssi: number;
+            /**
+             * Format: int32
+             * @description The same reading as `rssi`, bucketed 0-4 by the firmware (`wifi_scan::bars`). Carried rather than left to the client so that the web app, the serial console and any future client agree on where "two bars" ends — the thresholds are a judgement about this device's radio, not a display detail.
+             */
+            bars: number;
+            /** @description Dotted quad, empty before the interface has an address. The same value as `DiagnosticsInfo.ipAddress`. */
+            ipAddress: string;
+            /**
+             * @description The station MAC, lower-case and colon-separated. What a router's client list and a MAC filter identify this device by, which is the form the question is asked in when a device will not join.
+             * @example 30:ed:a0:a8:ab:78
+             */
+            macAddress: string;
+            /** @description Whether credentials have ever been saved to NVS. False out of the box and after a factory reset, in which case the device is running on the networks its firmware was compiled with — worth saying, because those cannot be read back here or changed without a rebuild. */
+            provisioned: boolean;
+        };
+        /** @description One network the scan heard, collapsed to the strongest radio using it. */
+        WifiNetwork: {
+            /** @description Never empty: a network that does not broadcast its name is dropped from this list, having nothing selectable to show. Typing the name into `WifiCredentials.ssid` is how a hidden network is joined. */
+            ssid: string;
+            /**
+             * Format: int32
+             * @description dBm, negative, closer to zero is stronger.
+             */
+            rssi: number;
+            /**
+             * Format: int32
+             * @description `rssi` bucketed 0-4, from the same firmware thresholds.
+             */
+            bars: number;
+            /**
+             * Format: int32
+             * @description The primary channel. Shown because a range's interference problem is usually a channel one, and this is the only place a club can see what its device can hear.
+             */
+            channel: number;
+            /**
+             * @description The authentication mode, as a short label rather than an enum: `open`, `WEP`, `WPA`, `WPA2`, `WPA/WPA2`, `WPA3`, `WPA2/WPA3`, `WAPI`, `OWE`, `enterprise`, or `?` for one this firmware's `wifi_scan::auth_name` does not name. Deliberately not an enum — a new IDF mode should widen a label, not fail a client's parse.
+             * @example WPA2
+             */
+            auth: string;
+        };
+        WifiNetworkList: {
+            /** @description Strongest first, one entry per SSID. Empty is a real answer: nothing in range, or a scan the driver refused. There is no timestamp — the device has no clock, and the list is a fresh scan by construction, not a cache. */
+            networks: components["schemas"]["WifiNetwork"][];
+        };
+        /** @description What to store and restart onto. Both fields go into NVS as given; the password is never read back by any endpoint. */
+        WifiCredentials: {
+            /** @description The network to join. Need not appear in `GET /wifi/networks` — a hidden network never will, and neither will one that is out of range at the moment somebody is configuring for a site they are about to move to. */
+            ssid: string;
+            /** @description The passphrase. Omitted or empty means an open network, which is saved as such rather than refused: a club running an open network is a decision, not a typo to catch here. */
+            password?: string;
+        };
+        /**
          * @description An RFC 9457 problem detail — the shape every handler uses for a
          *     failure, served as `application/problem+json` (D-19). The one
          *     exception is a request body over the size ceiling, rejected by the
@@ -1000,7 +1181,7 @@ export interface components {
              *     `program_invalid` `backend_issue` code in `asyncapi.yaml`.
              * @enum {string}
              */
-            type: "/problems/admin_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/admin_mode_already_enabled" | "/problems/admin_mode_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/hardware_config_invalid" | "/problems/hardware_config_serial_only" | "/problems/hardware_config_window_closed" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed";
+            type: "/problems/admin_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/admin_mode_already_enabled" | "/problems/admin_mode_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/wifi_unavailable" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/ota_image_refused" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/hardware_config_invalid" | "/problems/hardware_config_serial_only" | "/problems/hardware_config_window_closed" | "/problems/wifi_credentials_invalid" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed" | "/problems/wifi_store_failed";
             /**
              * @description A short summary of the type, identical for every occurrence of it. Not for display — it does not describe this occurrence.
              * @example Program is read-only
@@ -2172,6 +2353,152 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    getWifiStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The current association. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WifiStatus"];
+                };
+            };
+        };
+    };
+    putWifiCredentials: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WifiCredentials"];
+            };
+        };
+        responses: {
+            /** @description Stored. The device restarts about a second later and this connection dies with it. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Message"];
+                };
+            };
+            /**
+             * @description `/problems/wifi_credentials_invalid` — an empty SSID, an SSID over
+             *     32 bytes, or a password over 63. `detail` says which, because the
+             *     operator has to decide what to type instead.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /**
+             * @description `/problems/hardware_config_window_closed` — nobody has completed
+             *     the three-press sequence recently, so the configuration window is
+             *     shut. The same window and the same problem type as
+             *     `PUT /config/hardware` and `GET /diagnostics/bundle`: one window,
+             *     one type, whichever endpoint it is guarding.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description - `/problems/program_running` — a program is running. Checked
+             *       before the window, because "stop the run" is the more useful
+             *       instruction, and taking the device off the network mid-sequence
+             *       would strand whoever is on the line.
+             *     - `/problems/wifi_unavailable` — this build has no radio
+             *       (`CONFIG_RT_NET_OPENETH`). Permanent for this firmware, not a
+             *       state to retry.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description `/problems/wifi_store_failed` — NVS refused the write. Nothing was
+             *     saved and the device stays on the network it is on.
+             */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getWifiNetworks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What the radio can currently hear. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WifiNetworkList"];
+                };
+            };
+            /**
+             * @description `/problems/hardware_config_window_closed` — the configuration
+             *     window is shut, or a program is running.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description `/problems/wifi_unavailable` — this build has no radio
+             *     (`CONFIG_RT_NET_OPENETH`).
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
         };
     };
     uploadFirmware: {

@@ -8,6 +8,7 @@
 #include "config.h"
 #include "esp_event.h"
 #include "esp_log.h"
+#include "esp_mac.h"
 #include "esp_netif.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
@@ -17,6 +18,7 @@
 #include "mdns.h"
 #include "rgb_led.h"
 #include "setup_portal.h"
+#include "wifi_scan.h"
 #include "wifi_store.h"
 
 namespace net_mgr {
@@ -159,6 +161,16 @@ int rssi() {
   wifi_ap_record_t ap = {};
   if (esp_wifi_sta_get_ap_info(&ap) != ESP_OK) return 0;
   return ap.rssi;
+}
+
+bool radio_present() {
+  return true;
+}
+
+std::string mac_address() {
+  uint8_t mac[6] = {};
+  if (esp_read_mac(mac, ESP_MAC_WIFI_STA) != ESP_OK) return {};
+  return wifi_scan::bssid_text(mac);
 }
 
 std::string ip_address() {

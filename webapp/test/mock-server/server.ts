@@ -33,6 +33,8 @@ import type {
   StartupIssue,
   Event,
   ProblemType,
+  WifiStatus,
+  WifiNetwork,
 } from '../../src/api/types';
 import type { EventLocation } from '../../src/lib/run-position';
 import { locateEvent, seriesTotalMs } from '../../src/lib/run-position';
@@ -89,9 +91,14 @@ const PROBLEMS = {
     title: 'That setting changes only from the serial console',
     status: 400,
   },
+  '/problems/wifi_credentials_invalid': { title: 'Invalid WiFi credentials', status: 400 },
+  '/problems/wifi_unavailable': { title: 'This device has no WiFi radio', status: 409 },
+  // firmware update
+  '/problems/ota_image_refused': { title: 'Firmware image refused', status: 400 },
   // internal
   '/problems/program_store_failed': { title: 'Could not store program', status: 500 },
   '/problems/audio_store_failed': { title: 'Could not store audio', status: 500 },
+  '/problems/wifi_store_failed': { title: 'Could not store WiFi credentials', status: 500 },
 } satisfies Record<ProblemType, { title: string; status: number }>;
 
 /**
@@ -220,6 +227,30 @@ const DEFAULT_PARTITIONS: DiagnosticsInfo['partitions'] = [
   { name: 'coredump', kind: 'data', sizeBytes: 131_072, usedBytes: 0 },
 ];
 
+// The station side of a device that has been provisioned and is on a network,
+// which is the state anything talking to this server is in by definition.
+// `bars` is the firmware's bucketing of `rssi` (wifi_scan::bars), carried
+// rather than recomputed here so the two cannot disagree about where a bar
+// boundary falls.
+const DEFAULT_WIFI: WifiStatus = {
+  radioPresent: true,
+  connected: true,
+  ssid: 'Range',
+  rssi: -52,
+  bars: 4,
+  ipAddress: '127.0.0.1',
+  macAddress: '30:ed:a0:a8:ab:78',
+  provisioned: true,
+};
+
+// A small, plausible site: two networks a club might see, one of them the one
+// the device is on. Strongest first and one entry per SSID, which is what the
+// firmware's `strongest_per_ssid` guarantees and what the pick-list assumes.
+const DEFAULT_WIFI_NETWORKS: WifiNetwork[] = [
+  { ssid: 'Range', rssi: -52, bars: 4, channel: 6, auth: 'WPA2' },
+  { ssid: 'Clubhouse', rssi: -71, bars: 2, channel: 11, auth: 'WPA2/WPA3' },
+];
+
 // --- Seed data ---
 
 export interface MockSeed {
@@ -255,6 +286,21 @@ export interface MockSeed {
    * mock actually listens on; set it empty to model a device with no network.
    */
   ipAddress?: string;
+  /**
+   * The station side of `GET /wifi` (#263). Defaults to a device associated
+   * with a network at a good signal, which is the state anything talking to
+   * this server is in by definition.
+   *
+   * `radioPresent: false` models the Ethernet build, where the scan and the
+   * save refuse with `/problems/wifi_unavailable`.
+   */
+  wifi?: Partial<WifiStatus>;
+  /**
+   * What `GET /wifi/networks` reports. Defaults to a small, plausible site.
+   * An empty array is a real answer - nothing in range - and the app has to
+   * render it as such rather than as a failure.
+   */
+  wifiNetworks?: WifiNetwork[];
   /**
    * The `build` block `GET /diagnostics/info` reports (#228). Defaults to a
    * plausible clean build. Set it to `null` for a device on firmware from
@@ -484,6 +530,12 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   // decide whether to offer the settings at all. There is no button here, so a
   // test drives it directly; open by default, matching a build with no button.
   const configWindowOpen = seed.configWindowOpen ?? true;
+
+  // Mutable: a save moves the device onto the network it was given, which is
+  // what a test asserts on. The firmware gets there by restarting; the mock has
+  // no restart, so the change is simply visible on the next GET.
+  let wifi: WifiStatus = { ...DEFAULT_WIFI, ...(seed.wifi ?? {}) };
+  const wifiNetworks: WifiNetwork[] = seed.wifiNetworks ?? DEFAULT_WIFI_NETWORKS;
 
   /** Mirrors `executor::is_running()` on the device. */
   const isRunning = (): boolean => state.programState?.running === true;
@@ -1097,6 +1149,108 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       }
       savedHardware = { ...HARDWARE_DEFAULTS };
       jsonResponse(res, 200, { message: 'Hardware configuration reset - restart the device to apply it' });
+      return;
+    }
+
+    // --- WiFi (#263) ---
+
+    // Public, like every other GET, and it carries no password in any form.
+    if (endpoint === '/wifi' && req.method === 'GET') {
+      jsonResponse(res, 200, wifi);
+      return;
+    }
+
+    // Behind the window rather than public, unlike every other GET: a scan
+    // takes the radio off its channel, so it is a read that costs the network
+    // it is served over.
+    if (endpoint === '/wifi/networks' && req.method === 'GET') {
+      if (!wifi.radioPresent) {
+        problemResponse(
+          res,
+          '/problems/wifi_unavailable',
+          'This firmware is built for wired Ethernet and has no WiFi radio',
+        );
+        return;
+      }
+      if (!hardwareWritable()) {
+        problemResponse(
+          res,
+          '/problems/hardware_config_window_closed',
+          'Press the BOOT button on the device (marked BOOT or FLASH) three times within ten seconds to open a five-minute configuration window, then try again.',
+        );
+        return;
+      }
+      jsonResponse(res, 200, { networks: wifiNetworks });
+      return;
+    }
+
+    // PUT /wifi - both guards, in the firmware's order. Admin because it is a
+    // write; the window on top of it because #208 established that being on the
+    // network proves nothing about who you are, only a button press does.
+    if (endpoint === '/wifi' && req.method === 'PUT') {
+      if (!checkAdminAuth(req, res)) return;
+
+      if (!wifi.radioPresent) {
+        problemResponse(
+          res,
+          '/problems/wifi_unavailable',
+          'This firmware is built for wired Ethernet and has no WiFi radio',
+        );
+        return;
+      }
+
+      const parsed = parseJsonObject(await parseBody(req));
+      if (parsed === null) {
+        problemResponse(
+          res,
+          '/problems/wifi_credentials_invalid',
+          'Expected a JSON object with an ssid and an optional password',
+        );
+        return;
+      }
+
+      // Before the window: "stop the run" is the more useful instruction, and
+      // this endpoint does not merely take effect at the next restart, it
+      // causes one.
+      if (isRunning()) {
+        problemResponse(
+          res,
+          '/problems/program_running',
+          'A program is running - stop it before moving the device to another network, because saving restarts the device',
+        );
+        return;
+      }
+      if (!configWindowOpen) {
+        problemResponse(
+          res,
+          '/problems/hardware_config_window_closed',
+          'Press the BOOT button on the device (marked BOOT or FLASH) three times within ten seconds to open a five-minute configuration window, then try again.',
+        );
+        return;
+      }
+
+      const ssid = typeof parsed.ssid === 'string' ? parsed.ssid : '';
+      const password = typeof parsed.password === 'string' ? parsed.password : '';
+      if (ssid === '') {
+        problemResponse(res, '/problems/wifi_credentials_invalid', 'Choose a network from the list, or type its name');
+        return;
+      }
+      if (ssid.length > 32) {
+        problemResponse(res, '/problems/wifi_credentials_invalid', 'A network name is at most 32 characters');
+        return;
+      }
+      if (password.length > 63) {
+        problemResponse(res, '/problems/wifi_credentials_invalid', 'A WiFi password is at most 63 characters');
+        return;
+      }
+
+      // The device restarts onto the new network. Nothing here reboots, so the
+      // state simply moves - and `provisioned` becomes true, which on a real
+      // device is the marker a factory reset had cleared.
+      wifi = { ...wifi, ssid, provisioned: true };
+      jsonResponse(res, 200, {
+        message: `Saved. The device is restarting to join "${ssid}" - this page will lose contact with it.`,
+      });
       return;
     }
 
