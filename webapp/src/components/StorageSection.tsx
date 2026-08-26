@@ -31,6 +31,22 @@ function formatBytes(bytes: number): string {
 // partition past this has room for very few more.
 const NEARLY_FULL = 0.9;
 
+/**
+ * The percentage shown beside the figures.
+ *
+ * Rounded, but never to 0% or 100% while the truth is neither: a partition
+ * holding a few kilobytes is not empty, and one with room for another upload is
+ * not full. Those are the two readings somebody would act on — and act
+ * wrongly, since the whole point of this section is to be read *before* an
+ * upload fails rather than after.
+ */
+function formatPercent(fraction: number): string {
+  const percent = fraction * 100;
+  if (percent > 0 && percent < 1) return '<1%';
+  if (percent < 100 && percent > 99) return '>99%';
+  return `${String(Math.round(percent))}%`;
+}
+
 export function StorageSection(): React.ReactNode {
   const diagnosticsApi = useDiagnosticsApi();
 
@@ -63,7 +79,19 @@ export function StorageSection(): React.ReactNode {
                     {partition.running === true && <span className={styles.badge}>running</span>}
                   </span>
                   <span className={styles.figures}>
-                    {known ? `${formatBytes(used)} of ${formatBytes(partition.sizeBytes)}` : formatBytes(partition.sizeBytes)}
+                    {known
+                      ? `${formatBytes(used)} of ${formatBytes(partition.sizeBytes)}`
+                      : formatBytes(partition.sizeBytes)}
+                    {/* The bar already encodes this, and a percentage is the
+                        form the question is actually asked in — "how full is
+                        it" rather than "how many megabytes". It is also the
+                        only version available to somebody who cannot see the
+                        bar. */}
+                    {known && (
+                      <span className={styles.percent} data-testid={`partition-${partition.name}-percent`}>
+                        {formatPercent(fraction)}
+                      </span>
+                    )}
                   </span>
                 </div>
 

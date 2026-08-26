@@ -96,6 +96,52 @@ describe('per-partition space on Settings', () => {
     expect(within(storage).getByText(/Nearly full/)).toBeTruthy();
   });
 
+  it('says how full each partition is as a percentage, not only in bytes', async () => {
+    // "How full is it" is the form the question is actually asked in. The bar
+    // already encodes it, and this is the only version available to somebody
+    // who cannot see the bar.
+    await deviceWith([{ name: 'storage', kind: 'data', sizeBytes: 1_000_000, usedBytes: 250_000 }]);
+    renderSection();
+
+    const storage = await screen.findByTestId('partition-storage');
+    expect(within(storage).getByTestId('partition-storage-percent').textContent).toBe('25%');
+  });
+
+  // The two roundings somebody would act on, and act wrongly on: a partition
+  // holding a few kilobytes is not empty, and one with room for another upload
+  // is not full.
+  it('never rounds a nearly-empty partition down to 0%', async () => {
+    await deviceWith([{ name: 'storage', kind: 'data', sizeBytes: 1_000_000, usedBytes: 2_000 }]);
+    renderSection();
+
+    const storage = await screen.findByTestId('partition-storage');
+    expect(within(storage).getByTestId('partition-storage-percent').textContent).toBe('<1%');
+  });
+
+  it('never rounds a nearly-full partition up to 100%', async () => {
+    await deviceWith([{ name: 'storage', kind: 'data', sizeBytes: 1_000_000, usedBytes: 998_000 }]);
+    renderSection();
+
+    const storage = await screen.findByTestId('partition-storage');
+    expect(within(storage).getByTestId('partition-storage-percent').textContent).toBe('>99%');
+  });
+
+  it('shows a genuinely full partition as 100%', async () => {
+    await deviceWith([{ name: 'storage', kind: 'data', sizeBytes: 1_000_000, usedBytes: 1_000_000 }]);
+    renderSection();
+
+    const storage = await screen.findByTestId('partition-storage');
+    expect(within(storage).getByTestId('partition-storage-percent').textContent).toBe('100%');
+  });
+
+  it('shows no percentage where the device cannot report what is used', async () => {
+    await deviceWith();
+    renderSection();
+
+    const otadata = await screen.findByTestId('partition-otadata');
+    expect(within(otadata).queryByTestId('partition-otadata-percent')).toBeNull();
+  });
+
   it('stays quiet while there is room', async () => {
     await deviceWith([{ name: 'storage', kind: 'data', sizeBytes: 1_000_000, usedBytes: 500_000 }]);
     renderSection();
