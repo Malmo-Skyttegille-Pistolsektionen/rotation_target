@@ -168,6 +168,37 @@ void test_a_near_miss_is_not_the_command() {
   TEST_ASSERT_EQUAL(Command::kUnknown, parse_command("reset"));
 }
 
+void test_play_is_recognised() {
+  TEST_ASSERT_EQUAL(Command::kPlay, parse_command("play"));
+  TEST_ASSERT_EQUAL(Command::kPlay, parse_command("  PLAY 33  "));
+  TEST_ASSERT_EQUAL(Command::kUnknown, parse_command("player"));
+}
+
+void test_play_without_an_argument_lists() {
+  int32_t id = -1;
+  TEST_ASSERT_EQUAL(rt::console::PlayArg::kMissing, rt::console::parse_play("play", id));
+  TEST_ASSERT_EQUAL(rt::console::PlayArg::kMissing, rt::console::parse_play("  play  ", id));
+}
+
+void test_play_takes_a_decimal_id() {
+  int32_t id = -1;
+  TEST_ASSERT_EQUAL(rt::console::PlayArg::kId, rt::console::parse_play("play 33", id));
+  TEST_ASSERT_EQUAL(33, id);
+  TEST_ASSERT_EQUAL(rt::console::PlayArg::kId, rt::console::parse_play("play 100", id));
+  TEST_ASSERT_EQUAL(100, id);
+  TEST_ASSERT_EQUAL(rt::console::PlayArg::kId, rt::console::parse_play("play 0", id));
+  TEST_ASSERT_EQUAL(0, id);
+}
+
+// Anything that is not purely digits is refused rather than half-parsed, and
+// a run of digits long enough to overflow an int32_t is refused outright.
+void test_play_refuses_what_is_not_an_id() {
+  int32_t id = -1;
+  for (const char *line : {"play beep", "play 33x", "play -1", "play 1 2", "play 4294967296"}) {
+    TEST_ASSERT_EQUAL(rt::console::PlayArg::kInvalid, rt::console::parse_play(line, id));
+  }
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_status_is_recognised);
@@ -191,5 +222,9 @@ int main() {
   RUN_TEST(test_the_confirmation_word_is_taken_in_any_case);
   RUN_TEST(test_nothing_else_confirms);
   RUN_TEST(test_a_near_miss_is_not_the_command);
+  RUN_TEST(test_play_is_recognised);
+  RUN_TEST(test_play_without_an_argument_lists);
+  RUN_TEST(test_play_takes_a_decimal_id);
+  RUN_TEST(test_play_refuses_what_is_not_an_id);
   return UNITY_END();
 }

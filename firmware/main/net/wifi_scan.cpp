@@ -19,6 +19,26 @@ constexpr uint16_t kMaxResults = 40;
 
 std::vector<AccessPoint> s_cached;
 
+// An all-channel scan drags the shared radio off the SoftAP's channel, and on
+// the ESP32-S3 the beacon does not reliably come back afterwards: the AP stays
+// "up" by every software measure - DHCP server running, driver happy - while
+// nothing on air can see it (espressif/esp-idf#13508). Observed on hardware:
+// the setup AP was joinable exactly once per flash, and dead to three
+// different clients after any later scan. Re-applying the AP's own config
+// forces the driver to re-establish the beacon. Cheap, and a no-op in plain
+// station mode.
+void reassert_softap() {
+  wifi_mode_t mode = WIFI_MODE_NULL;
+  if (esp_wifi_get_mode(&mode) != ESP_OK) return;
+  if (mode != WIFI_MODE_AP && mode != WIFI_MODE_APSTA) return;
+
+  wifi_config_t ap_cfg = {};
+  if (esp_wifi_get_config(WIFI_IF_AP, &ap_cfg) != ESP_OK) return;
+  if (esp_wifi_set_config(WIFI_IF_AP, &ap_cfg) != ESP_OK) {
+    ESP_LOGW(TAG, "Could not re-assert the setup AP after scanning");
+  }
+}
+
 }  // namespace
 
 std::vector<AccessPoint> scan() {
@@ -29,6 +49,7 @@ std::vector<AccessPoint> scan() {
   cfg.scan_type = WIFI_SCAN_TYPE_ACTIVE;
 
   const esp_err_t err = esp_wifi_scan_start(&cfg, true /* block */);
+  reassert_softap();
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Scan failed: %s", esp_err_to_name(err));
     return {};

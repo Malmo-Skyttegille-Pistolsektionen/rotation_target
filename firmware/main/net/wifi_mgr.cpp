@@ -1,6 +1,7 @@
 #include "config/hardware_store.h"
 #include "net_mgr.h"
 
+#include <algorithm>
 #include <cstring>
 #include <vector>
 
@@ -8,6 +9,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_timer.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
@@ -37,21 +39,72 @@ bool s_joined_once = false;
 std::string s_ip;
 SemaphoreHandle_t s_ip_lock = nullptr;
 
+// Reconnect backoff, for the after-first-join path only. Observed at the
+// range: the router restarted, and the immediate-reconnect loop hammered it
+// every ~2.4 s for over a minute without ever getting back on - while a
+// laptop on the same SSID had long since reassociated. An AP still booting
+// answers those early attempts just well enough to fail them, and retrying
+// instantly can also keep the supplicant on stale cached keys instead of
+// renegotiating (espressif/arduino-esp32#7968). Doubles per failure, capped
+// low enough that a device is never more than half a minute from noticing
+// the network came back.
+constexpr int64_t kReconnectBackoffFirstMs = 1000;
+constexpr int64_t kReconnectBackoffCapMs = 30 * 1000;
+esp_timer_handle_t s_reconnect_timer = nullptr;
+int64_t s_backoff_ms = kReconnectBackoffFirstMs;
+// Whether any attempt at the current network got an answer out of the AP.
+// Latches the larger retry budget for the rest of that network's attempts.
+bool s_budget_answered = false;
+
+// A reason that means the AP heard us and answered - the WPA handshake
+// started and timed out, or an auth round expired mid-way. Seen on two
+// different routers (an ASUS and a UniFi) on a crowded band: joins that
+// reach `run` and then drop with reason 15, twice, before the third
+// attempt sticks. Worth more patience than "no such network", because
+// retrying is nearly always what fixes it. A wrong password produces the
+// same reasons, so the budget is bigger, not infinite - the portal stays
+// reachable.
+bool ap_answered(uint8_t reason) {
+  return reason == WIFI_REASON_AUTH_EXPIRE || reason == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT ||
+         reason == WIFI_REASON_HANDSHAKE_TIMEOUT;
+}
+
+void on_reconnect_timer(void *) {
+  esp_wifi_connect();
+}
+
 void on_event(void *, esp_event_base_t base, int32_t id, void *data) {
   if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
     esp_wifi_connect();
   } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
+    const auto *event = static_cast<wifi_event_sta_disconnected_t *>(data);
+
     if (s_joined_once) {
-      ESP_LOGW(TAG, "Link lost - reconnecting");
+      ESP_LOGW(TAG, "Link lost (reason %d) - reconnecting in %d ms",
+               static_cast<int>(event->reason), static_cast<int>(s_backoff_ms));
       rgb_led::status_joining();
-      esp_wifi_connect();
+      if (s_reconnect_timer != nullptr &&
+          esp_timer_start_once(s_reconnect_timer, s_backoff_ms * 1000) == ESP_OK) {
+        s_backoff_ms = std::min<int64_t>(s_backoff_ms * 2, kReconnectBackoffCapMs);
+      } else {
+        // No timer to wait on: the old behaviour, immediate, beats stopping.
+        esp_wifi_connect();
+      }
       return;
     }
 
-    if (s_retries < hardware_store::current().wifi_max_retries) {
+    // Sticky within one network's attempts: a struggling router alternates
+    // "no answer to auth" with "not found in the scan", and a budget that
+    // shrank back on the second kind ended a nominal twelve-attempt join at
+    // five (seen on hardware). Once any attempt proves the AP is there, the
+    // whole join keeps the bigger budget. connect() resets it per network.
+    const int base_budget = hardware_store::current().wifi_max_retries;
+    if (ap_answered(event->reason)) s_budget_answered = true;
+    const int budget = s_budget_answered ? base_budget * 3 : base_budget;
+    if (s_retries < budget) {
       s_retries++;
-      ESP_LOGW(TAG, "Join attempt %d/%d failed", s_retries,
-               static_cast<int>(hardware_store::current().wifi_max_retries));
+      ESP_LOGW(TAG, "Join attempt %d/%d failed (reason %d)", s_retries, budget,
+               static_cast<int>(event->reason));
       rgb_led::status_joining();
       esp_wifi_connect();
     } else {
@@ -71,6 +124,7 @@ void on_event(void *, esp_event_base_t base, int32_t id, void *data) {
     }
     s_retries = 0;
     s_joined_once = true;
+    s_backoff_ms = kReconnectBackoffFirstMs;
     rgb_led::status_online();
     ESP_LOGI(TAG, "Connected, IP %s", buf);
     xEventGroupSetBits(s_events, kConnectedBit);
@@ -137,6 +191,13 @@ Result connect() {
   ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &on_event,
                                                       nullptr, nullptr));
 
+  const esp_timer_create_args_t timer_args = {.callback = &on_reconnect_timer,
+                                              .arg = nullptr,
+                                              .dispatch_method = ESP_TIMER_TASK,
+                                              .name = "wifi_reconnect",
+                                              .skip_unhandled_events = true};
+  ESP_ERROR_CHECK(esp_timer_create(&timer_args, &s_reconnect_timer));
+
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
   // Maximum performance rather than the default modem sleep: the SSE stream is
   // long-lived and power saving adds latency to every state update.
@@ -168,6 +229,7 @@ Result connect() {
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
 
     s_retries = 0;
+    s_budget_answered = false;
     xEventGroupClearBits(s_events, kConnectedBit | kFailedBit);
 
     ESP_LOGI(TAG, "Joining '%s' (%d of %d)", creds.ssid.c_str(), static_cast<int>(i + 1),
