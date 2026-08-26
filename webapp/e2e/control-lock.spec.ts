@@ -17,7 +17,7 @@ test('enable, logout to view-only, log back in, disable', async ({ page, request
   expect(await (await request.get('/api/v2/control-lock/status')).json()).toEqual({ enabled: true });
 
   // Logging out drops this client's token only; the lock stays on for everyone.
-  await page.getByRole('button', { name: 'Logout' }).click();
+  await page.getByRole('button', { name: 'Log out' }).click();
   await expect(page.getByTestId('control-lock-status')).toHaveText('ON 🔒');
   expect(await (await request.get('/api/v2/control-lock/status')).json()).toEqual({ enabled: true });
 
@@ -46,7 +46,7 @@ test('enable, logout to view-only, log back in, disable', async ({ page, request
 test('a wrong password is rejected and leaves the client view-only', async ({ page }) => {
   await openApp(page);
   await enableControlLockViaUi(page);
-  await page.getByRole('button', { name: 'Logout' }).click();
+  await page.getByRole('button', { name: 'Log out' }).click();
   await expect(page.getByTestId('control-lock-status')).toHaveText('ON 🔒');
 
   await page.getByTestId('control-lock-password').fill('not-the-password');

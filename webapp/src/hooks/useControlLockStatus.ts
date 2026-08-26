@@ -51,7 +51,7 @@ export function useControlLockStatus() {
     },
   });
 
-  // Logout (just clear token, don't disable)
+  // Log out: drop this client's token, leave the lock on
   function logout(): void {
     logoutControlLock();
   }
