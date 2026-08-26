@@ -49,7 +49,11 @@ SemaphoreHandle_t s_ip_lock = nullptr;
 // low enough that a device is never more than half a minute from noticing
 // the network came back.
 constexpr int64_t kReconnectBackoffFirstMs = 1000;
-constexpr int64_t kReconnectBackoffCapMs = 30 * 1000;
+// The multiplication is done wide. `30 * 1000` is computed in `int` and only
+// then widened, which is what bugprone-implicit-widening-of-multiplication-result
+// objects to - harmless at these values, and the habit that overflows once the
+// operands stop being literals.
+constexpr int64_t kReconnectBackoffCapMs = int64_t{30} * 1000;
 esp_timer_handle_t s_reconnect_timer = nullptr;
 int64_t s_backoff_ms = kReconnectBackoffFirstMs;
 // Whether any attempt at the current network got an answer out of the AP.
