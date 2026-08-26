@@ -19,6 +19,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include "audio.h"
 #include "audios.h"
 #include "config.h"
 #include "factory_reset.h"
@@ -316,6 +317,39 @@ void handle_factory_reset(const std::string &line) {
   factory_reset::perform("console command");
 }
 
+// `play [id]`. Playback with a cable and no network - the situation a DAC
+// listening test at a range actually happens in.
+void handle_play(const std::string &line) {
+  int32_t id = 0;
+  switch (rt::console::parse_play(line, id)) {
+    case rt::console::PlayArg::kMissing: {
+      std::string out;
+      char row[96];
+      for (const auto &[clip_id, clip] : audios::all()) {
+        snprintf(row, sizeof(row), "%5d  %s%s\r\n", static_cast<int>(clip_id), clip.title.c_str(),
+                 clip.readonly ? "" : "  (uploaded)");
+        out += row;
+      }
+      out += "\r\ntype 'play <id>' to hear one\r\n";
+      say(out);
+      return;
+    }
+    case rt::console::PlayArg::kInvalid:
+      say("that is not a clip id - 'play' with nothing after it lists them\r\n");
+      return;
+    case rt::console::PlayArg::kId:
+      break;
+  }
+
+  const audios::Audio *clip = audios::get(id);
+  if (clip == nullptr) {
+    say("no clip " + std::to_string(id) + " - 'play' lists what is on the device\r\n");
+    return;
+  }
+  audio::play({clip->path});
+  say("playing " + std::to_string(id) + ": " + clip->title + "\r\n");
+}
+
 void handle(const std::string &line) {
   switch (rt::console::parse_command(line)) {
     case rt::console::Command::kNone:
@@ -335,6 +369,9 @@ void handle(const std::string &line) {
     case rt::console::Command::kFactoryReset:
       handle_factory_reset(line);
       break;
+    case rt::console::Command::kPlay:
+      handle_play(line);
+      break;
     case rt::console::Command::kHelp:
       say("status         network, targets, storage, and what the boot scan found\r\n"
           "boot-targets   where the targets rest at boot: 'shown' or 'hidden'\r\n"
@@ -348,6 +385,8 @@ void handle(const std::string &line) {
           "               portal. Uploaded programs and clips are kept. Says what\r\n"
           "               it would do; needs 'factory-reset confirm' to do it.\r\n"
           "               Same as holding BOOT for ten seconds.\r\n"
+          "play           list the audio clips; 'play <id>' plays one through\r\n"
+          "               the DAC. Works with no network.\r\n"
           "help           this\r\n");
       break;
     case rt::console::Command::kUnknown:
