@@ -9,14 +9,14 @@ import type { DiagnosticsInfo } from './types';
  * 401-logout path stays in one place.
  *
  * `GET /diagnostics/bundle` is the opposite (#201): it carries a RAM snapshot
- * that can hold the WiFi password, so it needs admin credentials *and* the
+ * that can hold the WiFi password, so it needs the configuration window \u2014
  * configuration window — three presses of the device's BOOT button. Refusals
  * arrive as problem details like any other; the caller shows the device's
  * sentence.
  */
 export function useDiagnosticsApi() {
-  const { adminToken, logoutAdmin } = useSettings();
-  const client = createAuthenticatedClient(adminToken, logoutAdmin);
+  const { controlLockToken, logoutControlLock } = useSettings();
+  const client = createAuthenticatedClient(controlLockToken, logoutControlLock);
 
   return {
     info: () => client.request<DiagnosticsInfo>('/diagnostics/info'),

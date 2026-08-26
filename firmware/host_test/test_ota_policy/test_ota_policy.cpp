@@ -32,7 +32,7 @@ void test_a_matching_project_is_accepted() {
 }
 
 void test_a_foreign_image_is_refused() {
-  // Secure boot is off, so this is the only thing between an admin session and
+  // Secure boot is off, so this is the only thing between a held lock and
   // arbitrary firmware.
   TEST_ASSERT_EQUAL(Refusal::kProjectMismatch,
                     rt::ota::check_image("AutoLee", "rotation_target_backend", 900000));

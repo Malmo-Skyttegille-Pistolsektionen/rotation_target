@@ -17,17 +17,17 @@ Mock Server v2 is SSE-first. The v1 mock (`/sse/v1`, `/api/v1/*`) was removed wi
 
 ## Auth
 
-- `GET` endpoints stay public, even when admin mode is enabled.
-- Mutating endpoints become protected only while admin mode is enabled.
+- `GET` endpoints stay public, even when the control lock is on.
+- Mutating endpoints become protected only while the control lock is on.
 - Accepted auth forms for protected requests:
   - `Authorization: Bearer <token>`
-  - `Cookie: admin=<token>`
-- `GET /api/v2/admin-mode/status` is public and returns only `{ enabled: boolean }`.
-- `POST /api/v2/admin-mode/enable` accepts any non-empty `password` string while admin mode is off, and returns `409` if admin mode is already enabled.
-- `POST /api/v2/admin-mode/login` accepts the active admin password while admin mode is on, and returns `409` if admin mode is off.
-- Successful enable/login sets `Set-Cookie: admin=<token>; Path=/; SameSite=Lax`.
+  - `Cookie: control_lock=<token>`
+- `GET /api/v2/control-lock/status` is public and returns only `{ enabled: boolean }`.
+- `POST /api/v2/control-lock/enable` accepts any non-empty `password` string while the control lock is off, and returns `409` if the control lock is already enabled.
+- `POST /api/v2/control-lock/login` accepts the password the lock was turned on with while the control lock is on, and returns `409` if the control lock is off.
+- Successful enable/login sets `Set-Cookie: control_lock=<token>; Path=/; SameSite=Lax`.
 - The mock cookie is not marked `HttpOnly`.
-- `POST /api/v2/admin-mode/disable` disables admin mode server-side, but does not send a cookie-clearing header.
+- `POST /api/v2/control-lock/disable` disables the control lock server-side, but does not send a cookie-clearing header.
 
 ## Endpoints
 
@@ -42,9 +42,9 @@ Mock Server v2 is SSE-first. The v1 mock (`/sse/v1`, `/api/v1/*`) was removed wi
 
 ### Public REST
 
-- `GET /api/v2/admin-mode/status`
-- `POST /api/v2/admin-mode/enable`
-- `POST /api/v2/admin-mode/login`
+- `GET /api/v2/control-lock/status`
+- `POST /api/v2/control-lock/enable`
+- `POST /api/v2/control-lock/login`
 - `GET /api/v2/programs`
 - `GET /api/v2/programs/{id}`
 - `GET /api/v2/audios`
@@ -52,9 +52,9 @@ Mock Server v2 is SSE-first. The v1 mock (`/sse/v1`, `/api/v1/*`) was removed wi
 
 ### Conditionally Protected REST
 
-These endpoints are public while admin mode is off, and require auth while admin mode is on:
+These endpoints are public while the control lock is off, and require auth while the control lock is on:
 
-- `POST /api/v2/admin-mode/disable`
+- `POST /api/v2/control-lock/disable`
 - `POST /api/v2/programs/{id}/load`
 - `POST /api/v2/programs/start`
 - `POST /api/v2/programs/stop`

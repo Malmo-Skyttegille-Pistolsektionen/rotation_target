@@ -16,8 +16,8 @@ import type { WifiCredentials, WifiNetwork, WifiStatus } from './types';
  * board for this reason.
  */
 export function useWifiApi() {
-  const { adminToken, logoutAdmin } = useSettings();
-  const client = createAuthenticatedClient(adminToken, logoutAdmin);
+  const { controlLockToken, logoutControlLock } = useSettings();
+  const client = createAuthenticatedClient(controlLockToken, logoutControlLock);
 
   return {
     status: (): Promise<WifiStatus> => client.request<WifiStatus>('/wifi'),

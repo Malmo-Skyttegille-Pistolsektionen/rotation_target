@@ -38,7 +38,7 @@ The web app has the following main features:
 
 4.  **Settings Tab:**
     - Configure backend IP address.
-    - Admin mode.
+    - The control lock.
 
 5.  **Program editor, off the device (GitHub Pages):** the same `ProgramEditor`
     component as the Programs tab, in a "no device" mode — open a program from

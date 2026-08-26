@@ -26,7 +26,7 @@ import styles from './TroubleshootingSection.module.css';
  * of an open door, and the check below stays for the case where the window
  * lapses while the page is open.
  *
- * Admin mode is deliberately not consulted. It is write protection, for one
+ * The control lock is deliberately not consulted. It is write protection, for one
  * operator running a competition without others interfering, and this is a
  * read — gating it there would have blocked a club member from collecting a
  * fault report during exactly the event where a fault matters most.

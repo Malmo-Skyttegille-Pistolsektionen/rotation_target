@@ -19,7 +19,7 @@ enum class Refusal {
   // Rebooting into a new image underneath that is not ours to decide.
   kProgramRunning,
   // The image is for a different project. Secure boot is off, so this is the
-  // only thing standing between an admin session and arbitrary firmware.
+  // only thing standing between a held lock and arbitrary firmware.
   kProjectMismatch,
   // Nothing arrived, or not enough to be an image.
   kEmptyImage,

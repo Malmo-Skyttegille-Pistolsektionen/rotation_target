@@ -16,7 +16,8 @@
 // this way serves the bundle it already had - see #142.
 namespace ota {
 
-// Registers POST /api/v2/ota on `server`. Admin-gated like the other writes.
+// Registers POST /api/v2/ota on `server`. Behind the control lock, like every
+// other write.
 void register_routes(PsychicHttpServer &server);
 
 // True from the first byte of an upload until it finishes or is abandoned.

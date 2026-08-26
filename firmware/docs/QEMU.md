@@ -39,7 +39,7 @@ budget — exactly as the board has it.
 
 | | |
 |---|---|
-| REST `/api/v2/*` | All of it, including admin mode and `diagnostics/info` |
+| REST `/api/v2/*` | All of it, including the control lock and `diagnostics/info` |
 | SSE `/sse/v2` | `stateUpdate` and `heartbeat`, real timing |
 | The webapp | Served from LittleFS at `http://localhost:8080` when `webapp/dist` exists at build time, `.gz` assets included |
 | LittleFS | Mounts the flashed image: 7 shipped programs, 77 audio entries, uploads |

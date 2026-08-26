@@ -96,7 +96,7 @@ This design minimizes SSE payload size (~80 bytes vs ~2KB) since program structu
 | SSE for live state, REST for mutations + large reads | Real-time updates without polling; REST for large/static data       |
 | Server as source of truth                            | No client-side state logic; all clients stay in sync                |
 | TanStack Query as cache                              | SSE updates cache directly; components read from cache              |
-| Admin auth required for mutations                    | Prevent accidental/unauthorized changes                             |
+| A lock on writing, held by one operator               | Prevent accidental/unauthorized changes                             |
 | SSE sends ID only, REST for structure                | Minimizes bandwidth; program structure is static during run         |
 | REST for large data                                  | Data too large for SSE (programs, lists) fetched via REST on demand |
 
@@ -123,10 +123,10 @@ For development, `vite-plugins/mock-server-v2.ts` simulates the ESP32 backend:
 
 ## Authentication
 
-Admin mode is required for all mutations:
+The control lock is required for all mutations:
 
 1. First API call returns 401
-2. `client.ts` automatically calls `/admin-mode/enable` with password
+2. `client.ts` automatically calls `/control-lock/enable` with password
 3. Token stored as cookie
 4. Subsequent requests include token
 5. Token not persisted across page reloads
@@ -135,7 +135,7 @@ Admin mode is required for all mutations:
 
 | File                             | Purpose                              |
 | -------------------------------- | ------------------------------------ |
-| `src/api/client.ts`              | Fetch wrapper with auto admin-enable |
+| `src/api/client.ts`              | Fetch wrapper carrying the control lock token |
 | `src/api/programs.ts`            | Program API functions                |
 | `src/api/types.ts`               | TypeScript types for API             |
 | `src/hooks/useSSE.ts`            | SSE connection and cache updates     |

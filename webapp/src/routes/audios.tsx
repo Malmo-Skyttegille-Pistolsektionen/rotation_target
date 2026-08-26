@@ -6,7 +6,7 @@ import { fileRejectionReason, MAX_FILE_BYTES, useAudiosApi } from '../api/audios
 import type { AudioFile, BackendIssuePayload } from '../api/types';
 import { BackendIssueBanner } from '../components/BackendIssueBanner';
 import { useSettings } from '../context/SettingsContext';
-import { useAdminStatus } from '../hooks/useAdminStatus';
+import { useControlLockStatus } from '../hooks/useControlLockStatus';
 import styles from './audios.module.css';
 
 export const Route = createFileRoute('/audios')({
@@ -29,8 +29,8 @@ function titleFromFilename(name: string): string {
 function AudiosView(): React.ReactNode {
   const audiosApi = useAudiosApi();
   const queryClient = useQueryClient();
-  const { adminModeEnabled } = useAdminStatus();
-  const { adminToken } = useSettings();
+  const { controlLockEnabled } = useControlLockStatus();
+  const { controlLockToken } = useSettings();
 
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -38,8 +38,8 @@ function AudiosView(): React.ReactNode {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Same rule as the run view: admin mode ON without a token means spectator.
-  const canControl = !adminModeEnabled || adminToken !== null;
+  // Same rule as the run view: the lock on without a token means spectator.
+  const canControl = !controlLockEnabled || controlLockToken !== null;
 
   const {
     data: audios,
@@ -207,7 +207,7 @@ function AudiosView(): React.ReactNode {
         ) : (
           <div className={styles.viewOnlyBadge} data-testid='audios-view-only'>
             <span className={styles.viewOnlyIcon}>👁</span>
-            <span>View Only - Login as admin to play, upload or delete</span>
+            <span>View only — log in to play, upload or delete</span>
           </div>
         )}
       </section>

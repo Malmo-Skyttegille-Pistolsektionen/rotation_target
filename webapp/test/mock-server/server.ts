@@ -53,15 +53,15 @@ import { realClock } from './clock';
  */
 const PROBLEMS = {
   // auth
-  '/problems/admin_credentials_required': { title: 'Admin credentials required', status: 401 },
+  '/problems/control_lock_credentials_required': { title: 'Control lock credentials required', status: 401 },
   '/problems/invalid_password': { title: 'Invalid password', status: 401 },
   // not found
   '/problems/route_not_found': { title: 'Route not found', status: 404 },
   '/problems/program_not_found': { title: 'Program not found', status: 404 },
   '/problems/audio_not_found': { title: 'Audio not found', status: 404 },
   // conflict / state
-  '/problems/admin_mode_already_enabled': { title: 'Admin mode already enabled', status: 409 },
-  '/problems/admin_mode_not_enabled': { title: 'Admin mode not enabled', status: 409 },
+  '/problems/control_lock_already_enabled': { title: 'Control lock already on', status: 409 },
+  '/problems/control_lock_not_enabled': { title: 'Control lock not on', status: 409 },
   '/problems/no_program_loaded': { title: 'No program loaded', status: 400 },
   '/problems/program_not_running': { title: 'Program not running', status: 400 },
   '/problems/program_running': { title: 'A program is running', status: 409 },
@@ -491,8 +491,8 @@ interface ServerState {
   loadedProgram: Program | null;
   programState: ProgramState | null;
   targetStatus: 'shown' | 'hidden';
-  adminModePassword: string | null;
-  adminModeTokens: Set<string>;
+  controlLockPassword: string | null;
+  controlLockTokens: Set<string>;
   /** Clock time the current series started running at. */
   seriesStartTime: number | null;
   /** The clip `POST /audios/{id}/play` last started, and when it stops counting as playing. */
@@ -551,8 +551,8 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     loadedProgram: null,
     programState: null,
     targetStatus: 'hidden',
-    adminModePassword: null,
-    adminModeTokens: new Set<string>(),
+    controlLockPassword: null,
+    controlLockTokens: new Set<string>(),
     seriesStartTime: null,
     playingAudioId: null,
     playingUntil: null,
@@ -650,26 +650,26 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     clients.forEach(({ res }) => res.write(message));
   }
 
-  function isAdminEnabled(): boolean {
-    return state.adminModePassword !== null;
+  function isControlLockOn(): boolean {
+    return state.controlLockPassword !== null;
   }
 
-  function createAdminToken(): string {
+  function createControlLockToken(): string {
     return Math.random().toString(36).slice(2) + clock.now();
   }
 
-  function hasAdminToken(token: string | undefined): boolean {
+  function hasControlLockToken(token: string | undefined): boolean {
     if (!token) {
       return false;
     }
 
-    return state.adminModeTokens.has(token);
+    return state.controlLockTokens.has(token);
   }
 
-  function issueAdminSession(res: ServerResponse): string {
-    const token = createAdminToken();
-    state.adminModeTokens.add(token);
-    res.setHeader('Set-Cookie', `admin=${token}; Path=/; SameSite=Lax`);
+  function issueControlLockSession(res: ServerResponse): string {
+    const token = createControlLockToken();
+    state.controlLockTokens.add(token);
+    res.setHeader('Set-Cookie', `control_lock=${token}; Path=/; SameSite=Lax`);
     return token;
   }
 
@@ -685,25 +685,25 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     return cookies;
   }
 
-  function checkAdminAuth(req: IncomingMessage, res: ServerResponse): boolean {
-    // If admin mode is disabled, allow all requests
-    if (!isAdminEnabled()) {
+  function checkControlLockAuth(req: IncomingMessage, res: ServerResponse): boolean {
+    // The lock off means everyone may write
+    if (!isControlLockOn()) {
       return true;
     }
 
     // Check Authorization header first
     const auth = req.headers['authorization'];
-    if (auth && auth.startsWith('Bearer ') && hasAdminToken(auth.slice(7))) {
+    if (auth && auth.startsWith('Bearer ') && hasControlLockToken(auth.slice(7))) {
       return true;
     }
 
     // Check cookie as fallback
     const cookies = parseCookies(req);
-    if (hasAdminToken(cookies['admin'])) {
+    if (hasControlLockToken(cookies['control_lock'])) {
       return true;
     }
 
-    problemResponse(res, '/problems/admin_credentials_required', 'Invalid or missing admin credentials');
+    problemResponse(res, '/problems/control_lock_credentials_required', 'The controls are locked - log in to start or change anything');
     return false;
   }
 
@@ -892,23 +892,23 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   // --- REST routing ---
 
   async function handleRest(req: IncomingMessage, res: ServerResponse, endpoint: string): Promise<void> {
-    // --- Admin Mode Endpoints ---
+    // --- Control lock endpoints ---
 
-    // GET /admin-mode/status - no auth: every client needs to know.
-    if (endpoint === '/admin-mode/status' && req.method === 'GET') {
-      jsonResponse(res, 200, { enabled: isAdminEnabled() });
+    // GET /control-lock/status - no auth: every client needs to know.
+    if (endpoint === '/control-lock/status' && req.method === 'GET') {
+      jsonResponse(res, 200, { enabled: isControlLockOn() });
       return;
     }
 
-    // POST /admin-mode/enable
-    if (endpoint === '/admin-mode/enable' && req.method === 'POST') {
+    // POST /control-lock/enable
+    if (endpoint === '/control-lock/enable' && req.method === 'POST') {
       const body = await parseBody(req);
 
-      if (isAdminEnabled()) {
+      if (isControlLockOn()) {
         problemResponse(
           res,
-          '/problems/admin_mode_already_enabled',
-          'Admin mode is already enabled. Log in or disable it before enabling again.',
+          '/problems/control_lock_already_enabled',
+          'The control lock is already on. Log in, or turn it off before turning it on again.',
         );
         return;
       }
@@ -916,8 +916,8 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       try {
         const data = JSON.parse(body);
         if (typeof data.password === 'string' && data.password.length > 0) {
-          state.adminModePassword = data.password;
-          jsonResponse(res, 200, { token: issueAdminSession(res) });
+          state.controlLockPassword = data.password;
+          jsonResponse(res, 200, { token: issueControlLockSession(res) });
         } else {
           problemResponse(res, '/problems/invalid_password', 'Invalid password');
         }
@@ -927,23 +927,23 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       return;
     }
 
-    // POST /admin-mode/login
-    if (endpoint === '/admin-mode/login' && req.method === 'POST') {
+    // POST /control-lock/login
+    if (endpoint === '/control-lock/login' && req.method === 'POST') {
       const body = await parseBody(req);
 
-      if (!isAdminEnabled()) {
+      if (!isControlLockOn()) {
         problemResponse(
           res,
-          '/problems/admin_mode_not_enabled',
-          'Admin mode is not enabled. Enable it before logging in.',
+          '/problems/control_lock_not_enabled',
+          'The control lock is not on. Turn it on before logging in.',
         );
         return;
       }
 
       try {
         const data = JSON.parse(body);
-        if (typeof data.password === 'string' && data.password === state.adminModePassword) {
-          jsonResponse(res, 200, { token: issueAdminSession(res) });
+        if (typeof data.password === 'string' && data.password === state.controlLockPassword) {
+          jsonResponse(res, 200, { token: issueControlLockSession(res) });
         } else {
           problemResponse(res, '/problems/invalid_password', 'Invalid password');
         }
@@ -953,12 +953,12 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       return;
     }
 
-    // POST /admin-mode/disable
-    if (endpoint === '/admin-mode/disable' && req.method === 'POST') {
-      if (!checkAdminAuth(req, res)) return;
-      state.adminModePassword = null;
-      state.adminModeTokens.clear();
-      jsonResponse(res, 200, { message: 'Admin mode disabled' });
+    // POST /control-lock/disable
+    if (endpoint === '/control-lock/disable' && req.method === 'POST') {
+      if (!checkControlLockAuth(req, res)) return;
+      state.controlLockPassword = null;
+      state.controlLockTokens.clear();
+      jsonResponse(res, 200, { message: 'Control lock off - anyone on the network can operate the device again' });
       return;
     }
 
@@ -987,7 +987,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         ipAddress: seed.ipAddress ?? '127.0.0.1',
         targetGpio: 4,
         targetGpioLevel: state.targetStatus === 'shown' ? 1 : 0,
-        adminModeEnabled: isAdminEnabled(),
+        controlLockEnabled: isControlLockOn(),
         // Already bounded at construction: an array of exactly 8 may be a
         // truncated one, which is what the contract says and what the app warns
         // about.
@@ -1003,8 +1003,9 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
 
     // GET /diagnostics/bundle - the troubleshooting download (#201).
     //
-    // The configuration window and nothing else - notably NOT admin mode, which
-    // is write protection and irrelevant to a read. `hardwareWritable` rather
+    // The configuration window and nothing else - notably NOT the control
+    // lock, which is write protection and irrelevant to a read.
+    // `hardwareWritable` rather
     // than `configWindowOpen` because the firmware's `config_window_open()` is
     // held shut by a run, and the two must agree about a device that would
     // refuse.
@@ -1061,7 +1062,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     }
 
     if (endpoint === '/config/hardware' && req.method === 'PUT') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
       const parsed = parseJsonObject(await parseBody(req));
       if (parsed === null) {
         problemResponse(
@@ -1128,7 +1129,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     }
 
     if (endpoint === '/config/hardware/reset' && req.method === 'POST') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
       // Same two guards as the PUT, mirroring the firmware: reset rewrites
       // every value at once, so leaving it open protected nothing.
       if (isRunning()) {
@@ -1184,11 +1185,11 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       return;
     }
 
-    // PUT /wifi - both guards, in the firmware's order. Admin because it is a
+    // PUT /wifi - both guards, in the firmware's order. The lock because it is a
     // write; the window on top of it because #208 established that being on the
     // network proves nothing about who you are, only a button press does.
     if (endpoint === '/wifi' && req.method === 'PUT') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
 
       if (!wifi.radioPresent) {
         problemResponse(
@@ -1271,7 +1272,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     // POST /programs - Requires auth. The document's id is ignored: the device
     // assigns the next free one from 100 up and stores what it parsed.
     if (endpoint === '/programs' && req.method === 'POST') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
       const raw = parseJsonObject(await parseBody(req));
       if (!raw) {
         problemResponse(res, '/problems/program_invalid', 'Invalid program');
@@ -1311,7 +1312,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     // PUT /programs/{id} - Requires auth. See D-15: the path owns the id, a
     // shipped program is a 409, and so is the loaded one.
     if (programGetMatch && req.method === 'PUT') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
       const id = parseInt(programGetMatch[1], 10);
       const existing = programs[id];
       if (!existing) {
@@ -1357,7 +1358,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     // meaning exactly one thing.
     const programDeleteMatch = endpoint.match(/^\/programs\/(\d+)\/delete$/);
     if (programDeleteMatch && req.method === 'DELETE') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
       const id = parseInt(programDeleteMatch[1], 10);
       const existing = programs[id];
       if (!existing) {
@@ -1391,7 +1392,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     // POST /programs/{id}/load - Requires auth
     const programLoadMatch = endpoint.match(/^\/programs\/(\d+)\/load$/);
     if (programLoadMatch && req.method === 'POST') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
       const program = programs[parseInt(programLoadMatch[1], 10)];
       if (!program) {
         problemResponse(res, '/problems/program_not_found', 'Program not found');
@@ -1417,7 +1418,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     // a run to protect; nothing loaded is a 200 that publishes nothing, because
     // the payload would repeat the one clients already hold.
     if (endpoint === '/programs/unload' && req.method === 'POST') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
       if (state.programState?.running) {
         problemResponse(res, '/problems/program_running', 'A program is running - stop it before unloading');
         return;
@@ -1444,7 +1445,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     // rejected before anything is read, then "nothing loaded" (the more precise
     // diagnosis, and the answer this endpoint always gave), then the id.
     if (endpoint === '/programs/start' && req.method === 'POST') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
 
       const startBody = parseJsonObject(await parseBody(req));
       const requestedId = startBody?.id;
@@ -1499,7 +1500,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
 
     // POST /programs/stop - Requires auth
     if (endpoint === '/programs/stop' && req.method === 'POST') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
       if (!state.programState?.running) {
         problemResponse(res, '/problems/program_not_running', 'Program not running');
         return;
@@ -1516,7 +1517,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
 
     // POST /programs/reset - Requires auth
     if (endpoint === '/programs/reset' && req.method === 'POST') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
       if (!state.loadedProgram || !state.programState) {
         problemResponse(res, '/problems/no_program_loaded', 'No program loaded');
         return;
@@ -1542,7 +1543,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     // a mismatch is refused before its series count is even consulted.
     const skipToMatch = endpoint.match(/^\/programs\/series\/(\d+)\/skip_to$/);
     if (skipToMatch && req.method === 'POST') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
       const idx = parseInt(skipToMatch[1], 10);
 
       const skipBody = parseJsonObject(await parseBody(req));
@@ -1589,7 +1590,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     // --- Targets Endpoints ---
 
     if (endpoint === '/targets/show' && req.method === 'POST') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
       state.targetStatus = 'shown';
       broadcastState();
       jsonResponse(res, 200, { message: 'Targets shown' });
@@ -1597,14 +1598,14 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     }
 
     if (endpoint === '/targets/hide' && req.method === 'POST') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
       broadcastState();
       jsonResponse(res, 200, { message: 'Targets hidden' });
       return;
     }
 
     if (endpoint === '/targets/toggle' && req.method === 'POST') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
       state.targetStatus = state.targetStatus === 'shown' ? 'hidden' : 'shown';
       broadcastState();
       jsonResponse(res, 200, { message: `Targets ${state.targetStatus}` });
@@ -1621,7 +1622,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     // POST /audios/{id}/play - Requires auth
     const audioPlayMatch = endpoint.match(/^\/audios\/(\d+)\/play$/);
     if (audioPlayMatch && req.method === 'POST') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
       const id = parseInt(audioPlayMatch[1], 10);
       if (!audios.some((a) => a.id === id)) {
         problemResponse(res, '/problems/audio_not_found', 'Audio not found');
@@ -1637,7 +1638,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     // firmware actually checks are checked here: a `.wav` filename and a
     // non-empty title. The body is measured, not parsed into a file.
     if (endpoint === '/audios' && req.method === 'POST') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
       const body = await parseBodyBuffer(req);
 
       if (body.byteLength > MAX_UPLOAD_BYTES) {
@@ -1682,7 +1683,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     // currently-playing.
     const audioDeleteMatch = endpoint.match(/^\/audios\/(\d+)\/delete$/);
     if (audioDeleteMatch && req.method === 'DELETE') {
-      if (!checkAdminAuth(req, res)) return;
+      if (!checkControlLockAuth(req, res)) return;
       const id = parseInt(audioDeleteMatch[1], 10);
       const index = audios.findIndex((a) => a.id === id);
       if (index === -1) {
@@ -1777,8 +1778,8 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       restorePrograms();
       state.loadedProgram = null;
       state.programState = null;
-      state.adminModePassword = null;
-      state.adminModeTokens.clear();
+      state.controlLockPassword = null;
+      state.controlLockTokens.clear();
       state.seriesStartTime = null;
       state.playingAudioId = null;
       state.playingUntil = null;

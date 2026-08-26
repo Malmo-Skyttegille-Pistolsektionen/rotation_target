@@ -8,7 +8,7 @@ of ESP-IDF and hardware, and is covered by the Unity suites in `host_test/`.
 
 | Layer | Holds |
 |---|---|
-| `lib/rt_logic/` | Program model + JSON (`program.*`), run state + `stateUpdate` serializer (`program_state.h`), run-position maths (`run_position.h`), the run state machine (`executor.*`), admin mode (`admin_mode.h`), WAV header parsing (`wav_header.*`), URI path ids (`uri_path.h`) |
+| `lib/rt_logic/` | Program model + JSON (`program.*`), run state + `stateUpdate` serializer (`program_state.h`), run-position maths (`run_position.h`), the run state machine (`executor.*`), the control lock (`control_lock.h`), WAV header parsing (`wav_header.*`), URI path ids (`uri_path.h`) |
 | `main/io/` | `targets` (GPIO), `audio` (I2S WAV playback), `rgb_led` |
 | `main/storage/` | LittleFS mount and directory helpers |
 | `main/repositories/` | `programs`, `audios` — what is on the filesystem |

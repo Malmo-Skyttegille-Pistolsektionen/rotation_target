@@ -1,6 +1,6 @@
 // ============================================================================
-//  rt_logic/admin_mode.h
-//  In-memory admin mode - host-testable.
+//  rt_logic/control_lock.h
+//  The in-memory control lock - host-testable.
 //  Ported from src/backend/repositories/admin_mode.py.
 // ============================================================================
 #pragma once
@@ -35,7 +35,7 @@ constexpr size_t kMaxTokens = 8;
 
 // Compares without an early exit, so the time taken does not depend on how
 // many leading bytes matched. The password is the realistic target: it is
-// human-chosen and /admin-mode/login can be probed without limit.
+// human-chosen and /control-lock/login can be probed without limit.
 inline bool constant_time_equals(const std::string &a, const std::string &b) {
   // Length is not secret - it leaks through the response size anyway - but the
   // walk below must still be over a fixed range for the compared bytes.
@@ -48,19 +48,24 @@ inline bool constant_time_equals(const std::string &a, const std::string &b) {
   return diff == 0;
 }
 
-// Admin mode is off until a client enables it with a password of its choosing;
-// while it is on, mutating endpoints require a session token. Nothing is
-// persisted, so a reboot returns the device to the unprotected state -
-// deliberate parity with the frontend mock contract, documented in
+// The control lock is off until a client turns it on with a password of its
+// own choosing; while it is on, mutating endpoints require a session token.
+// Nothing is persisted, so a reboot returns the device to the unprotected
+// state - deliberate parity with the frontend mock contract, documented in
 // docs/api-v2.md.
-class AdminMode {
+//
+// It gates *changing* the device, never *looking at* it. That sentence is the
+// whole reason this is no longer called "admin mode": the old name read as a
+// privilege tier, and a read was put behind it once on the strength of that
+// (#256, #257, D-39).
+class ControlLock {
  public:
-  AdminMode(RandomBytesFn random_bytes, NowMsFn now_ms)
+  ControlLock(RandomBytesFn random_bytes, NowMsFn now_ms)
       : random_bytes_(random_bytes), now_ms_(now_ms) {}
 
   bool enabled() const { return has_password_; }
 
-  // Turn admin mode on and return a session token, or empty if refused
+  // Turn the lock on and return a session token, or empty if refused
   // (already on, or an empty password).
   std::string enable(const std::string &password) {
     if (enabled() || password.empty()) return {};
@@ -81,7 +86,7 @@ class AdminMode {
     tokens_.clear();
   }
 
-  // Invalidates one token without disabling admin mode - the safe half of
+  // Invalidates one token without turning the lock off - the safe half of
   // "log out", which disable() is not.
   bool logout(const std::string &token) {
     for (auto it = tokens_.begin(); it != tokens_.end(); ++it) {
@@ -94,13 +99,14 @@ class AdminMode {
   }
 
   // Whether a request carrying these credentials may call a protected
-  // endpoint. While admin mode is off everything is allowed - the endpoints
+  // endpoint. While the lock is off everything is allowed - the endpoints
   // are only protected once a client turns protection on.
-  bool authorize(const std::string &authorization_header, const std::string &admin_cookie) const {
+  bool authorize(const std::string &authorization_header,
+                 const std::string &control_lock_cookie) const {
     if (!enabled()) return true;
 
     if (is_valid_token(bearer_token(authorization_header))) return true;
-    return is_valid_token(admin_cookie);
+    return is_valid_token(control_lock_cookie);
   }
 
   // The bearer token from an `Authorization` header, or empty.

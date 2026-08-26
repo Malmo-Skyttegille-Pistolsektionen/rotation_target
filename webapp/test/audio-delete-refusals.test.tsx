@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Same-origin with the mock server, for the reason spelled out in
-// useAdminStatus.test.tsx: the mock implements no CORS allowlist.
+// useControlLockStatus.test.tsx: the mock implements no CORS allowlist.
 // @vitest-environment-options { "url": "http://127.0.0.1:18089" }
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -14,7 +14,7 @@ import { createMockServer, type MockServer } from './mock-server/server';
 import { requestElsewhere } from './other-client';
 
 // Distinct per suite - vitest runs files in parallel, so a shared port is an
-// EADDRINUSE flake (18080 useAdminStatus, 18081 audios, 18082 programs, 18083
+// EADDRINUSE flake (18080 useControlLockStatus, 18081 audios, 18082 programs, 18083
 // program-editor, 18084 run, 18085 startup-issues, 18086 about-section /
 // start-delay, 18087 storage-section, 18088 network-section, 18089 here).
 // Pick the next free number for a new suite.
@@ -101,7 +101,7 @@ afterAll(async () => {
 beforeEach(() => {
   server.reset();
   localStorage.clear();
-  document.cookie = 'admin=; Path=/; Max-Age=0';
+  document.cookie = 'control_lock=; Path=/; Max-Age=0';
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 });
 

@@ -9,8 +9,8 @@ import { expect } from '@playwright/test';
  * in a `beforeAll` and leaves the device in the same state it wants to find.
  */
 
-/** The password every spec enables admin mode with. See `resetDevice`. */
-export const ADMIN_PASSWORD = 'e2e-secret';
+/** The password every spec turns the control lock on with. See `resetDevice`. */
+export const CONTROL_LOCK_PASSWORD = 'e2e-secret';
 
 /**
  * Program 40 "Fältträning": the shortest shipped program, and the only one
@@ -57,23 +57,23 @@ export async function expectProblem(
 }
 
 /**
- * Put the device back to: admin mode off, nothing running, nothing loaded.
+ * Put the device back to: control lock off, nothing running, nothing loaded.
  *
- * Admin mode can only be turned off by an authenticated admin, and the suite
- * is the only thing that ever turns it on - always with `ADMIN_PASSWORD` - so
+ * The control lock can only be turned off by whoever is holding it, and the suite
+ * is the only thing that ever turns it on - always with `CONTROL_LOCK_PASSWORD` - so
  * `enable` (or `login`, when it is already on) always gets us a usable token.
  */
 export async function resetDevice(request: APIRequestContext): Promise<void> {
-  const enable = await request.post(`${API}/admin-mode/enable`, {
-    data: { password: ADMIN_PASSWORD },
+  const enable = await request.post(`${API}/control-lock/enable`, {
+    data: { password: CONTROL_LOCK_PASSWORD },
   });
 
-  // 409: admin mode was already on, from an earlier spec or a failed run.
+  // 409: the lock was already on, from an earlier spec or a failed run.
   const session =
     enable.status() === 409
-      ? await request.post(`${API}/admin-mode/login`, { data: { password: ADMIN_PASSWORD } })
+      ? await request.post(`${API}/control-lock/login`, { data: { password: CONTROL_LOCK_PASSWORD } })
       : enable;
-  expect(session.ok(), `could not obtain an admin session: ${session.status()}`).toBeTruthy();
+  expect(session.ok(), `could not obtain a control lock session: ${session.status()}`).toBeTruthy();
 
   const { token } = (await session.json()) as { token: string };
   const auth = { headers: { Authorization: `Bearer ${token}` } };
@@ -87,8 +87,8 @@ export async function resetDevice(request: APIRequestContext): Promise<void> {
   const unload = await request.post(`${API}/programs/unload`, auth);
   expect(unload.ok(), `could not unload: ${unload.status()}`).toBeTruthy();
 
-  const disable = await request.post(`${API}/admin-mode/disable`, auth);
-  expect(disable.ok(), `could not disable admin mode: ${disable.status()}`).toBeTruthy();
+  const disable = await request.post(`${API}/control-lock/disable`, auth);
+  expect(disable.ok(), `could not turn the control lock off: ${disable.status()}`).toBeTruthy();
 }
 
 /**
@@ -104,10 +104,10 @@ export async function openApp(page: Page): Promise<void> {
 }
 
 /** Walk the documented enable flow through the Settings UI. */
-export async function enableAdminViaUi(page: Page): Promise<void> {
+export async function enableControlLockViaUi(page: Page): Promise<void> {
   await page.getByRole('link', { name: 'Settings' }).click();
-  await expect(page.getByTestId('admin-status')).toHaveText('OFF');
-  await page.getByTestId('admin-password').fill(ADMIN_PASSWORD);
-  await page.getByRole('button', { name: 'Enable Admin Mode' }).click();
-  await expect(page.getByTestId('admin-status')).toHaveText('ON ✓');
+  await expect(page.getByTestId('control-lock-status')).toHaveText('OFF');
+  await page.getByTestId('control-lock-password').fill(CONTROL_LOCK_PASSWORD);
+  await page.getByRole('button', { name: 'Turn the lock on' }).click();
+  await expect(page.getByTestId('control-lock-status')).toHaveText('ON ✓');
 }

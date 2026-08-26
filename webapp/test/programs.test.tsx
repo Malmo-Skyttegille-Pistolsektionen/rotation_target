@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Same-origin with the mock, as the app runs for real — the firmware serves
-// the bundle. See the note in useAdminStatus.test.tsx.
+// the bundle. See the note in useControlLockStatus.test.tsx.
 // @vitest-environment-options { "url": "http://127.0.0.1:18082" }
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -12,10 +12,10 @@ import { ProgramsView } from '../src/routes/programs';
 import { PROGRAM_FALT_TRANING } from './fixtures';
 import { createFakeClock } from './mock-server/clock';
 import { createMockServer, type MockServer } from './mock-server/server';
-import { enableAdminElsewhere, requestElsewhere } from './other-client';
+import { enableControlLockElsewhere, requestElsewhere } from './other-client';
 
 // Distinct per suite: vitest runs files in parallel, so a shared port is an
-// EADDRINUSE flake (18080 useAdminStatus, 18081 audios, 18082 here).
+// EADDRINUSE flake (18080 useControlLockStatus, 18081 audios, 18082 here).
 const PORT = 18082;
 
 /** Shipped: read-only, no file behind it, so it can only be loaded. */
@@ -36,7 +36,7 @@ function renderPrograms(): void {
   );
 }
 
-/** The list has arrived and the admin status query has settled. */
+/** The list has arrived and the control lock query has settled. */
 async function ready(): Promise<void> {
   await screen.findByTestId('programs-table');
   await waitFor(() => expect(screen.getByTestId(`program-row-${UPLOADED.id}`)).toBeTruthy());
@@ -79,7 +79,7 @@ afterAll(async () => {
 beforeEach(() => {
   server.reset();
   localStorage.clear();
-  document.cookie = 'admin=; Path=/; Max-Age=0';
+  document.cookie = 'control_lock=; Path=/; Max-Age=0';
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 });
 
@@ -129,9 +129,9 @@ describe('the list', () => {
   });
 });
 
-describe('admin gating', () => {
-  it('hides every write while admin mode is on and this browser has no token', async () => {
-    await enableAdminElsewhere(PORT, 'range-2026');
+describe('control lock gating', () => {
+  it('hides every write while the control lock is on and this browser has no token', async () => {
+    await enableControlLockElsewhere(PORT, 'range-2026');
 
     renderPrograms();
     await ready();
@@ -143,7 +143,7 @@ describe('admin gating', () => {
   });
 
   it('restores them once this browser holds a token', async () => {
-    localStorage.setItem('rt_settings_admin_token', await enableAdminElsewhere(PORT, 'range-2026'));
+    localStorage.setItem('rt_settings_control_lock_token', await enableControlLockElsewhere(PORT, 'range-2026'));
 
     renderPrograms();
     await ready();
@@ -154,7 +154,7 @@ describe('admin gating', () => {
   });
 
   it('loads a program on the device, presenting the token', async () => {
-    localStorage.setItem('rt_settings_admin_token', await enableAdminElsewhere(PORT, 'range-2026'));
+    localStorage.setItem('rt_settings_control_lock_token', await enableControlLockElsewhere(PORT, 'range-2026'));
 
     renderPrograms();
     await ready();

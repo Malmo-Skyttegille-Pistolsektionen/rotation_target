@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Same-origin with the mock server, for the reason spelled out in
-// useAdminStatus.test.tsx: the mock implements no CORS allowlist.
+// useControlLockStatus.test.tsx: the mock implements no CORS allowlist.
 // @vitest-environment-options { "url": "http://127.0.0.1:18081" }
 import http from 'http';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -16,7 +16,7 @@ import { FakeEventSource } from './fake-event-source';
 import { createFakeClock } from './mock-server/clock';
 import { createMockServer, type MockServer } from './mock-server/server';
 
-// Out of the Linux ephemeral range, and not the port useAdminStatus.test.tsx
+// Out of the Linux ephemeral range, and not the port useControlLockStatus.test.tsx
 // binds — vitest runs the two files in parallel.
 const PORT = 18081;
 
@@ -37,15 +37,15 @@ function wavFile(name = 'signal.wav', byteLength = 64): File {
   return new File([bytes], name, { type: 'audio/wav' });
 }
 
-/** See useAdminStatus.test.tsx: a request from another client, so no cookie lands in this page's jar. */
-function enableAdminElsewhere(password: string): Promise<void> {
+/** See useControlLockStatus.test.tsx: a request from another client, so no cookie lands in this page's jar. */
+function enableControlLockElsewhere(password: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({ password });
     const req = http.request(
       {
         host: '127.0.0.1',
         port: PORT,
-        path: '/api/v2/admin-mode/enable',
+        path: '/api/v2/control-lock/enable',
         method: 'POST',
         agent: false,
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
@@ -109,7 +109,7 @@ afterAll(async () => {
 beforeEach(() => {
   server.reset();
   localStorage.clear();
-  document.cookie = 'admin=; Path=/; Max-Age=0';
+  document.cookie = 'control_lock=; Path=/; Max-Age=0';
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 });
 
@@ -148,9 +148,9 @@ describe('the audio library', () => {
   });
 });
 
-describe('admin mode gates the mutating controls', () => {
-  it('admin ON without a token: view only, no upload form and no row actions', async () => {
-    await enableAdminElsewhere('competition-2026');
+describe('the control lock gates the mutating controls', () => {
+  it('lock ON without a token: view only, no upload form and no row actions', async () => {
+    await enableControlLockElsewhere('competition-2026');
 
     renderAudios();
     await waitForClips();
@@ -161,9 +161,9 @@ describe('admin mode gates the mutating controls', () => {
     expect(screen.queryByTestId('audios-delete-100')).toBeNull();
   });
 
-  it('admin ON with a token: the controls come back', async () => {
-    await enableAdminElsewhere('competition-2026');
-    localStorage.setItem('rt_settings_admin_token', 'a-token');
+  it('lock ON with a token: the controls come back', async () => {
+    await enableControlLockElsewhere('competition-2026');
+    localStorage.setItem('rt_settings_control_lock_token', 'a-token');
 
     renderAudios();
     await waitForClips();
@@ -174,24 +174,24 @@ describe('admin mode gates the mutating controls', () => {
   });
 
   it('a 401 drops the stale token, and the controls go away with it', async () => {
-    // The password-changed case: admin mode was cycled elsewhere, so this
+    // The password-changed case: the lock was cycled elsewhere, so this
     // client's token is no longer one the device knows.
-    await enableAdminElsewhere('competition-2026');
-    localStorage.setItem('rt_settings_admin_token', 'a-token-from-a-previous-session');
+    await enableControlLockElsewhere('competition-2026');
+    localStorage.setItem('rt_settings_control_lock_token', 'a-token-from-a-previous-session');
 
     renderAudios();
     await waitForClips();
     fireEvent.click(await screen.findByTestId('audios-play-1'));
 
-    // `client.ts` calls `logoutAdmin` on the 401, which is what takes the
+    // `client.ts` calls `logoutControlLock` on the 401, which is what takes the
     // controls away — the user is told, not left with buttons that do nothing.
     await screen.findByTestId('audios-view-only');
-    expect(localStorage.getItem('rt_settings_admin_token')).toBeNull();
+    expect(localStorage.getItem('rt_settings_control_lock_token')).toBeNull();
     expect(screen.queryByTestId('audios-play-1')).toBeNull();
     expect(text(screen.getByTestId('audios-feedback'))).toMatch(/Could not play "Färdiga"/);
   });
 
-  it('admin OFF: everyone controls, as the device allows', async () => {
+  it('lock OFF: everyone controls, as the device allows', async () => {
     renderAudios();
     await waitForClips();
 

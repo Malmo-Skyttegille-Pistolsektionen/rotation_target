@@ -71,7 +71,7 @@ test('the library is the clips the LittleFS image carries, all shipped', async (
 
   await expect(page.locator('[data-testid^="audios-row-"]')).toHaveCount(audios.length);
 
-  // Admin mode is off after `resetDevice`, so the rows are in their
+  // The control lock is off after `resetDevice`, so the rows are in their
   // controllable state: a Play button on every one, and - because a shipped
   // clip is refused a delete outright (D-23) - a Delete button on none.
   // Asserting only the second would also pass on a view-only render, where

@@ -1,16 +1,16 @@
-# Admin Mode Authentication Flow
+# Control lock Authentication Flow
 
 ## Purpose
 
-Admin mode is designed for **competition scenarios** where:
+The control lock is designed for **competition scenarios** where:
 
 - **Spectators and competitors** can view the site to see current program status, timeline, and target states
-- **Only competition hosts (admins)** can control the rotation targets and manage the program
-- Admin mode ensures random visitors cannot accidentally or maliciously interfere with the competition
+- **Only whoever is holding the lock** can control the rotation targets and manage the program
+- The control lock ensures random visitors cannot accidentally or maliciously interfere with the competition
 
 ## Three States
 
-### 1. Admin Mode OFF (Practice Mode)
+### 1. Control lock OFF (Practice Mode)
 
 **Who:** Everyone
 **Access:** Full read/write access to all endpoints
@@ -18,14 +18,14 @@ Admin mode is designed for **competition scenarios** where:
 
 ```
 ┌─────────────────────────────────────┐
-│ Admin Mode: OFF                     │
+│ Control lock: OFF                     │
 │ Access: Full public access          │
 │                                     │
-│ [ Enable Admin Mode ]               │
+│ [ Enable Control lock ]               │
 └─────────────────────────────────────┘
 ```
 
-### 2. Admin Mode ON + Not Authenticated (Spectator Mode)
+### 2. Control lock ON + Not Authenticated (Spectator Mode)
 
 **Who:** Non-authenticated visitors
 **Access:** Read-only (view status, timeline, targets)
@@ -33,32 +33,32 @@ Admin mode is designed for **competition scenarios** where:
 
 ```
 ┌─────────────────────────────────────┐
-│ Admin Mode: ON 🔒                   │
+│ Control lock: ON 🔒                   │
 │ Your Access: View only              │
 │                                     │
 │ Password: [____________]            │
-│ [ Login as Admin ]                  │
+│ [ Log in ]                  │
 │                                     │
-│ Note: Admin controls are hidden.    │
+│ Note: the controls are hidden.    │
 │ Login to enable them.               │
 └─────────────────────────────────────┘
 
 Run Page shows:
-👁 View Only - Login as admin to control
+👁 View Only - Login in to control
 ```
 
-### 3. Admin Mode ON + Authenticated (Admin Mode)
+### 3. Control lock ON + Authenticated (Control lock)
 
-**Who:** Authenticated admins only
+**Who:** whoever is holding the lock
 **Access:** Full control (load programs, start/stop/reset, toggle targets)
-**Use case:** Competition hosts, administrators
+**Use case:** the person running a competition
 
 ```
 ┌─────────────────────────────────────┐
-│ Admin Mode: ON ✓                    │
-│ Your Access: Full admin access      │
+│ Control lock: ON ✓                    │
+│ You are holding the lock      │
 │                                     │
-│ [ Logout ] [ Disable Admin Mode ]   │
+│ [ Logout ] [ Disable Control lock ]   │
 └─────────────────────────────────────┘
 
 Run Page shows all controls:
@@ -67,9 +67,9 @@ Run Page shows all controls:
 
 ## Key Principle: Server is Source of Truth
 
-**Important:** The server is the single source of truth for admin mode status. Clients never cache or store the admin mode state locally.
+**Important:** The server is the single source of truth for the control lock status. Clients never cache or store the the control lock state locally.
 
-- Admin mode status is fetched from server on app startup
+- The control lock status is fetched from server on app startup
 - Status is refreshed periodically (every 30 seconds)
 - Status is refreshed when window regains focus
 - All clients (including incognito windows) see the same status
@@ -82,16 +82,16 @@ Run Page shows all controls:
 1. App mounts
    │
    ▼
-2. useAdminStatus hook runs
+2. useControlLockStatus hook runs
    │
    ▼
-3. GET /admin-mode/status
+3. GET /control-lock/status
    │
-   ├──► Admin mode: OFF
+   ├──► The control lock: OFF
    │    Show all controls
    │
-   └──► Admin mode: ON
-        Check for stored admin token in context
+   └──► The control lock: ON
+        Check for stored control lock token in context
         │
         ├──► No token stored
         │    Show view-only UI
@@ -102,7 +102,7 @@ Run Page shows all controls:
              Clear token on 401
 ```
 
-### Making a Protected Request (Admin Mode ON)
+### Making a Protected Request (Control lock ON)
 
 ```
 User clicks "Start" button (authenticated)
@@ -120,24 +120,24 @@ POST /programs/start with Bearer token in header
    Client detects 401
    Clear token from context
    UI updates to "View Only" mode
-   Show error: "Admin session expired - please login again"
+   Show error: "Session expired - please log in again"
 ```
 
-### Enabling Admin Mode
+### Enabling Control lock
 
-**Note:** Any non-empty password can be used to enable admin mode. That password becomes the shared admin password until admin mode is disabled.
+**Note:** Any non-empty password can be used to turn the control lock on. That password becomes the shared password until the lock is turned off.
 
 ```
 User enters any password in Settings
    │
    ▼
-POST /admin-mode/enable
+POST /control-lock/enable
 { password: "competition-secret-2024" }
    │
    ├──► Success (200)
    │    Server accepts any non-empty password
-   │    Stores it as the active admin password
-   │    Sets admin cookie with token
+   │    Stores it as the active password
+   │    Sets the control_lock cookie with the token
    │    Returns: { token: "xxx" }
    │    │
    │    ▼
@@ -145,27 +145,27 @@ POST /admin-mode/enable
    │ UI updates to show "ON ✓" state
    │
    └──► 409 Conflict
-        Admin mode already enabled
-        Show error: "Admin mode is already enabled. Log in or disable it before enabling again."
+        Control lock already on
+        Show error: "The control lock is already on. Log in, or turn it off before turning it on again."
 ```
 
-### Login When Admin Mode Already Enabled
+### Login When Control lock Already Enabled
 
-**Note:** Must use the same password that was used to enable admin mode. Multiple admins can login at the same time and each gets their own session token.
+**Note:** Must use the same password that was used to turn the control lock on. Several people can log in at the same time and each gets their own session token.
 
 ```
-Admin mode is ON, user has no token (view-only)
+The control lock is ON, user has no token (view-only)
    │
    ▼
 User enters password in Settings
    │
    ▼
-POST /admin-mode/login
+POST /control-lock/login
 { password: "competition-secret-2024" }
    │
    ├──► Success (200)
-   │    Server validates password matches current admin mode password
-   │    Sets admin cookie
+   │    Server validates password matches current the control lock password
+   │    Sets the control_lock cookie
    │    Returns: { token: "xxx" }
    │    │
    │    ▼
@@ -177,16 +177,16 @@ POST /admin-mode/login
         Show error: "Invalid password"
 ```
 
-### Disabling Admin Mode
+### Disabling Control lock
 
 ```
-Authenticated admin clicks "Disable Admin Mode"
+Whoever holds the lock clicks "Turn the lock off"
    │
    ▼
-POST /admin-mode/disable
+POST /control-lock/disable
    │
    ├──► Success (200)
-   │    Server clears admin token
+   │    Server clears control lock token
    │    Removes http-only cookie
    │    │
    │    ▼
@@ -195,14 +195,14 @@ POST /admin-mode/disable
    │ All controls now available to everyone
    │
    └──► 401 Unauthorized
-        Not authenticated as admin
-        Show error: "Admin authentication required"
+        Not authenticated in
+        Show error: "The controls are locked - log in first"
 ```
 
-### Logout (Keep Admin Mode On)
+### Logout (Keep Control lock On)
 
 ```
-Authenticated admin clicks "Logout"
+Whoever holds the lock clicks "Log out"
    │
    ▼
 Client clears token from context
@@ -210,15 +210,15 @@ Client clears token from context
    ▼
 UI updates - Run page hides controls
 User is now in "View Only" mode
-Admin mode remains ON on server
-Other authenticated admins still have access
+The control lock remains ON on server
+Everyone else holding the lock still has access
 ```
 
 ## Storage
 
 ### Server-Side (HTTP-Only Cookie) - THE ONLY STORAGE
 
-- **Key:** `admin`
+- **Key:** `control_lock`
 - **Value:** Random token string
 - **Security:** HttpOnly, SameSite=Lax
 - **Expiration:** Session (no explicit expiration)
@@ -226,7 +226,7 @@ Other authenticated admins still have access
 
 ### Client-Side (React Context)
 
-- **adminToken:** Stored temporarily in React context only (not persisted)
+- **controlLockToken:** Stored temporarily in React context only (not persisted)
 - **Purpose:** Track if this specific browser tab/client has authenticated
 - **Lifetime:** Lost on page refresh (must login again or use cookie)
 - **Scope:** Per tab/client only
@@ -236,56 +236,56 @@ Other authenticated admins still have access
 - **Synchronization:** localStorage is isolated per browser/incognito, causing desync
 - **Security:** localStorage is accessible by JavaScript (XSS risk)
 - **Single Source of Truth:** Server state must be authoritative
-- **Multiple Clients:** All clients must see the same admin mode status
+- **Multiple Clients:** All clients must see the same the control lock status
 
-## Hook: useAdminStatus
+## Hook: useControlLockStatus
 
 ```typescript
-export function useAdminStatus() {
-  const { setAdminToken, logoutAdmin } = useSettings();
-  const adminApi = useAdminApi();
+export function useControlLockStatus() {
+  const { setControlLockToken, logoutControlLock } = useSettings();
+  const controlLockApi = useControlLockApi();
   const queryClient = useQueryClient();
 
-  // Always fetch admin status from server - single source of truth
-  const { data: adminStatus, isLoading } = useQuery({
-    queryKey: ['admin-status'],
-    queryFn: adminApi.fetchStatus,
+  // Always fetch the lock's state from the device - single source of truth
+  const { data: controlLockStatus, isLoading } = useQuery({
+    queryKey: ['control-lock-status'],
+    queryFn: controlLockApi.fetchStatus,
     staleTime: 0, // Always fetch fresh data
     refetchOnWindowFocus: true,
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
-  const adminModeEnabled = adminStatus?.enabled ?? false;
+  const controlLockEnabled = controlLockStatus?.enabled ?? false;
 
   // Enable mutation
   const enableMutation = useMutation({
-    mutationFn: (password: string) => adminApi.enable(password),
+    mutationFn: (password: string) => controlLockApi.enable(password),
     onSuccess: (data) => {
-      setAdminToken(data.token);
-      queryClient.invalidateQueries({ queryKey: ['admin-status'] });
+      setControlLockToken(data.token);
+      queryClient.invalidateQueries({ queryKey: ['control-lock-status'] });
     },
   });
 
   // Login mutation
   const loginMutation = useMutation({
-    mutationFn: (password: string) => adminApi.login(password),
+    mutationFn: (password: string) => controlLockApi.login(password),
     onSuccess: (data) => {
-      setAdminToken(data.token);
-      queryClient.invalidateQueries({ queryKey: ['admin-status'] });
+      setControlLockToken(data.token);
+      queryClient.invalidateQueries({ queryKey: ['control-lock-status'] });
     },
   });
 
-  // Disable admin mode mutation
+  // Turn the control lock off mutation
   const disableMutation = useMutation({
-    mutationFn: () => adminApi.disable(),
+    mutationFn: () => controlLockApi.disable(),
     onSuccess: () => {
-      logoutAdmin();
-      queryClient.invalidateQueries({ queryKey: ['admin-status'] });
+      logoutControlLock();
+      queryClient.invalidateQueries({ queryKey: ['control-lock-status'] });
     },
   });
 
   return {
-    adminModeEnabled,
+    controlLockEnabled,
     isLoading,
     enable: enableMutation.mutateAsync,
     login: loginMutation.mutateAsync,
@@ -303,82 +303,82 @@ export function useAdminStatus() {
 ```typescript
 interface SettingsContextType {
   settings: Settings;
-  adminToken: string | null; // Stored in context only (not localStorage)
+  controlLockToken: string | null; // Stored in context only (not localStorage)
   setServerBaseUrl: (url: string) => void;
   setStartDelaySeconds: (seconds: number) => void;
-  setAdminToken: (token: string | null) => void;
-  logoutAdmin: () => void; // Clear token from context only
+  setControlLockToken: (token: string | null) => void;
+  logoutControlLock: () => void; // Clear token from context only
 }
 ```
 
-**Note:** `adminModeEnabled` is NOT in the context. It always comes from the server via `useAdminStatus` hook.
+**Note:** `controlLockEnabled` is NOT in the context. It always comes from the server via `useControlLockStatus` hook.
 
 ## Components Affected
 
 ### Settings Page
 
-Always shows Admin Mode section with appropriate state:
+Always shows Control lock section with appropriate state:
 
-- **OFF:** "Enable Admin Mode" button
-- **ON + No Auth:** Password input + "Login as Admin" button
-- **ON + Authenticated:** "Logout" and "Disable Admin Mode" buttons
+- **OFF:** "Enable Control lock" button
+- **ON + No Auth:** Password input + "Log in" button
+- **ON + Authenticated:** "Logout" and "Disable Control lock" buttons
 
-Uses `useAdminStatus()` hook to get real-time status from server.
+Uses `useControlLockStatus()` hook to get real-time status from server.
 
 ### Run Page
 
-Conditional rendering based on `canControl = !adminModeEnabled || isAdminAuthenticated`:
+Conditional rendering based on `canControl = !controlLockEnabled || isHoldingLock`:
 
 - **Can control:** Show Start/Pause, Reset, Toggle Targets buttons
-- **View only:** Show "👁 View Only - Login as admin to control" badge, hide all buttons
+- **View only:** Show "👁 View Only - Login in to control" badge, hide all buttons
 
-Uses `useAdminStatus()` for `adminModeEnabled` and checks for `adminToken` in context.
+Uses `useControlLockStatus()` for `controlLockEnabled` and checks for `controlLockToken` in context.
 
 ### API Client
 
 - Sends `Authorization: Bearer <token>` header when token exists in context
-- On 401 response: Calls `logoutAdmin()` to clear token from context
+- On 401 response: Calls `logoutControlLock()` to clear token from context
 - All mutations go through authenticated client
 
 ## API Endpoints
 
-### GET /admin-mode/status
+### GET /control-lock/status
 
 **Response:** `{ enabled: boolean }`
 **Auth required:** No
-**Purpose:** Check if admin mode is enabled on server
-**Note:** This is public - any client can check if admin mode is on/off
+**Purpose:** Check if the control lock is on on server
+**Note:** This is public - any client can check if the control lock is on/off
 
-### POST /admin-mode/enable
+### POST /control-lock/enable
 
-**Body:** `{ password: string }` - Any non-empty password is accepted when admin mode is off.
+**Body:** `{ password: string }` - Any non-empty password is accepted when the control lock is off.
 **Response:** `{ token: string }`
 **Auth required:** No
-**Purpose:** Enable admin mode and issue the first admin session
-**Errors:** `409` if admin mode is already enabled
-**Note:** Each competition can set their own unique password. The password is set when admin mode is first enabled and must be used for all subsequent admin logins until admin mode is disabled.
+**Purpose:** Turn the control lock on and issue the first control lock session
+**Errors:** `409` if the control lock is already enabled
+**Note:** Each competition can set their own unique password. The password is set when the control lock is first enabled and must be used for every later login until the lock is turned off.
 
-### POST /admin-mode/login
+### POST /control-lock/login
 
-**Body:** `{ password: string }` - Must match the active admin password.
+**Body:** `{ password: string }` - Must match the password the lock was turned on with.
 **Response:** `{ token: string }`
 **Auth required:** No
-**Purpose:** Authenticate another admin session while admin mode is already enabled
-**Errors:** `409` if admin mode is not enabled
+**Purpose:** Authenticate another control lock session while the control lock is already enabled
+**Errors:** `409` if the control lock is not enabled
 
-### POST /admin-mode/disable
+### POST /control-lock/disable
 
 **Response:** `{ message: string }`
-**Auth required:** Yes (must be authenticated admin)
-**Purpose:** Disable admin mode entirely
+**Auth required:** Yes (must be holding the lock)
+**Purpose:** Turn the control lock off entirely
 
 ### All Other Endpoints (POST/PUT/DELETE)
 
-**Auth required:** Only when admin mode is enabled
+**Auth required:** Only when the control lock is on
 **Behavior:**
 
-- If admin mode OFF: Allow all requests
-- If admin mode ON: Require valid Bearer token
+- If the control lock OFF: Allow all requests
+- If the control lock ON: Require valid Bearer token
 
 ### GET Endpoints (Read-Only)
 
@@ -388,24 +388,24 @@ Uses `useAdminStatus()` for `adminModeEnabled` and checks for `adminToken` in co
 - `GET /programs` - List all programs
 - `GET /programs/{id}` - Get specific program
 - `GET /audios` - List all audio files
-- `GET /admin-mode/status` - Check admin mode status
+- `GET /control-lock/status` - Check the control lock status
 
 ## Authentication Check Priority
 
-1. **Check admin mode status** (from server via useAdminStatus)
-2. **If admin mode OFF:** Allow all requests ✓
-3. **If admin mode ON:** Check for token in context
+1. **Check the control lock status** (from server via useControlLockStatus)
+2. **If the control lock OFF:** Allow all requests ✓
+3. **If the control lock ON:** Check for token in context
 4. **If no token:** Block mutations, show view-only UI
 5. **If has token:** Send with request, server validates
 6. **If server returns 401:** Token invalid, clear from context and logout
 
 ## Security Considerations
 
-1. **Server as Source of Truth:** Admin mode status is always determined by server state
-2. **No Client Caching:** Clients never cache admin mode status; always fetch from server
+1. **Server as Source of Truth:** The control lock status is always determined by server state
+2. **No Client Caching:** Clients never cache the control lock status; always fetch from server
 3. **HTTP-Only Cookies:** Token stored in http-only cookie (not accessible by JavaScript)
 4. **Context-Only Token:** Token reference stored only in React context (lost on refresh)
-5. **Password Per Competition:** Each competition can use any password to enable admin mode
+5. **Password Per Competition:** Each competition can use any password to turn the control lock on
 6. **CSRF Protection:** SameSite=Lax cookie attribute
 
 ## Error Handling
@@ -414,7 +414,7 @@ Uses `useAdminStatus()` for `adminModeEnabled` and checks for `adminToken` in co
 
 ```typescript
 // In API client
-if (response.status === 401 && adminToken) {
+if (response.status === 401 && controlLockToken) {
   onAuthError(); // Clears token from context
 }
 ```
@@ -428,8 +428,8 @@ if (response.status === 401 && adminToken) {
 
 ### Wrong Endpoint For Current State
 
-- `POST /admin-mode/enable` returns 409 if admin mode is already enabled
-- `POST /admin-mode/login` returns 409 if admin mode is not enabled
+- `POST /control-lock/enable` returns 409 if the control lock is already enabled
+- `POST /control-lock/login` returns 409 if the control lock is not enabled
 - Client shows the server error message
 
 ### Token Invalid (Password Changed)
@@ -442,28 +442,28 @@ if (response.status === 401 && adminToken) {
 
 ## Testing Scenarios
 
-### Scenario 1: Fresh Start (Admin Mode OFF)
+### Scenario 1: Fresh Start (Control lock OFF)
 
 1. Start app in browser
 2. Start app in incognito window
-3. Verify both show "Admin Mode: OFF"
+3. Verify both show "Control lock: OFF"
 4. Verify all controls work without login in both windows
 
-### Scenario 2: Enable Admin Mode (Both Windows See It)
+### Scenario 2: Enable Control lock (Both Windows See It)
 
 1. In main window, enter any password (e.g., "competition-2024")
-2. Click "Enable Admin Mode"
-3. Verify main window shows "Admin Mode: ON ✓"
-4. Verify incognito window automatically shows "Admin Mode: ON 🔒"
+2. Click "Enable Control lock"
+3. Verify main window shows "Control lock: ON ✓"
+4. Verify incognito window automatically shows "Control lock: ON 🔒"
 5. Verify incognito shows view-only badge
 6. Remember the password - you'll need it to login again
 
-### Scenario 3: Login as Admin in Incognito
+### Scenario 3: Log in from an incognito window
 
 1. Incognito window shows view-only badge
-2. In incognito Settings, enter the same password used to enable admin mode
-3. Click "Login as Admin"
-4. Verify incognito now shows "Admin Mode: ON ✓"
+2. In incognito Settings, enter the same password used to turn the control lock on
+3. Click "Log in"
+4. Verify incognito now shows "Control lock: ON ✓"
 5. Verify both windows can control the program
 
 ### Scenario 4: Logout in One Window
@@ -471,21 +471,21 @@ if (response.status === 401 && adminToken) {
 1. Login in both windows
 2. Click "Logout" in main window
 3. Verify main window shows view-only
-4. Verify incognito window still has admin access
-5. Verify server still has admin mode ON
+4. Verify incognito window still hin access
+5. Verify server still has the control lock ON
 
-### Scenario 5: Disable Admin Mode (Both Windows See It)
+### Scenario 5: Disable Control lock (Both Windows See It)
 
-1. Login as admin in main window
-2. Click "Disable Admin Mode"
-3. Verify main window shows "Admin Mode: OFF"
-4. Verify incognito window automatically shows "Admin Mode: OFF"
+1. Login in in main window
+2. Click "Disable Control lock"
+3. Verify main window shows "Control lock: OFF"
+4. Verify incognito window automatically shows "Control lock: OFF"
 5. Verify both windows show full controls without login
 
 ### Scenario 6: Password Change
 
-1. Enable admin mode with password "old-password", login
-2. Disable admin mode
-3. Enable admin mode again with password "new-password"
+1. Turn the control lock on with password "old-password", login
+2. Turn the control lock off
+3. Turn the control lock on again with password "new-password"
 4. Try to login with "old-password" - should fail
 5. Login with "new-password" - should succeed

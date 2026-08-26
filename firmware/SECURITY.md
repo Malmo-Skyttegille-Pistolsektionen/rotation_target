@@ -16,9 +16,9 @@ shooters when to fire**. Unauthorised control is a safety concern, not just a
 data one. It is not hardened against a determined attacker with network access,
 and the following are known, deliberate properties rather than oversights.
 
-### Admin mode is off after every boot
+### The control lock is off after every boot
 
-Admin mode is opt-in and lives in RAM only, so a reboot returns the device to
+The control lock is opt-in and lives in RAM only, so a reboot returns the device to
 the unprotected state. **Until a client enables it, every mutating endpoint is
 open** — including `POST /api/v2/targets/show` and `POST /api/v2/programs/start`.
 
@@ -32,13 +32,13 @@ contract, and one that should be agreed across the backends and the webapp.
 
 ### First caller sets the password
 
-While admin mode is off, `POST /api/v2/admin-mode/enable` accepts any non-empty
+While the control lock is off, `POST /api/v2/control-lock/enable` accepts any non-empty
 password from an unauthenticated caller. Whoever calls first after a reboot
 holds the only valid password until the device is power-cycled.
 
 ### Other deliberate choices
 
-- The `admin` cookie is **not** `HttpOnly` — the webapp reads it back. It is
+- The `control_lock` cookie is **not** `HttpOnly` — the webapp reads it back. It is
   `SameSite=Lax`, so it is not sent on cross-site requests; a webapp on another
   origin uses the bearer token instead.
 - Tokens are 16 bytes from `esp_fill_random()`, expire after 12 hours, and at

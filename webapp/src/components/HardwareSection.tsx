@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { useHardwareConfigApi, type HardwareConfigPatch } from '../api/hardwareConfig';
 import type { HardwareConfig } from '../api/types';
 import { useSettings } from '../context/SettingsContext';
-import { useAdminStatus } from '../hooks/useAdminStatus';
+import { useControlLockStatus } from '../hooks/useControlLockStatus';
 import styles from './HardwareSection.module.css';
 
 /**
@@ -96,13 +96,13 @@ const NETWORK_FIELDS: NumericField[] = [
 ];
 
 export function HardwareSection(): React.ReactNode {
-  const { adminToken } = useSettings();
-  const { adminModeEnabled } = useAdminStatus();
+  const { controlLockToken } = useSettings();
+  const { controlLockEnabled } = useControlLockStatus();
   const api = useHardwareConfigApi();
   const queryClient = useQueryClient();
 
-  // Same rule as the rest of the app: admin off means anyone may manage.
-  const canManage = !adminModeEnabled || adminToken !== null;
+  // Same rule as the rest of the app: the lock off means anyone may manage.
+  const canManage = !controlLockEnabled || controlLockToken !== null;
 
   const [draft, setDraft] = useState<HardwareConfigPatch | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -350,7 +350,7 @@ export function HardwareSection(): React.ReactNode {
 
           {!canManage && (
             <p className={styles.hint} data-testid='hardware-locked'>
-              Admin mode is on — log in to change these.
+              The controls are locked — log in to change these.
             </p>
           )}
 

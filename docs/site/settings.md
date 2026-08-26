@@ -12,7 +12,7 @@ which is which before changing anything:
 |---|---|---|
 | Server Base URL | browser | Which device this browser talks to |
 | Address | device | The address the device says it is reachable on |
-| Admin Mode | device | Whether control is open to everyone or needs a login |
+| Control lock | device | Whether control is open to everyone or needs a login |
 | Start delay | browser | Seconds counted down before a run starts |
 | Startup Issues | device | What the device could not read when it booted |
 | Storage | device | How much room the flash partitions have |
@@ -36,7 +36,7 @@ What the device reports as its own address. If it says the device has no
 address, it is serving its own access point instead of being on a network —
 see [the setup portal](connecting.md#the-setup-portal).
 
-## Admin Mode
+## Control lock
 
 Two states:
 

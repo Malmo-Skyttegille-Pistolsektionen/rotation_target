@@ -59,27 +59,28 @@ info:
 
     ## Authentication
 
-    Admin mode is off after every boot and lives in RAM only. While it is off,
+    The control lock is off after every boot and lives in RAM only. While it is
+    off,
     **every endpoint is unauthenticated**, including the ones marked as
-    requiring an admin session below. A client turns protection on with
-    `POST /api/v2/admin-mode/enable`, choosing the password in that call.
+    requiring a session below. A client turns protection on with
+    `POST /api/v2/control-lock/enable`, choosing the password in that call.
 
-    While admin mode is on, the protected endpoints accept either credential:
+    While the lock is on, the protected endpoints accept either credential:
 
     - `Authorization: Bearer <token>`
-    - `Cookie: admin=<token>`
+    - `Cookie: control_lock=<token>`
 
     The header is checked first; the cookie is the fallback. Tokens are 16
     random bytes, hex-encoded, valid for 12 hours from issue, and at most 8
     are held at once (oldest evicted first). `enable` and `login` return the
     token in the body *and* set it as
-    `Set-Cookie: admin=<token>; Path=/; SameSite=Lax` — deliberately not
+    `Set-Cookie: control_lock=<token>; Path=/; SameSite=Lax` — deliberately not
     `HttpOnly`, because the webapp reads it back. `SameSite=Lax` means the
     cookie only rides along when the webapp is served from the device itself;
     a webapp on another origin authenticates with the bearer token.
 
     Because of the "off means open" rule, each protected operation lists an
-    empty security requirement alongside the two credentials: with admin mode
+    empty security requirement alongside the two credentials: with the lock
     disabled, a call with no credentials succeeds.
 
     ## CORS
@@ -145,7 +146,7 @@ tags:
     description: Firmware identity.
   - name: diagnostics
     description: Post-incident triage without a USB cable.
-  - name: admin-mode
+  - name: control-lock
     description: Turning write protection on and off, and session handling.
   - name: programs
     description: The stored programs and the run control that drives them.
@@ -240,7 +241,7 @@ paths:
         running program holds that window shut, so a bundle cannot be pulled
         out from under a sequence that is driving targets.
 
-        **Admin mode is not part of this, deliberately.** It is write
+        **The control lock is not part of this, deliberately.** It is write
         protection — one operator running a competition without others
         interfering — and it is off by default. Requiring it would add nothing
         in the state where the dump is actually exposed, and in the state where
@@ -280,17 +281,17 @@ paths:
             whichever endpoint it is guarding.
 
             The only refusal this operation has. There is no `401`: nothing
-            here is gated on admin mode.
+            here is gated on the control lock.
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
 
-  /admin-mode/status:
+  /control-lock/status:
     get:
-      tags: [admin-mode]
-      summary: Whether admin mode is on
-      operationId: getAdminModeStatus
+      tags: [control-lock]
+      summary: Whether the control lock is on
+      operationId: getControlLockStatus
       responses:
         "200":
           description: Whether write protection is currently enabled.
@@ -304,14 +305,14 @@ paths:
                     type: boolean
                 additionalProperties: false
 
-  /admin-mode/enable:
+  /control-lock/enable:
     post:
-      tags: [admin-mode]
-      summary: Turn admin mode on and open a session
-      operationId: enableAdminMode
+      tags: [control-lock]
+      summary: Turn the control lock on and open a session
+      operationId: enableControlLockMode
       description: |
         Sets the password — any non-empty string, chosen by this call — and
-        returns the first session token. Refused while admin mode is already
+        returns the first session token. Refused while the lock is already
         on: log in or disable it first.
       requestBody:
         required: true
@@ -321,7 +322,7 @@ paths:
               $ref: "#/components/schemas/PasswordBody"
       responses:
         "200":
-          $ref: "#/components/responses/AdminSession"
+          $ref: "#/components/responses/ControlLockSession"
         "401":
           description: |
             - `/problems/invalid_password` — the password was empty, or the
@@ -332,18 +333,18 @@ paths:
                 $ref: "#/components/schemas/Problem"
         "409":
           description: |
-            - `/problems/admin_mode_already_enabled` — log in or disable it
+            - `/problems/control_lock_already_enabled` — log in or disable it
               first.
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
 
-  /admin-mode/login:
+  /control-lock/login:
     post:
-      tags: [admin-mode]
+      tags: [control-lock]
       summary: Open another session with the active password
-      operationId: loginAdminMode
+      operationId: loginControlLockMode
       requestBody:
         required: true
         content:
@@ -352,7 +353,7 @@ paths:
               $ref: "#/components/schemas/PasswordBody"
       responses:
         "200":
-          $ref: "#/components/responses/AdminSession"
+          $ref: "#/components/responses/ControlLockSession"
         "401":
           description: |
             - `/problems/invalid_password` — wrong password.
@@ -362,35 +363,35 @@ paths:
                 $ref: "#/components/schemas/Problem"
         "409":
           description: |
-            - `/problems/admin_mode_not_enabled` — there is nothing to log in
+            - `/problems/control_lock_not_enabled` — there is nothing to log in
               to.
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
 
-  /admin-mode/logout:
+  /control-lock/logout:
     post:
-      tags: [admin-mode]
+      tags: [control-lock]
       summary: Invalidate the presenting session
-      operationId: logoutAdminMode
+      operationId: logoutControlLockMode
       description: |
-        Ends this session only, leaving admin mode on — which is what a client
+        Ends this session only, leaving the lock on — which is what a client
         walking away from a shared range laptop wants, and the opposite of
         `disable`.
 
         The token is taken from the `Authorization` header, falling back to
-        the `admin` cookie. **This endpoint is not itself protected**: it
+        the `control_lock` cookie. **This endpoint is not itself protected**: it
         always answers `200` and always clears the cookie, whether or not the
         presented token was a live session (or was presented at all).
       responses:
         "200":
           description: >-
-            Logged out. `Set-Cookie: admin=; Path=/; SameSite=Lax; Max-Age=0`
+            Logged out. `Set-Cookie: control_lock=; Path=/; SameSite=Lax; Max-Age=0`
             clears the cookie.
           headers:
             Set-Cookie:
-              description: Clears the `admin` cookie.
+              description: Clears the `control_lock` cookie.
               schema:
                 type: string
           content:
@@ -398,22 +399,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/Message"
 
-  /admin-mode/disable:
+  /control-lock/disable:
     post:
-      tags: [admin-mode]
-      summary: Turn admin mode off
-      operationId: disableAdminMode
+      tags: [control-lock]
+      summary: Turn the control lock off
+      operationId: disableControlLockMode
       description: |
         Clears the password and invalidates every issued token. Note this
         turns protection *off* — every endpoint becomes writable by anyone on
-        the network again. It is not "log out"; see `/admin-mode/logout`.
+        the network again. It is not "log out"; see `/control-lock/logout`.
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       responses:
         "200":
-          description: Admin mode disabled.
+          description: The control lock is off.
           content:
             application/json:
               schema:
@@ -451,8 +452,8 @@ paths:
         1…3600000 ms per event. Posting a document carrying an existing id
         creates a *new* program; replacing one is `PUT /programs/{id}`.
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       requestBody:
         required: true
@@ -525,8 +526,8 @@ paths:
         `POST /programs/unload` (or loads something else) first; there is no
         forced-update flag.
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       requestBody:
         required: true
@@ -599,8 +600,8 @@ paths:
         Selects the program at series 0, event 0, with `tickerMs` unset.
         Does not start it.
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       responses:
         "200":
@@ -636,8 +637,8 @@ paths:
         (whatever the run state — see `POST /programs/unload`) and a
         `stateUpdate` follows.
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       responses:
         "200":
@@ -682,8 +683,8 @@ paths:
         **required**: an id-less start asks the device to run whatever it
         happens to hold at that instant, which is the ambiguity this closes.
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       requestBody:
         required: true
@@ -737,8 +738,8 @@ paths:
         whole-second `tickerSeconds` with `tickerMs`, a pause a few hundred
         milliseconds into a series no longer rewinds to the start of it.
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       responses:
         "200":
@@ -766,8 +767,8 @@ paths:
         Stops the run, selects event 0 of the current series and clears
         `tickerMs`. The selected series is kept.
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       responses:
         "200":
@@ -810,8 +811,8 @@ paths:
         `DELETE /audios/{id}/delete` point at when the program that blocks them
         is the loaded one.
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       responses:
         "200":
@@ -861,8 +862,8 @@ paths:
         would keep a way to select a series of whatever the device happens to
         hold.
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       requestBody:
         required: true
@@ -920,8 +921,8 @@ paths:
         program, which will move the targets again at its next event
         boundary.
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       responses:
         "200":
@@ -939,8 +940,8 @@ paths:
       summary: Turn the targets edge-on
       operationId: hideTargets
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       responses:
         "200":
@@ -958,8 +959,8 @@ paths:
       summary: Flip the targets
       operationId: toggleTargets
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       responses:
         "200":
@@ -1029,8 +1030,8 @@ paths:
         Survives a firmware update: `idf.py flash` leaves the `nvs` partition
         alone, so a club's configuration outlives the image it was set on.
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       requestBody:
         required: true
@@ -1064,7 +1065,7 @@ paths:
             the three-press sequence recently, so the configuration window is
             shut.
 
-            Separate from 401, which is about admin credentials: this is not a
+            Separate from 401, which is about the control lock: this is not a
             question of who you are but of whether somebody is standing at the
             device. Both apply, and both must pass.
           content:
@@ -1100,8 +1101,8 @@ paths:
         this, and taking them out would turn "undo my hardware change" into
         "and now find the setup portal".
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       responses:
         "200":
@@ -1170,7 +1171,7 @@ paths:
 
         ## Why both guards
 
-        Admin mode, because this is a write, and one operator running a
+        The control lock, because this is a write, and one operator running a
         competition should not have another move the device off the network
         mid-run.
 
@@ -1184,8 +1185,8 @@ paths:
 
         No `PUT` on the Ethernet build: there is nothing to join.
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       requestBody:
         required: true
@@ -1305,7 +1306,7 @@ paths:
         firmware is never overwritten. Once it has landed the device compares
         the image's `project_name` against its own and refuses anything that
         is not this project — secure boot is off, so that check is the only
-        thing between an admin session and arbitrary firmware. A refused image
+        thing between a held lock and arbitrary firmware. A refused image
         is aborted rather than finalised, so it is never the boot partition
         even for an instant.
 
@@ -1363,7 +1364,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Admin mode is on and the request carried no valid session.
+          description: The control lock is on and the request carried no valid session.
           content:
             application/problem+json:
               schema:
@@ -1418,8 +1419,8 @@ paths:
         name works), and `title` is matched as a non-`POST` parameter, so it
         may equally be supplied as a `?title=` query parameter.
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       requestBody:
         required: true
@@ -1483,8 +1484,8 @@ paths:
         Acknowledged immediately and played on the audio task — the response
         is not held open for the length of the clip.
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       responses:
         "200":
@@ -1535,8 +1536,8 @@ paths:
         4. a run is in progress — `409`
         5. the audio task is reading it right now — `409`
       security:
-        - adminBearer: []
-        - adminCookie: []
+        - controlLockBearer: []
+        - controlLockCookie: []
         - {}
       responses:
         "200":
@@ -1607,20 +1608,20 @@ paths:
 
 components:
   securitySchemes:
-    adminBearer:
+    controlLockBearer:
       type: http
       scheme: bearer
       description: >-
         `Authorization: Bearer <token>`, where the token came from
-        `/admin-mode/enable` or `/admin-mode/login`. Checked before the
+        `/control-lock/enable` or `/control-lock/login`. Checked before the
         cookie.
-    adminCookie:
+    controlLockCookie:
       type: apiKey
       in: cookie
-      name: admin
+      name: control_lock
       description: >-
-        The `admin` cookie set by `/admin-mode/enable` and
-        `/admin-mode/login`. Only sent same-site, because the cookie is
+        The `control_lock` cookie set by `/control-lock/enable` and
+        `/control-lock/login`. Only sent same-site, because the cookie is
         `SameSite=Lax`.
 
   parameters:
@@ -1649,18 +1650,19 @@ components:
   responses:
     Unauthorized:
       description: |
-        - `/problems/admin_credentials_required` — admin mode is on and no
+        - `/problems/control_lock_credentials_required` — the control lock is on
+          and no
           valid token was presented.
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
-    AdminSession:
+    ControlLockSession:
       description: >-
         A session token, also set as a cookie.
       headers:
         Set-Cookie:
-          description: "`admin=<token>; Path=/; SameSite=Lax`"
+          description: "`control_lock=<token>; Path=/; SameSite=Lax`"
           schema:
             type: string
       content:
@@ -2137,15 +2139,15 @@ components:
             `program_invalid` `backend_issue` code in `asyncapi.yaml`.
           enum:
             # auth
-            - /problems/admin_credentials_required
+            - /problems/control_lock_credentials_required
             - /problems/invalid_password
             # not found
             - /problems/route_not_found
             - /problems/program_not_found
             - /problems/audio_not_found
             # conflict / state
-            - /problems/admin_mode_already_enabled
-            - /problems/admin_mode_not_enabled
+            - /problems/control_lock_already_enabled
+            - /problems/control_lock_not_enabled
             - /problems/no_program_loaded
             - /problems/program_not_running
             - /problems/program_running
@@ -2564,7 +2566,7 @@ components:
         - ipAddress
         - targetGpio
         - targetGpioLevel
-        - adminModeEnabled
+        - controlLockEnabled
         - startupIssues
       properties:
         build:
@@ -2665,7 +2667,7 @@ components:
             The level actually on the pad, read back rather than remembered —
             the pair with `targetGpio` distinguishes "the firmware never drove
             it" from "something else is holding it".
-        adminModeEnabled:
+        controlLockEnabled:
           type: boolean
         startupIssues:
           type: array
