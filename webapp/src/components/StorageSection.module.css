@@ -68,6 +68,15 @@
   color: #6b7280;
 }
 
+/* Darker than the byte figures beside it, because it is the one somebody is
+   actually looking for. Grey-700 on white is 8.9:1; the grey-500 it sits next
+   to would make the pair read as equally important. */
+.percent {
+  margin-left: 0.5rem;
+  color: #374151;
+  font-weight: 600;
+}
+
 .track {
   height: 6px;
   border-radius: 3px;
