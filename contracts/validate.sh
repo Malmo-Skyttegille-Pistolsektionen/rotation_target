@@ -14,8 +14,10 @@ check-jsonschema --schemafile program.schema.json ../resources/programs/files/*.
 
 # Pinned: an unpinned CLI can turn main red from an upstream rule change with
 # no commit of ours behind it. redocly.yaml configures the rules.
+# renovate: datasource=npm depName=@redocly/cli
 npx --yes @redocly/cli@2.47.0 lint openapi.yaml || status=1
 
+# renovate: datasource=npm depName=@asyncapi/cli
 npx --yes @asyncapi/cli@6.0.2 validate asyncapi.yaml || status=1
 
 exit "$status"

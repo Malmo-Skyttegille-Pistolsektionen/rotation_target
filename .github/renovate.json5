@@ -10,6 +10,12 @@
   // `joltwallet/littlefs` eight above `^1.14.8`, with no PR ever raised.
   //
   // The registry has a plain JSON API, so it can be a custom datasource.
+  // Off by default, so `.pre-commit-config.yaml`'s `rev:` pins were tracked by
+  // nothing - including mirrors-clang-format, the formatter that gates every
+  // firmware commit. A formatter drifting from the one CI runs is a whole
+  // class of "works on my machine" this repo would otherwise not see coming.
+  "pre-commit": { enabled: true },
+
   customDatasources: {
     "esp-component-registry": {
       defaultRegistryUrlTemplate: "https://components.espressif.com/api/components/{{packageName}}",
@@ -34,6 +40,19 @@
   // second time. Measured: 140 dependencies with the copy, 139 without, and
   // `orhun/git-cliff` tracked identically either way.
   customManagers: [
+
+    // The org preset's `# renovate:` convention, applied to the one place
+    // outside `.github/` that pins a tool: contracts/validate.sh runs the
+    // Redocly and AsyncAPI CLIs at fixed versions, and the preset's patterns
+    // only reach .github/actions and .github/workflows. Same matchString
+    // shape, different file.
+    {
+      customType: "regex",
+      managerFilePatterns: ["/^contracts/validate\\.sh$/"],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>\\S+)\\s+[^\\n]*?(?:==|@)(?<currentValue>[0-9][^\\s\"']*)",
+      ],
+    },
 
     // The registry components. Matched on `namespace/name: "x.y.z"` at exactly
     // two spaces of indent, which is the dependency list and not the prose
