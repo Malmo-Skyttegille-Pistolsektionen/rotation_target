@@ -76,9 +76,22 @@
       managerFilePatterns: ["/^firmware/main/idf_component\\.yml$/"],
       matchStrings: ["\\n  idf: \"(?<currentValue>[0-9][^\"]*)\""],
       depNameTemplate: "espressif/esp-idf",
-      datasourceTemplate: "github-tags",
-      extractVersionTemplate: "^v(?<version>.+)$",
-      versioningTemplate: "semver",
+      // Releases, not tags. `v6.1-dev` is a *tag* - the moving development
+      // pointer - and Espressif never publishes it as a release, so this
+      // keeps the most dangerous candidate out of the set entirely rather
+      // than relying on the pattern below to reject it. Verified against the
+      // API: tags carry v6.1-dev and v6.0-dev, releases carry neither.
+      datasourceTemplate: "github-releases",
+      // Espressif tags a `.0` release as `v6.1`, not `v6.1.0`, and anchors the
+      // pre-releases off the same stem (`v6.1-dev`, `-beta1`, `-rc1`). So the
+      // pattern takes two- or three-part numbers and nothing with a suffix,
+      // and the comparison is `loose` rather than `semver` - `6.1` is not
+      // valid semver, and under `semver` it is dropped in silence. Verified:
+      // before this, a local `renovate --platform=local --dry-run` extracted
+      // the dependency, resolved it, and reported `updates: []` with v6.1
+      // published.
+      extractVersionTemplate: "^v(?<version>\\d+\\.\\d+(?:\\.\\d+)?)$",
+      versioningTemplate: "loose",
     },
 
     // The IDF checkouts in firmware-build.yml, which exist only to get Unity
@@ -93,12 +106,21 @@
     {
       customType: "regex",
       managerFilePatterns: ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      // The `v` sits OUTSIDE the capture on purpose, so `currentValue` is the
+      // bare number and the same extractVersion as the manifest applies. With
+      // the `v` inside the capture and no extractVersion, `v6.1-dev` compares
+      // as a higher version than `v6.0.2` and gets offered - a PR reading
+      // "update espressif/esp-idf to v6.1-dev" that points CI at a
+      // development tag. Caught by a local dry-run, which proposed exactly
+      // that before this line existed.
       matchStrings: [
-        "repository: espressif/esp-idf\\s+ref: (?<currentValue>v[0-9][^\\s]*)",
+        "repository: espressif/esp-idf\\s+ref: v(?<currentValue>[0-9][^\\s]*)",
       ],
       depNameTemplate: "espressif/esp-idf",
-      datasourceTemplate: "github-tags",
-      versioningTemplate: "semver",
+      // github-releases here too - see the note on the manifest manager.
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v(?<version>\\d+\\.\\d+(?:\\.\\d+)?)$",
+      versioningTemplate: "loose",
     },
   ],
 }
