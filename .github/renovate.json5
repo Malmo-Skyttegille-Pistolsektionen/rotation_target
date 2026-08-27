@@ -10,6 +10,12 @@
   // `joltwallet/littlefs` eight above `^1.14.8`, with no PR ever raised.
   //
   // The registry has a plain JSON API, so it can be a custom datasource.
+  // Off by default, so `.pre-commit-config.yaml`'s `rev:` pins were tracked by
+  // nothing - including mirrors-clang-format, the formatter that gates every
+  // firmware commit. A formatter drifting from the one CI runs is a whole
+  // class of "works on my machine" this repo would otherwise not see coming.
+  "pre-commit": { enabled: true },
+
   customDatasources: {
     "esp-component-registry": {
       defaultRegistryUrlTemplate: "https://components.espressif.com/api/components/{{packageName}}",
@@ -27,31 +33,26 @@
     },
   },
 
-  // NOTE: this array REPLACES the org preset's rather than merging with it,
-  // which is why the first entry below is a copy rather than a reference.
-  // Dropping it would stop `# renovate:` comments being tracked in
-  // .github/actions/, and this repository has one (setup-git-cliff).
-  //
-  // The copy is the thing to watch here. If the org preset's entry changes,
-  // this one has to change with it - and nothing enforces that. The better
-  // home for the ESP entry is the org preset itself, where AutoLee would get
-  // it too; this is the local version until that move is made.
+  // These ADD to the org preset's rather than replacing them, so only this
+  // repository's own entries belong here. #272 carried a verbatim copy of the
+  // preset's `# renovate:` manager on the assumption that the array was
+  // replaced - it is not, and the copy merely extracted every workflow file a
+  // second time. Measured: 140 dependencies with the copy, 139 without, and
+  // `orhun/git-cliff` tracked identically either way.
   customManagers: [
-    // --- copied verbatim from the org preset. Keep in step. ---
+
+    // The org preset's `# renovate:` convention, applied to the one place
+    // outside `.github/` that pins a tool: contracts/validate.sh runs the
+    // Redocly and AsyncAPI CLIs at fixed versions, and the preset's patterns
+    // only reach .github/actions and .github/workflows. Same matchString
+    // shape, different file.
     {
       customType: "regex",
-      managerFilePatterns: [
-        "/^\\.github/actions/.+/action\\.ya?ml$/",
-        "/^\\.github/workflows/.+\\.ya?ml$/",
-      ],
+      managerFilePatterns: ["/^contracts/validate\\.sh$/"],
       matchStrings: [
-        "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>\\S+)\\s+default: \"(?<currentValue>[^\"]+)\"",
-        "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>\\S+)\\s+VERSION=\"(?<currentValue>[^\"]+)\"",
         "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>\\S+)\\s+[^\\n]*?(?:==|@)(?<currentValue>[0-9][^\\s\"']*)",
       ],
     },
-
-    // --- this repository's own ---
 
     // The registry components. Matched on `namespace/name: "x.y.z"` at exactly
     // two spaces of indent, which is the dependency list and not the prose
@@ -121,6 +122,34 @@
       datasourceTemplate: "github-releases",
       extractVersionTemplate: "^v(?<version>\\d+\\.\\d+(?:\\.\\d+)?)$",
       versioningTemplate: "loose",
+    },
+  ],
+
+  packageRules: [
+    {
+      matchDepNames: ["espressif/esp-idf", "espressif/idf"],
+      // One PR for the whole toolchain. The manifest, the two workflow refs
+      // and the three digest-pinned containers are one version written in
+      // four places, and idf_component.yml says they must move together -
+      // split across two PRs they land days apart, and in between the build
+      // fails, because an exact `idf:` pin against an older container is a
+      // refusal to solve rather than a warning.
+      groupName: "ESP-IDF",
+    },
+    {
+      // The container only. `docker` versioning rejects a leading `v`, so
+      // this resolved with `skipReason: invalid-version` and was never
+      // tracked - since long before this file grew custom managers, and
+      // contrary to what #107 and #272 both assumed.
+      //
+      // `loose` alone then offered `v6.1-rc1`, because the image is tagged
+      // with the same pre-release stems as the repo. So the allowlist is what
+      // keeps this to real releases; it is the container's equivalent of the
+      // extractVersion on the two managers above.
+      matchDatasources: ["docker"],
+      matchDepNames: ["espressif/idf"],
+      versioning: "loose",
+      allowedVersions: "/^v\\d+\\.\\d+(\\.\\d+)?$/",
     },
   ],
 }

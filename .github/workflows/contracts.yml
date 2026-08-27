@@ -168,6 +168,7 @@ jobs:
           set -uo pipefail
           # Pinned to the same release contracts/validate.sh pins for
           # `validate`, so CI does not carry two versions of the same CLI.
+          # renovate: datasource=npm depName=@asyncapi/cli
           npx --yes @asyncapi/cli@6.0.2 diff \
             ".contracts-base/contracts/asyncapi.yaml" contracts/asyncapi.yaml \
             --type breaking
@@ -180,6 +181,7 @@ jobs:
           # dozens of unclassified entries and zero breaking ones. Failing on
           # it would turn every additive change red too, so it is surfaced as
           # a warning instead.
+          # renovate: datasource=npm depName=@asyncapi/cli
           npx --yes @asyncapi/cli@6.0.2 diff \
             ".contracts-base/contracts/asyncapi.yaml" contracts/asyncapi.yaml \
             --type unclassified --format json --no-error \
