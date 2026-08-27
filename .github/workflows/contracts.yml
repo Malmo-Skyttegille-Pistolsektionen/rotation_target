@@ -110,6 +110,24 @@ jobs:
           SHA="$(git merge-base HEAD "origin/$BASE_REF")"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
 
+          # The whole contracts/ tree, not one file at a time. A spec with a
+          # relative `$ref` extracted on its own points at nothing, and both
+          # tools report that as a problem with the spec rather than with the
+          # path - a bare `ValidationError:` from the AsyncAPI CLI, and
+          # "encountered disallowed external reference" from oasdiff (#274).
+          #
+          # It is also the more correct comparison even with no external ref
+          # in sight: the base then diffs against the schema files it actually
+          # shipped with, where the single-file form silently compared an old
+          # spec against today's schemas.
+          #
+          # Inside the workspace, deliberately: oasdiff-action runs in Docker
+          # with the workspace at /github/workspace, so a $RUNNER_TEMP path
+          # does not resolve inside the container.
+          rm -rf .contracts-base
+          mkdir -p .contracts-base
+          git archive "$SHA" contracts | tar -x -C .contracts-base
+
           # A spec this PR introduces has no baseline to diff against - that
           # is a new file, not a breaking change to an existing one.
           if git cat-file -e "$SHA:contracts/openapi.yaml" 2>/dev/null; then
@@ -132,9 +150,14 @@ jobs:
         continue-on-error: true
         uses: oasdiff/oasdiff-action/breaking@2649ebe137aeb72a95707671204e829f86e091fc  # v0.1.13
         with:
-          base: "${{ steps.base.outputs.sha }}:contracts/openapi.yaml"
-          revision: "HEAD:contracts/openapi.yaml"
+          base: ".contracts-base/contracts/openapi.yaml"
+          revision: "contracts/openapi.yaml"
           fail-on: WARN
+          # Off by default, which makes oasdiff refuse to *load* a spec that
+          # has a relative `$ref` rather than compare it (#274). Both specs
+          # are internal-ref only today; this is what stops that changing
+          # from looking like a breaking change.
+          allow-external-refs: true
           github-token: ${{ github.token }}
 
       - name: AsyncAPI - breaking changes (AsyncAPI CLI)
@@ -143,13 +166,10 @@ jobs:
         continue-on-error: true
         run: |
           set -uo pipefail
-          git show "${{ steps.base.outputs.sha }}:contracts/asyncapi.yaml" \
-            > "$RUNNER_TEMP/asyncapi-base.yaml"
-
           # Pinned to the same release contracts/validate.sh pins for
           # `validate`, so CI does not carry two versions of the same CLI.
           npx --yes @asyncapi/cli@6.0.2 diff \
-            "$RUNNER_TEMP/asyncapi-base.yaml" contracts/asyncapi.yaml \
+            ".contracts-base/contracts/asyncapi.yaml" contracts/asyncapi.yaml \
             --type breaking
           status=$?
 
@@ -161,7 +181,7 @@ jobs:
           # it would turn every additive change red too, so it is surfaced as
           # a warning instead.
           npx --yes @asyncapi/cli@6.0.2 diff \
-            "$RUNNER_TEMP/asyncapi-base.yaml" contracts/asyncapi.yaml \
+            ".contracts-base/contracts/asyncapi.yaml" contracts/asyncapi.yaml \
             --type unclassified --format json --no-error \
             --save-output "$RUNNER_TEMP/asyncapi-unclassified.json"
           # Filtered to a single --type, the CLI's JSON output is a bare
