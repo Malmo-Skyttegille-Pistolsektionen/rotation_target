@@ -5,3 +5,6 @@
 
 # MkDocs build output
 /site/
+
+# Extracted by the contracts workflow to diff a PR against the base branch.
+.contracts-base/
