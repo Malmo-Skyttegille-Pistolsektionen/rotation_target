@@ -76,6 +76,10 @@ the checks below can be guaranteed to run on the commit that gets tagged.
    - `version` — leave empty to auto-detect. git-cliff computes the next version
      from the Conventional Commits since the last tag: `feat:` bumps the minor,
      `fix:` the patch, `!`/`BREAKING CHANGE:` the major (below 1.0, the minor).
+     If the resolved version is higher than the commit subjects suggest, look in
+     the **bodies**: merges are squashed with `COMMIT_MESSAGES`, so a
+     `BREAKING CHANGE:` footer written in any branch commit reaches `main` and
+     counts, whatever the subject says (#282).
    - `force` — only needed when the `version` you pass disagrees with the
      auto-detected one. Without it the mismatch is a hard error naming both,
      which is the guard against "meant 2.1.0, typed 2.0.1". The **first**

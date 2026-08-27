@@ -48,20 +48,42 @@ path prefix, not a version bump. `docs/DECISIONS.md` records four exceptions
 (D-16, D-19, D-23, D-27) taken while no release had been cut; **they stop being
 available once 1.0.0 ships**, because from then on there is a deployed client.
 
-**An API change reaches the release version only through the commit type.**
-The product tag is semver, and git-cliff derives it from the Conventional
-Commits since the last tag: `feat:` bumps the minor, `fix:` the patch,
-`!`/`BREAKING CHANGE:` the major (see `docs/RELEASING.md`). So a contract
-change has to be carried upstream twice, by hand:
+**An API change reaches the release version only through the commit.** The
+product tag is semver, and git-cliff derives it from the Conventional Commits
+since the last tag: `feat:` bumps the minor, `fix:` the patch, and either a `!`
+in the subject or a `BREAKING CHANGE:` footer in the body bumps the major (see
+`docs/RELEASING.md`). So a contract change has to be carried upstream twice, by
+hand:
 
 1. **In the contract** — a breaking change moves the path prefix (`/api/v3`),
    because that is what a deployed client branches on.
 2. **In the commit** — that same change is committed with `!` or
-   `BREAKING CHANGE:`, because that is the only thing the release version is
-   computed from.
+   `BREAKING CHANGE:`, because the commit is the only thing the release
+   version is computed from.
 
 Miss the second and a breaking API change ships under a minor bump. Nothing
 checks that the commit type matches the change the spec actually describes.
+
+**"The commit" is two pieces of text, and only one of them is checked.** Merges
+here are squash-only, with the subject taken from `PR_TITLE` and the body from
+`COMMIT_MESSAGES`. So the subject on `main` is the pull request title, which
+the `conventional commit title` check validates — while the body is every
+branch commit message concatenated, which nothing validates. `cliff.toml` sets
+`conventional_commits = true`, so a `BREAKING CHANGE:` footer **in that body**
+marks the commit breaking whatever the subject says.
+
+That cuts both ways, and the second way is the one nobody expects:
+
+- A `fix:` subject with a breaking footer bumps as breaking. `4690beb` on
+  `main` is exactly this, and it is the accurate outcome — the footer was
+  right and the subject under-declared.
+- A `BREAKING CHANGE:` written into an intermediate commit to explain a step,
+  or copied from a template, reaches `main` in the squashed body and bumps the
+  release of a pull request whose title says `fix:`.
+
+Nothing checks the body against the title (#282). Until something does, treat
+`BREAKING CHANGE:` as a release declaration wherever it is written, not as
+prose.
 
 > Below 1.0 git-cliff bumps the **minor** for a breaking change, not the major.
 > The repository has no tag yet, so that is today's behaviour — it stops
