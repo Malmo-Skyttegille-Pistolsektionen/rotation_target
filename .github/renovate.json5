@@ -76,7 +76,12 @@
       managerFilePatterns: ["/^firmware/main/idf_component\\.yml$/"],
       matchStrings: ["\\n  idf: \"(?<currentValue>[0-9][^\"]*)\""],
       depNameTemplate: "espressif/esp-idf",
-      datasourceTemplate: "github-tags",
+      // Releases, not tags. `v6.1-dev` is a *tag* - the moving development
+      // pointer - and Espressif never publishes it as a release, so this
+      // keeps the most dangerous candidate out of the set entirely rather
+      // than relying on the pattern below to reject it. Verified against the
+      // API: tags carry v6.1-dev and v6.0-dev, releases carry neither.
+      datasourceTemplate: "github-releases",
       // Espressif tags a `.0` release as `v6.1`, not `v6.1.0`, and anchors the
       // pre-releases off the same stem (`v6.1-dev`, `-beta1`, `-rc1`). So the
       // pattern takes two- or three-part numbers and nothing with a suffix,
@@ -112,7 +117,8 @@
         "repository: espressif/esp-idf\\s+ref: v(?<currentValue>[0-9][^\\s]*)",
       ],
       depNameTemplate: "espressif/esp-idf",
-      datasourceTemplate: "github-tags",
+      // github-releases here too - see the note on the manifest manager.
+      datasourceTemplate: "github-releases",
       extractVersionTemplate: "^v(?<version>\\d+\\.\\d+(?:\\.\\d+)?)$",
       versioningTemplate: "loose",
     },
