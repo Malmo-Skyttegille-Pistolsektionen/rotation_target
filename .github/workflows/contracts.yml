@@ -42,7 +42,7 @@ jobs:
 
       - uses: actions/setup-node@v7.0.0
         with:
-          node-version: 24.19.0
+          node-version: 24.20.0
 
       # Pinned like every other tool here: an unpinned CLI can turn main red
       # from an upstream rule change with no commit of ours behind it.
@@ -98,7 +98,7 @@ jobs:
 
       - uses: actions/setup-node@v7.0.0
         with:
-          node-version: 24.19.0
+          node-version: 24.20.0
 
       - name: Find the merge base with main
         id: base
