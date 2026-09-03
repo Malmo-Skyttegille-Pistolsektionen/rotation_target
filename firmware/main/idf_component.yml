@@ -28,7 +28,7 @@ dependencies:
   # An exact pin here is what makes a mismatch loud: the component manager
   # refuses the build rather than quietly using whichever IDF is on the
   # machine. Renovate watches all four (.github/renovate.json5).
-  idf: "6.0.2"
+  idf: "6.1"
   # LittleFS for the `userdata` partition: uploads, and nothing else since
   # #227. Chosen over SPIFFS for real directory support - the shipped and
   # uploaded trees are separate directories, and that separation is what makes
