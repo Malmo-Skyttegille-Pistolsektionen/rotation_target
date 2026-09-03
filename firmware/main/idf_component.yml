@@ -37,4 +37,4 @@ dependencies:
   # The onboard WS2812 on the ESP32-S3-DevKitC-1.
   espressif/led_strip: "3.0.3"
   # http://rotation-target.local, so the webapp does not need the DHCP lease.
-  espressif/mdns: "1.11.3"
+  espressif/mdns: "1.12.0"
