@@ -27,7 +27,7 @@ using NowMsFn = int64_t (*)();
 // captured from the non-HttpOnly cookie stayed valid for the device's entire
 // uptime, and the only revocation was disable() - which drops the device to
 // the *unprotected* state rather than a safer one.
-constexpr int64_t kTokenTtlMs = 12 * 60 * 60 * 1000;
+constexpr int64_t kTokenTtlMs = 12LL * 60 * 60 * 1000;
 
 // Concurrent sessions. A client that re-logs-in on every page load would
 // otherwise grow the set for the life of the boot; oldest is evicted first.

@@ -50,7 +50,7 @@ idf.py build
 > idf.py -D SDKCONFIG=<path outside the repo>/sdkconfig build
 > ```
 
-You need **ESP-IDF >= 6.0** (CI pins v6.0.2). The shipped audio and programs
+You need **ESP-IDF >= 6.0** (CI pins v6.1). The shipped audio and programs
 live in the monorepo's sibling `resources/` directory; CMake fails at configure
 time if `RT_RESOURCES_DIR` does not point at one.
 

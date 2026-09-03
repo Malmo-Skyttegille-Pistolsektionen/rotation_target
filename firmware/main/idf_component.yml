@@ -13,7 +13,7 @@
 # dependencies.lock. Never edit the lock by hand.
 dependencies:
   # The toolchain this firmware is built and tested against, exactly. CI's
-  # container is digest-pinned to the same v6.0.2, and firmware/CONTRIBUTING.md
+  # container is digest-pinned to the same v6.1, and firmware/CONTRIBUTING.md
   # says so too - this is the copy the component manager enforces.
   #
   # Deliberately not a range. ">=6.0" claimed IDF 7.x support that nobody has
@@ -28,7 +28,7 @@ dependencies:
   # An exact pin here is what makes a mismatch loud: the component manager
   # refuses the build rather than quietly using whichever IDF is on the
   # machine. Renovate watches all four (.github/renovate.json5).
-  idf: "6.0.2"
+  idf: "6.1"
   # LittleFS for the `userdata` partition: uploads, and nothing else since
   # #227. Chosen over SPIFFS for real directory support - the shipped and
   # uploaded trees are separate directories, and that separation is what makes
