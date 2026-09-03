@@ -13,7 +13,7 @@
 # dependencies.lock. Never edit the lock by hand.
 dependencies:
   # The toolchain this firmware is built and tested against, exactly. CI's
-  # container is digest-pinned to the same v6.0.2, and firmware/CONTRIBUTING.md
+  # container is digest-pinned to the same v6.1, and firmware/CONTRIBUTING.md
   # says so too - this is the copy the component manager enforces.
   #
   # Deliberately not a range. ">=6.0" claimed IDF 7.x support that nobody has
