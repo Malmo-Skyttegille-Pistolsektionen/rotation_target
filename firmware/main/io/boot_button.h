@@ -67,7 +67,7 @@ bool available();
 
 // Five minutes from the press. Long enough to type a pin number, short enough
 // that a window nobody remembers opening is not still open.
-constexpr int64_t kConfigWindowMs = 5 * 60 * 1000;
+constexpr int64_t kConfigWindowMs = 5LL * 60 * 1000;
 
 // A condition that holds the window shut regardless of the button. The app
 // sets this to "a program is running": reconfiguring the machine and operating
