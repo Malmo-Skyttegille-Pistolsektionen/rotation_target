@@ -22,7 +22,7 @@ dependencies:
   idf:
     source:
       type: idf
-    version: 6.0.2
+    version: 6.1.0
   joltwallet/littlefs:
     component_hash: 3af20a3d75c49db9dc2286fd50862c34055c9f578419ad1f2bf7ed3ed01391fe
     dependencies:
@@ -38,6 +38,6 @@ direct_dependencies:
 - espressif/mdns
 - idf
 - joltwallet/littlefs
-manifest_hash: b81539db18835d672f83fb2c8cfa072b9fa8561abeb2864620f27a459f69e9a9
+manifest_hash: 59d688f41aec7f592009cfecc78ffd21b521f29a17eef855c58cdf0a62db783f
 target: esp32s3
 version: 3.0.0
