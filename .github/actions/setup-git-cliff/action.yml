@@ -7,7 +7,7 @@ inputs:
     description: "git-cliff version, without the leading v."
     required: false
     # renovate: datasource=github-releases depName=orhun/git-cliff
-    default: "2.13.1"
+    default: "2.14.1"
   sha256:
     description: "SHA-256 of the x86_64-unknown-linux-gnu tarball. Change it with `version`."
     required: false
