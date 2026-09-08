@@ -7,15 +7,11 @@
  * steel, which is the failure nobody notices until someone is downrange.
  * `run-position.ts` mirrors `run_position.h` the same way.
  *
- * The rule, per bank, on entering an event:
- *
- * 1. `banks[letter]` if the event names that letter;
- * 2. otherwise `command`, the baseline for every bank it does not name;
- * 3. otherwise the bank is left where it is.
- *
- * State carries across events *and across series*: completing a series leaves
- * the targets where the last event put them (D-31), and the rest state before
- * anything runs is shown, for the same decision.
+ * The resolution rule is stated once, on `banks` in
+ * `contracts/program.schema.json`. What is only here: state carries across
+ * events *and across series*, because completing a series leaves the targets
+ * where the last event put them, and the rest state before anything runs is
+ * shown (D-31).
  */
 import { BANK_LETTERS } from './program-document';
 import type { Program } from '../api/types';
@@ -48,8 +44,11 @@ export function simulateBanks(program: Program, bankCount: number): EventBankSta
   const count = Math.max(1, Math.min(bankCount, BANK_LETTERS.length));
   let current = restingState(count);
 
-  return program.series.map((series) =>
-    series.events.map((event) => {
+  // Both fields are required by the contract and optional in practice: the
+  // preview renders a draft mid-edit, and the run page renders whatever the
+  // device handed back.
+  return (program.series ?? []).map((series) =>
+    (series.events ?? []).map((event) => {
       const state = [...current];
       const addressed = state.map(() => false);
 
@@ -77,4 +76,19 @@ export function aggregateBankState(state: readonly BankState[]): BankState | 'mi
   if (state.every((value) => value === 'shown')) return 'shown';
   if (state.every((value) => value === 'hidden')) return 'hidden';
   return 'mixed';
+}
+
+/**
+ * How many banks the device drives, or `null` while nothing is known.
+ *
+ * The count comes from `stateUpdate.targetBanks`, so it is unknown until the
+ * first SSE frame arrives - and "unknown" is not "one". Treating it as one
+ * would tell an operator, for the second or two before the stream connects,
+ * that a program they can perfectly well run needs a device they do not have.
+ * Callers hold off on any refusal until this answers.
+ */
+export function deviceBankCount(state: { targetBanks?: Record<string, unknown> } | null | undefined): number | null {
+  const banks = state?.targetBanks;
+  if (banks === undefined) return null;
+  return Math.max(1, Object.keys(banks).length);
 }

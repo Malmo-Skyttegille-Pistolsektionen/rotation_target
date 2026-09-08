@@ -416,8 +416,8 @@ export function parseProgramDocument(text: string): ProgramDocumentResult {
  */
 export function banksRequired(program: Program): number {
   let required = 1;
-  for (const series of program.series) {
-    for (const event of series.events) {
+  for (const series of program.series ?? []) {
+    for (const event of series.events ?? []) {
       for (const letter of Object.keys(event.banks ?? {})) {
         const index = (BANK_LETTERS as readonly string[]).indexOf(letter);
         if (index + 1 > required) required = index + 1;

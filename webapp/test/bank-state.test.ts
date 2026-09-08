@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { aggregateBankState, restingState, simulateBanks } from '../src/lib/bank-state';
+import { aggregateBankState, deviceBankCount, restingState, simulateBanks } from '../src/lib/bank-state';
+import { banksRequired } from '../src/lib/program-document';
 import type { Event, Program } from '../src/api/types';
 
 function program(...series: Event[][]): Program {
@@ -80,5 +81,35 @@ describe('aggregateBankState', () => {
     expect(aggregateBankState(['shown', 'shown'])).toBe('shown');
     expect(aggregateBankState(['hidden', 'hidden'])).toBe('hidden');
     expect(aggregateBankState(['shown', 'hidden'])).toBe('mixed');
+  });
+});
+
+describe('a document missing what the contract makes required', () => {
+  // The simulation runs before the Timeline's own "no series" guard, and both
+  // fields are optional in practice: the editor preview renders a draft
+  // mid-edit, and the run page renders whatever the device handed back.
+  it('treats a missing series list, and a series with no events, as empty', () => {
+    const noSeries = { id: 0, title: '', description: '', readonly: false } as unknown as Program;
+    expect(simulateBanks(noSeries, 4)).toEqual([]);
+    expect(banksRequired(noSeries)).toBe(1);
+
+    const noEvents = {
+      id: 0,
+      title: '',
+      description: '',
+      readonly: false,
+      series: [{ name: 'S', optional: false }],
+    } as unknown as Program;
+    expect(simulateBanks(noEvents, 4)).toEqual([[]]);
+    expect(banksRequired(noEvents)).toBe(1);
+  });
+});
+
+describe('deviceBankCount', () => {
+  it('is null until a frame has been seen, and never zero after one', () => {
+    expect(deviceBankCount(null)).toBeNull();
+    expect(deviceBankCount({})).toBeNull();
+    expect(deviceBankCount({ targetBanks: {} })).toBe(1);
+    expect(deviceBankCount({ targetBanks: { A: 'shown', B: 'hidden' } })).toBe(2);
   });
 });
