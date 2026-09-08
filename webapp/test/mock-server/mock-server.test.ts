@@ -1143,3 +1143,289 @@ describe('WiFi (#263)', () => {
     }
   });
 });
+
+/**
+ * Target banks (#207, D-41). The mock mirrors `rt::Executor`'s per-bank state,
+ * so a webapp test that drives a four-bank device is testing against the rules
+ * the firmware actually applies.
+ */
+describe('target banks', () => {
+  /** A device with `count` banks, each on its own pin, already booted on them. */
+  async function withBanks(count: number): Promise<{ server: MockServer; base: string }> {
+    const banks = Array.from({ length: count }, (_, index) => ({
+      gpio: 5 + index,
+      activeLow: true,
+      name: index === 0 ? 'Vänster' : `Bana ${String(index + 1)}`,
+    }));
+    const banked = createMockServer({
+      clock,
+      seed: {
+        programs: { 40: PROGRAM_FALT_TRANING },
+        audios: [],
+        hardware: { ...HARDWARE_DEFAULTS, targetGpio: 5, banks },
+      },
+    });
+    const port = await banked.listen();
+    return { server: banked, base: `http://127.0.0.1:${String(port)}/api/v2` };
+  }
+
+  // Every device shipped so far. The frame it sends must be the one it sent
+  // before banks existed, key for key.
+  it('omits targetBanks on a one-bank device', async () => {
+    const sse = await openSSE(server.port);
+    try {
+      await api('/targets/show', { method: 'POST' });
+      await flushIO();
+      const update = last(sse.payloads<StateUpdatePayload>('stateUpdate'));
+      expect(update.targetStatus).toBe('shown');
+      expect(Object.keys(update)).toEqual(['loadedProgramId', 'programState', 'targetStatus']);
+    } finally {
+      sse.close();
+    }
+  });
+
+  it('publishes one key per bank above one bank', async () => {
+    const four = await withBanks(4);
+    const sse = await openSSE(four.server.port);
+    try {
+      await fetch(`${four.base}/targets/show`, { method: 'POST', body: JSON.stringify({ banks: ['B', 'D'] }) });
+      await flushIO();
+      const update = last(sse.payloads<StateUpdatePayload>('stateUpdate'));
+      expect(update.targetBanks).toEqual({ A: 'hidden', B: 'shown', C: 'hidden', D: 'shown' });
+      // Bank A, not "shown if any": the field deployed clients already read.
+      expect(update.targetStatus).toBe('hidden');
+    } finally {
+      sse.close();
+      await four.server.close();
+    }
+  });
+
+  // The pre-existing bug this PR fixes: hide broadcast without moving anything.
+  it('hide actually hides', async () => {
+    await api('/targets/show', { method: 'POST' });
+    const res = await api('/targets/hide', { method: 'POST' });
+
+    expect(await res.json()).toEqual({ message: 'Targets hidden' });
+    const info = (await (await api('/diagnostics/info')).json()) as DiagnosticsInfo;
+    expect(info.targetGpioLevel).toBe(0);
+  });
+
+  it('a bodyless call moves every bank', async () => {
+    const four = await withBanks(4);
+    try {
+      await fetch(`${four.base}/targets/show`, { method: 'POST', body: JSON.stringify({ banks: ['B'] }) });
+      const res = await fetch(`${four.base}/targets/hide`, { method: 'POST' });
+
+      expect(await res.json()).toEqual({ message: 'Targets hidden' });
+      const info = (await (await fetch(`${four.base}/diagnostics/info`)).json()) as DiagnosticsInfo;
+      expect(info.banks?.map((bank) => bank.padLevel)).toEqual([0, 0, 0, 0]);
+    } finally {
+      await four.server.close();
+    }
+  });
+
+  // One button has to resolve a strip that may disagree with itself, so a
+  // mixed strip cannot stay mixed.
+  it('a bodyless toggle hides only when every bank is shown', async () => {
+    const four = await withBanks(4);
+    try {
+      const levels = async (): Promise<number[]> => {
+        const info = (await (await fetch(`${four.base}/diagnostics/info`)).json()) as DiagnosticsInfo;
+        return info.banks?.map((bank) => bank.padLevel) ?? [];
+      };
+      const toggle = (): Promise<Response> => fetch(`${four.base}/targets/toggle`, { method: 'POST' });
+
+      await toggle();
+      expect(await levels()).toEqual([1, 1, 1, 1]);
+      await toggle();
+      expect(await levels()).toEqual([0, 0, 0, 0]);
+
+      // From mixed: show all, not "flip each".
+      await fetch(`${four.base}/targets/show`, { method: 'POST', body: JSON.stringify({ banks: ['B'] }) });
+      await toggle();
+      expect(await levels()).toEqual([1, 1, 1, 1]);
+    } finally {
+      await four.server.close();
+    }
+  });
+
+  it('a named toggle flips each bank against its own state', async () => {
+    const four = await withBanks(4);
+    try {
+      await fetch(`${four.base}/targets/show`, { method: 'POST', body: JSON.stringify({ banks: ['B'] }) });
+      const res = await fetch(`${four.base}/targets/toggle`, {
+        method: 'POST',
+        body: JSON.stringify({ banks: ['B', 'C', 'D'] }),
+      });
+
+      expect(await res.json()).toEqual({ message: 'Banks C and D shown, bank B hidden' });
+      const info = (await (await fetch(`${four.base}/diagnostics/info`)).json()) as DiagnosticsInfo;
+      expect(info.banks?.map((bank) => bank.padLevel)).toEqual([0, 0, 1, 1]);
+    } finally {
+      await four.server.close();
+    }
+  });
+
+  it('refuses a letter the device does not have, and moves nothing', async () => {
+    const three = await withBanks(3);
+    try {
+      await fetch(`${three.base}/targets/hide`, { method: 'POST' });
+      const res = await fetch(`${three.base}/targets/show`, {
+        method: 'POST',
+        body: JSON.stringify({ banks: ['A', 'E'] }),
+      });
+
+      await expectProblem(res, {
+        type: '/problems/bank_unavailable',
+        title: 'No such target bank',
+        status: 400,
+        detail: "'E' is not a bank on this device, which has banks A-C.",
+      });
+      const info = (await (await fetch(`${three.base}/diagnostics/info`)).json()) as DiagnosticsInfo;
+      expect(info.banks?.map((bank) => bank.padLevel)).toEqual([0, 0, 0]);
+    } finally {
+      await three.server.close();
+    }
+  });
+
+  it('refuses an empty list rather than widening it to every bank', async () => {
+    await expectProblem(await api('/targets/show', { method: 'POST', body: JSON.stringify({ banks: [] }) }), {
+      type: '/problems/bank_unavailable',
+      title: 'No such target bank',
+      status: 400,
+      detail: "'banks' named no bank. Omit the body to move every bank.",
+    });
+  });
+
+  // A program's `command` means every bank, which is what it has always meant
+  // and why no existing program needs migrating. The per-event `banks` override
+  // is stage 3.
+  it('a program event drives every bank together', async () => {
+    const four = await withBanks(4);
+    const sse = await openSSE(four.server.port);
+    try {
+      // Start from a strip that disagrees with itself, so "every bank" is
+      // visible in the result rather than coincidental.
+      await fetch(`${four.base}/targets/show`, { method: 'POST', body: JSON.stringify({ banks: ['B'] }) });
+      await fetch(`${four.base}/programs/40/load`, { method: 'POST' });
+      await fetch(`${four.base}/programs/start`, { method: 'POST', body: JSON.stringify({ id: 40 }) });
+      await flushIO();
+
+      const update = last(sse.payloads<StateUpdatePayload>('stateUpdate'));
+      expect(Object.values(update.targetBanks ?? {})).toEqual([
+        update.targetStatus,
+        update.targetStatus,
+        update.targetStatus,
+        update.targetStatus,
+      ]);
+    } finally {
+      sse.close();
+      await four.server.close();
+    }
+  });
+
+  it('reports the banks it booted on, names and all', async () => {
+    const two = await withBanks(2);
+    try {
+      const state = (await (await fetch(`${two.base}/config/hardware`)).json()) as {
+        active: { banks: { gpio: number; activeLow: boolean; name: string }[]; targetGpio: number };
+      };
+      expect(state.active.banks).toEqual([
+        { gpio: 5, activeLow: true, name: 'Vänster' },
+        { gpio: 6, activeLow: true, name: 'Bana 2' },
+      ]);
+      expect(state.active.targetGpio).toBe(5);
+    } finally {
+      await two.server.close();
+    }
+  });
+
+  it('accepts a banks array and adopts it at the next restart', async () => {
+    const banks = [
+      { gpio: 5, activeLow: true, name: 'Vänster' },
+      { gpio: 6, activeLow: false, name: 'Höger' },
+    ];
+    expect((await api('/config/hardware', { method: 'PUT', body: JSON.stringify({ banks }) })).status).toBe(200);
+
+    const saved = (await (await api('/config/hardware')).json()) as {
+      saved: { banks: unknown[]; targetGpio: number };
+      active: { banks: unknown[] };
+      restartRequired: boolean;
+    };
+    expect(saved.saved.banks).toEqual(banks);
+    // The scalars follow bank A whichever way round the write came in.
+    expect(saved.saved.targetGpio).toBe(5);
+    expect(saved.active.banks).toHaveLength(1);
+    expect(saved.restartRequired).toBe(true);
+
+    server.restart();
+    const afterRestart = (await (await api('/config/hardware')).json()) as { active: { banks: unknown[] } };
+    expect(afterRestart.active.banks).toEqual(banks);
+  });
+
+  it('refuses scalars that disagree with banks[0]', async () => {
+    const res = await api('/config/hardware', {
+      method: 'PUT',
+      body: JSON.stringify({ banks: [{ gpio: 6, activeLow: true, name: '' }], targetGpio: 7 }),
+    });
+
+    await expectProblem(res, {
+      type: '/problems/hardware_config_invalid',
+      title: 'Invalid hardware configuration',
+      status: 400,
+      detail:
+        'targetGpio and targetActiveLow describe bank A, so they must match banks[0]. Send one or the other.',
+    });
+  });
+
+  // A client that predates banks sends only the scalars; it must edit bank A
+  // and leave the rest of a multi-bank device alone.
+  it('scalars alone edit bank A and keep the other banks', async () => {
+    const three = await withBanks(3);
+    try {
+      expect(
+        (
+          await fetch(`${three.base}/config/hardware`, {
+            method: 'PUT',
+            body: JSON.stringify({ targetGpio: 13 }),
+          })
+        ).status,
+      ).toBe(200);
+
+      const saved = (await (await fetch(`${three.base}/config/hardware`)).json()) as {
+        saved: { banks: { gpio: number; name: string }[] };
+      };
+      expect(saved.saved.banks.map((bank) => bank.gpio)).toEqual([13, 6, 7]);
+      expect(saved.saved.banks[0].name).toBe('Vänster');
+    } finally {
+      await three.server.close();
+    }
+  });
+
+  it('refuses two banks on the same pin', async () => {
+    const res = await api('/config/hardware', {
+      method: 'PUT',
+      body: JSON.stringify({
+        banks: [
+          { gpio: 5, activeLow: true, name: '' },
+          { gpio: 5, activeLow: true, name: '' },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { detail: string }).detail).toContain('same GPIO');
+  });
+
+  it('refuses more than eight banks', async () => {
+    const banks = Array.from({ length: 9 }, (_, index) => ({
+      gpio: 5 + index,
+      activeLow: true,
+      name: '',
+    }));
+    const res = await api('/config/hardware', { method: 'PUT', body: JSON.stringify({ banks }) });
+
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { detail: string }).detail).toContain('one and 8');
+  });
+});

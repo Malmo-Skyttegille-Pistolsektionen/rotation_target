@@ -10,6 +10,17 @@ function withoutId({ title, description, readonly, series }: Program): ProgramUp
   return { title, description, readonly, series };
 }
 
+/**
+ * The optional `{"banks": ["B"]}` body. Omitting it moves every bank, which is
+ * what every call did before banks existed - so no list means no body at all,
+ * not an empty array (the device refuses that).
+ */
+function bankBody(banks?: string[]): RequestInit {
+  return banks && banks.length > 0
+    ? { method: 'POST', body: JSON.stringify({ banks }) }
+    : { method: 'POST' };
+}
+
 export function useProgramsApi() {
   const { controlLockToken, logoutControlLock } = useSettings();
   const client = createAuthenticatedClient(controlLockToken, logoutControlLock);
@@ -48,9 +59,9 @@ export function useProgramsApi() {
       }),
 
     // Targets
-    showTargets: () => client.request<void>('/targets/show', { method: 'POST' }),
-    hideTargets: () => client.request<void>('/targets/hide', { method: 'POST' }),
-    toggleTargets: () => client.request<void>('/targets/toggle', { method: 'POST' }),
+    showTargets: (banks?: string[]) => client.request<void>('/targets/show', bankBody(banks)),
+    hideTargets: (banks?: string[]) => client.request<void>('/targets/hide', bankBody(banks)),
+    toggleTargets: (banks?: string[]) => client.request<void>('/targets/toggle', bankBody(banks)),
   };
 }
 
@@ -75,7 +86,7 @@ export const programsApi = {
     }),
 
   // Targets
-  showTargets: () => directClient<void>('/targets/show', { method: 'POST' }),
-  hideTargets: () => directClient<void>('/targets/hide', { method: 'POST' }),
-  toggleTargets: () => directClient<void>('/targets/toggle', { method: 'POST' }),
+  showTargets: (banks?: string[]) => directClient<void>('/targets/show', bankBody(banks)),
+  hideTargets: (banks?: string[]) => directClient<void>('/targets/hide', bankBody(banks)),
+  toggleTargets: (banks?: string[]) => directClient<void>('/targets/toggle', bankBody(banks)),
 };
