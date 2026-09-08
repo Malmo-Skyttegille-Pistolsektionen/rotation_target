@@ -56,6 +56,23 @@ jobs:
           set -euo pipefail
           gh api "repos/${REPO}/pulls/${PR}/commits" --paginate > pr_commits.json
 
+      # The checkout above is deliberately at the PR's base, so a PR that adds
+      # or edits this very script would otherwise be tested against the OLD
+      # script still on main (or, for the PR that first introduces it, no
+      # script at all - #332 hit exactly this on its own first run). Fetching
+      # just this one blob from the PR's head means the script always tests
+      # its own current version, decoupled from the base checkout that
+      # git-cliff's tag history needs. cliff.toml and setup-git-cliff itself
+      # still come from base - the same one-PR-first landing #333 needed
+      # applies to those.
+      - name: Use this PR's own version of the check script
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --depth 1 origin "$HEAD_SHA"
+          git show "$HEAD_SHA:.github/scripts/check_release_bump.py" > .github/scripts/check_release_bump.py
+
       - name: Compare the title's implied bump against the squashed body's
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
