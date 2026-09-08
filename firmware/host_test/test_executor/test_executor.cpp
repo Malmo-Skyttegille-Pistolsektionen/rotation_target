@@ -657,6 +657,46 @@ void test_toggling_a_bank_the_device_does_not_have_changes_nothing() {
   TEST_ASSERT_EQUAL_size_t(0, two.effects.target_history.size());
 }
 
+// The other toggle: a named bank is a deliberate choice, so it flips against
+// its own state and a mixed strip stays mixed.
+void test_flip_moves_each_named_bank_against_its_own_state() {
+  Harness four(4);
+  four.executor.set_targets(rt::bank_bit(1), true);
+  four.effects.clear();
+
+  const rt::BankMask shown =
+      four.executor.flip_targets(rt::bank_bit(1) | rt::bank_bit(2) | rt::bank_bit(3));
+
+  // B was shown and went off; C and D were hidden and came on.
+  TEST_ASSERT_EQUAL_UINT32(rt::bank_bit(2) | rt::bank_bit(3), shown);
+  TEST_ASSERT_FALSE(four.state.bank_shown[0]);
+  TEST_ASSERT_FALSE(four.state.bank_shown[1]);
+  TEST_ASSERT_TRUE(four.state.bank_shown[2]);
+  TEST_ASSERT_TRUE(four.state.bank_shown[3]);
+}
+
+// Two pin writes, not one per bank: the driver takes a mask, and a split flip
+// must not step the strip through an intermediate state.
+void test_a_split_flip_drives_each_direction_once() {
+  Harness four(4);
+  four.executor.set_targets(rt::bank_bit(0), true);
+  four.effects.clear();
+
+  four.executor.flip_targets(rt::kAllBanksMask);
+
+  TEST_ASSERT_EQUAL_size_t(2, four.effects.target_history.size());
+}
+
+// Nothing named, nothing driven - so a flip cannot broadcast a change that did
+// not happen.
+void test_flipping_no_banks_does_nothing() {
+  Harness four(4);
+  four.effects.clear();
+
+  TEST_ASSERT_EQUAL_UINT32(0u, four.executor.flip_targets(0));
+  TEST_ASSERT_EQUAL_size_t(0, four.effects.target_history.size());
+}
+
 // Only the named banks move, and `targetStatus` keeps reporting bank A.
 void test_setting_one_bank_leaves_the_others_alone() {
   Harness four(4);
@@ -737,6 +777,9 @@ int main() {
   RUN_TEST(test_an_event_drives_every_bank);
   RUN_TEST(test_toggle_on_four_banks_hides_only_when_every_bank_is_shown);
   RUN_TEST(test_toggling_a_bank_the_device_does_not_have_changes_nothing);
+  RUN_TEST(test_flip_moves_each_named_bank_against_its_own_state);
+  RUN_TEST(test_a_split_flip_drives_each_direction_once);
+  RUN_TEST(test_flipping_no_banks_does_nothing);
   RUN_TEST(test_setting_one_bank_leaves_the_others_alone);
   RUN_TEST(test_init_banks_adopts_the_boot_state_on_every_bank);
 

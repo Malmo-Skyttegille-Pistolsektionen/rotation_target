@@ -112,12 +112,21 @@ std::string status_text() {
     out += line;
   }
 
-  // Both halves: what the firmware drove, and what is actually on the pad.
-  // Bank A; the per-bank table is stage 2 of #207.
-  snprintf(line, sizeof(line), "targets    %s (gpio %d, level %d)\r\n",
-           targets::level(0) == targets::level_shown(0) ? "shown" : "hidden", targets::pin(0),
-           targets::level(0));
-  out += line;
+  // Both halves: what the firmware drove, and what is actually on the pad. One
+  // line per bank, and on a one-bank device - which is every device today -
+  // that is the line it has always printed, without a letter.
+  for (size_t bank = 0; bank < targets::count(); ++bank) {
+    char label[12];
+    if (targets::count() == 1) {
+      snprintf(label, sizeof(label), "targets");
+    } else {
+      snprintf(label, sizeof(label), "target %c", rt::bank_letter(bank));
+    }
+    snprintf(line, sizeof(line), "%-10s %s (gpio %d, level %d)\r\n", label,
+             targets::level(bank) == targets::level_shown(bank) ? "shown" : "hidden",
+             targets::pin(bank), targets::level(bank));
+    out += line;
+  }
 
   snprintf(line, sizeof(line), "programs   %u\r\naudio      %u clips\r\n",
            static_cast<unsigned>(programs::all().size()),
