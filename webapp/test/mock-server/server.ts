@@ -111,10 +111,16 @@ const PROBLEMS = {
  */
 function pinRefusal(gpio: number): string | null {
   if (!Number.isInteger(gpio) || gpio < 0 || gpio > 48) {
-    return 'The target GPIO must be between 0 and 48.';
+    return 'A target GPIO must be between 0 and 48.';
   }
-  if ((gpio >= 22 && gpio <= 25) || (gpio >= 26 && gpio <= 32)) {
-    return "That GPIO is wired to the module's flash or PSRAM, or does not exist on this chip. Driving it stops the device booting.";
+  if (
+    (gpio >= 22 && gpio <= 25) ||
+    (gpio >= 26 && gpio <= 32) ||
+    (gpio >= 35 && gpio <= 37) ||
+    gpio === 43 ||
+    gpio === 44
+  ) {
+    return "That GPIO is wired to the module's flash or PSRAM (26-32, and 35-37 for this board's octal PSRAM), carries the serial console on UART0 (43, 44), or does not exist on this chip (22-25). Driving it stops the device booting or takes away the way back in.";
   }
   if (gpio === 19 || gpio === 20) {
     return 'GPIO 19 and 20 are the USB serial connection. Using one would remove the serial console, which is how this setting is put back if it turns out to be wrong.';
@@ -127,7 +133,7 @@ function pinRefusal(gpio: number): string | null {
 }
 
 const PIN_COLLISION =
-  'Two of these are on the same GPIO. The target, the status LED and the three audio pins each need one of their own, or whichever is set up last takes the pad and the other silently stops working.';
+  'Two of these are on the same GPIO. The target banks, the status LED and the three audio pins each need one of their own, or whichever is set up last takes the pad and the other silently stops working.';
 
 function hardwareConfigRefusal(config: HardwareConfig): string | null {
   const target = pinRefusal(config.targetGpio);

@@ -45,7 +45,7 @@ const TARGET_FIELDS: NumericField[] = [
     key: 'targetGpio',
     testId: 'hardware-target-gpio',
     label: 'Target GPIO',
-    hint: 'The pin wired to the target circuit. 22–32 are refused: they are absent from this chip or belong to its flash and PSRAM, and driving one stops the device booting.',
+    hint: 'The pin wired to the target circuit. 22–32 and 35–37 are refused — they are absent from this chip or belong to its flash and PSRAM, and driving one stops the device booting — and so are 43–44, which carry the serial console.',
   },
 ];
 

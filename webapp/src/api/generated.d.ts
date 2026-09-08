@@ -573,8 +573,11 @@ export interface paths {
          *     whose recovery needs a USB cable:
          *
          *     - a GPIO outside 0–48, or one absent from this chip (22–25)
-         *     - a GPIO wired to the module's own flash or PSRAM (26–32), which stops
-         *       the device booting rather than merely failing to drive a target
+         *     - a GPIO wired to the module's own flash or PSRAM (26–32, and 35–37 on
+         *       this board's octal PSRAM), which stops the device booting rather than
+         *       merely failing to drive a target
+         *     - a GPIO carrying the serial console on UART0 (43–44), which would
+         *       remove the way back from a bad configuration
          *     - a GPIO that cannot drive an output
          *     - a hostname that is not a legal DNS label, since it is also the setup
          *       access point's SSID prefix
