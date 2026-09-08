@@ -86,12 +86,67 @@ immediately, and receives it again after every change.
     "currentEventIndex": 2,
     "tickerMs": 7480           // milliseconds elapsed in the current series
   },
-  "targetStatus": "shown"      // "shown" | "hidden"
+  "targetStatus": "shown",     // "shown" | "hidden" - bank A
+  "targetBanks": {             // omitted on a one-bank device
+    "A": "shown",
+    "B": "hidden"
+  }
 }
 ```
 
 `currentEventIndex` is derived from elapsed series time rather than tracked per
 event, so a paused run resumes at whatever event `tickerMs` lands in.
+
+### Target banks
+
+A device drives one to eight independently controlled **banks**, lettered by
+position: `A` is `banks[0]` in the hardware configuration (#207, D-41).
+
+`targetStatus` stays required and reports **bank A** — truthful and partial for
+a client that predates banks. It is deliberately not "shown if any bank is",
+which would invent a meaning for a field deployed clients already read one way.
+`targetBanks` beside it carries every bank, and is **present only when the
+device has more than one**: exactly one key per bank, contiguous from `A`, so a
+client can read the bank count off it. A one-bank device — which is every
+device shipped so far — sends the frame it sent before banks existed, key for
+key.
+
+`POST /targets/{show,hide,toggle}` take an optional body naming the banks to
+move:
+
+```jsonc
+{ "banks": ["B", "C"] }        // omit the body entirely to move every bank
+```
+
+A letter this device does not have is `400 /problems/bank_unavailable`, and
+**nothing moves**: the list is applied whole, so a typo cannot half-work. An
+empty array is refused for the same reason it is not widened — "omitted" is
+what means every bank.
+
+`toggle` has two rules, because the two callers are asking different questions.
+**With a list**, each named bank flips against its own state, so a mixed strip
+stays mixed: a named bank is a deliberate choice. **Without one**, the device
+has a single button to resolve a strip that may disagree with itself, and takes
+what an operator pressing it means — *if every bank is shown, hide them all;
+otherwise show them all*. So a mixed strip resolves to all-shown on the first
+press and all-hidden on the second, rather than staying mixed for ever. On one
+bank the two rules are the same flip they have always been.
+
+The `message` names what moved: `Targets shown` when every bank went the same
+way, `Bank B shown` or `Banks B and D shown, bank C hidden` otherwise.
+
+A bank's name lives in the hardware configuration and never in a program, so
+renaming a bank cannot re-aim one. `GET /config/hardware` reports `banks`
+alongside `targetGpio`/`targetActiveLow`, which are bank A's copy of the same
+two values; a `PUT` sending both is refused with
+`/problems/hardware_config_invalid` unless they agree, since there is no rule
+for choosing between two contradictory values. A `PUT` carrying only the
+scalars edits bank A and leaves every other bank alone. `banks` replaces the
+whole array — it is an ordered list, and a partial merge of one has no meaning.
+
+`GET /diagnostics/info` reports `banks` too: `id`, `gpio`, `padLevel` and
+`name` per bank, so the read-back that answers "is the firmware driving what it
+thinks it is" works on a device with more than one line.
 
 `heartbeat` (`{"id": n}`) is emitted every 10 seconds.
 
@@ -101,6 +156,12 @@ on its own, where no request exists to answer with an error. Today that is a
 clip that would not play (`audio_playback_failed`, raised from the playback
 task) and a stored program file that would not parse (`program_invalid`, raised
 by the boot scan).
+
+`target_bank_fault` — a bank's pad read back as a level other than the one it
+was driven to — is **specified but not emitted**: `contracts/asyncapi.yaml`
+carries its `bank`/`expected`/`actual` context so a client can render it, and
+the firmware does not sample the pads. `GET /diagnostics/info`'s `banks` array
+is where a pad level is read today.
 
 It is fire-and-forget by design. Nothing is buffered for a client that connects
 later and nothing is replayed on reconnect, so the event is a notification and

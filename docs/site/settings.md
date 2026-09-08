@@ -24,6 +24,13 @@ which network it joins, which pins it drives, and the crash dump download —
 are on [Expert mode](expert-mode.md), behind a button press on the board
 itself.
 
+**Target banks are configured there too.** How many lines this device drives,
+what each is called and which pin it is on is Expert-mode work —
+[the bank table](expert-mode.md#the-target-banks) — because a wrong pin is one
+of the settings whose way back is a USB cable. What you see on the Run page —
+the lettered strip and the per-bank buttons — follows from it, and needs
+nothing set here.
+
 ## Server Base URL
 
 Normally there is nothing to do here — the app talks to whatever served it.

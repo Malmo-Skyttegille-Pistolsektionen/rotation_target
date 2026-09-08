@@ -78,10 +78,32 @@ Wrong values here are the ones whose way back is a USB cable:
 when a saved value is not yet in use. A change that appears to have done
 nothing is how somebody ends up reflashing a working device.
 
-**Where the targets rest at boot** is shown but not editable. Which position is
-safe at rest is a property of the target system, so it has to be configurable —
-but it is also what protects somebody standing downrange when a board is
-powered, so it changes only from the serial console with a cable attached.
+### The target banks
+
+**Targets** is a table, one row per [bank](hardware.md#target-banks) — one
+control line each, lettered by position:
+
+| Column | What it is |
+|---|---|
+| **Bank** | The letter, A first. It is the row's position, not a stored value, so removing a bank re-letters the ones after it |
+| **Name** | What operators see on the Run page — `Vänster`, `Bana 3`. Display only, at most 16 characters, and may be left empty |
+| **GPIO** | The pin this bank's transistor is wired to. Every bank needs its own, distinct from the LED's and the three audio pins |
+| **Shown when low** | Whether a low level shows *this* bank. Per bank, because the resting state that has to be safe is a property of that bank's wiring |
+| **Pad now** | The level actually on the pin, read back rather than remembered. It answers "is the firmware driving this" without a multimeter |
+
+**Add bank B** appends the next letter, up to eight — the most this firmware
+drives. Only the **last** bank can be removed, and **bank A never can**: the
+letter is the position, so removing B on a four-bank device would silently
+re-aim C and D at the wrong lanes. Remove them from the end and add them back.
+
+A bank you add is only configuration; the line still has to be wired, and the
+device adopts the new count when it restarts.
+
+**Where the targets rest at boot** is shown but not editable, and it is **one
+setting for every bank**. Which position is safe at rest is a property of the
+target system, so it has to be configurable — but it is also what protects
+somebody standing downrange when a board is powered, so it changes only from
+the serial console with a cable attached.
 
 ## Troubleshooting
 

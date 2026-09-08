@@ -38,6 +38,18 @@ Once running:
 - **Toggle Targets** flips the targets show/hide directly, independent of any
   program — useful for checking the wiring works at all.
 
+On a device with more than one [target bank](hardware.md#target-banks), the
+`TARGETS` badge at the top of the page becomes a **strip**: one cell per bank,
+lettered A onward, green for shown and red for hidden, with the bank's name
+under the letter on a screen wide enough for it. So a range exposed one lane at
+a time is one glance to read, and a bank that did not move is visible rather
+than averaged away.
+
+The controls follow it. Instead of one **Toggle Targets** button there is a
+**Targets** group: tapping a lettered cell flips **that bank alone**, and
+**Show all** / **Hide all** move every bank together. A one-bank device — which
+is most of them — keeps the single badge and the single button, unchanged.
+
 ## The timeline
 
 ![A run in progress](img/run-running.png)
