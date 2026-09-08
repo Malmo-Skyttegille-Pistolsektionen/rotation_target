@@ -895,8 +895,8 @@ void register_target_routes() {
       return send_message(res, rt::targets_moved_message(shown, moved & ~shown, bank_count));
     }
     const bool shown = executor::toggle_targets(want.mask);
-    return send_message(res, rt::targets_moved_message(shown ? moved : 0, shown ? 0 : moved,
-                                                       bank_count));
+    return send_message(
+        res, rt::targets_moved_message(shown ? moved : 0, shown ? 0 : moved, bank_count));
   });
 }
 
@@ -1280,9 +1280,9 @@ void register_config_routes() {
     if (!doc["banks"].isNull()) {
       const bool gpio_disagrees =
           !doc["targetGpio"].isNull() && (doc["targetGpio"] | bank_a.gpio) != bank_a.gpio;
-      const bool polarity_disagrees = !doc["targetActiveLow"].isNull() &&
-                                      (doc["targetActiveLow"] | bank_a.active_low) !=
-                                          bank_a.active_low;
+      const bool polarity_disagrees =
+          !doc["targetActiveLow"].isNull() &&
+          (doc["targetActiveLow"] | bank_a.active_low) != bank_a.active_low;
       if (gpio_disagrees || polarity_disagrees) {
         return send_problem(res, rt::problem::kHardwareConfigInvalid,
                             "targetGpio and targetActiveLow describe bank A, so they must match "

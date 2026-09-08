@@ -111,9 +111,8 @@ void test_a_subset_is_named() {
 
 // A toggle over a mixed strip splits: some banks came on, others went off.
 void test_a_split_toggle_reports_both_directions() {
-  TEST_ASSERT_EQUAL_STRING(
-      "Bank B shown, bank C hidden",
-      rt::targets_moved_message(rt::bank_bit(1), rt::bank_bit(2), 4).c_str());
+  TEST_ASSERT_EQUAL_STRING("Bank B shown, bank C hidden",
+                           rt::targets_moved_message(rt::bank_bit(1), rt::bank_bit(2), 4).c_str());
 }
 
 int main() {
