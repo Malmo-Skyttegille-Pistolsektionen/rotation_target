@@ -16,3 +16,68 @@ jobs:
       - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50  # v6.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # The title job above checks the subject only - squash-merging discards
+  # branch subjects but keeps every branch commit's body verbatim
+  # (`COMMIT_MESSAGES`), and a `BREAKING CHANGE:` footer in any of them
+  # outweighs the title at release time (#282, AGENTS.md). This asks
+  # git-cliff itself whether the squashed body bumps higher than the title
+  # alone would, rather than re-implementing its footer parsing.
+  bump:
+    name: release bump matches title
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          # git-cliff needs the tag history to know the previous release; the
+          # PR's own commits are deliberately NOT checked out (see below).
+          fetch-depth: 0
+          fetch-tags: true
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - uses: ./.github/actions/setup-git-cliff
+
+      # The real branch commits are never checked out: each carries its own
+      # conventional-commit type, and git-cliff would parse them as top-level
+      # commits (a stray `feat:` mid-branch would count) - which is not how
+      # squash-merging treats them. check_release_bump.py reconstructs the
+      # one commit the squash actually produces and feeds it to git-cliff
+      # with `--with-commit`, so nothing here mutates the checkout.
+      - name: Fetch this PR's commits
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${REPO}/pulls/${PR}/commits" --paginate > pr_commits.json
+
+      # The checkout above is deliberately at the PR's base, so a PR that adds
+      # or edits this very script would otherwise be tested against the OLD
+      # script still on main (or, for the PR that first introduces it, no
+      # script at all - #332 hit exactly this on its own first run). Fetching
+      # just this one blob from the PR's head means the script always tests
+      # its own current version, decoupled from the base checkout that
+      # git-cliff's tag history needs. cliff.toml and setup-git-cliff itself
+      # still come from base - the same one-PR-first landing #333 needed
+      # applies to those.
+      - name: Use this PR's own version of the check script
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --depth 1 origin "$HEAD_SHA"
+          git show "$HEAD_SHA:.github/scripts/check_release_bump.py" > .github/scripts/check_release_bump.py
+
+      - name: Compare the title's implied bump against the squashed body's
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          # cliff.toml's template reads commit.remote.* even for
+          # --bumped-version, which calls the GitHub API; unauthenticated it
+          # rate-limits and panics (see release.yml).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/check_release_bump.py pr_commits.json

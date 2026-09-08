@@ -64,26 +64,35 @@ hand:
 Miss the second and a breaking API change ships under a minor bump. Nothing
 checks that the commit type matches the change the spec actually describes.
 
-**"The commit" is two pieces of text, and only one of them is checked.** Merges
-here are squash-only, with the subject taken from `PR_TITLE` and the body from
-`COMMIT_MESSAGES`. So the subject on `main` is the pull request title, which
-the `conventional commit title` check validates — while the body is every
-branch commit message concatenated, which nothing validates. `cliff.toml` sets
-`conventional_commits = true`, so a `BREAKING CHANGE:` footer **in that body**
-marks the commit breaking whatever the subject says.
+**"The commit" is two pieces of text, and both are checked.** Merges here are
+squash-only, with the subject taken from `PR_TITLE` and the body from
+`COMMIT_MESSAGES`. So the subject on `main` is the pull request title, checked
+by the `conventional commit title` job, while the body is every branch commit
+message concatenated. `cliff.toml` sets `conventional_commits = true`, so a
+`BREAKING CHANGE:` footer **in that body** marks the commit breaking whatever
+the subject says — and the `release bump matches title` job
+(`.github/workflows/check-semantic-pr.yml`, driven by
+`.github/scripts/check_release_bump.py`) catches the disagreement: it
+reconstructs the one commit the squash will actually produce and asks
+git-cliff for its `--bumped-version`, failing the PR when that differs from
+what the title alone implies.
 
 That cuts both ways, and the second way is the one nobody expects:
 
 - A `fix:` subject with a breaking footer bumps as breaking. `4690beb` on
-  `main` is exactly this, and it is the accurate outcome — the footer was
-  right and the subject under-declared.
+  `main` predates the check and is exactly this — the footer was right and the
+  subject under-declared; today the check would fail until the title said `!`
+  too.
 - A `BREAKING CHANGE:` written into an intermediate commit to explain a step,
-  or copied from a template, reaches `main` in the squashed body and bumps the
-  release of a pull request whose title says `fix:`.
+  or copied from a template, reaches `main` in the squashed body and would
+  bump the release of a pull request whose title says `fix:` — the check fails
+  this the same way.
 
-Nothing checks the body against the title (#282). Until something does, treat
+The title's own bump is already part of what the squashed side computes, so a
+mismatch can only mean the body implies *more* than the title, never less —
+there is no safe direction for this check to miss. Still, treat
 `BREAKING CHANGE:` as a release declaration wherever it is written, not as
-prose.
+prose: the check catches it late, at PR time, not while you are writing it.
 
 > Below 1.0 git-cliff bumps the **minor** for a breaking change, not the major.
 > The repository has no tag yet, so that is today's behaviour — it stops
