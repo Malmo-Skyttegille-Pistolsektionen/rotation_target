@@ -86,6 +86,19 @@
             "hide"
           ]
         },
+        "banks": {
+          "type": "object",
+          "description": "Per-bank overrides of `command`, keyed by bank letter. On entering the event `command` applies to every bank not named here, `banks` sets the ones it does name, and a bank named by neither is left where it is. Omitted, `null` or `{}` all mean no overrides, so a program without this field is unchanged - `{\"command\": \"show\"}` still turns every bank. A letter the device does not have is refused at start (`/problems/program_banks_unavailable`, 409), never at upload: the library is a library, and the same file runs on the device next door that has the bank.",
+          "propertyNames": {
+            "pattern": "^[A-H]$"
+          },
+          "additionalProperties": {
+            "enum": [
+              "show",
+              "hide"
+            ]
+          }
+        },
         "audio_ids": {
           "type": "array",
           "items": {

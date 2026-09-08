@@ -1243,7 +1243,7 @@ export interface components {
              *     `program_invalid` `backend_issue` code in `asyncapi.yaml`.
              * @enum {string}
              */
-            type: "/problems/control_lock_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/control_lock_already_enabled" | "/problems/control_lock_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/wifi_unavailable" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/ota_image_refused" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/hardware_config_invalid" | "/problems/hardware_config_serial_only" | "/problems/hardware_config_window_closed" | "/problems/wifi_credentials_invalid" | "/problems/bank_unavailable" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed" | "/problems/wifi_store_failed";
+            type: "/problems/control_lock_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/control_lock_already_enabled" | "/problems/control_lock_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/wifi_unavailable" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/program_banks_unavailable" | "/problems/ota_image_refused" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/hardware_config_invalid" | "/problems/hardware_config_serial_only" | "/problems/hardware_config_window_closed" | "/problems/wifi_credentials_invalid" | "/problems/bank_unavailable" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed" | "/problems/wifi_store_failed";
             /**
              * @description A short summary of the type, identical for every occurrence of it. Not for display — it does not describe this occurrence.
              * @example Program is read-only
@@ -1298,6 +1298,8 @@ export interface components {
             id: number;
             title: string;
             description: string;
+            /** @description The highest bank letter the program names, or 1. Derived by the device from the document, never taken from the file. A program whose `banksRequired` exceeds the number of banks the device has is listed and stored like any other, and refused at start. */
+            banksRequired?: number;
             /** @description True for programs flashed with the firmware. Read-only programs cannot be deleted or updated. */
             readonly: boolean;
         };
@@ -1345,6 +1347,23 @@ export interface components {
              * @enum {string}
              */
             command?: "show" | "hide";
+            /**
+             * @description Per-bank overrides of `command`, keyed by bank letter.
+             *
+             *     On entering the event, `command` applies to every bank **not**
+             *     named here, `banks` sets the ones it does name, and a bank named
+             *     by neither is left where it is. Omitted, `null` or `{}` all mean
+             *     no overrides, so a program without this field is unchanged and
+             *     `{"command": "show"}` still turns every bank.
+             *
+             *     A letter the device does not have is refused at **start** —
+             *     `409 /problems/program_banks_unavailable` — and never at upload:
+             *     the library is a library, and the same file runs on the device
+             *     next door that has the bank.
+             */
+            banks?: {
+                [key: string]: "show" | "hide";
+            };
             /** @description Clips to start on entering this event. Ids that no longer exist are skipped. */
             audio_ids?: number[];
         };
@@ -2110,6 +2129,12 @@ export interface operations {
              *       loaded. `detail` names both ids, because the operator needs to
              *       know what the device actually holds to decide what to do about
              *       it. The run state is untouched and no `stateUpdate` is published.
+             *     - `/problems/program_banks_unavailable` — the loaded program
+             *       names a bank this device does not have. `detail` names the
+             *       highest letter the program uses and the banks the device has.
+             *       Nothing moves: a device never clamps a letter to the nearest
+             *       bank it happens to drive. Uploading and loading such a program
+             *       are both fine; only starting it is refused.
              */
             409: {
                 headers: {

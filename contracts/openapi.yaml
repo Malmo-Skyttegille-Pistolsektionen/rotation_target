@@ -721,6 +721,12 @@ paths:
               loaded. `detail` names both ids, because the operator needs to
               know what the device actually holds to decide what to do about
               it. The run state is untouched and no `stateUpdate` is published.
+            - `/problems/program_banks_unavailable` — the loaded program
+              names a bank this device does not have. `detail` names the
+              highest letter the program uses and the banks the device has.
+              Nothing moves: a device never clamps a letter to the nearest
+              bank it happens to drive. Uploading and loading such a program
+              are both fine; only starting it is refused.
           content:
             application/problem+json:
               schema:
@@ -2316,6 +2322,7 @@ components:
             - /problems/audio_readonly
             - /problems/audio_in_use
             - /problems/audio_playing
+            - /problems/program_banks_unavailable
             # firmware update
             - /problems/ota_image_refused
             # validation
@@ -2447,6 +2454,15 @@ components:
           type: string
         description:
           type: string
+        banksRequired:
+          type: integer
+          minimum: 1
+          maximum: 8
+          description: >-
+            The highest bank letter the program names, or 1. Derived by the
+            device from the document, never taken from the file. A program
+            whose `banksRequired` exceeds the number of banks the device has
+            is listed and stored like any other, and refused at start.
         readonly:
           type: boolean
           description: >-
@@ -2566,6 +2582,26 @@ components:
             and the empty string in place of omission. Neither is part of this
             schema and neither is ever emitted: an event with no command has
             no `command` key.
+        banks:
+          type: object
+          description: |
+            Per-bank overrides of `command`, keyed by bank letter.
+
+            On entering the event, `command` applies to every bank **not**
+            named here, `banks` sets the ones it does name, and a bank named
+            by neither is left where it is. Omitted, `null` or `{}` all mean
+            no overrides, so a program without this field is unchanged and
+            `{"command": "show"}` still turns every bank.
+
+            A letter the device does not have is refused at **start** —
+            `409 /problems/program_banks_unavailable` — and never at upload:
+            the library is a library, and the same file runs on the device
+            next door that has the bank.
+          propertyNames:
+            pattern: "^[A-H]$"
+          additionalProperties:
+            type: string
+            enum: [show, hide]
         audio_ids:
           type: array
           description: >-
