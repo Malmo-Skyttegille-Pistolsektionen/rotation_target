@@ -116,7 +116,10 @@ without a device. When run behaviour changes in
 tests keep passing against a device that no longer exists. This has been got
 wrong twice: the `libraryChanged` event, and the target state at series
 completion (#135). `webapp/src/lib/run-position.ts` mirrors
-`firmware/lib/rt_logic/run_position.h` the same way.
+`firmware/lib/rt_logic/run_position.h` the same way, and
+`webapp/src/lib/bank-state.ts` mirrors `enter_event` in
+`firmware/lib/rt_logic/executor.cpp` - how a `command` baseline and the
+per-bank `banks` overrides resolve into what each bank is doing.
 
 **`webapp/dist` is embedded in the application image, not rebuilt by it.** The
 firmware build bakes whatever `dist` currently holds. A firmware build after a

@@ -32,6 +32,11 @@
  * absent, `null` and `""`, which is what the schema's enum already said. This
  * file keeps refusing `null` and `""` too, because at authoring time they are a
  * half-written event worth a message, not the "no command" the device reads.
+ *
+ * `banks` goes the other way for the same reason `id` does: `null` is a
+ * spelling of absence a file can arrive with, so it is read as "no overrides"
+ * and dropped rather than refused. An empty object is dropped too — the editor
+ * never writes one, and neither does the device.
  */
 import type { Event, Program, Series } from '../api/types';
 
@@ -63,7 +68,7 @@ export type ProgramDocumentResult =
 
 const KNOWN_PROGRAM_KEYS = ['id', 'title', 'description', 'readonly', 'series'];
 const KNOWN_SERIES_KEYS = ['name', 'optional', 'events', 'timer_start_index'];
-const KNOWN_EVENT_KEYS = ['duration', 'command', 'audio_ids'];
+const KNOWN_EVENT_KEYS = ['duration', 'command', 'banks', 'audio_ids'];
 
 /**
  * API v1 fields `program.schema.json` still accepts so v1-era files validate.
@@ -75,6 +80,19 @@ const V1_EVENT_KEYS: Record<string, string> = {
     'API v1 only, and not parsed by this firmware: the event will affect every target system, not the listed ones.',
   start: 'API v1 only, and not parsed by this firmware: a series always starts at its first event.',
 };
+
+/**
+ * The bank letters the contract allows, in order. Position is the address: `A`
+ * is the first bank in the hardware config, `H` the eighth. A firmware constant
+ * caps the count at eight, which is what `^[A-H]$` in `program.schema.json`
+ * says on the wire.
+ */
+export const BANK_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const;
+export type BankLetter = (typeof BANK_LETTERS)[number];
+
+function isBankLetter(value: string): value is BankLetter {
+  return (BANK_LETTERS as readonly string[]).includes(value);
+}
 
 /** ArduinoJson keeps an audio id only if it fits `int32_t`; the rest go silently. */
 const INT32_MIN = -2_147_483_648;
@@ -155,6 +173,41 @@ function parseEvent(collector: Collector, path: string, raw: unknown): Event | n
       return null;
     }
     event.command = raw.command;
+  }
+
+  // `null` and `{}` are both "no overrides", so neither reaches the output: an
+  // event that names no bank is one the device runs exactly as it ran before
+  // banks existed, and a key carrying nothing would only be noise in the file
+  // the editor writes back.
+  if (raw.banks !== undefined && raw.banks !== null) {
+    if (!isPlainObject(raw.banks)) {
+      collector.errors.push({
+        path: `${path}/banks`,
+        message: `"banks" must be an object of bank letters, but this is ${describe(raw.banks)}.`,
+      });
+      return null;
+    }
+
+    const banks: Record<string, 'show' | 'hide'> = {};
+    for (const [letter, value] of Object.entries(raw.banks)) {
+      if (!isBankLetter(letter)) {
+        collector.errors.push({
+          path: `${path}/banks/${letter}`,
+          message: `Banks are named A to H, so ${JSON.stringify(letter)} is not one.`,
+        });
+        return null;
+      }
+      if (value !== 'show' && value !== 'hide') {
+        collector.errors.push({
+          path: `${path}/banks/${letter}`,
+          message: `Bank ${letter} must be "show" or "hide", but this is ${JSON.stringify(value)}.`,
+        });
+        return null;
+      }
+      banks[letter] = value;
+    }
+
+    if (Object.keys(banks).length > 0) event.banks = banks;
   }
 
   if (raw.audio_ids !== undefined) {
@@ -351,6 +404,27 @@ export function parseProgramDocument(text: string): ProgramDocumentResult {
       series,
     },
   };
+}
+
+/**
+ * How many banks a program needs: the highest letter any event names, or 1.
+ *
+ * The device derives the same number for `banksRequired` in `GET /programs`
+ * and refuses a start when it exceeds the banks it has. Derived, never
+ * asserted by the file — a program cannot claim to need fewer banks than it
+ * addresses.
+ */
+export function banksRequired(program: Program): number {
+  let required = 1;
+  for (const series of program.series) {
+    for (const event of series.events) {
+      for (const letter of Object.keys(event.banks ?? {})) {
+        const index = (BANK_LETTERS as readonly string[]).indexOf(letter);
+        if (index + 1 > required) required = index + 1;
+      }
+    }
+  }
+  return required;
 }
 
 /** Total milliseconds a program takes if every series is run once. */

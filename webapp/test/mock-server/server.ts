@@ -72,6 +72,7 @@ const PROBLEMS = {
   '/problems/audio_readonly': { title: 'Audio is read-only', status: 409 },
   '/problems/audio_in_use': { title: 'Audio is used by the loaded program', status: 409 },
   '/problems/audio_playing': { title: 'Audio is currently playing', status: 409 },
+  '/problems/program_banks_unavailable': { title: 'The program needs banks this device does not have', status: 409 },
   // validation
   '/problems/program_invalid': { title: 'Invalid program', status: 400 },
   '/problems/program_id_mismatch': { title: 'Program id does not match the path', status: 400 },

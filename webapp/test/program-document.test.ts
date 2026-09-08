@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseProgramDocument, programTotalMs } from '../src/lib/program-document';
+import { banksRequired, parseProgramDocument, programTotalMs } from '../src/lib/program-document';
 import { PROGRAM_MILITARY_SNABBMATCH } from './fixtures';
 
 /** Errors as one string, so a test can assert on the wording it will show. */
@@ -172,5 +172,71 @@ describe('programTotalMs', () => {
       .reduce((sum, event) => sum + event.duration, 0);
 
     expect(programTotalMs(PROGRAM_MILITARY_SNABBMATCH)).toBe(expected);
+  });
+});
+
+describe('per-bank overrides', () => {
+  function withBanks(banks: unknown) {
+    return { title: 'Banks', series: [{ name: 'S', events: [{ duration: 1000, command: 'hide', banks }] }] };
+  }
+
+  it('keeps the letters an event names', () => {
+    const result = accepted(withBanks({ B: 'show', D: 'hide' }));
+    expect(result.program.series[0].events[0].banks).toEqual({ B: 'show', D: 'hide' });
+  });
+
+  it.each([
+    ['null', null],
+    ['an empty object', {}],
+  ])('drops %s rather than storing an empty override', (_name, banks) => {
+    expect(accepted(withBanks(banks)).program.series[0].events[0]).toEqual({ duration: 1000, command: 'hide' });
+  });
+
+  it('refuses a letter no device can have', () => {
+    expect(errorText(JSON.stringify(withBanks({ I: 'show' })))).toContain(
+      '/series/0/events/0/banks/I Banks are named A to H, so "I" is not one.',
+    );
+  });
+
+  it('refuses a value that is not show or hide', () => {
+    expect(errorText(JSON.stringify(withBanks({ A: 'shwo' })))).toContain(
+      '/series/0/events/0/banks/A Bank A must be "show" or "hide", but this is "shwo".',
+    );
+  });
+
+  it('refuses banks that is not an object', () => {
+    expect(errorText(JSON.stringify(withBanks(['A'])))).toContain('/series/0/events/0/banks');
+  });
+});
+
+describe('banksRequired', () => {
+  function program(banksPerEvent: (Record<string, 'show' | 'hide'> | undefined)[]) {
+    return {
+      id: 0,
+      title: 'Banks',
+      description: '',
+      readonly: false,
+      series: [
+        {
+          name: 'S',
+          optional: false,
+          events: banksPerEvent.map((banks) => ({ duration: 1000, ...(banks ? { banks } : {}) })),
+        },
+      ],
+    };
+  }
+
+  it('is 1 for a program that names no bank', () => {
+    expect(banksRequired(PROGRAM_MILITARY_SNABBMATCH)).toBe(1);
+    expect(banksRequired(program([undefined, undefined]))).toBe(1);
+  });
+
+  it('is the position of the highest letter named, wherever it appears', () => {
+    expect(banksRequired(program([{ D: 'show' }, { B: 'hide' }]))).toBe(4);
+    expect(banksRequired(program([{ H: 'hide' }]))).toBe(8);
+  });
+
+  it('does not count a letter as needed just because A is named', () => {
+    expect(banksRequired(program([{ A: 'show' }]))).toBe(1);
   });
 });

@@ -25,6 +25,7 @@ vite-plugins/mock-server-v2.ts    # Thin adapter mounting the above on the Vite 
 src/lib/program-document.ts       # Validates a program against what parse_program does (D-18)
 src/lib/program-editor.ts         # The editor's document model; every edit is a reducer action
 src/lib/run-position.ts           # Mirrors firmware/lib/rt_logic/run_position.h - change both
+src/lib/bank-state.ts             # Mirrors executor.cpp's enter_event: per-bank state - change both
 e2e/                              # Playwright suite against the QEMU-hosted firmware (D-17)
 editor.html, src/editor-main.tsx  # GitHub Pages entry (#140): ProgramEditor with no device
 vite.editor.config.ts             # Its own Vite build (dist-editor/) - see README's size budget note
