@@ -642,6 +642,21 @@ void test_toggle_on_four_banks_hides_only_when_every_bank_is_shown() {
   for (size_t i = 0; i < 4; i++) TEST_ASSERT_TRUE(four.state.bank_shown[i]);
 }
 
+// A mask naming no bank this device has must move nothing and say so. Falling
+// through to "all of an empty set is shown, so hide" would answer `hidden`
+// while no pin moved - stage 2 sends operator-chosen bank lists here.
+void test_toggling_a_bank_the_device_does_not_have_changes_nothing() {
+  Harness two(2);
+  two.executor.set_targets(rt::kAllBanksMask, true);
+  two.effects.clear();
+
+  TEST_ASSERT_TRUE(two.executor.toggle_targets(rt::bank_bit(5)));
+
+  TEST_ASSERT_TRUE(two.state.bank_shown[0]);
+  TEST_ASSERT_TRUE(two.state.bank_shown[1]);
+  TEST_ASSERT_EQUAL_size_t(0, two.effects.target_history.size());
+}
+
 // Only the named banks move, and `targetStatus` keeps reporting bank A.
 void test_setting_one_bank_leaves_the_others_alone() {
   Harness four(4);
@@ -721,6 +736,7 @@ int main() {
   RUN_TEST(test_toggle_targets_flips_the_published_flag_and_the_pin);
   RUN_TEST(test_an_event_drives_every_bank);
   RUN_TEST(test_toggle_on_four_banks_hides_only_when_every_bank_is_shown);
+  RUN_TEST(test_toggling_a_bank_the_device_does_not_have_changes_nothing);
   RUN_TEST(test_setting_one_bank_leaves_the_others_alone);
   RUN_TEST(test_init_banks_adopts_the_boot_state_on_every_bank);
 

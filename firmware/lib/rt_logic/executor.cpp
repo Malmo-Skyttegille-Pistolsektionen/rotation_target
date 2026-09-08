@@ -34,9 +34,18 @@ bool Executor::toggle_targets(BankMask bank_mask) {
   // targets is not a state an operator asks for by pressing one button, and on
   // one bank the two rules are the same thing.
   bool all_shown = true;
+  bool matched = false;
   for (size_t i = 0; i < state_.bank_shown.size(); i++) {
-    if ((bank_mask & bank_bit(i)) != 0 && !state_.bank_shown[i]) all_shown = false;
+    if ((bank_mask & bank_bit(i)) == 0) continue;
+    matched = true;
+    if (!state_.bank_shown[i]) all_shown = false;
   }
+
+  // A mask naming no bank this device has moves nothing, so it must not report
+  // that it did: "all of an empty set is shown" would answer `hidden` and
+  // publish a flag no pin backs. Bank A's state is what the answer means.
+  if (!matched) return state_.target_status_shown();
+
   set_targets(bank_mask, !all_shown);
   return !all_shown;
 }
