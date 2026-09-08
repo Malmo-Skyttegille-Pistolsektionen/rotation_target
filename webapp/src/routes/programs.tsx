@@ -12,6 +12,7 @@ import { downloadJson, programFilename } from '../lib/download';
 import { useSettings } from '../context/SettingsContext';
 import { useControlLockStatus } from '../hooks/useControlLockStatus';
 import { BANK_LETTERS, type DocumentIssue, parseProgramDocument } from '../lib/program-document';
+import { deviceBankCount } from '../lib/bank-state';
 import {
   failureNotice,
   issueLines,
@@ -80,9 +81,8 @@ export function ProgramsView(): React.ReactNode {
     enabled: false,
   });
   const loadedProgramId = state?.loadedProgramId ?? null;
-  // The banks this device drives, from the first SSE frame. Absent means one -
-  // a device from before banks, or one with a single bank.
-  const bankCount = Object.keys(state?.targetBanks ?? {}).length || 1;
+  // Null until the first SSE frame: nothing is refused on a guess.
+  const bankCount = deviceBankCount(state);
 
   function invalidatePrograms(id?: number): void {
     void queryClient.invalidateQueries({ queryKey: ['programs'] });
@@ -330,7 +330,11 @@ export function ProgramsView(): React.ReactNode {
                 // refused. The library is a library, and the same file runs on
                 // the four-bank device next door.
                 const needs = program.banksRequired ?? 1;
-                const unrunnable = needs > bankCount;
+                // Only once the device has said what it has. Load stays
+                // available either way (D-41): loading is how a program
+                // reaches the timeline to be reviewed, and it is the start
+                // that the device refuses.
+                const unrunnable = bankCount !== null && needs > bankCount;
                 return (
                   <tr
                     key={program.id}
@@ -401,7 +405,7 @@ export function ProgramsView(): React.ReactNode {
                             className={clsx(styles.button, styles.actionToggle)}
                             data-testid={isLoaded ? `program-unload-${program.id}` : `program-load-${program.id}`}
                             onClick={() => (isLoaded ? unloadMutation.mutate() : loadMutation.mutate(program))}
-                            disabled={busy || (unrunnable && !isLoaded)}
+                            disabled={busy}
                           >
                             {isLoaded ? 'Unload' : 'Load'}
                           </button>

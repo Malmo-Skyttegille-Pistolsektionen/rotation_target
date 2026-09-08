@@ -126,6 +126,13 @@
   padding: 0.5rem 0.75rem;
 }
 
+/* The advisory register, like `.notice`: nothing is wrong, and nothing here
+   will start. Its own class because it outlives a notice being dismissed. */
+.banksNotice {
+  composes: notice;
+  margin-top: 0.5rem;
+}
+
 .controlsRow {
   display: flex;
   gap: 1.5rem;

@@ -442,19 +442,33 @@ describe('a program that needs banks', () => {
     await ready();
   }
 
-  it('tags the row and refuses to load it on a one-bank device', async () => {
-    await listWith(undefined);
+  // Load stays available whatever the device has: loading is how a program
+  // reaches the timeline to be reviewed, and it is the *start* the device
+  // refuses (D-41). The Run page is where that refusal is explained.
+  it('says what the program needs on a device that cannot run it, and still offers Load', async () => {
+    await listWith({ A: 'shown' });
 
     const id = 100; // the mock assigns from 100 up
     expect(screen.getByTestId(`program-banks-${String(id)}`).textContent).toBe('A–D');
     expect(screen.getByTestId(`program-banks-refusal-${String(id)}`).textContent).toContain(
       'Needs 4 banks; this device has 1.',
     );
-    expect(screen.getByTestId(`program-load-${String(id)}`).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByTestId(`program-load-${String(id)}`).hasAttribute('disabled')).toBe(false);
   });
 
-  it('tags it and loads it on a device that has the banks', async () => {
+  it('tags it and says nothing more on a device that has the banks', async () => {
     await listWith({ A: 'shown', B: 'shown', C: 'shown', D: 'shown' });
+
+    const id = 100;
+    expect(screen.getByTestId(`program-banks-${String(id)}`).textContent).toBe('A–D');
+    expect(screen.queryByTestId(`program-banks-refusal-${String(id)}`)).toBeNull();
+  });
+
+  // "No frame yet" is not "one bank". Refusing on that guess would tell an
+  // operator, for the second before the stream connects, that a program they
+  // can run needs a device they do not have.
+  it('claims nothing before the first SSE frame', async () => {
+    await listWith(undefined);
 
     const id = 100;
     expect(screen.getByTestId(`program-banks-${String(id)}`).textContent).toBe('A–D');
