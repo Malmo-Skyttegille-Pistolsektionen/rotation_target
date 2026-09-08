@@ -20,9 +20,13 @@
  *   validator as every other problem, rather than being silently coerced here.
  */
 import type { Event, Program, Series } from '../api/types';
+import { BANK_LETTERS, banksRequired, type BankLetter } from './program-document';
 
 /** The three-way `command` control: the device's `show`, `hide`, or no key at all. */
 export type DraftCommand = 'show' | 'hide' | 'none';
+
+/** What one event says about individual banks. A letter absent follows `command`. */
+export type BankOverrides = Partial<Record<BankLetter, 'show' | 'hide'>>;
 
 export interface DraftEvent {
   /** Stable across reorders, so a React list keyed by it keeps input focus. */
@@ -30,6 +34,7 @@ export interface DraftEvent {
   /** Milliseconds, as typed. See the note above. */
   duration: string;
   command: DraftCommand;
+  banks: BankOverrides;
   audioIds: number[];
 }
 
@@ -68,6 +73,13 @@ export interface EditorState {
    * compares against it, so typing a change back to what it was is not dirty.
    */
   baseline: string;
+  /**
+   * How many banks the editor offers, 1…8. Editor-only: it is derived from the
+   * document on load (`banksRequired`) and never stored in one, because a
+   * program that names no bank above B needs no bank C whatever machine it was
+   * authored on. Lowering it drops the overrides above it, which *is* an edit.
+   */
+  bankCount: number;
 }
 
 /** What a new event starts as. The legacy editor's `createEmptyEvent`. */
@@ -89,6 +101,10 @@ export type EditorAction =
   | { type: 'addEvent'; series: number }
   | { type: 'setEventDuration'; series: number; event: number; value: string }
   | { type: 'setEventCommand'; series: number; event: number; value: DraftCommand }
+  /** Set one bank's override on one event, or `null` to let it follow `command` again. */
+  | { type: 'setEventBankOverride'; series: number; event: number; letter: BankLetter; value: 'show' | 'hide' | null }
+  /** How many banks the editor offers. Lowering it drops the overrides above it. */
+  | { type: 'setBankCount'; value: number }
   | { type: 'moveEvent'; series: number; from: number; to: number }
   | { type: 'duplicateEvent'; series: number; event: number }
   | { type: 'removeEvent'; series: number; event: number }
@@ -120,6 +136,22 @@ export type EditorAction =
  * deleted anchor degrades to "starts with the series" rather than pointing at
  * whatever event inherited its position.
  */
+/** The overrides in letter order, so a document's `banks` key does not depend on click order. */
+function orderedBanks(banks: BankOverrides): BankOverrides {
+  const ordered: BankOverrides = {};
+  for (const letter of BANK_LETTERS) {
+    const value = banks[letter];
+    if (value !== undefined) ordered[letter] = value;
+  }
+  return ordered;
+}
+
+/** The document carries `banks` only when it says something; an empty map is absence. */
+function banksField(event: DraftEvent): { banks?: BankOverrides } {
+  const ordered = orderedBanks(event.banks);
+  return Object.keys(ordered).length === 0 ? {} : { banks: ordered };
+}
+
 function timerStartIndexOf(series: DraftSeries): number {
   if (series.timerStartKey === null) return 0;
   const index = series.events.findIndex((event) => event.key === series.timerStartKey);
@@ -139,6 +171,7 @@ export function toDocument(draft: Draft): Record<string, unknown> {
         return {
           ...(duration === undefined ? {} : { duration }),
           ...(event.command === 'none' ? {} : { command: event.command }),
+          ...banksField(event),
           ...(event.audioIds.length > 0 ? { audio_ids: [...event.audioIds] } : {}),
         };
       }),
@@ -160,6 +193,42 @@ function parseDuration(text: string): number | string | undefined {
   if (trimmed === '') return undefined;
   if (/^-?\d+$/.test(trimmed)) return Number(trimmed);
   return trimmed;
+}
+
+/**
+ * What the device will do on entering this event, in one sentence.
+ *
+ * The controls say it in three pieces - a radio for the baseline, a row of
+ * letters for the exceptions, a duration - and an author has to hold all three
+ * to know what the steel does. This reads them back as one thing, which is the
+ * check that catches "hide everything except B" written as "show everything
+ * except B".
+ */
+export function describeEvent(event: DraftEvent, bankCount: number): string {
+  const ms = durationMs(event);
+  const hold = ms === null ? 'its duration' : `${String(Math.round(ms / 100) / 10)} s`;
+
+  if (bankCount <= 1) {
+    const what =
+      event.command === 'show' ? 'Show' : event.command === 'hide' ? 'Hide' : 'Leave the targets where they are';
+    return `${what} for ${hold}.`;
+  }
+
+  const letters = BANK_LETTERS.slice(0, bankCount);
+  const shows = letters.filter((letter) => event.banks[letter] === 'show');
+  const hides = letters.filter((letter) => event.banks[letter] === 'hide');
+  const rest = letters.filter((letter) => event.banks[letter] === undefined);
+
+  const parts: string[] = [];
+  if (shows.length > 0) parts.push(`show ${shows.join(', ')}`);
+  if (hides.length > 0) parts.push(`hide ${hides.join(', ')}`);
+  if (rest.length > 0) {
+    parts.push(
+      event.command === 'none' ? `leave ${rest.join(', ')} as they are` : `${event.command} ${rest.join(', ')}`,
+    );
+  }
+
+  return `On entry: ${parts.join('; ')}. Hold ${hold}.`;
 }
 
 /** Milliseconds for a total or a preview, or `null` while the field is not a number. */
@@ -193,6 +262,7 @@ export function toPreviewProgram(draft: Draft): Program {
         return {
           duration: ms === null || ms < 0 ? 0 : ms,
           ...(event.command === 'none' ? {} : { command: event.command }),
+          ...banksField(event),
           ...(event.audioIds.length > 0 ? { audio_ids: [...event.audioIds] } : {}),
         };
       }),
@@ -219,6 +289,7 @@ function draftFromProgram(program: Program | null, from: number): { draft: Draft
         key: key(),
         duration: String(event.duration),
         command: event.command === 'show' || event.command === 'hide' ? event.command : 'none',
+        banks: orderedBanks((event.banks ?? {}) as BankOverrides),
         audioIds: [...(event.audio_ids ?? [])],
       }));
       const anchor = series.timer_start_index ?? 0;
@@ -257,13 +328,20 @@ export function createEditorState(program: Program | null): EditorState {
           name: '',
           optional: false,
           timerStartKey: null,
-          events: [{ key: eventKey, duration: NEW_EVENT_DURATION, command: 'none', audioIds: [] }],
+          events: [{ key: eventKey, duration: NEW_EVENT_DURATION, command: 'none', banks: {}, audioIds: [] }],
         },
       ],
     };
   }
 
-  return { draft, collapsed: [], selection: [], nextKey, baseline: toJson(draft) };
+  return {
+    draft,
+    collapsed: [],
+    selection: [],
+    nextKey,
+    baseline: toJson(draft),
+    bankCount: program === null ? 1 : banksRequired(program),
+  };
 }
 
 export function isDirty(state: EditorState): boolean {
@@ -278,6 +356,16 @@ function move<T>(list: readonly T[], from: number, to: number): T[] {
   const [item] = next.splice(from, 1);
   next.splice(to, 0, item);
   return next;
+}
+
+/** The overrides whose letters are still in range. */
+function onlyBanks(banks: BankOverrides, allowed: ReadonlySet<string>): BankOverrides {
+  const kept: BankOverrides = {};
+  for (const letter of BANK_LETTERS) {
+    const value = banks[letter];
+    if (value !== undefined && allowed.has(letter)) kept[letter] = value;
+  }
+  return kept;
 }
 
 /** Apply `change` to one series, leaving the rest untouched. */
@@ -341,7 +429,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
               name: '',
               optional: false,
               timerStartKey: null,
-              events: [{ key: eventKey, duration: NEW_EVENT_DURATION, command: 'none', audioIds: [] }],
+              events: [{ key: eventKey, duration: NEW_EVENT_DURATION, command: 'none', banks: {}, audioIds: [] }],
             },
           ],
         },
@@ -373,6 +461,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const copiedEvents = source.events.map((event) => ({
         ...event,
         key: `k${nextKey++}`,
+        banks: { ...event.banks },
         audioIds: [...event.audioIds],
       }));
       const copy: DraftSeries = {
@@ -418,7 +507,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         nextKey: state.nextKey + 1,
         draft: withSeries(draft, action.series, (series) => ({
           ...series,
-          events: [...series.events, { key, duration: NEW_EVENT_DURATION, command: 'none', audioIds: [] }],
+          events: [...series.events, { key, duration: NEW_EVENT_DURATION, command: 'none', banks: {}, audioIds: [] }],
         })),
       };
     }
@@ -435,6 +524,37 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         draft: withEvent(draft, action.series, action.event, (event) => ({ ...event, command: action.value })),
       };
 
+    case 'setEventBankOverride':
+      return {
+        ...state,
+        draft: withEvent(draft, action.series, action.event, (event) => {
+          const banks = { ...event.banks };
+          if (action.value === null) delete banks[action.letter];
+          else banks[action.letter] = action.value;
+          return { ...event, banks };
+        }),
+      };
+
+    case 'setBankCount': {
+      const bankCount = Math.max(1, Math.min(BANK_LETTERS.length, Math.trunc(action.value)));
+      if (bankCount === state.bankCount) return state;
+      // Lowering it is a real edit: an override on a bank the program no longer
+      // uses would still be sent, and would still be refused by a device that
+      // does not have that bank.
+      const allowed = new Set<string>(BANK_LETTERS.slice(0, bankCount));
+      return {
+        ...state,
+        bankCount,
+        draft: {
+          ...draft,
+          series: draft.series.map((series) => ({
+            ...series,
+            events: series.events.map((event) => ({ ...event, banks: onlyBanks(event.banks, allowed) })),
+          })),
+        },
+      };
+    }
+
     case 'moveEvent':
       return {
         ...state,
@@ -448,7 +568,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const series = draft.series[action.series];
       const source = series?.events[action.event];
       if (!source) return state;
-      const copy: DraftEvent = { ...source, key: `k${state.nextKey}`, audioIds: [...source.audioIds] };
+      const copy: DraftEvent = {
+        ...source,
+        key: `k${state.nextKey}`,
+        banks: { ...source.banks },
+        audioIds: [...source.audioIds],
+      };
       const events = [...series.events];
       events.splice(action.event + 1, 0, copy);
       return {
@@ -528,12 +653,28 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case 'replaceDocument': {
       const { draft: replaced, nextKey } = draftFromProgram(action.program, state.nextKey);
-      return { ...state, draft: replaced, nextKey, collapsed: [], selection: [] };
+      // Never narrower than the document needs: a paste into the JSON tab that
+      // names bank D has to leave the editor able to show bank D.
+      return {
+        ...state,
+        draft: replaced,
+        nextKey,
+        collapsed: [],
+        selection: [],
+        bankCount: Math.max(state.bankCount, banksRequired(action.program)),
+      };
     }
 
     case 'saved': {
       const { draft: stored, nextKey } = draftFromProgram(action.program, state.nextKey);
-      return { draft: stored, nextKey, collapsed: [], selection: [], baseline: toJson(stored) };
+      return {
+        draft: stored,
+        nextKey,
+        collapsed: [],
+        selection: [],
+        baseline: toJson(stored),
+        bankCount: Math.max(state.bankCount, banksRequired(action.program)),
+      };
     }
   }
 }

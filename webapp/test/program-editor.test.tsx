@@ -629,3 +629,77 @@ describe('the unsaved-changes guard', () => {
     await waitFor(() => expect(screen.getByText('The audios tab')).toBeTruthy());
   });
 });
+
+describe('the target-bank controls', () => {
+  it('is exactly the row it always was on a program that names no bank', async () => {
+    renderApp();
+    await ready();
+    await openEditor(UPLOADED.id);
+
+    expect(screen.getByTestId('editor-banks-count').textContent).toBe('1 (A)');
+    expect(screen.queryByTestId('editor-event-0-0-bank-A')).toBeNull();
+    expect(screen.queryByTestId('editor-event-0-0-summary')).toBeNull();
+    // The radio legend, not "All banks".
+    expect(within(screen.getByTestId('editor-event-0-0')).getByText('Targets')).toBeTruthy();
+  });
+
+  it('reveals a letter per bank once the stepper is raised', async () => {
+    renderApp();
+    await ready();
+    await openEditor(UPLOADED.id);
+
+    fireEvent.click(screen.getByTestId('editor-banks-more'));
+    fireEvent.click(screen.getByTestId('editor-banks-more'));
+
+    expect(screen.getByTestId('editor-banks-count').textContent).toBe('A–C');
+    expect(screen.getByTestId('editor-event-0-0-bank-C')).toBeTruthy();
+    expect(screen.queryByTestId('editor-event-0-0-bank-D')).toBeNull();
+    expect(within(screen.getByTestId('editor-event-0-0')).getByText('All banks')).toBeTruthy();
+  });
+
+  it('cycles a letter through follow, show and hide, saying which it is', async () => {
+    renderApp();
+    await ready();
+    await openEditor(UPLOADED.id);
+    fireEvent.click(screen.getByTestId('editor-banks-more'));
+
+    const button = screen.getByTestId('editor-event-0-0-bank-B');
+    expect(button.getAttribute('aria-label')).toContain('Bank B: follows all banks');
+
+    fireEvent.click(button);
+    expect(screen.getByTestId('editor-event-0-0-bank-B').getAttribute('aria-label')).toContain('Bank B: show');
+
+    fireEvent.click(screen.getByTestId('editor-event-0-0-bank-B'));
+    expect(screen.getByTestId('editor-event-0-0-bank-B').getAttribute('aria-label')).toContain('Bank B: hide');
+
+    fireEvent.click(screen.getByTestId('editor-event-0-0-bank-B'));
+    expect(screen.getByTestId('editor-event-0-0-bank-B').getAttribute('aria-label')).toContain(
+      'Bank B: follows all banks',
+    );
+  });
+
+  it('reads the event back as one sentence', async () => {
+    renderApp();
+    await ready();
+    await openEditor(UPLOADED.id);
+    fireEvent.click(screen.getByTestId('editor-banks-more'));
+    fireEvent.click(screen.getByTestId('editor-event-0-0-bank-B'));
+
+    // The fixture's first event hides for 10 s.
+    expect(screen.getByTestId('editor-event-0-0-summary').textContent).toBe('On entry: show B; hide A. Hold 10 s.');
+  });
+
+  it('sends the overrides to the device, and nothing when there are none', async () => {
+    renderApp();
+    await ready();
+    await openEditor(UPLOADED.id);
+    fireEvent.click(screen.getByTestId('editor-banks-more'));
+    fireEvent.click(screen.getByTestId('editor-event-0-0-bank-B'));
+    fireEvent.click(screen.getByTestId('editor-save'));
+
+    await screen.findByTestId('editor-notice');
+    const stored = await storedProgram(UPLOADED.id);
+    expect(stored.series[0].events[0].banks).toEqual({ B: 'show' });
+    expect(stored.series[0].events[1]).not.toHaveProperty('banks');
+  });
+});

@@ -485,3 +485,136 @@
     min-height: 16rem;
   }
 }
+
+/* --- Target banks -----------------------------------------------------------
+   Every rule here is dead on a one-bank program: the stepper reads "1 (A)",
+   the Except row is not rendered, and the event row is the row it always was. */
+.bankStepper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  overflow: hidden;
+  min-height: var(--rt-control-height);
+}
+
+.stepperButton {
+  border: 0;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1rem;
+  width: 2rem;
+}
+
+.stepperButton:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.stepperButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.stepperValue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.5rem;
+  padding: 0 0.5rem;
+  border-left: 1px solid #e5e7eb;
+  border-right: 1px solid #e5e7eb;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #111827;
+  font-variant-numeric: tabular-nums;
+}
+
+.banks {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  flex-wrap: wrap;
+}
+
+.banks legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+}
+
+.bankButton {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  width: 2.5rem;
+  min-height: var(--rt-control-height);
+  padding: 0.2rem 0;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  color: #6b7280;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.bankButton:hover {
+  background: #f0f0f0;
+}
+
+.bankButton:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* go/stop rather than shown/hidden green: this is a filled control with white
+   text on it, and white on #16a34a measures 3.3:1. The Readable Signal Rule. */
+.bankButton.bankShow {
+  background: #15803d;
+  border-color: #15803d;
+  color: #fff;
+}
+
+.bankButton.bankShow:hover {
+  background: #166534;
+}
+
+.bankButton.bankHide {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+
+.bankButton.bankHide:hover {
+  background: #b91c1c;
+}
+
+.bankLetter {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.bankValue {
+  font-size: 0.75rem;
+}
+
+.eventSummary {
+  flex-basis: 100%;
+  margin: 0.2rem 0 0;
+  padding-top: 0.35rem;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.85rem;
+  color: #4b5563;
+}
