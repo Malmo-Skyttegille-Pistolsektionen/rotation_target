@@ -703,3 +703,26 @@ describe('the target-bank controls', () => {
     expect(stored.series[0].events[1]).not.toHaveProperty('banks');
   });
 });
+
+describe('an override on a bank the stepper does not reach', () => {
+  const ONLY_A: Program = {
+    ...UPLOADED,
+    id: 142,
+    title: 'Only A',
+    series: [{ name: 'S', optional: false, events: [{ duration: 4000, command: 'show', banks: { A: 'hide' } }] }],
+  };
+
+  it('shows the Except row and the summary even though the program needs one bank', async () => {
+    await requestElsewhere(PORT, 'PUT', `/api/v2/programs/${String(UPLOADED.id)}`, {
+      ...ONLY_A,
+      id: UPLOADED.id,
+    });
+    renderApp();
+    await ready();
+    await openEditor(UPLOADED.id);
+
+    expect(screen.getByTestId('editor-banks-count').textContent).toBe('1 (A)');
+    expect(screen.getByTestId('editor-event-0-0-bank-A')).toBeTruthy();
+    expect(screen.getByTestId('editor-event-0-0-summary').textContent).toBe('On entry: hide A. Hold 4 s.');
+  });
+});

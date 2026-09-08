@@ -12,6 +12,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SettingsProvider } from '../src/context/SettingsContext';
 import { StandaloneEditorApp } from '../src/standalone/StandaloneEditorApp';
+import BANKED_PROGRAM from '../../resources/programs/files/41.json';
 
 /**
  * `ProgramEditor` calls `useBlocker()` unconditionally, which needs a router
@@ -213,5 +214,48 @@ describe('opening a file that is not a valid program', () => {
 
     expect(await screen.findByTestId('picker-confirm-invalid')).toBeTruthy();
     expect(screen.queryByTestId('editor-heading')).toBeNull();
+  });
+});
+
+/**
+ * The Pages editor is the same `ProgramEditor`, rebuilt on every `webapp/src`
+ * change, with no device anywhere. So the bank controls must come from the
+ * document alone: a device bank count could not reach this build if it tried.
+ */
+describe('a multi-bank program with no device', () => {
+  // The shipped example itself, so this cannot drift from what we ship.
+  const BANKED = JSON.stringify(BANKED_PROGRAM);
+
+  async function openBanked(): Promise<void> {
+    renderApp();
+    await ready();
+    fireEvent.click(screen.getByTestId('picker-new-start'));
+    type('picker-confirm-id', '41');
+    fireEvent.click(screen.getByTestId('picker-confirm-open'));
+    fireEvent.click(screen.getByTestId('editor-tab-json'));
+    type('editor-json', BANKED);
+    fireEvent.click(screen.getByTestId('editor-tab-editor'));
+  }
+
+  it('derives the stepper and the Except row from the document', async () => {
+    await openBanked();
+
+    expect(screen.getByTestId('editor-banks-count').textContent).toBe('A–D');
+    expect(screen.getByTestId('editor-event-0-1-bank-D')).toBeTruthy();
+    expect(screen.getByTestId('editor-event-0-1-summary').textContent).toContain('show A');
+  });
+
+  it('round-trips the overrides into the exported document', async () => {
+    await openBanked();
+    fireEvent.click(screen.getByTestId('editor-save'));
+
+    const panel = await screen.findByTestId('export-panel');
+    const link = within(panel).getByTestId('export-pr-link') as HTMLAnchorElement;
+    const exported = JSON.parse(new URL(link.href).searchParams.get('value') ?? '') as {
+      series: { events: Record<string, unknown>[] }[];
+    };
+
+    expect(exported.series[0].events[1].banks).toEqual({ A: 'show' });
+    expect(exported.series[1].events[1].banks).toEqual({ A: 'show', B: 'show' });
   });
 });

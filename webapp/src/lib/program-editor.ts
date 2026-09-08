@@ -208,13 +208,19 @@ export function describeEvent(event: DraftEvent, bankCount: number): string {
   const ms = durationMs(event);
   const hold = ms === null ? 'its duration' : `${String(Math.round(ms / 100) / 10)} s`;
 
-  if (bankCount <= 1) {
+  // An override on bank A alone leaves `banksRequired` at 1, so the letters to
+  // describe are the ones the stepper offers *or* the ones the event names -
+  // otherwise the sentence would quietly omit the only thing the event says.
+  const named = BANK_LETTERS.filter((letter) => event.banks[letter] !== undefined);
+  const width = Math.max(bankCount, named.length === 0 ? 0 : BANK_LETTERS.indexOf(named[named.length - 1]) + 1);
+
+  if (width <= 1 && named.length === 0) {
     const what =
       event.command === 'show' ? 'Show' : event.command === 'hide' ? 'Hide' : 'Leave the targets where they are';
     return `${what} for ${hold}.`;
   }
 
-  const letters = BANK_LETTERS.slice(0, bankCount);
+  const letters = BANK_LETTERS.slice(0, width);
   const shows = letters.filter((letter) => event.banks[letter] === 'show');
   const hides = letters.filter((letter) => event.banks[letter] === 'hide');
   const rest = letters.filter((letter) => event.banks[letter] === undefined);

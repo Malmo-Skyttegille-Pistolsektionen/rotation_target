@@ -819,6 +819,12 @@ function EventRow({
 }: EventRowProps): React.ReactNode {
   const testId = `editor-event-${seriesIndex}-${eventIndex}`;
   const ms = durationMs(event);
+  // An override on bank A alone leaves `banksRequired` - and so the stepper -
+  // at 1. The controls still have to show it, or the editor would hide an
+  // instruction the file carries and the device obeys.
+  const named = BANK_LETTERS.filter((letter) => event.banks[letter] !== undefined);
+  const letterCount = Math.max(bankCount, named.length === 0 ? 0 : BANK_LETTERS.indexOf(named[named.length - 1]) + 1);
+  const showBanks = letterCount > 1 || named.length > 0;
 
   return (
     <div className={styles.event} data-testid={testId}>
@@ -866,10 +872,8 @@ function EventRow({
       </label>
 
       <fieldset className={styles.commands}>
-        {/* "All banks" rather than "Targets" once there is more than one: the
-            radio is the baseline the Except row overrides, and calling it
-            Targets would read as the whole answer. */}
-        <legend className={styles.label}>{bankCount > 1 ? 'All banks' : 'Targets'}</legend>
+        {/* The radio is the baseline the Except row overrides, so it stops being the whole answer. */}
+        <legend className={styles.label}>{showBanks ? 'All banks' : 'Targets'}</legend>
         {COMMANDS.map((command) => (
           <label key={command.value} className={styles.checkbox}>
             <input
@@ -886,10 +890,10 @@ function EventRow({
         ))}
       </fieldset>
 
-      {bankCount > 1 && (
+      {showBanks && (
         <fieldset className={styles.banks}>
           <legend className={styles.label}>Except</legend>
-          {BANK_LETTERS.slice(0, bankCount).map((letter) => (
+          {BANK_LETTERS.slice(0, letterCount).map((letter) => (
             <BankOverrideButton
               key={letter}
               testId={testId}
@@ -948,9 +952,9 @@ function EventRow({
       {/* The three controls above say it in pieces; this says it as one thing,
           which is what catches "hide everything except B" written the other
           way round. Only where there is something to get wrong. */}
-      {bankCount > 1 && (
-        <p className={styles.eventSummary} data-testid={`${testId}-summary`}>
-          {describeEvent(event, bankCount)}
+      {showBanks && (
+        <p className={styles.eventSummary} aria-live='polite' data-testid={`${testId}-summary`}>
+          {describeEvent(event, letterCount)}
         </p>
       )}
     </div>
@@ -1005,8 +1009,10 @@ function BankCountStepper({
   dispatch: React.Dispatch<EditorAction>;
 }): React.ReactNode {
   return (
-    <div className={styles.bankStepper}>
-      <span className={styles.label}>Banks this program uses</span>
+    <div className={styles.bankStepper} role='group' aria-labelledby='editor-banks-label'>
+      <span className={styles.label} id='editor-banks-label'>
+        Banks this program uses
+      </span>
       <span className={styles.stepper}>
         <button
           type='button'
@@ -1018,7 +1024,7 @@ function BankCountStepper({
         >
           −
         </button>
-        <span className={styles.stepperValue} data-testid='editor-banks-count'>
+        <span className={styles.stepperValue} aria-live='polite' data-testid='editor-banks-count'>
           {count === 1 ? '1 (A)' : `A–${BANK_LETTERS[count - 1]}`}
         </span>
         <button

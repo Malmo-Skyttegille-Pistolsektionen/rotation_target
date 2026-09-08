@@ -614,3 +614,31 @@ describe('describeEvent', () => {
     expect(describeEvent(event({ duration: '' }), 2)).toContain('Hold its duration.');
   });
 });
+
+describe('an override on bank A alone', () => {
+  // banksRequired stays 1 - correct for the device, which needs only bank A -
+  // but the editor still has to show the instruction the file carries.
+  const ONLY_A: Program = {
+    id: 42,
+    title: 'Only A',
+    description: '',
+    readonly: false,
+    series: [{ name: 'S', optional: false, events: [{ duration: 4000, command: 'show', banks: { A: 'hide' } }] }],
+  };
+
+  it('needs one bank', () => {
+    expect(createEditorState(ONLY_A).bankCount).toBe(1);
+  });
+
+  it('is still described, rather than silently dropped from the sentence', () => {
+    const event = createEditorState(ONLY_A).draft.series[0].events[0];
+    expect(describeEvent(event, 1)).toBe('On entry: hide A. Hold 4 s.');
+  });
+
+  it('survives a round trip through the document', () => {
+    const state = createEditorState(ONLY_A);
+    const result = parseProgramDocument(toJson(state.draft));
+    if (!result.ok) throw new Error('the validator refused the editor’s own output');
+    expect(result.program.series[0].events[0].banks).toEqual({ A: 'hide' });
+  });
+});
