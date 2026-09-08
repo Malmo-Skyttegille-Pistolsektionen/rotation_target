@@ -73,7 +73,7 @@ describe('REST surface', () => {
     const res = await api('/programs');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([
-      { id: 40, title: 'Fältträning', description: expect.any(String), readonly: true },
+      { id: 40, title: 'Fältträning', description: expect.any(String), banksRequired: 1, readonly: true },
     ]);
   });
 
@@ -981,9 +981,9 @@ describe('hardware configuration', () => {
   });
 
   it('gates writes on the control lock token, but not the read', async () => {
-    expect((await api('/control-lock/enable', { method: 'POST', body: JSON.stringify({ password: 'pw' }) })).status).toBe(
-      200,
-    );
+    expect(
+      (await api('/control-lock/enable', { method: 'POST', body: JSON.stringify({ password: 'pw' }) })).status,
+    ).toBe(200);
 
     expect((await api('/config/hardware')).status).toBe(200);
     expect((await put({ targetGpio: 7 })).status).toBe(401);
@@ -1075,7 +1075,10 @@ describe('WiFi (#263)', () => {
   });
 
   it('saves credentials and moves the device onto the network', async () => {
-    const saved = await api('/wifi', { method: 'PUT', body: JSON.stringify({ ssid: 'Elsewhere', password: 'hunter22' }) });
+    const saved = await api('/wifi', {
+      method: 'PUT',
+      body: JSON.stringify({ ssid: 'Elsewhere', password: 'hunter22' }),
+    });
     expect(saved.status).toBe(200);
 
     const status = (await (await api('/wifi')).json()) as { ssid: string; provisioned: boolean };
@@ -1147,31 +1150,31 @@ describe('WiFi (#263)', () => {
   });
 });
 
+/** A device with `count` banks, each on its own pin, already booted on them. */
+async function withBanks(count: number): Promise<{ server: MockServer; base: string }> {
+  const banks = Array.from({ length: count }, (_, index) => ({
+    gpio: 5 + index,
+    activeLow: true,
+    name: index === 0 ? 'Vänster' : `Bana ${String(index + 1)}`,
+  }));
+  const banked = createMockServer({
+    clock,
+    seed: {
+      programs: { 40: PROGRAM_FALT_TRANING },
+      audios: [],
+      hardware: { ...HARDWARE_DEFAULTS, targetGpio: 5, banks },
+    },
+  });
+  const port = await banked.listen();
+  return { server: banked, base: `http://127.0.0.1:${String(port)}/api/v2` };
+}
+
 /**
  * Target banks (#207, D-41). The mock mirrors `rt::Executor`'s per-bank state,
  * so a webapp test that drives a four-bank device is testing against the rules
  * the firmware actually applies.
  */
 describe('target banks', () => {
-  /** A device with `count` banks, each on its own pin, already booted on them. */
-  async function withBanks(count: number): Promise<{ server: MockServer; base: string }> {
-    const banks = Array.from({ length: count }, (_, index) => ({
-      gpio: 5 + index,
-      activeLow: true,
-      name: index === 0 ? 'Vänster' : `Bana ${String(index + 1)}`,
-    }));
-    const banked = createMockServer({
-      clock,
-      seed: {
-        programs: { 40: PROGRAM_FALT_TRANING },
-        audios: [],
-        hardware: { ...HARDWARE_DEFAULTS, targetGpio: 5, banks },
-      },
-    });
-    const port = await banked.listen();
-    return { server: banked, base: `http://127.0.0.1:${String(port)}/api/v2` };
-  }
-
   // A one-bank device sends `targetBanks` too, with the single key `A` (D-41),
   // so a client reads the bank count off a key count rather than inferring
   // "one" from an absence that also means firmware from before banks.
@@ -1563,5 +1566,133 @@ describe('target banks', () => {
 
     expect(res.status).toBe(400);
     expect(((await res.json()) as { detail: string }).detail).toContain('one and 8');
+  });
+});
+
+describe('target banks, program side', () => {
+  const BANKED = {
+    title: 'Fältträning, 4 mål',
+    description: '',
+    series: [
+      {
+        name: 'Station 1',
+        optional: false,
+        events: [
+          { duration: 4000, command: 'hide', banks: { B: 'show' } },
+          { duration: 4000, command: 'hide', banks: { D: 'show' } },
+        ],
+      },
+    ],
+  };
+
+  async function upload(document: unknown): Promise<Response> {
+    return api('/programs', { method: 'POST', body: JSON.stringify(document) });
+  }
+
+  /** A second device, because the bank count is fixed at boot. Stage 2's helper, reused. */
+  async function deviceWithBanks(count: number): Promise<{ close: () => Promise<void>; base: string }> {
+    const { server: banked, base: bankedBase } = await withBanks(count);
+    return { close: () => banked.close(), base: bankedBase };
+  }
+
+  it('stores and returns the overrides an upload carries', async () => {
+    const { id } = (await (await upload(BANKED)).json()) as { id: number };
+    const stored = (await (await api(`/programs/${String(id)}`)).json()) as {
+      series: { events: Record<string, unknown>[] }[];
+    };
+
+    expect(stored.series[0].events[0].banks).toEqual({ B: 'show' });
+  });
+
+  it.each([
+    ['a letter no device can have', { I: 'show' }],
+    ['a lower-case letter', { b: 'show' }],
+    ['a command typo', { B: 'shwo' }],
+    ['a list instead of an object', ['B']],
+  ])('refuses %s the way a command typo is refused', async (_name, banks) => {
+    const res = await upload({
+      ...BANKED,
+      series: [{ name: 'S', optional: false, events: [{ duration: 1000, banks }] }],
+    });
+    await expectProblem(res, {
+      type: '/problems/program_invalid',
+      title: 'Invalid program',
+      status: 400,
+      detail: 'Invalid program',
+    });
+  });
+
+  it('treats null and an empty object as no overrides at all', async () => {
+    const { id } = (await (
+      await upload({
+        ...BANKED,
+        series: [
+          {
+            name: 'S',
+            optional: false,
+            events: [
+              { duration: 1000, banks: null },
+              { duration: 1000, banks: {} },
+            ],
+          },
+        ],
+      })
+    ).json()) as { id: number };
+
+    const stored = (await (await api(`/programs/${String(id)}`)).json()) as {
+      series: { events: Record<string, unknown>[] }[];
+    };
+    expect(stored.series[0].events[0]).not.toHaveProperty('banks');
+    expect(stored.series[0].events[1]).not.toHaveProperty('banks');
+  });
+
+  it('reports banksRequired in the summaries, derived rather than declared', async () => {
+    await upload(BANKED);
+    const list = (await (await api('/programs')).json()) as { id: number; banksRequired: number }[];
+
+    expect(list.find((program) => program.id === 40)?.banksRequired).toBe(1);
+    expect(list.find((program) => program.id === 100)?.banksRequired).toBe(4);
+  });
+
+  it('replaces the overrides on a PUT', async () => {
+    const { id } = (await (await upload(BANKED)).json()) as { id: number };
+    await api(`/programs/${String(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...BANKED, series: [{ name: 'S', optional: false, events: [{ duration: 1000 }] }] }),
+    });
+
+    const list = (await (await api('/programs')).json()) as { id: number; banksRequired: number }[];
+    expect(list.find((program) => program.id === id)?.banksRequired).toBe(1);
+  });
+
+  it('refuses to start a program that needs banks this device does not have', async () => {
+    const { id } = (await (await upload(BANKED)).json()) as { id: number };
+    await api(`/programs/${String(id)}/load`, { method: 'POST' });
+
+    await expectProblem(await start(id), {
+      type: '/problems/program_banks_unavailable',
+      title: 'The program needs banks this device does not have',
+      status: 409,
+      detail: 'Start refused: the program needs banks A-D, and this device has one bank (A)',
+    });
+  });
+
+  it('uploads and loads that same program without complaint', async () => {
+    const { id } = (await (await upload(BANKED)).json()) as { id: number };
+    expect((await api(`/programs/${String(id)}/load`, { method: 'POST' })).status).toBe(200);
+  });
+
+  it('starts it on a device that has the banks', async () => {
+    const device = await deviceWithBanks(4);
+    try {
+      const created = await fetch(`${device.base}/programs`, { method: 'POST', body: JSON.stringify(BANKED) });
+      const { id } = (await created.json()) as { id: number };
+      await fetch(`${device.base}/programs/${String(id)}/load`, { method: 'POST' });
+
+      const res = await fetch(`${device.base}/programs/start`, { method: 'POST', body: JSON.stringify({ id }) });
+      expect(res.status).toBe(200);
+    } finally {
+      await device.close();
+    }
   });
 });

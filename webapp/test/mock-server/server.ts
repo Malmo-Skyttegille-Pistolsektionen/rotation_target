@@ -461,6 +461,45 @@ function parseCommand(raw: unknown): { ok: true; command?: Event['command'] } | 
 }
 
 /**
+ * `parse_banks` in `firmware/lib/rt_logic/program.cpp`: an object keyed by bank
+ * letter, each value `show` or `hide`. Absent, JSON `null` and `{}` are all "no
+ * overrides" and store nothing; a letter outside A-H or a value outside the two
+ * commands refuses the whole program, exactly as a `command` typo does.
+ *
+ * The letters are *not* checked against the banks this device has. A program
+ * for the four-bank device next door uploads here and is refused at start.
+ */
+function parseBanks(raw: unknown): { ok: true; banks?: Event['banks'] } | { ok: false } {
+  if (raw === undefined || raw === null) return { ok: true };
+  if (!isRecord(raw)) return { ok: false };
+
+  const banks: Record<string, 'show' | 'hide'> = {};
+  for (const letter of BANK_LETTERS) {
+    const value = raw[letter];
+    if (value === undefined) continue;
+    if (value !== 'show' && value !== 'hide') return { ok: false };
+    banks[letter] = value;
+  }
+  // Anything left is a key no device could have.
+  if (Object.keys(raw).length !== Object.keys(banks).length) return { ok: false };
+
+  return Object.keys(banks).length === 0 ? { ok: true } : { ok: true, banks };
+}
+
+/** The highest bank letter a program names, or 1. Derived here, never read from the file. */
+function banksRequiredOf(program: Program): number {
+  let required = 1;
+  for (const series of program.series) {
+    for (const event of series.events) {
+      for (const letter of Object.keys(event.banks ?? {})) {
+        required = Math.max(required, BANK_LETTERS.indexOf(letter) + 1);
+      }
+    }
+  }
+  return required;
+}
+
+/**
  * What the firmware keeps of an uploaded document: unknown fields dropped,
  * durations clamped, `id` from the path (or the assignment) and `readonly`
  * false. `POST /programs` and `PUT /programs/{id}` both store this form, and
@@ -482,6 +521,10 @@ function normalizeProgram(raw: Record<string, unknown>, id: number): Program | n
       const command = parseCommand(rawEvent.command);
       if (!command.ok) refused = true;
       else if (command.command !== undefined) event.command = command.command;
+
+      const banks = parseBanks(rawEvent.banks);
+      if (!banks.ok) refused = true;
+      else if (banks.banks !== undefined) event.banks = banks.banks;
       if (Array.isArray(rawEvent.audio_ids)) {
         event.audio_ids = (rawEvent.audio_ids as unknown[]).filter((v): v is number => typeof v === 'number');
       }
@@ -614,6 +657,8 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   // no restart, so the change is simply visible on the next GET.
   let wifi: WifiStatus = { ...DEFAULT_WIFI, ...(seed.wifi ?? {}) };
   const wifiNetworks: WifiNetwork[] = seed.wifiNetworks ?? DEFAULT_WIFI_NETWORKS;
+  /** The banks this device booted on. `banksOf` is the authority; the array's length is the count. */
+  const bankCount = (): number => banksOf(activeHardware).length;
 
   /** Mirrors `executor::is_running()` on the device. */
   const isRunning = (): boolean => state.programState?.running === true;
@@ -735,11 +780,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       return null;
     }
     if (letters.length === 0) {
-      problemResponse(
-        res,
-        '/problems/bank_unavailable',
-        "'banks' named no bank. Omit the body to move every bank.",
-      );
+      problemResponse(res, '/problems/bank_unavailable', "'banks' named no bank. Omit the body to move every bank.");
       return null;
     }
 
@@ -754,9 +795,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       // already driven.
       if (index < 0 || index >= state.bankShown.length) {
         const range =
-          state.bankShown.length <= 1
-            ? 'only bank A'
-            : `banks A-${BANK_LETTERS[state.bankShown.length - 1]}`;
+          state.bankShown.length <= 1 ? 'only bank A' : `banks A-${BANK_LETTERS[state.bankShown.length - 1]}`;
         problemResponse(
           res,
           '/problems/bank_unavailable',
@@ -783,7 +822,8 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         .slice()
         .sort((a, b) => a - b)
         .map((index) => BANK_LETTERS[index]);
-      const list = letters.length > 1 ? `${letters.slice(0, -1).join(', ')} and ${letters[letters.length - 1]}` : letters[0];
+      const list =
+        letters.length > 1 ? `${letters.slice(0, -1).join(', ')} and ${letters[letters.length - 1]}` : letters[0];
       return `${capital ? 'B' : 'b'}ank${letters.length > 1 ? 's' : ''} ${list}`;
     };
 
@@ -906,7 +946,11 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       return true;
     }
 
-    problemResponse(res, '/problems/control_lock_credentials_required', 'The controls are locked - log in to start or change anything');
+    problemResponse(
+      res,
+      '/problems/control_lock_credentials_required',
+      'The controls are locked - log in to start or change anything',
+    );
     return false;
   }
 
@@ -1528,6 +1572,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         id: p.id,
         title: p.title,
         description: p.description,
+        banksRequired: banksRequiredOf(p),
         readonly: p.readonly,
       }));
       jsonResponse(res, 200, list);
@@ -1743,6 +1788,21 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       const { currentSeriesIndex } = state.programState;
       if (currentSeriesIndex === null) {
         problemResponse(res, '/problems/no_program_loaded', 'No program loaded');
+        return;
+      }
+
+      // Checked at start and nowhere else: uploading and loading a program for
+      // a device with more banks are both fine, and clamping a letter to the
+      // nearest bank this device happens to drive would move steel nobody
+      // asked to move.
+      const required = banksRequiredOf(state.loadedProgram);
+      if (required > bankCount()) {
+        problemResponse(
+          res,
+          '/problems/program_banks_unavailable',
+          `Start refused: the program needs banks A-${BANK_LETTERS[required - 1]}, and this device has ` +
+            `${bankCount() === 1 ? 'one bank (A)' : `A-${BANK_LETTERS[bankCount() - 1]}`}`,
+        );
         return;
       }
 
