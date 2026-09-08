@@ -391,3 +391,67 @@
 .stickyBar .button {
   margin-left: auto;
 }
+
+/* --- The target bank strip (#207) ---------------------------------------- */
+
+/* One cell per bank, in the same two hues the single badge uses, so a device
+   with four banks reads the same way as one with one - only wider. */
+.bankStrip {
+  display: flex;
+  gap: 2px;
+}
+
+.bankCell {
+  /* Same 36px as .infoBadge: the strip stands where the badge stood, and a
+     control row with two heights in it reads as broken. */
+  min-height: 36px;
+  min-width: 2.25rem;
+  padding: 0 0.5rem;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  box-sizing: border-box;
+  background-color: #f3f4f6;
+  color: #374151;
+  border: 2px solid #e5e7eb;
+}
+
+/* Dropped below 768px, where four cells and four names do not fit and the
+   letter is what an operator is calling anyway. The name stays in the cell's
+   title and aria-label at every width. */
+.bankName {
+  display: none;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  max-width: 5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .bankName {
+    display: block;
+  }
+}
+
+.bankButton {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* The cells, then a divider's worth of gap, then the two "all" buttons - one
+   group, so it is clear the buttons act on the strip beside them. */
+.targetGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}

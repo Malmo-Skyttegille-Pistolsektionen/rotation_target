@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import clsx from 'clsx';
 import { useProgramsApi } from '../api/programs';
 import { useAudiosApi } from '../api/audios';
+import { useHardwareConfigApi } from '../api/hardwareConfig';
 import type { ProgramSummary, StateUpdatePayload } from '../api/types';
 import { Timeline } from '../components/Timeline';
 import { CountdownModal } from '../components/CountdownModal';
@@ -24,6 +25,93 @@ function navHeightPx(): number {
 export const Route = createFileRoute('/run')({
   component: RunView,
 });
+
+/** `rt::bank_letter` - the letter a bank's position gives it. */
+const BANK_LETTERS = 'ABCDEFGH';
+
+/**
+ * Where the targets are (#207, D-41). One bank renders exactly the badge this
+ * page has always shown; more than one becomes a strip of lettered cells in the
+ * same two hues, so the whole answer is one glance wide.
+ *
+ * Header and sticky bar share it rather than each building their own: they are
+ * the same reading, and the last time two copies of a status existed here they
+ * drifted.
+ *
+ * As buttons, each cell toggles its own bank - which is what the letters are
+ * for. `names` come from the hardware configuration and are dropped below
+ * 768px, where the letter alone has to carry it.
+ */
+function TargetStrip({
+  banks,
+  names,
+  buttons = false,
+  statusTestId,
+  onToggle,
+}: {
+  banks: ('shown' | 'hidden')[];
+  names: string[];
+  buttons?: boolean;
+  statusTestId?: string;
+  onToggle?: (letter: string) => void;
+}): React.ReactNode {
+  if (banks.length <= 1) {
+    const status = banks[0];
+    return (
+      <div
+        className={clsx(styles.infoBadge, {
+          [styles.badgeGreen]: status === 'shown',
+          [styles.badgeRed]: status === 'hidden',
+        })}
+      >
+        <span className={styles.badgeLabel}>Targets:</span>
+        <strong data-testid={statusTestId}>{status ?? '-'}</strong>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={styles.bankStrip}
+      role={buttons ? 'group' : 'status'}
+      aria-label='Target banks'
+      data-testid={statusTestId}
+    >
+      {banks.map((status, index) => {
+        const letter = BANK_LETTERS[index];
+        const name = names[index] ?? '';
+        const label = `Bank ${letter}${name ? ` ${name}` : ''} ${status}`;
+        const content = (
+          <>
+            {letter}
+            {name && <small className={styles.bankName}>{name}</small>}
+          </>
+        );
+        const className = clsx(styles.bankCell, {
+          [styles.badgeGreen]: status === 'shown',
+          [styles.badgeRed]: status === 'hidden',
+        });
+        return buttons ? (
+          <button
+            key={letter}
+            type='button'
+            className={clsx(className, styles.bankButton)}
+            title={label}
+            aria-label={`${label}, toggle`}
+            data-testid={`run-bank-toggle-${letter}`}
+            onClick={() => onToggle?.(letter)}
+          >
+            {content}
+          </button>
+        ) : (
+          <span key={letter} className={className} title={label} data-testid={`run-bank-${letter}`}>
+            {content}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 const CONTACT_LOST_NOTICE =
   'Start cancelled: lost contact with the device during the countdown. Check the connection and start again.';
@@ -98,6 +186,7 @@ export function RunView(): React.ReactNode {
   const { startDelaySeconds } = settings;
   const programsApi = useProgramsApi();
   const audiosApi = useAudiosApi();
+  const hardwareApi = useHardwareConfigApi();
   const queryClient = useQueryClient();
 
   // Can this browser drive? The lock off, or the lock on and held here.
@@ -128,6 +217,34 @@ export function RunView(): React.ReactNode {
     initialData: null,
     enabled: false,
   });
+
+  // Where each bank is, in letter order. `targetBanks` carries exactly one
+  // contiguous key per bank, so its key count is the bank count; a device with
+  // one bank omits it entirely and `targetStatus` is the whole answer.
+  const targetBanks = state?.targetBanks;
+  const bankStates = useMemo<('shown' | 'hidden')[]>(() => {
+    if (targetBanks) {
+      return Object.keys(targetBanks)
+        .sort()
+        .map((letter) => targetBanks[letter]);
+    }
+    return [state?.targetStatus ?? 'hidden'];
+  }, [targetBanks, state?.targetStatus]);
+  const bankCount = bankStates.length;
+
+  // Names, for the cells at >=768px. The hardware configuration is already
+  // cached for the Expert-mode window, and a device with one bank never needs
+  // it - so this query only runs where the strip can show a name.
+  const { data: hardware } = useQuery({
+    queryKey: ['hardware-config'],
+    queryFn: hardwareApi.get,
+    enabled: bankCount > 1,
+    staleTime: Infinity,
+  });
+  const bankNames = useMemo(
+    () => (hardware?.active.banks ?? []).map((bank) => bank.name),
+    [hardware],
+  );
 
   const loadedProgramId = state?.loadedProgramId ?? null;
   const currentSeriesIndex = state?.programState?.currentSeriesIndex;
@@ -233,8 +350,11 @@ export function RunView(): React.ReactNode {
   });
 
   const toggleTargetsMutation = useMutation({
-    mutationFn: programsApi.toggleTargets,
+    mutationFn: (banks?: string[]) => programsApi.toggleTargets(banks),
   });
+
+  const showTargetsMutation = useMutation({ mutationFn: () => programsApi.showTargets() });
+  const hideTargetsMutation = useMutation({ mutationFn: () => programsApi.hideTargets() });
 
   const handleProgramChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
     const id = Number(e.target.value);
@@ -316,7 +436,12 @@ export function RunView(): React.ReactNode {
     unloadMutation.mutate();
   };
   const handleReset = (): void => resetMutation.mutate();
-  const handleToggleTargets = (): void => toggleTargetsMutation.mutate();
+  const handleToggleTargets = (): void => {
+    toggleTargetsMutation.mutate(undefined);
+  };
+  const handleToggleBank = (letter: string): void => {
+    toggleTargetsMutation.mutate([letter]);
+  };
 
   // Countdown timer - one tick a second, then the start.
   useEffect(() => {
@@ -366,15 +491,7 @@ export function RunView(): React.ReactNode {
               </div>
             )}
 
-            <div
-              className={clsx(styles.infoBadge, {
-                [styles.badgeGreen]: state?.targetStatus === 'shown',
-                [styles.badgeRed]: state?.targetStatus === 'hidden',
-              })}
-            >
-              <span className={styles.badgeLabel}>Targets:</span>
-              <strong data-testid='run-target-status'>{state?.targetStatus ?? '-'}</strong>
-            </div>
+            <TargetStrip banks={bankStates} names={bankNames} statusTestId='run-target-status' />
           </div>
 
           <div className={styles.statusDisplay}>
@@ -509,9 +626,38 @@ export function RunView(): React.ReactNode {
                   Unload
                 </button>
 
-                <button className={clsx(styles.button, styles.buttonSecondary)} onClick={handleToggleTargets}>
-                  Toggle Targets
-                </button>
+                {/* One bank keeps the single button it has always had. With
+                    more, the letters are the control: a cell toggles its own
+                    bank, and the two "all" buttons are the single button the
+                    strip replaced. */}
+                {bankCount <= 1 ? (
+                  <button className={clsx(styles.button, styles.buttonSecondary)} onClick={handleToggleTargets}>
+                    Toggle Targets
+                  </button>
+                ) : (
+                  <div className={styles.targetGroup} data-testid='run-target-group'>
+                    <span className={styles.badgeLabel}>Targets</span>
+                    <TargetStrip banks={bankStates} names={bankNames} buttons onToggle={handleToggleBank} />
+                    <button
+                      className={clsx(styles.button, styles.buttonSecondary)}
+                      data-testid='run-targets-show-all'
+                      onClick={() => {
+                        showTargetsMutation.mutate();
+                      }}
+                    >
+                      Show all
+                    </button>
+                    <button
+                      className={clsx(styles.button, styles.buttonSecondary)}
+                      data-testid='run-targets-hide-all'
+                      onClick={() => {
+                        hideTargetsMutation.mutate();
+                      }}
+                    >
+                      Hide all
+                    </button>
+                  </div>
+                )}
               </>
             ) : (
               <div className={styles.viewOnlyBadge} data-testid='run-view-only'>
@@ -535,15 +681,7 @@ export function RunView(): React.ReactNode {
             {tickerMs != null ? `${tickerMs < 0 ? '−' : ''}${String(Math.abs(Math.floor(tickerMs / 1000)))}s` : '--'}
           </div>
 
-          <div
-            className={clsx(styles.infoBadge, {
-              [styles.badgeGreen]: state?.targetStatus === 'shown',
-              [styles.badgeRed]: state?.targetStatus === 'hidden',
-            })}
-          >
-            <span className={styles.badgeLabel}>Targets:</span>
-            <strong>{state?.targetStatus ?? '-'}</strong>
-          </div>
+          <TargetStrip banks={bankStates} names={bankNames} statusTestId='run-sticky-target-status' />
 
           {canControl &&
             (!isRunning ? (
