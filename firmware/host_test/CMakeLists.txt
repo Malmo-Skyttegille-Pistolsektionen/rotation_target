@@ -43,6 +43,7 @@ add_library(rt_logic STATIC
   "${RT_LOGIC_DIR}/ima_adpcm.cpp"
   "${RT_LOGIC_DIR}/console_command.cpp"
   "${RT_LOGIC_DIR}/hardware_config.cpp"
+  "${RT_LOGIC_DIR}/hardware_overlay.cpp"
   "${RT_LOGIC_DIR}/version.cpp"
   "${RT_LOGIC_DIR}/zip_writer.cpp"
 )

@@ -1,10 +1,10 @@
 #include "hardware_store.h"
 
-#include <cstdio>
 #include <cstring>
 
 #include "config.h"
 #include "esp_log.h"
+#include "hardware_overlay.h"
 #include "nvs.h"
 #include "sdkconfig.h"
 
@@ -17,40 +17,14 @@ const char *TAG = "hw_store";
 // of the device's provisioning rather than two.
 constexpr const char *kNamespace = "rotation";
 
-// NVS keys are capped at 15 characters, which is why these are abbreviated
-// rather than spelled out.
-//
-// The two `hw_tgt_*` keys are the pre-bank layout (#144). Nothing writes them
-// any more; they are read once, to build bank A on a device configured before
-// #207, and erased by the next save.
-constexpr const char *kLegacyGpioKey = "hw_tgt_gpio";
-constexpr const char *kLegacyActiveLowKey = "hw_tgt_alow";
-constexpr const char *kBankCountKey = "hw_bank_cnt";
-constexpr const char *kHostnameKey = "hw_hostname";
-constexpr const char *kDisplayNameKey = "hw_disp_name";
-constexpr const char *kBootShownKey = "hw_boot_shown";
-constexpr const char *kLedGpioKey = "hw_led_gpio";
-constexpr const char *kI2sPortKey = "hw_i2s_port";
-constexpr const char *kI2sBckKey = "hw_i2s_bck";
-constexpr const char *kI2sWsKey = "hw_i2s_ws";
-constexpr const char *kI2sDoutKey = "hw_i2s_dout";
-constexpr const char *kHttpPortKey = "hw_http_port";
-constexpr const char *kWifiRetryKey = "hw_wifi_retry";
+// The key names, `BankKey` and the overlay's decision table all live in
+// rt_logic (`hardware_overlay.h`), where host tests reach them. This file is
+// the NVS half: opening the namespace, the typed reads, and the writes.
+using rt::BankKey;
+namespace hw_key = rt::hw_key;
 
 rt::HardwareConfig s_current;
 bool s_overridden = false;
-
-// `hw_bk<i>_gpio`, `hw_bk<i>_alow`, `hw_bk<i>_name` - built rather than spelled
-// out. Eleven characters at a single-digit index, inside NVS's cap of fifteen;
-// the buffer is larger only so the compiler can see snprintf cannot truncate.
-static_assert(rt::kMaxTargetBanks <= 10, "a two-digit bank index would need shorter key names");
-struct BankKey {
-  char text[24];
-
-  BankKey(size_t bank, const char *suffix) {
-    snprintf(text, sizeof(text), "hw_bk%u_%s", static_cast<unsigned>(bank), suffix);
-  }
-};
 
 bool read_str(nvs_handle_t handle, const char *key, std::string &out) {
   size_t len = 0;
@@ -68,6 +42,34 @@ bool erase_if_present(nvs_handle_t handle, const char *key) {
   const esp_err_t err = nvs_erase_key(handle, key);
   return err == ESP_OK || err == ESP_ERR_NVS_NOT_FOUND;
 }
+
+// NVS is typed and the overlay is not, so an i32 read falls back to i8: the
+// booleans are stored as i8 and would otherwise come back as a type mismatch.
+class NvsReader : public rt::ConfigReader {
+ public:
+  explicit NvsReader(nvs_handle_t handle) : handle_(handle) {}
+
+  bool read_i32(const char *key, int32_t &out) override {
+    int32_t wide = 0;
+    if (nvs_get_i32(handle_, key, &wide) == ESP_OK) {
+      out = wide;
+      return true;
+    }
+    int8_t narrow = 0;
+    if (nvs_get_i8(handle_, key, &narrow) == ESP_OK) {
+      out = narrow;
+      return true;
+    }
+    return false;
+  }
+
+  bool read_str(const char *key, std::string &out) override {
+    return hardware_store::read_str(handle_, key, out);
+  }
+
+ private:
+  nvs_handle_t handle_;
+};
 
 }  // namespace
 
@@ -132,92 +134,14 @@ rt::HardwareConfig defaults() {
 namespace {
 
 // The compiled defaults with whatever NVS currently holds laid over them.
-// Returns whether anything was overlaid.
-//
-// Per key, not all-or-nothing: a device configured before a firmware update
-// added a key picks up the new key's compiled default rather than losing the
-// values it already had.
+// Returns whether anything was overlaid. The decision table itself is
+// rt::overlay_config, so host tests can reach it without an NVS.
 bool overlay_from_nvs(rt::HardwareConfig &out) {
-  bool found = false;
-
   nvs_handle_t handle;
   if (nvs_open(kNamespace, NVS_READONLY, &handle) != ESP_OK) return false;
 
-  // The stored count sizes an allocation, so a value this build cannot support
-  // is treated as absent rather than trusted. A device downgraded from a
-  // firmware with more banks then comes up on the compiled default rather than
-  // on a truncated version of what somebody configured.
-  int32_t bank_count = 0;
-  const bool has_banks = nvs_get_i32(handle, kBankCountKey, &bank_count) == ESP_OK &&
-                         bank_count >= 1 && bank_count <= static_cast<int32_t>(rt::kMaxTargetBanks);
-
-  std::string text;
-
-  if (has_banks) {
-    found = true;
-    // resize, not assign: bank A keeps the compiled default underneath, and any
-    // bank whose keys are missing lands on GPIO 0 - which validate() refuses,
-    // so a half-written set falls back rather than driving an arbitrary pin.
-    out.banks.resize(static_cast<size_t>(bank_count));
-    for (size_t i = 0; i < out.banks.size(); i++) {
-      int32_t gpio = 0;
-      if (nvs_get_i32(handle, BankKey(i, "gpio").text, &gpio) == ESP_OK) out.banks[i].gpio = gpio;
-
-      int8_t active_low = 0;
-      if (nvs_get_i8(handle, BankKey(i, "alow").text, &active_low) == ESP_OK) {
-        out.banks[i].active_low = active_low != 0;
-      }
-
-      if (read_str(handle, BankKey(i, "name").text, text)) out.banks[i].name = text;
-    }
-  } else {
-    // No count key: a device configured before #207, or one that has never been
-    // configured at all. Bank A comes from the pre-bank keys, per key, exactly
-    // as it did - so an upgrade keeps the pin the club typed in.
-    int32_t gpio = 0;
-    if (nvs_get_i32(handle, kLegacyGpioKey, &gpio) == ESP_OK) {
-      out.banks[0].gpio = gpio;
-      found = true;
-    }
-
-    int8_t active_low = 0;
-    if (nvs_get_i8(handle, kLegacyActiveLowKey, &active_low) == ESP_OK) {
-      out.banks[0].active_low = active_low != 0;
-      found = true;
-    }
-  }
-
-  if (read_str(handle, kHostnameKey, text)) {
-    out.hostname = text;
-    found = true;
-  }
-  if (read_str(handle, kDisplayNameKey, text)) {
-    out.display_name = text;
-    found = true;
-  }
-
-  int8_t boot_shown = 0;
-  if (nvs_get_i8(handle, kBootShownKey, &boot_shown) == ESP_OK) {
-    out.targets_shown_at_boot = boot_shown != 0;
-    found = true;
-  }
-
-  const struct {
-    const char *key;
-    int32_t *field;
-  } pins[] = {
-      {kLedGpioKey, &out.led_gpio},           {kI2sPortKey, &out.i2s_port},
-      {kI2sBckKey, &out.i2s_bck_gpio},        {kI2sWsKey, &out.i2s_ws_gpio},
-      {kI2sDoutKey, &out.i2s_dout_gpio},      {kHttpPortKey, &out.http_port},
-      {kWifiRetryKey, &out.wifi_max_retries},
-  };
-  for (const auto &pin : pins) {
-    int32_t value = 0;
-    if (nvs_get_i32(handle, pin.key, &value) == ESP_OK) {
-      *pin.field = value;
-      found = true;
-    }
-  }
+  NvsReader reader(handle);
+  const bool found = rt::overlay_config(reader, out);
 
   nvs_close(handle);
   return found;
@@ -309,7 +233,7 @@ rt::ConfigRefusal save(const rt::HardwareConfig &config, rt::ValidationDetail *d
   // request reaches, and that setting is serial-only (D-31, #144) - so it is
   // not written here *by construction*, rather than by every caller
   // remembering to strip it. save_boot_targets() is the only way in.
-  nvs_set_i32(handle, kBankCountKey, static_cast<int32_t>(config.banks.size()));
+  nvs_set_i32(handle, hw_key::kBankCount, static_cast<int32_t>(config.banks.size()));
   for (size_t i = 0; i < config.banks.size(); i++) {
     nvs_set_i32(handle, BankKey(i, "gpio").text, config.banks[i].gpio);
     nvs_set_i8(handle, BankKey(i, "alow").text, config.banks[i].active_low ? 1 : 0);
@@ -318,25 +242,24 @@ rt::ConfigRefusal save(const rt::HardwareConfig &config, rt::ValidationDetail *d
 
   // Everything this save did not write, so nothing outlives it: the pre-bank
   // keys a migrated device still carries, and the banks a save that reduced the
-  // count left behind. A stale `hw_bk3_gpio` would come back the moment the
-  // count went up again, on a pin nobody chose.
-  erase_if_present(handle, kLegacyGpioKey);
-  erase_if_present(handle, kLegacyActiveLowKey);
+  // count left behind.
+  erase_if_present(handle, hw_key::kLegacyGpio);
+  erase_if_present(handle, hw_key::kLegacyActiveLow);
   for (size_t i = config.banks.size(); i < rt::kMaxTargetBanks; i++) {
     erase_if_present(handle, BankKey(i, "gpio").text);
     erase_if_present(handle, BankKey(i, "alow").text);
     erase_if_present(handle, BankKey(i, "name").text);
   }
 
-  nvs_set_str(handle, kHostnameKey, config.hostname.c_str());
-  nvs_set_str(handle, kDisplayNameKey, config.display_name.c_str());
-  nvs_set_i32(handle, kLedGpioKey, config.led_gpio);
-  nvs_set_i32(handle, kI2sPortKey, config.i2s_port);
-  nvs_set_i32(handle, kI2sBckKey, config.i2s_bck_gpio);
-  nvs_set_i32(handle, kI2sWsKey, config.i2s_ws_gpio);
-  nvs_set_i32(handle, kI2sDoutKey, config.i2s_dout_gpio);
-  nvs_set_i32(handle, kHttpPortKey, config.http_port);
-  nvs_set_i32(handle, kWifiRetryKey, config.wifi_max_retries);
+  nvs_set_str(handle, hw_key::kHostname, config.hostname.c_str());
+  nvs_set_str(handle, hw_key::kDisplayName, config.display_name.c_str());
+  nvs_set_i32(handle, hw_key::kLedGpio, config.led_gpio);
+  nvs_set_i32(handle, hw_key::kI2sPort, config.i2s_port);
+  nvs_set_i32(handle, hw_key::kI2sBck, config.i2s_bck_gpio);
+  nvs_set_i32(handle, hw_key::kI2sWs, config.i2s_ws_gpio);
+  nvs_set_i32(handle, hw_key::kI2sDout, config.i2s_dout_gpio);
+  nvs_set_i32(handle, hw_key::kHttpPort, config.http_port);
+  nvs_set_i32(handle, hw_key::kWifiRetry, config.wifi_max_retries);
   nvs_commit(handle);
   nvs_close(handle);
 
@@ -354,7 +277,7 @@ bool save_boot_targets(bool shown) {
     ESP_LOGE(TAG, "Could not open NVS for writing");
     return false;
   }
-  nvs_set_i8(handle, kBootShownKey, shown ? 1 : 0);
+  nvs_set_i8(handle, hw_key::kBootShown, shown ? 1 : 0);
   nvs_commit(handle);
   nvs_close(handle);
 
@@ -372,9 +295,10 @@ bool reset() {
   // Erased individually rather than with nvs_erase_all: the namespace is shared
   // with wifi_store, and taking the WiFi credentials out with the pin mapping
   // would turn "undo my hardware change" into "and now find the setup portal".
-  for (const char *key : {kLegacyGpioKey, kLegacyActiveLowKey, kBankCountKey, kHostnameKey,
-                          kDisplayNameKey, kBootShownKey, kLedGpioKey, kI2sPortKey, kI2sBckKey,
-                          kI2sWsKey, kI2sDoutKey, kHttpPortKey, kWifiRetryKey}) {
+  for (const char *key :
+       {hw_key::kLegacyGpio, hw_key::kLegacyActiveLow, hw_key::kBankCount, hw_key::kHostname,
+        hw_key::kDisplayName, hw_key::kBootShown, hw_key::kLedGpio, hw_key::kI2sPort,
+        hw_key::kI2sBck, hw_key::kI2sWs, hw_key::kI2sDout, hw_key::kHttpPort, hw_key::kWifiRetry}) {
     if (!erase_if_present(handle, key)) {
       nvs_close(handle);
       return false;
