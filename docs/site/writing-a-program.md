@@ -105,6 +105,33 @@ Two rules the device enforces, rather than guessing around:
 - Leaving it out is the same as `0`, which is what every program meant before
   this existed: the clock starts with the series.
 
+## Banks: turning one target and not the others
+
+A device with more than one **bank** drives each target group on its own line.
+Banks are named by letter — `A`, `B`, `C` … — and an event addresses them as a
+baseline plus exceptions:
+
+```json
+{ "duration": 4000, "command": "hide", "banks": { "B": "show" } }
+```
+
+`command` applies to every bank the event does **not** name, `banks` sets the
+ones it does, and a bank named by neither is left where it is. So this event
+turns B face-on and every other bank edge-on, in one event rather than two.
+
+That is why an existing program needs no change at all: with no `banks` key,
+`command` applies to everything, which is what "show the targets" has always
+meant.
+
+The editor's **Banks this program uses** stepper decides how many letters the
+event rows offer; it is not stored in the file. A program that names bank `D`
+needs a device with banks A–D. It uploads and lists anywhere, and a device
+without those banks refuses to **start** it rather than aiming the letter at
+some other target — the Programs page says so on the row.
+
+The shipped [`41.json`](https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target/blob/main/resources/programs/files/41.json)
+("Fältträning, 4 mål") is a worked example: one target at a time, then in pairs.
+
 ## The whole file
 
 Nothing above requires typing it by hand — but if you would rather start from
