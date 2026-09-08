@@ -123,11 +123,18 @@ That is why an existing program needs no change at all: with no `banks` key,
 `command` applies to everything, which is what "show the targets" has always
 meant.
 
+There are eight banks at most, `A` to `H`.
+
 The editor's **Banks this program uses** stepper decides how many letters the
-event rows offer; it is not stored in the file. A program that names bank `D`
-needs a device with banks A–D. It uploads and lists anywhere, and a device
-without those banks refuses to **start** it rather than aiming the letter at
-some other target — the Programs page says so on the row.
+event rows offer; it is not stored in the file.
+
+A program that names bank `D` needs a device with banks A–D. Nothing stops you
+putting it on a device that has fewer: it uploads, it lists, and it **loads** —
+loading is how a program reaches the run timeline to be read through before
+anyone is downrange. What the device refuses is the **start**, because aiming
+`D` at some other target would move steel nobody asked to move. The Programs
+page tags the row with the banks it needs, and the Run page says why Start is
+unavailable once the program is loaded.
 
 The shipped [`41.json`](https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target/blob/main/resources/programs/files/41.json)
 ("Fältträning, 4 mål") is a worked example: one target at a time, then in pairs.

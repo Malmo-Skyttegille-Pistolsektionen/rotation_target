@@ -519,7 +519,7 @@
    second channel beside the letter itself (WCAG 1.4.1).
 
    Solid green is go (#15803d), not #16a34a: white on green-600 measures 3.3:1
-   and fails AA, and these letters are 0.6rem. The Readable Signal Rule. */
+   and fails AA. The Readable Signal Rule. */
 .glyph {
   display: grid;
   gap: 2px;
@@ -531,7 +531,7 @@
 .glyphCell {
   height: 16px;
   line-height: 16px;
-  border-radius: 2px;
+  border-radius: 4px;
   border: 1px solid #d1d5db;
   background-color: #f3f4f6;
   color: #6b7280;
@@ -633,7 +633,7 @@
   width: 3px;
   margin-left: -1.5px;
   background-color: #e53935;
-  border-radius: 2px;
+  border-radius: 4px;
   z-index: 3;
   pointer-events: none;
   transition: left 0.1s linear;
@@ -689,7 +689,7 @@
 .bankSwatch {
   width: 10px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: 4px;
   border: 1px solid transparent;
   display: inline-block;
 }
@@ -727,9 +727,5 @@
   .glyphCell {
     height: 14px;
     line-height: 14px;
-  }
-
-  .laneLabel small {
-    display: none;
   }
 }

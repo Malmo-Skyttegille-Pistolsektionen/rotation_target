@@ -32,6 +32,13 @@ vite.editor.config.ts             # Its own Vite build (dist-editor/) - see READ
 src/standalone/                   # The Pages page: pick a document, then hand it to ProgramEditor
 ```
 
+**Every editor change ships to the Pages editor on merge** — `pages.yml` rebuilds
+it on any `webapp/src/**` change — and that editor has no device: no SSE, no
+`GET /config/hardware`, nothing. So an editor feature must never depend on the
+device's bank count, or on any other device state; whatever the row needs has to
+come from the document. Verify with `npm run build:pages-editor` and
+`test/standalone-editor-app.test.tsx`.
+
 The v1 snapshot (`src_legacy/`, `legacy.html`, `vite-plugins/mock-server.ts`)
 is gone: every tab it held is ported, the program editor last (#73). Git
 history is the reference now.

@@ -461,10 +461,9 @@ function parseCommand(raw: unknown): { ok: true; command?: Event['command'] } | 
 }
 
 /**
- * `parse_banks` in `firmware/lib/rt_logic/program.cpp`: an object keyed by bank
- * letter, each value `show` or `hide`. Absent, JSON `null` and `{}` are all "no
- * overrides" and store nothing; a letter outside A-H or a value outside the two
- * commands refuses the whole program, exactly as a `command` typo does.
+ * `parse_banks` in `firmware/lib/rt_logic/program.cpp`; the shape is `banks` in
+ * `contracts/program.schema.json`. A letter outside A-H or a value outside the
+ * two commands refuses the whole program, exactly as a `command` typo does.
  *
  * The letters are *not* checked against the banks this device has. A program
  * for the four-bank device next door uploads here and is refused at start.
