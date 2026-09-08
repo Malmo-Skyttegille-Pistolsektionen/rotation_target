@@ -15,6 +15,7 @@
 
 #include "executor.h"
 #include "program_state.h"
+#include "target_bank.h"
 
 namespace rt_test {
 
@@ -29,10 +30,18 @@ class FakeClock : public rt::Clock {
   int64_t now_ = 1'000'000;
 };
 
+// One call to Effects::set_targets: which banks, and which way.
+struct TargetCall {
+  rt::BankMask mask;
+  bool shown;
+};
+
 // Records everything the executor asked the outside world to do, in order.
 class RecordingEffects : public rt::Effects {
  public:
-  void set_targets(bool shown) override { target_history.push_back(shown); }
+  void set_targets(rt::BankMask bank_mask, bool shown) override {
+    target_history.push_back({bank_mask, shown});
+  }
 
   void play_audios(const std::vector<int32_t> &audio_ids) override { played.push_back(audio_ids); }
 
@@ -44,7 +53,7 @@ class RecordingEffects : public rt::Effects {
   // would actually have received.
   const rt::ProgramState *state = nullptr;
 
-  std::vector<bool> target_history;
+  std::vector<TargetCall> target_history;
   std::vector<std::vector<int32_t>> played;
   std::vector<std::string> broadcasts;
 
@@ -62,7 +71,12 @@ struct Harness {
   RecordingEffects effects;
   rt::Executor executor{state, clock, effects};
 
-  Harness() { effects.state = &state; }
+  // One bank, hidden, unless a test asks for more - the device shape every
+  // test but the bank-specific ones is written against.
+  explicit Harness(size_t bank_count = 1) {
+    effects.state = &state;
+    state.init_banks(bank_count, false);
+  }
 
   // Run the loop until it goes idle or `max_iterations` is hit, advancing the
   // clock by exactly what tick() asked to sleep. Returns the iteration count;

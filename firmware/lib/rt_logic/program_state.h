@@ -5,10 +5,13 @@
 // ============================================================================
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "program.h"
+#include "target_bank.h"
 
 namespace rt {
 
@@ -51,7 +54,12 @@ struct ProgramState {
   Nullable current_series_index;
   Nullable current_event_index;
   Nullable ticker_ms;
-  bool target_status_shown = false;
+
+  // Where each bank sits, in letter order. Sized to the device's bank count by
+  // init_banks(); one hidden bank by default, which is what a state nobody
+  // initialised used to be. Device state rather than program state, so unload()
+  // leaves it alone - the targets do not move because a program was dropped.
+  std::vector<bool> bank_shown{false};
 
   // Monotonic ms anchor the current series is measured from while running.
   // Not published - it is the executor's own bookkeeping.
@@ -59,6 +67,16 @@ struct ProgramState {
   int64_t series_start_ms = 0;
 
   bool is_loaded() const { return program != nullptr; }
+
+  size_t bank_count() const { return bank_shown.size(); }
+
+  // `targetStatus` on the wire is bank A (D-41): truthful and partial for a
+  // client that predates banks, where "shown if any" would invent a meaning.
+  bool target_status_shown() const { return !bank_shown.empty() && bank_shown[0]; }
+
+  // Adopt the device's bank count and the level the pins were already latched
+  // to at boot (D-31).
+  void init_banks(size_t count, bool shown) { bank_shown.assign(count, shown); }
 
   void unload() {
     program = nullptr;
@@ -117,7 +135,7 @@ inline std::string state_update_json(const ProgramState &s) {
     out += "null";
   }
   out += ",\"targetStatus\":";
-  out += s.target_status_shown ? "\"shown\"" : "\"hidden\"";
+  out += s.target_status_shown() ? "\"shown\"" : "\"hidden\"";
   out += '}';
   return out;
 }

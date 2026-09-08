@@ -17,14 +17,28 @@ void Executor::clear_run_anchor() {
   state_.series_start_ms = 0;
 }
 
-void Executor::set_targets(bool shown) {
-  state_.target_status_shown = shown;
-  effects_.set_targets(shown);
+void Executor::init_banks(size_t bank_count, bool shown) {
+  state_.init_banks(bank_count, shown);
+  effects_.set_targets(kAllBanksMask, shown);
 }
 
-bool Executor::toggle_targets() {
-  set_targets(!state_.target_status_shown);
-  return state_.target_status_shown;
+void Executor::set_targets(BankMask bank_mask, bool shown) {
+  for (size_t i = 0; i < state_.bank_shown.size(); i++) {
+    if ((bank_mask & bank_bit(i)) != 0) state_.bank_shown[i] = shown;
+  }
+  effects_.set_targets(bank_mask, shown);
+}
+
+bool Executor::toggle_targets(BankMask bank_mask) {
+  // "All shown, so hide" rather than per-bank flipping: a strip of half-turned
+  // targets is not a state an operator asks for by pressing one button, and on
+  // one bank the two rules are the same thing.
+  bool all_shown = true;
+  for (size_t i = 0; i < state_.bank_shown.size(); i++) {
+    if ((bank_mask & bank_bit(i)) != 0 && !state_.bank_shown[i]) all_shown = false;
+  }
+  set_targets(bank_mask, !all_shown);
+  return !all_shown;
 }
 
 bool Executor::load(const Program *program) {
@@ -142,10 +156,12 @@ void Executor::force_unload() {
 void Executor::enter_event(int32_t index, const Event &event, bool play_audio) {
   state_.current_event_index.set(index);
 
+  // Every bank, in unison. A per-bank `banks` override on the event is stage 3
+  // of #207; until then a program means what it has always meant.
   if (event.command == "show") {
-    set_targets(true);
+    set_targets(kAllBanksMask, true);
   } else if (event.command == "hide") {
-    set_targets(false);
+    set_targets(kAllBanksMask, false);
   }
 
   if (play_audio && !event.audio_ids.empty()) effects_.play_audios(event.audio_ids);

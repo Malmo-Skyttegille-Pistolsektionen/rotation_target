@@ -94,9 +94,9 @@ void test_start_enters_the_first_event() {
   TEST_ASSERT_TRUE(h->state.running);
   TEST_ASSERT_EQUAL_INT32(0, h->state.current_event_index.value);
   TEST_ASSERT_EQUAL_INT32(0, h->state.ticker_ms.value);
-  TEST_ASSERT_TRUE(h->state.target_status_shown);
+  TEST_ASSERT_TRUE(h->state.target_status_shown());
   TEST_ASSERT_EQUAL_size_t(1, h->effects.target_history.size());
-  TEST_ASSERT_TRUE(h->effects.target_history[0]);
+  TEST_ASSERT_TRUE(h->effects.target_history[0].shown);
 }
 
 void test_start_while_running_does_not_restart() {
@@ -171,8 +171,8 @@ void test_events_advance_and_the_series_pauses_at_the_next_one() {
   // boundary used to drive a third, redundant hide; completing a series now
   // leaves the targets exactly where the last event left them.
   TEST_ASSERT_EQUAL_size_t(2, h->effects.target_history.size());
-  TEST_ASSERT_TRUE(h->effects.target_history[0]);
-  TEST_ASSERT_FALSE(h->effects.target_history[1]);
+  TEST_ASSERT_TRUE(h->effects.target_history[0].shown);
+  TEST_ASSERT_FALSE(h->effects.target_history[1].shown);
 }
 
 void test_program_completion_leaves_the_last_series_selected() {
@@ -472,11 +472,11 @@ void test_reset_leaves_the_targets_where_they_are() {
   h->executor.load(&g_program);
   h->executor.start(kFixtureId);  // event 0 is "show"
 
-  TEST_ASSERT_TRUE(h->state.target_status_shown);
+  TEST_ASSERT_TRUE(h->state.target_status_shown());
 
   h->executor.reset();
 
-  TEST_ASSERT_TRUE(h->state.target_status_shown);
+  TEST_ASSERT_TRUE(h->state.target_status_shown());
   TEST_ASSERT_EQUAL_STRING(state("false", "0", "0", "null", "shown").c_str(),
                            h->effects.broadcasts.back().c_str());
 }
@@ -506,7 +506,7 @@ void test_unload_while_running_is_refused() {
   // targets, and no client is told anything happened.
   TEST_ASSERT_TRUE(h->state.is_loaded());
   TEST_ASSERT_TRUE(h->state.running);
-  TEST_ASSERT_TRUE(h->state.target_status_shown);
+  TEST_ASSERT_TRUE(h->state.target_status_shown());
   TEST_ASSERT_EQUAL_size_t(0, h->effects.broadcasts.size());
 }
 
@@ -584,26 +584,90 @@ void test_completing_a_series_leaves_the_targets_where_the_last_event_left_them(
   TEST_ASSERT_EQUAL_INT32(1, h->state.current_series_index.value);
   TEST_ASSERT_EQUAL_INT32(0, h->state.current_event_index.value);
   TEST_ASSERT_FALSE(h->state.running);
-  TEST_ASSERT_TRUE(h->state.target_status_shown);
+  TEST_ASSERT_TRUE(h->state.target_status_shown());
   TEST_ASSERT_EQUAL_STRING(state("false", "1", "0", "null", "shown").c_str(),
                            h->effects.broadcasts.back().c_str());
 
   // And nothing drove the pin after the event that showed them: people walk
   // downrange between series, so the targets must not move on their own.
   TEST_ASSERT_EQUAL_size_t(1, h->effects.target_history.size());
-  TEST_ASSERT_TRUE(h->effects.target_history[0]);
+  TEST_ASSERT_TRUE(h->effects.target_history[0].shown);
 }
 
 void test_toggle_targets_flips_the_published_flag_and_the_pin() {
-  TEST_ASSERT_TRUE(h->executor.toggle_targets());
-  TEST_ASSERT_TRUE(h->state.target_status_shown);
+  TEST_ASSERT_TRUE(h->executor.toggle_targets(rt::kAllBanksMask));
+  TEST_ASSERT_TRUE(h->state.target_status_shown());
 
-  TEST_ASSERT_FALSE(h->executor.toggle_targets());
-  TEST_ASSERT_FALSE(h->state.target_status_shown);
+  TEST_ASSERT_FALSE(h->executor.toggle_targets(rt::kAllBanksMask));
+  TEST_ASSERT_FALSE(h->state.target_status_shown());
 
   TEST_ASSERT_EQUAL_size_t(2, h->effects.target_history.size());
-  TEST_ASSERT_TRUE(h->effects.target_history[0]);
-  TEST_ASSERT_FALSE(h->effects.target_history[1]);
+  TEST_ASSERT_TRUE(h->effects.target_history[0].shown);
+  TEST_ASSERT_FALSE(h->effects.target_history[1].shown);
+}
+
+// --- #207: banks ------------------------------------------------------------
+
+// A program says "show" and means every bank - which is what it has always
+// meant, and why no existing program needs migrating (D-41).
+void test_an_event_drives_every_bank() {
+  Harness four(4);
+  four.executor.load(&g_program);
+  four.effects.clear();
+
+  four.executor.start(kFixtureId);
+
+  TEST_ASSERT_EQUAL_size_t(1, four.effects.target_history.size());
+  TEST_ASSERT_EQUAL_UINT32(rt::kAllBanksMask, four.effects.target_history[0].mask);
+  TEST_ASSERT_TRUE(four.effects.target_history[0].shown);
+  for (size_t i = 0; i < 4; i++) TEST_ASSERT_TRUE(four.state.bank_shown[i]);
+}
+
+// The rule that keeps one button from producing a half-turned strip: all shown
+// hides everything, anything else shows everything.
+void test_toggle_on_four_banks_hides_only_when_every_bank_is_shown() {
+  Harness four(4);
+
+  // From all hidden: show all.
+  TEST_ASSERT_TRUE(four.executor.toggle_targets(rt::kAllBanksMask));
+  for (size_t i = 0; i < 4; i++) TEST_ASSERT_TRUE(four.state.bank_shown[i]);
+
+  // From all shown: hide all.
+  TEST_ASSERT_FALSE(four.executor.toggle_targets(rt::kAllBanksMask));
+  for (size_t i = 0; i < 4; i++) TEST_ASSERT_FALSE(four.state.bank_shown[i]);
+
+  // From a mixed state: show all, not "flip each".
+  four.executor.set_targets(rt::bank_bit(1), true);
+  TEST_ASSERT_TRUE(four.executor.toggle_targets(rt::kAllBanksMask));
+  for (size_t i = 0; i < 4; i++) TEST_ASSERT_TRUE(four.state.bank_shown[i]);
+}
+
+// Only the named banks move, and `targetStatus` keeps reporting bank A.
+void test_setting_one_bank_leaves_the_others_alone() {
+  Harness four(4);
+
+  four.executor.set_targets(rt::bank_bit(2), true);
+
+  TEST_ASSERT_FALSE(four.state.bank_shown[0]);
+  TEST_ASSERT_FALSE(four.state.bank_shown[1]);
+  TEST_ASSERT_TRUE(four.state.bank_shown[2]);
+  TEST_ASSERT_FALSE(four.state.bank_shown[3]);
+  TEST_ASSERT_FALSE(four.state.target_status_shown());
+
+  four.executor.set_targets(rt::bank_bit(0), true);
+  TEST_ASSERT_TRUE(four.state.target_status_shown());
+}
+
+// init_banks adopts what targets::init() already latched, so the first
+// published state says what is downrange (#145, D-31).
+void test_init_banks_adopts_the_boot_state_on_every_bank() {
+  Harness four(4);
+  four.executor.init_banks(4, true);
+
+  for (size_t i = 0; i < 4; i++) TEST_ASSERT_TRUE(four.state.bank_shown[i]);
+  TEST_ASSERT_EQUAL_size_t(1, four.effects.target_history.size());
+  TEST_ASSERT_EQUAL_UINT32(rt::kAllBanksMask, four.effects.target_history[0].mask);
+  TEST_ASSERT_TRUE(four.effects.target_history[0].shown);
 }
 
 int main() {
@@ -655,6 +719,10 @@ int main() {
 
   RUN_TEST(test_completing_a_series_leaves_the_targets_where_the_last_event_left_them);
   RUN_TEST(test_toggle_targets_flips_the_published_flag_and_the_pin);
+  RUN_TEST(test_an_event_drives_every_bank);
+  RUN_TEST(test_toggle_on_four_banks_hides_only_when_every_bank_is_shown);
+  RUN_TEST(test_setting_one_bank_leaves_the_others_alone);
+  RUN_TEST(test_init_banks_adopts_the_boot_state_on_every_bank);
 
   return UNITY_END();
 }

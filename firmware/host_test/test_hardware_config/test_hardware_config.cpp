@@ -26,8 +26,9 @@ namespace {
  */
 HardwareConfig good() {
   HardwareConfig config;
-  config.target_gpio = 5;
-  config.target_active_low = true;
+  config.banks.assign(1, rt::TargetBank{});
+  config.banks[0].gpio = 5;
+  config.banks[0].active_low = true;
   config.hostname = "rotation-target";
   config.display_name = "Bana 1";
   config.led_gpio = 48;
@@ -37,6 +38,16 @@ HardwareConfig good() {
   config.i2s_dout_gpio = 11;
   config.http_port = 80;
   config.wifi_max_retries = 10;
+  return config;
+}
+
+// `count` banks on adjacent free pins, in letter order - the seven the
+// DevKitC-1 header has beside the stock target pin (D-41, HARDWARE.md).
+HardwareConfig banks(size_t count) {
+  const int32_t pins[] = {5, 6, 7, 8, 9, 13, 14, 15};
+  HardwareConfig config = good();
+  config.banks.assign(count, rt::TargetBank{});
+  for (size_t i = 0; i < count; i++) config.banks[i].gpio = pins[i];
   return config;
 }
 
@@ -50,10 +61,10 @@ void test_the_shipped_defaults_are_accepted() {
 
 void test_a_gpio_outside_the_chip_is_refused() {
   HardwareConfig config = good();
-  config.target_gpio = 49;
+  config.banks[0].gpio = 49;
   TEST_ASSERT_EQUAL(ConfigRefusal::kGpioOutOfRange, rt::validate(config));
 
-  config.target_gpio = -1;
+  config.banks[0].gpio = -1;
   TEST_ASSERT_EQUAL(ConfigRefusal::kGpioOutOfRange, rt::validate(config));
 }
 
@@ -62,7 +73,29 @@ void test_a_gpio_outside_the_chip_is_refused() {
 void test_the_flash_and_psram_pins_are_refused() {
   for (int32_t gpio = 26; gpio <= 32; gpio++) {
     HardwareConfig config = good();
-    config.target_gpio = gpio;
+    config.banks[0].gpio = gpio;
+    TEST_ASSERT_EQUAL(ConfigRefusal::kGpioReserved, rt::validate(config));
+  }
+}
+
+// 35..37 are the octal PSRAM's extra data lines on the N16R8. They read as
+// ordinary pins in the datasheet, which is why they were missed - and driving
+// one crashes the device the moment PSRAM is touched, not at configuration
+// time. Eight banks means eight chances to type one (#207).
+void test_the_octal_psram_pins_are_refused() {
+  for (int32_t gpio = 35; gpio <= 37; gpio++) {
+    HardwareConfig config = good();
+    config.banks[0].gpio = gpio;
+    TEST_ASSERT_EQUAL(ConfigRefusal::kGpioReserved, rt::validate(config));
+  }
+}
+
+// UART0, and so the serial console - the same argument as 19/20, on the other
+// socket.
+void test_the_uart0_console_pins_are_refused() {
+  for (const int32_t gpio : {43, 44}) {
+    HardwareConfig config = good();
+    config.banks[0].gpio = gpio;
     TEST_ASSERT_EQUAL(ConfigRefusal::kGpioReserved, rt::validate(config));
   }
 }
@@ -70,14 +103,14 @@ void test_the_flash_and_psram_pins_are_refused() {
 void test_pins_absent_from_this_chip_are_refused() {
   for (int32_t gpio = 22; gpio <= 25; gpio++) {
     HardwareConfig config = good();
-    config.target_gpio = gpio;
+    config.banks[0].gpio = gpio;
     TEST_ASSERT_EQUAL(ConfigRefusal::kGpioReserved, rt::validate(config));
   }
 }
 
 void test_an_input_only_pin_cannot_drive_the_targets() {
   HardwareConfig config = good();
-  config.target_gpio = 46;
+  config.banks[0].gpio = 46;
   TEST_ASSERT_EQUAL(ConfigRefusal::kGpioNotOutputCapable, rt::validate(config));
 }
 
@@ -85,13 +118,13 @@ void test_an_input_only_pin_cannot_drive_the_targets() {
 void test_the_edges_of_the_usable_range_are_accepted() {
   HardwareConfig config = good();
   // 0 is not here: it is a strapping pin and the BOOT button, refused below.
-  config.target_gpio = 21;
+  config.banks[0].gpio = 21;
   TEST_ASSERT_EQUAL(ConfigRefusal::kNone, rt::validate(config));
 
-  config.target_gpio = 33;
+  config.banks[0].gpio = 33;
   TEST_ASSERT_EQUAL(ConfigRefusal::kNone, rt::validate(config));
 
-  config.target_gpio = 1;
+  config.banks[0].gpio = 1;
   TEST_ASSERT_EQUAL(ConfigRefusal::kNone, rt::validate(config));
 }
 
@@ -100,7 +133,7 @@ void test_the_edges_of_the_usable_range_are_accepted() {
 void test_the_usb_serial_pins_are_refused() {
   for (const int32_t gpio : {19, 20}) {
     HardwareConfig config = good();
-    config.target_gpio = gpio;
+    config.banks[0].gpio = gpio;
     TEST_ASSERT_EQUAL(ConfigRefusal::kGpioUsbSerial, rt::validate(config));
   }
 }
@@ -110,7 +143,7 @@ void test_the_usb_serial_pins_are_refused() {
 void test_the_strapping_pins_are_refused() {
   for (const int32_t gpio : {0, 3, 45}) {
     HardwareConfig config = good();
-    config.target_gpio = gpio;
+    config.banks[0].gpio = gpio;
     TEST_ASSERT_EQUAL(ConfigRefusal::kGpioStrapping, rt::validate(config));
   }
 }
@@ -119,7 +152,7 @@ void test_the_strapping_pins_are_refused() {
 // set up last takes the pad and the other silently stops.
 void test_two_peripherals_on_one_pin_are_refused() {
   HardwareConfig config = good();
-  config.led_gpio = config.target_gpio;
+  config.led_gpio = config.banks[0].gpio;
   TEST_ASSERT_EQUAL(ConfigRefusal::kPinCollision, rt::validate(config));
 
   config = good();
@@ -127,7 +160,7 @@ void test_two_peripherals_on_one_pin_are_refused() {
   TEST_ASSERT_EQUAL(ConfigRefusal::kPinCollision, rt::validate(config));
 
   config = good();
-  config.i2s_dout_gpio = config.target_gpio;
+  config.i2s_dout_gpio = config.banks[0].gpio;
   TEST_ASSERT_EQUAL(ConfigRefusal::kPinCollision, rt::validate(config));
 }
 
@@ -135,8 +168,8 @@ void test_two_peripherals_on_one_pin_are_refused() {
 // collide and is not checked at all - an unused field must not refuse a save.
 void test_pins_of_absent_peripherals_are_ignored() {
   HardwareConfig config = good();
-  config.led_gpio = config.target_gpio;
-  config.i2s_bck_gpio = config.target_gpio;
+  config.led_gpio = config.banks[0].gpio;
+  config.i2s_bck_gpio = config.banks[0].gpio;
 
   rt::Peripherals none;
   none.audio = false;
@@ -227,22 +260,95 @@ void test_an_empty_display_name_is_allowed() {
 // whose recovery needs a cable, so it is the one to say out loud.
 void test_the_gpio_is_reported_before_the_hostname() {
   HardwareConfig config = good();
-  config.target_gpio = 27;
+  config.banks[0].gpio = 27;
   config.hostname = "";
   TEST_ASSERT_EQUAL(ConfigRefusal::kGpioReserved, rt::validate(config));
+}
+
+// --- the banks -------------------------------------------------------------
+
+void test_eight_banks_are_accepted_and_nine_are_not() {
+  TEST_ASSERT_EQUAL(ConfigRefusal::kNone, rt::validate(banks(rt::kMaxTargetBanks)));
+
+  HardwareConfig config = banks(rt::kMaxTargetBanks);
+  config.banks.push_back(rt::TargetBank{});
+  config.banks.back().gpio = 16;
+  TEST_ASSERT_EQUAL(ConfigRefusal::kBankCountOutOfRange, rt::validate(config));
+}
+
+// Not "the device falls back to one": a device with no target output is not a
+// rotation target, and clamping would hide the mistake that produced it.
+void test_a_device_with_no_banks_is_refused() {
+  HardwareConfig config = good();
+  config.banks.clear();
+  TEST_ASSERT_EQUAL(ConfigRefusal::kBankCountOutOfRange, rt::validate(config));
+}
+
+void test_a_bank_name_longer_than_the_cell_it_fits_in_is_refused() {
+  HardwareConfig config = banks(2);
+  config.banks[1].name = std::string(rt::kMaxBankNameLength, 'x');
+  TEST_ASSERT_EQUAL(ConfigRefusal::kNone, rt::validate(config));
+
+  config.banks[1].name = std::string(rt::kMaxBankNameLength + 1, 'x');
+  TEST_ASSERT_EQUAL(ConfigRefusal::kBankNameTooLong, rt::validate(config));
+}
+
+// Every bank goes through the same per-pin checks, not only bank A - which is
+// the whole reason the validator gap matters now.
+void test_a_reserved_pin_is_refused_on_any_bank() {
+  HardwareConfig config = banks(3);
+  config.banks[2].gpio = 36;
+  TEST_ASSERT_EQUAL(ConfigRefusal::kGpioReserved, rt::validate(config));
+
+  config = banks(3);
+  config.banks[1].gpio = 45;
+  TEST_ASSERT_EQUAL(ConfigRefusal::kGpioStrapping, rt::validate(config));
+}
+
+// With one bank the generic sentence was enough. With eight it is not: the
+// refusal has to say which two fields to change.
+void test_a_collision_between_banks_names_them_by_letter() {
+  HardwareConfig config = banks(4);
+  config.banks[2].gpio = config.banks[1].gpio;
+
+  rt::ValidationDetail detail;
+  TEST_ASSERT_EQUAL(ConfigRefusal::kPinCollision, rt::validate(config, {}, &detail));
+  TEST_ASSERT_EQUAL_STRING(
+      "Bank B and bank C are both on GPIO 6. Each bank needs a pin of its own.",
+      rt::refusal_message(ConfigRefusal::kPinCollision, detail).c_str());
+}
+
+// The LED and audio case keeps the wording it had - no letter is involved, and
+// inventing one would be wrong.
+void test_a_collision_with_the_led_is_not_named_by_letter() {
+  HardwareConfig config = banks(2);
+  config.led_gpio = config.banks[1].gpio;
+
+  rt::ValidationDetail detail;
+  TEST_ASSERT_EQUAL(ConfigRefusal::kPinCollision, rt::validate(config, {}, &detail));
+  TEST_ASSERT_FALSE(detail.names_two_banks());
+  const std::string message = rt::refusal_message(ConfigRefusal::kPinCollision, detail);
+  TEST_ASSERT_TRUE(message.find("Bank ") == std::string::npos);
+}
+
+void test_bank_letters_run_a_to_h() {
+  TEST_ASSERT_EQUAL('A', rt::bank_letter(0));
+  TEST_ASSERT_EQUAL('H', rt::bank_letter(rt::kMaxTargetBanks - 1));
+  TEST_ASSERT_EQUAL('?', rt::bank_letter(rt::kMaxTargetBanks));
 }
 
 // --- messages --------------------------------------------------------------
 
 void test_every_refusal_has_something_to_say() {
   const ConfigRefusal all[] = {
-      ConfigRefusal::kGpioOutOfRange,     ConfigRefusal::kGpioNotOutputCapable,
-      ConfigRefusal::kGpioReserved,       ConfigRefusal::kHostnameEmpty,
-      ConfigRefusal::kHostnameTooLong,    ConfigRefusal::kHostnameCharset,
-      ConfigRefusal::kHostnameHyphen,     ConfigRefusal::kDisplayNameTooLong,
-      ConfigRefusal::kI2sPortOutOfRange,  ConfigRefusal::kPinCollision,
-      ConfigRefusal::kGpioUsbSerial,      ConfigRefusal::kGpioStrapping,
-      ConfigRefusal::kHttpPortOutOfRange, ConfigRefusal::kWifiRetriesOutOfRange,
+      ConfigRefusal::kGpioOutOfRange,      ConfigRefusal::kGpioNotOutputCapable,
+      ConfigRefusal::kGpioReserved,        ConfigRefusal::kHostnameEmpty,
+      ConfigRefusal::kHostnameTooLong,     ConfigRefusal::kHostnameCharset,
+      ConfigRefusal::kHostnameHyphen,      ConfigRefusal::kDisplayNameTooLong,
+      ConfigRefusal::kI2sPortOutOfRange,   ConfigRefusal::kPinCollision,
+      ConfigRefusal::kGpioUsbSerial,       ConfigRefusal::kGpioStrapping,
+      ConfigRefusal::kHttpPortOutOfRange,  ConfigRefusal::kWifiRetriesOutOfRange,
+      ConfigRefusal::kBankCountOutOfRange, ConfigRefusal::kBankNameTooLong,
   };
   for (const ConfigRefusal refusal : all) {
     TEST_ASSERT_NOT_EQUAL(0, rt::refusal_message(refusal)[0]);
@@ -255,6 +361,8 @@ int main() {
   RUN_TEST(test_the_shipped_defaults_are_accepted);
   RUN_TEST(test_a_gpio_outside_the_chip_is_refused);
   RUN_TEST(test_the_flash_and_psram_pins_are_refused);
+  RUN_TEST(test_the_octal_psram_pins_are_refused);
+  RUN_TEST(test_the_uart0_console_pins_are_refused);
   RUN_TEST(test_pins_absent_from_this_chip_are_refused);
   RUN_TEST(test_an_input_only_pin_cannot_drive_the_targets);
   RUN_TEST(test_the_edges_of_the_usable_range_are_accepted);
@@ -270,6 +378,13 @@ int main() {
   RUN_TEST(test_the_display_name_takes_anything_up_to_its_length);
   RUN_TEST(test_an_empty_display_name_is_allowed);
   RUN_TEST(test_the_gpio_is_reported_before_the_hostname);
+  RUN_TEST(test_eight_banks_are_accepted_and_nine_are_not);
+  RUN_TEST(test_a_device_with_no_banks_is_refused);
+  RUN_TEST(test_a_bank_name_longer_than_the_cell_it_fits_in_is_refused);
+  RUN_TEST(test_a_reserved_pin_is_refused_on_any_bank);
+  RUN_TEST(test_a_collision_between_banks_names_them_by_letter);
+  RUN_TEST(test_a_collision_with_the_led_is_not_named_by_letter);
+  RUN_TEST(test_bank_letters_run_a_to_h);
   RUN_TEST(test_every_refusal_has_something_to_say);
   return UNITY_END();
 }

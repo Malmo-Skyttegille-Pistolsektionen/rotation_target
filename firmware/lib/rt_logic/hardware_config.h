@@ -7,6 +7,9 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
+
+#include "target_bank.h"
 
 namespace rt {
 
@@ -27,12 +30,11 @@ namespace rt {
 // release image: which pin drives their targets, which way round it is wired,
 // and what the device calls itself on their network.
 struct HardwareConfig {
-  // The GPIO that drives the target circuit.
-  int32_t target_gpio = 0;
-  // Whether a low level shows the targets. The prototype drives a BC547B whose
-  // low state opens the connection; a board that buffers or inverts the signal
-  // wants the other value rather than a patched source file.
-  bool target_active_low = true;
+  // The target banks, in letter order: banks[0] is bank A (D-41). Never empty
+  // in anything that came from `hardware_store` - `validate` refuses a count of
+  // zero, and both the compiled defaults and the NVS overlay leave at least
+  // one - so callers index bank A without a guard.
+  std::vector<TargetBank> banks{TargetBank{}};
   // mDNS name and the setup AP's prefix: `<hostname>.local`. Two clubs on one
   // network need two names.
   std::string hostname;
@@ -92,6 +94,8 @@ enum class ConfigRefusal {
   kGpioStrapping,
   kHttpPortOutOfRange,
   kWifiRetriesOutOfRange,
+  kBankCountOutOfRange,
+  kBankNameTooLong,
 };
 
 // A DNS label is 63 octets; mDNS is no more generous. The setup AP appends
@@ -124,11 +128,18 @@ constexpr int32_t kMaxWifiRetries = 60;
 // target that does not move, it is a device that stops booting and needs a
 // cable. 22..25 do not exist on the ESP32-S3 at all.
 //
+// 35..37 are the extra data lines the N16R8's **octal** PSRAM uses
+// (`CONFIG_SPIRAM_MODE_OCT`); on a quad module they are free, which is why
+// they read as ordinary pins in the datasheet and were missed here. Driving
+// one crashes this board the moment PSRAM is touched. 43/44 are UART0 and
+// carry the serial console, which is the way back from a bad configuration.
+//
 // Refused rather than warned about: the recovery from getting this wrong is a
 // USB cable and a reflash, which is exactly what configurability was supposed
 // to remove.
 inline bool gpio_is_reserved(int32_t gpio) {
-  return (gpio >= 22 && gpio <= 25) || (gpio >= 26 && gpio <= 32);
+  return (gpio >= 22 && gpio <= 25) || (gpio >= 26 && gpio <= 32) || (gpio >= 35 && gpio <= 37) ||
+         gpio == 43 || gpio == 44;
 }
 
 // GPIO19 and GPIO20 are the USB Serial/JTAG D- and D+ lines on the ESP32-S3.
@@ -165,17 +176,31 @@ inline bool gpio_is_output_capable(int32_t gpio) {
 // letters, digits and hyphens, not starting or ending with a hyphen.
 ConfigRefusal validate_hostname(const std::string &hostname);
 
-// Everything, in the order a caller should report: the target GPIO first,
+// What a refusal was about, where the enum alone cannot say. Only
+// `kPinCollision` fills it in, and only when both sides are banks: with eight
+// of them, "two of these are on the same GPIO" no longer identifies which two.
+struct ValidationDetail {
+  static constexpr size_t kNoBank = static_cast<size_t>(-1);
+
+  size_t bank_a = kNoBank;
+  size_t bank_b = kNoBank;
+  int32_t gpio = 0;
+
+  bool names_two_banks() const { return bank_a != kNoBank && bank_b != kNoBank; }
+};
+
+// Everything, in the order a caller should report: the bank GPIOs first,
 // because a wrong pin there is the failure that needs a cable to undo.
 //
 // `present` says which optional peripherals this build has. It decides which
 // pins are checked at all, and which have to be distinct from each other - a
 // firmware built without audio has no I2S pins in use, so an I2S value equal to
-// the target pin is not a collision, just an unused field.
-ConfigRefusal validate(const HardwareConfig &config, Peripherals present = {});
+// a bank's pin is not a collision, just an unused field.
+ConfigRefusal validate(const HardwareConfig &config, Peripherals present = {},
+                       ValidationDetail *detail = nullptr);
 
 // A sentence for the `detail` of an RFC 9457 problem document. Present tense,
 // naming the value, because the operator has to decide what to type instead.
-const char *refusal_message(ConfigRefusal refusal);
+std::string refusal_message(ConfigRefusal refusal, const ValidationDetail &detail = {});
 
 }  // namespace rt

@@ -10,11 +10,13 @@
 // ============================================================================
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
 #include "program.h"
 #include "program_state.h"
+#include "target_bank.h"
 
 namespace rt {
 
@@ -61,9 +63,10 @@ class Clock {
 class Effects {
  public:
   virtual ~Effects() = default;
-  // Drive the target hardware. The state flag is the executor's business;
-  // this is only the pin.
-  virtual void set_targets(bool shown) = 0;
+  // Drive the target hardware. `bank_mask` is one bit per bank, bit 0 being
+  // bank A; `rt::kAllBanksMask` is every bank. The state flags are the
+  // executor's business; this is only the pins.
+  virtual void set_targets(BankMask bank_mask, bool shown) = 0;
   // Schedule playback; must not block the run loop for the length of the clip.
   virtual void play_audios(const std::vector<int32_t> &audio_ids) = 0;
   // Publish the current state to SSE clients.
@@ -106,11 +109,18 @@ class Executor {
   // out from under a run, where refusing is not an option.
   void force_unload();
 
-  // Target control for the /targets/* endpoints. Keeps the published flag and
-  // the pin in step; the caller broadcasts.
-  void set_targets(bool shown);
+  // Size the per-bank state to what the device has and adopt the level its
+  // pins were already latched to, so the first published state says what is
+  // actually downrange (#145).
+  void init_banks(size_t bank_count, bool shown);
+
+  // Target control for the /targets/* endpoints. Keeps the published flags and
+  // the pins in step; the caller broadcasts.
+  void set_targets(BankMask bank_mask, bool shown);
+  // Hides the named banks if every one of them is shown, otherwise shows them
+  // all. On one bank that is a plain flip, which is what it has always been.
   // Returns the resulting state.
-  bool toggle_targets();
+  bool toggle_targets(BankMask bank_mask);
 
   // --- Run loop ---
 

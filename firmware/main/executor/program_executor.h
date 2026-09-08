@@ -4,6 +4,7 @@
 #include <string>
 
 #include "executor.h"
+#include "target_bank.h"
 
 // The firmware side of rt::Executor: a run-loop task, the real clock, and the
 // real side effects (target GPIO, I2S playback, SSE broadcast).
@@ -13,10 +14,10 @@
 // lives in lib/rt_logic and is covered by host_test/test_executor.
 namespace executor {
 
-// Starts the run-loop task and drives the targets to the hidden position.
-// `targets_shown` is the state the pin was already driven to by targets::init().
-// The executor adopts it rather than picking its own, so no boot drives an edge
-// onto the target line that is immediately corrected (#145).
+// Starts the run-loop task. `targets_shown` is the state the pins were already
+// driven to by targets::init(), and the bank count comes from there too. The
+// executor adopts both rather than picking its own, so no boot drives an edge
+// onto a target line that is immediately corrected (#145).
 void init(bool targets_shown);
 
 // `program_id` is looked up in the program repository; false means no such
@@ -52,9 +53,9 @@ struct SkipOutcome {
 // Selects `series_index`, but only if `expected_program_id` is loaded (#105).
 SkipOutcome skip_to_series(int32_t series_index, int32_t expected_program_id);
 
-void set_targets(bool shown);
+void set_targets(rt::BankMask bank_mask, bool shown);
 // Returns the resulting state.
-bool toggle_targets();
+bool toggle_targets(rt::BankMask bank_mask);
 
 // Clears the selection on behalf of POST /programs/unload. Refused while a run
 // is in progress; nothing loaded is a no-op that publishes nothing.
