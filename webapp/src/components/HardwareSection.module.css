@@ -192,3 +192,96 @@
   text-transform: uppercase;
   color: #92400e;
 }
+
+/* --- The target bank table (#207) --------------------------------------- */
+
+/* Six columns do not fit a phone, and the alternative - stacking each bank into
+   a card - loses the column somebody came here to read down. So it scrolls
+   sideways inside its own box rather than making the page scroll. */
+.tableScroll {
+  overflow-x: auto;
+}
+
+.bankTable {
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.bankTable th,
+.bankTable td {
+  padding: 0.35rem 0.6rem 0.35rem 0;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.bankTable thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #92400e;
+  white-space: nowrap;
+}
+
+.thHint {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #6b7280;
+}
+
+.bankLetter {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.gpioInput {
+  width: 5rem;
+}
+
+.padCell {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+/* Same 2.25rem control height as the buttons above, so the row does not grow a
+   taller cell for one square glyph (DESIGN.md). */
+.removeBank {
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #dc2626;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.removeBank:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.bankActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

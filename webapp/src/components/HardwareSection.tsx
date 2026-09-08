@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
+import { useDiagnosticsApi } from '../api/diagnostics';
 import { useHardwareConfigApi, type HardwareConfigPatch } from '../api/hardwareConfig';
 import type { HardwareConfig } from '../api/types';
 import { useSettings } from '../context/SettingsContext';
@@ -34,20 +35,29 @@ import styles from './HardwareSection.module.css';
 
 /** Every numeric field is a GPIO or a port, and they behave identically. */
 type NumericField = {
-  key: keyof HardwareConfigPatch & ('targetGpio' | 'ledGpio' | 'i2sPort' | 'i2sBckGpio' | 'i2sWsGpio' | 'i2sDoutGpio' | 'httpPort' | 'wifiMaxRetries');
+  key: keyof HardwareConfigPatch & ('ledGpio' | 'i2sPort' | 'i2sBckGpio' | 'i2sWsGpio' | 'i2sDoutGpio' | 'httpPort' | 'wifiMaxRetries');
   testId: string;
   label: string;
   hint: React.ReactNode;
 };
 
-const TARGET_FIELDS: NumericField[] = [
-  {
-    key: 'targetGpio',
-    testId: 'hardware-target-gpio',
-    label: 'Target GPIO',
-    hint: 'The pin wired to the target circuit. 22–32 and 35–37 are refused — they are absent from this chip or belong to its flash and PSRAM, and driving one stops the device booting — and so are 43–44, which carry the serial console.',
-  },
-];
+/** `rt::kMaxTargetBanks` and `rt::kMaxBankNameLength`. */
+const MAX_BANKS = 8;
+const MAX_BANK_NAME = 16;
+const BANK_LETTERS = 'ABCDEFGH';
+
+type TargetBank = NonNullable<HardwareConfig['banks']>[number];
+
+/**
+ * The banks a configuration describes. Firmware from before #207 sends only
+ * the two scalars, which are bank A - so a device on it renders as the
+ * one-bank device it is rather than as an empty table.
+ */
+function banksOf(config: HardwareConfig): TargetBank[] {
+  return config.banks && config.banks.length > 0
+    ? config.banks
+    : [{ gpio: config.targetGpio, activeLow: config.targetActiveLow, name: '' }];
+}
 
 const LED_FIELDS: NumericField[] = [
   {
@@ -99,6 +109,7 @@ export function HardwareSection(): React.ReactNode {
   const { controlLockToken } = useSettings();
   const { controlLockEnabled } = useControlLockStatus();
   const api = useHardwareConfigApi();
+  const diagnosticsApi = useDiagnosticsApi();
   const queryClient = useQueryClient();
 
   // Same rule as the rest of the app: the lock off means anyone may manage.
@@ -110,6 +121,14 @@ export function HardwareSection(): React.ReactNode {
   const { data: state } = useQuery({
     queryKey: ['hardware-config'],
     queryFn: api.get,
+  });
+
+  // Already fetched by TroubleshootingSection on this page, so the pad
+  // read-back costs nothing extra. It is the column that says whether the pin
+  // just typed is actually driving anything.
+  const { data: diagnostics } = useQuery({
+    queryKey: ['diagnostics'],
+    queryFn: diagnosticsApi.info,
   });
 
   const save = useMutation({
@@ -152,13 +171,34 @@ export function HardwareSection(): React.ReactNode {
     setDraft({ ...draft, [key]: next });
   };
 
+  const savedBanks = banksOf(saved);
+  const banks: TargetBank[] = draft?.banks ?? savedBanks;
+
+  const setBanks = (next: TargetBank[]): void => {
+    setNotice(null);
+    setDraft({ ...draft, banks: next });
+  };
+
+  const editBank = (index: number, change: Partial<TargetBank>): void => {
+    setBanks(banks.map((bank, i) => (i === index ? { ...bank, ...change } : bank)));
+  };
+
   // Only what changed. The device keeps any field the request does not carry,
   // so this is also what stops a stale form overwriting a value another client
   // set while it was open.
   const patch: HardwareConfigPatch = {};
   if (draft) {
     for (const key of Object.keys(draft) as (keyof HardwareConfigPatch)[]) {
+      // `banks` is an array: a new one is never `===` the stored one, so it
+      // needs a value comparison or every render would look dirty.
+      if (key === 'banks') continue;
       if (draft[key] !== saved[key]) (patch as Record<string, unknown>)[key] = draft[key];
+    }
+    // Sent whole, and never alongside `targetGpio`/`targetActiveLow`: the
+    // device refuses a body whose scalars disagree with `banks[0]`, and the
+    // table edits bank A through the array.
+    if (JSON.stringify(draft.banks ?? savedBanks) !== JSON.stringify(savedBanks)) {
+      patch.banks = banks;
     }
   }
   const dirty = Object.keys(patch).length > 0;
@@ -219,29 +259,139 @@ export function HardwareSection(): React.ReactNode {
             'Targets',
             'hardware-group-targets',
             <>
-              {TARGET_FIELDS.map(numeric)}
+              {/* A table rather than a repeated field group: every bank has the
+                  same four values, and the question somebody has here is "which
+                  pin is bank C on", which reads off a column. */}
+              <div className={styles.tableScroll}>
+                <table className={styles.bankTable} data-testid='hardware-bank-table'>
+                  <thead>
+                    <tr>
+                      <th scope='col'>Bank</th>
+                      <th scope='col'>
+                        Name <span className={styles.thHint}>(shown to operators)</span>
+                      </th>
+                      <th scope='col'>GPIO</th>
+                      <th scope='col'>Shown when low</th>
+                      <th scope='col'>Pad now</th>
+                      <th scope='col'>
+                        <span className={styles.srOnly}>Remove</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {banks.map((bank, index) => {
+                      const letter = BANK_LETTERS[index];
+                      // Only the last bank goes, so the letters cannot gap:
+                      // removing B on a four-bank device would silently re-aim
+                      // C and D.
+                      const removable = index > 0 && index === banks.length - 1;
+                      const pad = diagnostics?.banks?.[index]?.padLevel ?? (index === 0 ? diagnostics?.targetGpioLevel : undefined);
+                      return (
+                        <tr key={index} data-testid={`hardware-bank-row-${letter}`}>
+                          <th scope='row' className={styles.bankLetter}>
+                            {letter}
+                          </th>
+                          <td>
+                            <input
+                              className={styles.input}
+                              type='text'
+                              maxLength={MAX_BANK_NAME}
+                              aria-label={`Bank ${letter} name`}
+                              data-testid={`hardware-bank-name-${letter}`}
+                              disabled={!canManage || busy}
+                              value={bank.name}
+                              onChange={(e) => {
+                                editBank(index, { name: e.target.value });
+                              }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className={clsx(styles.input, styles.gpioInput)}
+                              type='text'
+                              inputMode='numeric'
+                              aria-label={`Bank ${letter} GPIO`}
+                              data-testid={`hardware-bank-gpio-${letter}`}
+                              disabled={!canManage || busy}
+                              value={String(bank.gpio)}
+                              onChange={(e) => {
+                                editBank(index, { gpio: Number(e.target.value) });
+                              }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type='checkbox'
+                              aria-label={`Bank ${letter} shown when low`}
+                              data-testid={`hardware-bank-active-low-${letter}`}
+                              disabled={!canManage || busy}
+                              checked={bank.activeLow}
+                              onChange={(e) => {
+                                editBank(index, { activeLow: e.target.checked });
+                              }}
+                            />
+                          </td>
+                          {/* Read back through the input buffer, so a pin that
+                              is not moving says so without a multimeter. Blank
+                              on firmware from before `banks`. */}
+                          <td className={styles.padCell} data-testid={`hardware-bank-pad-${letter}`}>
+                            {pad === undefined ? '—' : pad === 1 ? 'high' : 'low'}
+                          </td>
+                          <td>
+                            <button
+                              className={styles.removeBank}
+                              type='button'
+                              data-testid={`hardware-bank-remove-${letter}`}
+                              disabled={!canManage || busy || !removable}
+                              title={
+                                index === 0
+                                  ? 'Bank A cannot be removed'
+                                  : removable
+                                    ? `Remove bank ${letter}`
+                                    : 'Remove the last bank first: the letters cannot have gaps'
+                              }
+                              aria-label={`Remove bank ${letter}`}
+                              onClick={() => {
+                                setBanks(banks.slice(0, -1));
+                              }}
+                            >
+                              ×
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
-              <label className={styles.field}>
-                <span className={styles.label}>
-                  Targets shown when the pin is low
-                  {overridden('targetActiveLow') && <span className={styles.badge}>changed</span>}
-                </span>
-                <span className={styles.checkboxRow}>
-                  <input
-                    type='checkbox'
-                    data-testid='hardware-active-low'
+              <div className={styles.bankActions}>
+                {banks.length < MAX_BANKS ? (
+                  <button
+                    className={styles.button}
+                    type='button'
+                    data-testid='hardware-bank-add'
                     disabled={!canManage || busy}
-                    checked={value('targetActiveLow')}
-                    onChange={(e) => {
-                      set('targetActiveLow', e.target.checked);
+                    onClick={() => {
+                      // Copies the last bank's polarity, which is nearly always
+                      // right: banks on one device are wired the same way.
+                      setBanks([...banks, { gpio: 0, activeLow: banks[banks.length - 1].activeLow, name: '' }]);
                     }}
-                  />
-                  <span className={styles.hint}>
-                    Off for a board that buffers or inverts the signal. If the targets do the opposite of what the app
-                    says, this is the setting.
+                  >
+                    Add bank {BANK_LETTERS[banks.length]}
+                  </button>
+                ) : (
+                  <span className={styles.hint} data-testid='hardware-bank-limit'>
+                    Eight is the most this firmware drives.
                   </span>
-                </span>
-              </label>
+                )}
+              </div>
+
+              <span className={styles.hint}>
+                One contact closure per bank. Each needs its own pin: 22&ndash;32 and 35&ndash;37 are refused
+                &mdash; they are absent from this chip or belong to its flash and PSRAM, and driving one stops the
+                device booting &mdash; and so are 43&ndash;44, which carry the serial console.
+              </span>
 
               {/* Shown, not editable. An operator needs to know where the
                   targets rest at boot; changing it needs physical access,
@@ -253,9 +403,9 @@ export function HardwareSection(): React.ReactNode {
                   {state.active.targetsShownAtBoot ? 'Shown' : 'Hidden'}
                 </p>
                 <span className={styles.hint}>
-                  Set from the serial console only — <code>boot-targets shown</code> or <code>boot-targets hidden</code>
-                  . It decides what the targets do while somebody may be downrange, so changing it needs a cable rather
-                  than a web page.
+                  One setting for every bank, set from the serial console only &mdash; <code>boot-targets shown</code>{' '}
+                  or <code>boot-targets hidden</code>. It decides what the targets do while somebody may be downrange,
+                  so changing it needs a cable rather than a web page.
                 </span>
               </div>
             </>,
