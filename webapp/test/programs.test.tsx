@@ -408,3 +408,62 @@ describe('replacing a program', () => {
     await waitFor(() => expect(notice().textContent).toContain('Uploaded "Fel id" as program 100.'));
   });
 });
+
+describe('a program that needs banks', () => {
+  /** Two events, the second naming bank D, so the device derives banksRequired 4. */
+  const FOUR_BANK: Program = {
+    id: 141,
+    title: 'Fältträning, 4 mål',
+    description: 'Ett mål i taget',
+    readonly: false,
+    series: [
+      {
+        name: 'Station 1',
+        optional: false,
+        events: [
+          { duration: 4000, command: 'hide', banks: { A: 'show' } },
+          { duration: 4000, command: 'hide', banks: { D: 'show' } },
+        ],
+      },
+    ],
+  };
+
+  async function listWith(banks: Record<string, 'shown' | 'hidden'> | undefined): Promise<void> {
+    await requestElsewhere(PORT, 'POST', '/api/v2/programs', FOUR_BANK);
+    // What the run page's first SSE frame would have put here.
+    if (banks)
+      queryClient.setQueryData(['state'], {
+        loadedProgramId: null,
+        programState: null,
+        targetStatus: 'shown',
+        targetBanks: banks,
+      });
+    renderPrograms();
+    await ready();
+  }
+
+  it('tags the row and refuses to load it on a one-bank device', async () => {
+    await listWith(undefined);
+
+    const id = 100; // the mock assigns from 100 up
+    expect(screen.getByTestId(`program-banks-${String(id)}`).textContent).toBe('A–D');
+    expect(screen.getByTestId(`program-banks-refusal-${String(id)}`).textContent).toContain(
+      'Needs 4 banks; this device has 1.',
+    );
+    expect(screen.getByTestId(`program-load-${String(id)}`).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('tags it and loads it on a device that has the banks', async () => {
+    await listWith({ A: 'shown', B: 'shown', C: 'shown', D: 'shown' });
+
+    const id = 100;
+    expect(screen.getByTestId(`program-banks-${String(id)}`).textContent).toBe('A–D');
+    expect(screen.queryByTestId(`program-banks-refusal-${String(id)}`)).toBeNull();
+    expect(screen.getByTestId(`program-load-${String(id)}`).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('says nothing at all about a program that names no bank', async () => {
+    await listWith(undefined);
+    expect(screen.queryByTestId(`program-banks-${String(UPLOADED.id)}`)).toBeNull();
+  });
+});

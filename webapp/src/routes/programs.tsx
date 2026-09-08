@@ -11,7 +11,7 @@ import { ProgramEditor, type EditorTarget } from '../components/ProgramEditor';
 import { downloadJson, programFilename } from '../lib/download';
 import { useSettings } from '../context/SettingsContext';
 import { useControlLockStatus } from '../hooks/useControlLockStatus';
-import { type DocumentIssue, parseProgramDocument } from '../lib/program-document';
+import { BANK_LETTERS, type DocumentIssue, parseProgramDocument } from '../lib/program-document';
 import {
   failureNotice,
   issueLines,
@@ -80,6 +80,9 @@ export function ProgramsView(): React.ReactNode {
     enabled: false,
   });
   const loadedProgramId = state?.loadedProgramId ?? null;
+  // The banks this device drives, from the first SSE frame. Absent means one -
+  // a device from before banks, or one with a single bank.
+  const bankCount = Object.keys(state?.targetBanks ?? {}).length || 1;
 
   function invalidatePrograms(id?: number): void {
     void queryClient.invalidateQueries({ queryKey: ['programs'] });
@@ -232,7 +235,6 @@ export function ProgramsView(): React.ReactNode {
     }
   };
 
-
   return (
     <div className={styles.container}>
       <header className={styles.pageHeader}>
@@ -324,6 +326,11 @@ export function ProgramsView(): React.ReactNode {
             <tbody role='rowgroup'>
               {sorted.map((program) => {
                 const isLoaded = program.id === loadedProgramId;
+                // Stored and listed like any other program; only Load is
+                // refused. The library is a library, and the same file runs on
+                // the four-bank device next door.
+                const needs = program.banksRequired ?? 1;
+                const unrunnable = needs > bankCount;
                 return (
                   <tr
                     key={program.id}
@@ -339,6 +346,20 @@ export function ProgramsView(): React.ReactNode {
                         {program.title}
                       </button>
                       {isLoaded && <span className={clsx(styles.badge, styles.badgeLoaded)}>Loaded</span>}
+                      {needs > 1 && (
+                        <span
+                          className={clsx(styles.badge, unrunnable ? styles.badgeUnavailable : styles.badgeBanks)}
+                          data-testid={`program-banks-${String(program.id)}`}
+                        >
+                          A–{BANK_LETTERS[needs - 1]}
+                        </span>
+                      )}
+                      {unrunnable && (
+                        <p className={styles.unrunnable} data-testid={`program-banks-refusal-${String(program.id)}`}>
+                          Needs {needs} banks; this device has {bankCount}. It stays in the library and runs on a device
+                          with banks A–{BANK_LETTERS[needs - 1]}.
+                        </p>
+                      )}
                     </td>
                     <td className={styles.description} role='cell' data-label='About'>
                       {program.description}
@@ -380,7 +401,7 @@ export function ProgramsView(): React.ReactNode {
                             className={clsx(styles.button, styles.actionToggle)}
                             data-testid={isLoaded ? `program-unload-${program.id}` : `program-load-${program.id}`}
                             onClick={() => (isLoaded ? unloadMutation.mutate() : loadMutation.mutate(program))}
-                            disabled={busy}
+                            disabled={busy || (unrunnable && !isLoaded)}
                           >
                             {isLoaded ? 'Unload' : 'Load'}
                           </button>
