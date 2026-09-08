@@ -2589,9 +2589,14 @@ components:
 
             On entering the event, `command` applies to every bank **not**
             named here, `banks` sets the ones it does name, and a bank named
-            by neither is left where it is. Omitted, `null` or `{}` all mean
-            no overrides, so a program without this field is unchanged and
+            by neither is left where it is. Omitted or `{}` mean no overrides,
+            so a program without this field is unchanged and
             `{"command": "show"}` still turns every bank.
+
+
+            For the same reason it does for `command`, the device also accepts
+            `null` in place of omission. It is not part of this schema and is
+            never emitted: an event with no overrides has no `banks` key.
 
             A letter the device does not have is refused at **start** —
             `409 /problems/program_banks_unavailable` — and never at upload:
