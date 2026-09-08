@@ -128,11 +128,8 @@ constexpr int32_t kMaxWifiRetries = 60;
 // target that does not move, it is a device that stops booting and needs a
 // cable. 22..25 do not exist on the ESP32-S3 at all.
 //
-// 35..37 are the extra data lines the N16R8's **octal** PSRAM uses
-// (`CONFIG_SPIRAM_MODE_OCT`); on a quad module they are free, which is why
-// they read as ordinary pins in the datasheet and were missed here. Driving
-// one crashes this board the moment PSRAM is touched. 43/44 are UART0 and
-// carry the serial console, which is the way back from a bad configuration.
+// 35..37 (the octal PSRAM's data lines on the N16R8) and 43/44 (UART0, the
+// serial console) are refused for the reasons D-41 records.
 //
 // Refused rather than warned about: the recovery from getting this wrong is a
 // USB cable and a reflash, which is exactly what configurability was supposed

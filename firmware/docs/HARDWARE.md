@@ -77,12 +77,8 @@ recovery from getting one wrong is a USB cable and a reflash.
 | **43, 44** | UART0 — the serial console |
 | 46 | Input-only on many modules, so it cannot drive anything |
 
-35–37 are the ones to know about: they are free pins on a *quad* module and
-read as ordinary in the datasheet, so they look usable. On this board driving
-one crashes the device the moment PSRAM is touched, and the symptom points
-nowhere near the pin that was typed.
-
-That leaves 22 output-capable pins after the stock five (target 5, LED 48, I2S
+35–37 are the ones to know about; D-41 records why they were missed. That
+leaves 22 output-capable pins after the stock five (target 5, LED 48, I2S
 10/11/12) — comfortably more than eight banks need.
 
 Disabling `RT_RGB_LED_ENABLED` or `RT_AUDIO_ENABLED` compiles the driver out

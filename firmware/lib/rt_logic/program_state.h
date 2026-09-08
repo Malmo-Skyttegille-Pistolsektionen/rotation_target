@@ -55,10 +55,7 @@ struct ProgramState {
   Nullable current_event_index;
   Nullable ticker_ms;
 
-  // Where each bank sits, in letter order. Sized to the device's bank count by
-  // init_banks(); one hidden bank by default, which is what a state nobody
-  // initialised used to be. Device state rather than program state, so unload()
-  // leaves it alone - the targets do not move because a program was dropped.
+  // Where each bank sits, in letter order. Device state, so unload() leaves it.
   std::vector<bool> bank_shown{false};
 
   // Monotonic ms anchor the current series is measured from while running.

@@ -5,7 +5,9 @@ Pistolsektionen, Eigenbrod TP2). Maintained by Jimisola + agents; every new
 decision of record gets an entry. This file is the canonical copy.
 
 Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
-(not yet decided). Dates: "Aug 2026" = earlier sessions; exact date where known.
+(not yet decided) · **Superseded by D-nn** (replaced by a later decision, whose
+entry keeps the reasoning; the original text stays as the record of what was
+thought at the time). Dates: "Aug 2026" = earlier sessions; exact date where known.
 
 | ID | Decision | Status | Date |
 |----|----------|--------|------|
