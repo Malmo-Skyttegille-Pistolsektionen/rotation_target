@@ -16,7 +16,7 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-05 | QEMU replaces the Linux port | Decided | 2026-08-20 |
 | D-06 | E2E runs against the real backend, no mock | Decided | 2026-08-20 |
 | D-07 | TUI is an SSE client, not backend-embedded | Decided | 2026-08-20 |
-| D-08 | Target banks (A/B) deferred | Deferred | 2026-08-20 |
+| D-08 | Target banks (A/B) deferred | Superseded by D-41 | 2026-08-20 |
 | D-09 | `backend_issue` SSE event returns in v2 | Decided | 2026-08-20 |
 | D-10 | Monorepo imports open PR branches, not main | Decided | 2026-08-20 |
 | D-11 | Dynamic versioning from git tags | Decided | Aug 2026, revised 2026-08-21 |
@@ -47,6 +47,9 @@ Statuses: **Decided** · **Deferred** (intentionally postponed) · **Open**
 | D-36 | Shipped audio is IMA ADPCM, transcoded in the build | Decided | 2026-08-25 |
 | D-37 | One image, and uploads get a partition nothing updates | Decided | 2026-08-25 |
 | D-38 | Repo browsing is one card; titles ride on raw, not the API | Decided | 2026-08-25 |
+| D-39 | The coredump ships in a bundle, behind the button | Decided | 2026-08-25 |
+| D-40 | "Admin mode" is renamed `control-lock`, everywhere | Decided | 2026-08-26 |
+| D-41 | Target banks: letters, baseline plus overrides, refuse rather than clamp | Decided | 2026-09-08 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
 
@@ -160,6 +163,8 @@ the same lock — it *is* the internal state, one serialization away.
 no program uses them, no consumer anywhere. Adding them is contract design
 first (target endpoints, `stateUpdate` shape, program schema, per-bank GPIO)
 — a separate effort.
+
+**Superseded by D-41** (2026-09-08), which does that design work.
 
 ## D-09 — `backend_issue` SSE event returns in v2 *(Decided 2026-08-20; implemented)*
 
@@ -1615,6 +1620,92 @@ sync* — its guarantee is delivered by the partition split at a fraction of the
 code, and it could still return later as a transfer optimisation without
 touching the table. *Shipping audio uncompressed* — 8.65 MB per slot, 17.3 MB
 for the pair; does not fit.
+
+## D-41 — Target banks: letters, baseline plus overrides, refuse rather than clamp *(Decided 2026-09-08)*
+
+**Decision:** a device drives **1 to 8 target banks**, each one GPIO, one
+polarity and one display name, addressed on the wire by the **letter** `A`…`H`
+of its position in the hardware configuration's `banks` array. Everything else
+follows from that:
+
+- **An event is a baseline plus overrides.** `command` applies to every bank
+  the event's `banks` object does not name; `banks` sets the ones it does; a
+  bank named by neither is left where it was. `banks` omitted, `null` or `{}`
+  all mean "no overrides", so **every existing program runs unchanged** and
+  `{"command": "show"}` still turns every target. `command` stays the closed
+  vocabulary D-20 made it — no new enum value, and "hide everything except B"
+  is one event rather than two with a 1 ms filler between them.
+- **Old programs drive all banks.** That is what "show the targets" has always
+  meant, so nothing needs migrating. A program naming a bank the device lacks
+  **uploads fine and lists with a tag, and is refused at start** with
+  `409 /problems/program_banks_unavailable`: the library is a library, and the
+  same file runs on the four-bank device next door.
+- **Polarity is per bank**, because the fail-safe rule is electrical — each
+  bank's de-energised state has to be its resting state — and per-bank polarity
+  is how that is expressed for banks wired differently.
+- **The resting state stays device-wide and serial-only** (D-31). Per-bank
+  resting state multiplies the ways to be wrong about where steel sits at
+  power-on, and it is the setting that protects somebody standing downrange.
+- **`targetStatus` is bank A**, with `targetBanks` as the additive sibling.
+  Truthful and partial beats invented: "shown if any" is a meaning no client
+  ever asked for, and no new client reads `targetStatus` once `targetBanks`
+  exists.
+- **Toggle hides everything if every bank is shown, and otherwise shows
+  everything.** On one bank that is a plain flip, which is what it has always
+  been. One button must not produce a half-turned strip.
+- **A pad read-back fault is reported, never acted on.** `backend_issue` with
+  code `target_bank_fault` and context `{bank, expected, actual}`; the run does
+  not stop and new starts are not blocked. Stopping moves no steel and takes
+  the decision away from the person on the range.
+- **Refuse rather than clamp, everywhere.** A bank count outside 1–8, a name
+  over 16 characters, two banks on one pin — each is a refusal naming what to
+  change, not a silently corrected value. Silence moves steel nobody asked to
+  move.
+
+**Why letters and not indices.** A letter is what an operator says out loud and
+what somebody hand-editing a program file can read without a lookup table, and
+it is the position in the `banks` array — so it has exactly the stability of an
+index. Names ("Vänster", "Bana 3") are display-only and live in the hardware
+configuration, never in a program, so renaming a bank can never re-aim one.
+
+**Why 8.** The requirement is at least eight. It is a firmware constant
+(`rt::kMaxTargetBanks`) plus `maxItems: 8` in the contract, not a number the
+wire format depends on: raising it later is additive. The GPIO budget bears it
+— 32 output-capable pins the validator allows, minus the stock five (target 5,
+LED 48, I2S 10/11/12) and the five closed below, leaves 22 for seven more banks.
+
+**The validator had a gap, and eight banks would have found it.** It refused
+22–32 but not **35, 36 and 37**, which this board's *octal* PSRAM
+(`CONFIG_SPIRAM_MODE_OCT`, N16R8) uses — free pins on a quad module, which is
+why they read as ordinary in the datasheet. Driving one crashes the device the
+moment PSRAM is touched, and the symptom points nowhere near the pin that was
+typed. **43 and 44** are UART0 and carry the serial console, which is the way
+back from a bad configuration — the same argument that already refuses 19/20 on
+the other socket. Both are now refused. One pin per board was typed once and
+got lucky; eight is eight chances.
+
+**Staged, each stage its own PR.** (1) `rt_logic`, NVS and the pin driver, with
+no contract change — the bank vector, the migration from the pre-bank
+`hw_tgt_*` keys, N pin drivers behind the same latch-before-`gpio_config()`
+discipline, per-bank executor state, and the validator gap closed. (2) The
+contract additions, the Expert-mode bank table, the run-page strip, and the
+mock server's per-bank state machine in the same PR as the executor change.
+(3) `Event.banks`, `banksRequired`, the start refusal, the webapp's
+`bank-state.ts` mirror, the timeline lanes and the editor.
+
+**Rejected:**
+
+- **0-based indices on the wire.** Stable, but nobody says "bank 2" standing at
+  the firing point, and a hand-edited program file then needs a lookup table.
+- **A single `bank` per event.** Sequential exposure — the reason to have banks
+  at all — would need one event per bank and 1 ms filler events between them to
+  express "hide everything except B". The baseline-plus-overrides object says
+  it once.
+- **A program-level bank count field.** Derived by the device from the highest
+  letter a program names (`banksRequired`), never asserted by the file: a count
+  the uploader writes is a count that can disagree with the events under it.
+- **`targetStatus` meaning "shown if any bank is shown".** It invents a
+  meaning for a field deployed clients already read one way.
 
 ## Open questions
 

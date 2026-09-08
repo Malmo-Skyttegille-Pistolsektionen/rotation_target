@@ -25,8 +25,8 @@ loudly.
 
 | Option | Default | Meaning |
 |---|---|---|
-| `RT_TARGET_GPIO` | 5 | Drives the transistor that turns the targets |
-| `RT_TARGET_ACTIVE_LOW` | y | Whether **low** shows the targets |
+| `RT_TARGET_GPIO` | 5 | Drives the transistor that turns **bank A** |
+| `RT_TARGET_ACTIVE_LOW` | y | Whether **low** shows bank A |
 | `RT_RGB_LED_ENABLED` | y | Board has an addressable WS2812 |
 | `RT_RGB_LED_GPIO` | 48 | Its pin |
 | `RT_AUDIO_ENABLED` | y | Board has an I2S DAC |
@@ -46,6 +46,45 @@ stale — the pin numbers beside them are correct, the chip name is not.
 > `targets::init()` is inverted, so the targets face away when they should be
 > face-on (D-31).
 
+### Target banks
+
+A device drives 1 to 8 banks, called **A** to **H** (D-41). Kconfig seeds bank A
+only — a second bank is something a device is *told about*, over the API or the
+serial console, and it lives in NVS beside the rest of the hardware
+configuration. Every bank has its own pin, its own polarity and a display name.
+
+| Bank | Suggested pin | Note |
+|---|---|---|
+| A | 5 | The stock target pin; `RT_TARGET_GPIO` |
+| B–H | 6, 7, 8, 9, 13, 14, 15 | Adjacent on the DevKitC-1 header, all free |
+
+Nothing forces those seven — any pin the validator accepts will do. They are
+listed because they are contiguous on the header and none of them clashes with
+the stock LED or I2S wiring.
+
+### Pins the configuration refuses
+
+`rt::validate()` refuses these outright rather than warning, because the
+recovery from getting one wrong is a USB cable and a reflash.
+
+| Pins | Why |
+|---|---|
+| 0, 3, 45 | Strapping — latched at reset; the board simply does not come up |
+| 19, 20 | USB Serial/JTAG D-/D+ — the recovery path |
+| 22–25 | Absent from the ESP32-S3 package |
+| 26–32 | In-package SPI flash and PSRAM |
+| **35–37** | The **octal** PSRAM's extra data lines on the N16R8 |
+| **43, 44** | UART0 — the serial console |
+| 46 | Input-only on many modules, so it cannot drive anything |
+
+35–37 are the ones to know about: they are free pins on a *quad* module and
+read as ordinary in the datasheet, so they look usable. On this board driving
+one crashes the device the moment PSRAM is touched, and the symptom points
+nowhere near the pin that was typed.
+
+That leaves 22 output-capable pins after the stock five (target 5, LED 48, I2S
+10/11/12) — comfortably more than eight banks need.
+
 Disabling `RT_RGB_LED_ENABLED` or `RT_AUDIO_ENABLED` compiles the driver out
 entirely rather than failing at runtime. A target that only turns, with no
 audio, is a supported configuration: programs still run and the API still lists
@@ -55,7 +94,7 @@ clips, they simply do not play.
 
 | ESP32 pin | Connects to | Function |
 |---|---|---|
-| GPIO5 | DB9 pin 2, via 1 kΩ into a BC547B | Target control |
+| GPIO5 | DB9 pin 2, via 1 kΩ into a BC547B | Target control (bank A) |
 | GND | DB9 pin 5 | Common ground |
 | GPIO10 / GPIO12 / GPIO11 | PCM5102A BCK / LRCK / DIN | I2S audio |
 | GPIO48 | onboard WS2812 (devkit only) | Status LED |

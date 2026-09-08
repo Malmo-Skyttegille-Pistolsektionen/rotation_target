@@ -8,8 +8,8 @@ of ESP-IDF and hardware, and is covered by the Unity suites in `host_test/`.
 
 | Layer | Holds |
 |---|---|
-| `lib/rt_logic/` | Program model + JSON (`program.*`), run state + `stateUpdate` serializer (`program_state.h`), run-position maths (`run_position.h`), the run state machine (`executor.*`), the control lock (`control_lock.h`), WAV header parsing (`wav_header.*`), URI path ids (`uri_path.h`) |
-| `main/io/` | `targets` (GPIO), `audio` (I2S WAV playback), `rgb_led` |
+| `lib/rt_logic/` | Program model + JSON (`program.*`), run state + `stateUpdate` serializer (`program_state.h`), run-position maths (`run_position.h`), the run state machine (`executor.*`), the control lock (`control_lock.h`), target banks (`target_bank.h`), WAV header parsing (`wav_header.*`), URI path ids (`uri_path.h`) |
+| `main/io/` | `targets` (one GPIO per bank), `audio` (I2S WAV playback), `rgb_led` |
 | `main/storage/` | LittleFS mount and directory helpers |
 | `main/repositories/` | `programs`, `audios` — what is on the filesystem |
 | `main/executor/` | The run-loop task and the real clock/effects behind `rt::Executor` |
@@ -57,6 +57,13 @@ Three tasks touch run state:
 A single recursive mutex guards `rt::ProgramState` and the executor. It is
 recursive because `set_targets()` is reached both directly (the `/targets/*`
 endpoints) and from inside the executor's own locked section.
+
+**Target state is per bank** (D-41). `ProgramState::bank_shown` is one flag per
+bank in letter order, sized at `executor::init()` from `targets::count()`;
+`rt::Effects::set_targets()` takes a bank mask, and `rt::kAllBanksMask` is what
+both an event's `command` and the `/targets/*` endpoints use. `targetStatus` on
+the wire is bank A. On a one-bank device — every device today — none of that is
+observable from outside.
 
 **SSE broadcasts happen outside that lock.** `rt::Effects::state_changed()`
 only sets a flag; the payload is serialized under the lock and sent after
@@ -132,10 +139,12 @@ storage, repositories, audio, executor, WiFi, HTTP server — and reboots rather
 than coming up degraded if storage or the network is unavailable. A device on a
 range that looks healthy but serves nothing is worse than one that restarts.
 
-The target pin powers up **low**, which is the *shown* position. `executor::init()`
-drives it to hidden before the server starts, so the hardware matches the first
-`stateUpdate` a client receives. This was a real bug in the MicroPython backend
-before its v2 rework.
+Each bank's pin powers up **low**, which on the stock active-low wiring is the
+*shown* position. `targets::init()` writes the resting level into the output
+latch *before* `gpio_config()` enables the driver, per bank, so no pin ever
+presents an intermediate level; `executor::init()` then adopts that state rather
+than picking its own, so the hardware matches the first `stateUpdate` a client
+receives without an edge in between (D-31, #145).
 
 ## Relationship to the MicroPython backend
 
