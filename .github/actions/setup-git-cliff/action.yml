@@ -11,7 +11,7 @@ inputs:
   sha256:
     description: "SHA-256 of the x86_64-unknown-linux-gnu tarball. Change it with `version`."
     required: false
-    default: "9a1263f24e59a2f508c7b3d3283c9dea94a8bf697f96dbc18cc783cac6284546"
+    default: "dfe9bef0c7a00d05fafe78e6e591a1a280d39dd495b8066764db0a559acde67f"
 
 runs:
   using: composite
