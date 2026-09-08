@@ -47,12 +47,15 @@ struct BankKey {
   BankKey(size_t bank, const char *suffix);
 };
 
-// Where a stored configuration is read from. Two methods, because that is all
-// the overlay needs: `false` means the key is absent and leaves `out` alone.
+// Where a stored configuration is read from. One method per stored type,
+// because the store is typed and pretending otherwise costs a `signed char`
+// widening at every boolean. The return says whether the key was there at all;
+// `false` leaves `out` alone.
 class ConfigReader {
  public:
   virtual ~ConfigReader() = default;
   virtual bool read_i32(const char *key, int32_t &out) = 0;
+  virtual bool read_bool(const char *key, bool &out) = 0;
   virtual bool read_str(const char *key, std::string &out) = 0;
 };
 

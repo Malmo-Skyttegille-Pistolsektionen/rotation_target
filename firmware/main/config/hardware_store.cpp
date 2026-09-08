@@ -43,24 +43,23 @@ bool erase_if_present(nvs_handle_t handle, const char *key) {
   return err == ESP_OK || err == ESP_ERR_NVS_NOT_FOUND;
 }
 
-// NVS is typed and the overlay is not, so an i32 read falls back to i8: the
-// booleans are stored as i8 and would otherwise come back as a type mismatch.
+// One NVS getter per stored type, matching what `save()` writes.
 class NvsReader : public rt::ConfigReader {
  public:
   explicit NvsReader(nvs_handle_t handle) : handle_(handle) {}
 
   bool read_i32(const char *key, int32_t &out) override {
-    int32_t wide = 0;
-    if (nvs_get_i32(handle_, key, &wide) == ESP_OK) {
-      out = wide;
-      return true;
-    }
-    int8_t narrow = 0;
-    if (nvs_get_i8(handle_, key, &narrow) == ESP_OK) {
-      out = narrow;
-      return true;
-    }
-    return false;
+    int32_t value = 0;
+    if (nvs_get_i32(handle_, key, &value) != ESP_OK) return false;
+    out = value;
+    return true;
+  }
+
+  bool read_bool(const char *key, bool &out) override {
+    int8_t value = 0;
+    if (nvs_get_i8(handle_, key, &value) != ESP_OK) return false;
+    out = value != 0;
+    return true;
   }
 
   bool read_str(const char *key, std::string &out) override {

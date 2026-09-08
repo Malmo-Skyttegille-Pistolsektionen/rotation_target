@@ -27,11 +27,19 @@ namespace {
 class FakeStore : public rt::ConfigReader {
  public:
   std::map<std::string, int32_t> ints;
+  std::map<std::string, bool> bools;
   std::map<std::string, std::string> strings;
 
   bool read_i32(const char *key, int32_t &out) override {
     const auto it = ints.find(key);
     if (it == ints.end()) return false;
+    out = it->second;
+    return true;
+  }
+
+  bool read_bool(const char *key, bool &out) override {
+    const auto it = bools.find(key);
+    if (it == bools.end()) return false;
     out = it->second;
     return true;
   }
@@ -84,7 +92,7 @@ void test_a_device_that_has_never_been_configured_keeps_its_defaults() {
 void test_a_device_configured_before_banks_becomes_one_bank() {
   FakeStore store;
   store.ints[rt::hw_key::kLegacyGpio] = 9;
-  store.ints[rt::hw_key::kLegacyActiveLow] = 0;
+  store.bools[rt::hw_key::kLegacyActiveLow] = false;
   store.strings[rt::hw_key::kHostname] = "bana-2";
 
   HardwareConfig config = compiled_defaults();
@@ -105,7 +113,7 @@ void test_a_banked_device_reads_every_bank() {
   store.ints[rt::BankKey(0, "gpio").text] = 5;
   store.ints[rt::BankKey(1, "gpio").text] = 6;
   store.ints[rt::BankKey(2, "gpio").text] = 7;
-  store.ints[rt::BankKey(1, "alow").text] = 0;
+  store.bools[rt::BankKey(1, "alow").text] = false;
   store.strings[rt::BankKey(1, "name").text] = "Vänster";
   // Left over from before the migration, and deliberately ignored: the count
   // is what says which layout this device is on.

@@ -22,10 +22,7 @@ void overlay_banks(ConfigReader &reader, HardwareConfig &out, size_t count) {
     int32_t gpio = 0;
     if (reader.read_i32(BankKey(i, "gpio").text, gpio)) out.banks[i].gpio = gpio;
 
-    int32_t active_low = 0;
-    if (reader.read_i32(BankKey(i, "alow").text, active_low)) {
-      out.banks[i].active_low = active_low != 0;
-    }
+    reader.read_bool(BankKey(i, "alow").text, out.banks[i].active_low);
 
     if (reader.read_str(BankKey(i, "name").text, text)) out.banks[i].name = text;
   }
@@ -57,11 +54,7 @@ bool overlay_config(ConfigReader &reader, HardwareConfig &out) {
       found = true;
     }
 
-    int32_t active_low = 0;
-    if (reader.read_i32(hw_key::kLegacyActiveLow, active_low)) {
-      out.banks[0].active_low = active_low != 0;
-      found = true;
-    }
+    if (reader.read_bool(hw_key::kLegacyActiveLow, out.banks[0].active_low)) found = true;
   }
 
   std::string text;
@@ -74,11 +67,7 @@ bool overlay_config(ConfigReader &reader, HardwareConfig &out) {
     found = true;
   }
 
-  int32_t boot_shown = 0;
-  if (reader.read_i32(hw_key::kBootShown, boot_shown)) {
-    out.targets_shown_at_boot = boot_shown != 0;
-    found = true;
-  }
+  if (reader.read_bool(hw_key::kBootShown, out.targets_shown_at_boot)) found = true;
 
   const struct {
     const char *key;
