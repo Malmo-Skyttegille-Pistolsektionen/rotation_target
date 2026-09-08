@@ -924,13 +924,19 @@ paths:
         - controlLockBearer: []
         - controlLockCookie: []
         - {}
+      requestBody:
+        $ref: "#/components/requestBodies/BankSelection"
       responses:
         "200":
-          description: Targets shown.
+          description: >-
+            The banks that moved, named in `message` — `Targets shown` on a
+            device with one bank, `Banks B and C shown` on one with more.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
+        "400":
+          $ref: "#/components/responses/BankUnavailable"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -943,13 +949,17 @@ paths:
         - controlLockBearer: []
         - controlLockCookie: []
         - {}
+      requestBody:
+        $ref: "#/components/requestBodies/BankSelection"
       responses:
         "200":
-          description: Targets hidden.
+          description: The banks that moved, named in `message`.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
+        "400":
+          $ref: "#/components/responses/BankUnavailable"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -958,18 +968,32 @@ paths:
       tags: [targets]
       summary: Flip the targets
       operationId: toggleTargets
+      description: |
+        With a `banks` list, each named bank flips independently of the others.
+
+        Without one, the device needs a single answer for banks that may not
+        agree, and takes the one an operator reaching for a single button
+        means: **if every bank is shown, hide them all; otherwise show them
+        all.** So a mixed strip resolves to all-shown on the first press and
+        all-hidden on the second, rather than staying mixed for ever. On a
+        one-bank device this is the flip it has always been.
       security:
         - controlLockBearer: []
         - controlLockCookie: []
         - {}
+      requestBody:
+        $ref: "#/components/requestBodies/BankSelection"
       responses:
         "200":
           description: >-
-            The resulting state, as `Targets shown` or `Targets hidden`.
+            The resulting state, as `Targets shown` or `Targets hidden` on a
+            one-bank device, naming the banks that moved on a device with more.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
+        "400":
+          $ref: "#/components/responses/BankUnavailable"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -1650,7 +1674,29 @@ components:
         format: int32
         minimum: 0
 
+  requestBodies:
+    BankSelection:
+      required: false
+      description: >-
+        Which target banks to move. **Omit the body entirely to move every
+        bank** — that is what every client did before banks existed and what a
+        one-bank device is always asked.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/BankSelection"
+
   responses:
+    BankUnavailable:
+      description: |
+        - `/problems/bank_unavailable` — a letter in `banks` names a bank this
+          device does not have. `detail` names the letter and the range the
+          device does have. Nothing moved: the list is applied as a whole, so a
+          typo cannot half-work.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
     Unauthorized:
       description: |
         - `/problems/control_lock_credentials_required` — the control lock is on
@@ -1681,6 +1727,53 @@ components:
             additionalProperties: false
 
   schemas:
+    BankLetter:
+      type: string
+      pattern: "^[A-H]$"
+      description: >-
+        A target bank, addressed by the letter its position gives it: `A` is
+        `banks[0]`. Upper case only — one spelling per bank keeps the device
+        from having to decide whether `a` and `A` are the same request.
+      examples: ["B"]
+
+    BankSelection:
+      type: object
+      required: [banks]
+      additionalProperties: false
+      properties:
+        banks:
+          type: array
+          minItems: 1
+          maxItems: 8
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/BankLetter"
+          description: >-
+            The banks to move. Unique, because naming a bank twice says nothing
+            a single mention does not.
+
+    TargetBank:
+      type: object
+      description: >-
+        One independently driven target group: one GPIO, one polarity, one
+        name. Which letter it answers to is its position in `banks`, not
+        anything stored here.
+      required: [gpio, activeLow, name]
+      additionalProperties: false
+      properties:
+        gpio:
+          $ref: "#/components/schemas/HardwareConfig/properties/targetGpio"
+        activeLow:
+          $ref: "#/components/schemas/HardwareConfig/properties/targetActiveLow"
+        name:
+          type: string
+          maxLength: 16
+          description: >-
+            What operators call this bank — `Vänster`, `Bana 3`. Display only,
+            and may be empty, in which case a client shows the letter alone.
+            It lives in the hardware configuration and never in a program, so
+            renaming a bank cannot re-aim one.
+
     HardwareConfig:
       type: object
       description: |
@@ -1694,10 +1787,13 @@ components:
         `targetsShownAtBoot` is here but read-only: it is configurable, because
         which resting position is safe is a property of the target system, but
         only from the serial console (D-31). A safety default a remote UI can
-        switch off is not one.
+        switch off is not one. It is one setting for every bank — where the
+        targets rest at boot is a property of the range, not of a bank.
 
-        Bank count is absent for the same reason it is fixed at one: banks are
-        a contract change (D-08, D-20), not a configuration key.
+        **Bank count is `banks.length`** (D-41). A device drives one to eight
+        target banks, lettered by position: `banks[0]` is bank A. `targetGpio`
+        and `targetActiveLow` stay required and describe bank A, so a client
+        that predates banks sees the device it always saw.
       required:
         [
           targetGpio,
@@ -1715,22 +1811,44 @@ components:
         ]
       additionalProperties: false
       properties:
+        banks:
+          type: array
+          minItems: 1
+          maxItems: 8
+          description: |
+            The target banks, in letter order: `banks[0]` is bank A, `banks[1]`
+            bank B, up to H. The letter is the position — there is no id field,
+            because a stored id and an array index are two answers to the same
+            question and they drift.
+
+            Eight is a firmware constant, not a protocol limit; raising it later
+            is additive.
+
+            Optional in a response only so a client reading a firmware from
+            before this field degrades to `targetGpio`/`targetActiveLow`. This
+            firmware always sends it, with at least one entry.
+          items:
+            $ref: "#/components/schemas/TargetBank"
         targetGpio:
           type: integer
           format: int32
           minimum: 0
           maximum: 48
           description: >-
-            The GPIO driving the target circuit. 22-25 do not exist on this
-            chip and 26-32 are the module's own flash and PSRAM; both are
-            refused, because driving one stops the device booting rather than
-            merely failing to move a target.
+            Bank A's GPIO, the same value as `banks[0].gpio`. 22-25 do not
+            exist on this chip, 26-32 are the module's own flash and PSRAM,
+            35-37 are the octal PSRAM's extra data lines on the modules we
+            ship, and 43-44 are the UART0 console; all are refused, because
+            driving one stops the device booting — or takes away the way back
+            from a bad configuration — rather than merely failing to move a
+            target.
         targetActiveLow:
           type: boolean
           description: >-
-            Whether a low level shows the targets. The prototype drives a
-            BC547B whose low state opens the connection; a board that buffers
-            or inverts the signal wants `false`.
+            Whether a low level shows bank A, the same value as
+            `banks[0].activeLow`. The prototype drives a BC547B whose low state
+            opens the connection; a board that buffers or inverts the signal
+            wants `false`.
         hostname:
           type: string
           minLength: 1
@@ -1893,6 +2011,19 @@ components:
         added to one and not the other stops compiling.
       additionalProperties: false
       properties:
+        banks:
+          allOf:
+            - $ref: "#/components/schemas/HardwareConfig/properties/banks"
+          description: |
+            The whole bank array, replacing what is stored — it is a list whose
+            order carries meaning, so there is no useful way to merge one
+            partially.
+
+            Sending it alongside `targetGpio`/`targetActiveLow` is allowed but
+            they must agree with `banks[0]`, otherwise the write is refused with
+            `/problems/hardware_config_invalid`; there is no rule for deciding
+            which of two contradictory values the operator meant. Sending only
+            the scalars edits bank A and leaves every other bank alone.
         targetGpio:
           $ref: "#/components/schemas/HardwareConfig/properties/targetGpio"
         targetActiveLow:
@@ -2174,6 +2305,7 @@ components:
             - /problems/hardware_config_serial_only
             - /problems/hardware_config_window_closed
             - /problems/wifi_credentials_invalid
+            - /problems/bank_unavailable
             # upload
             - /problems/upload_missing_file
             - /problems/upload_missing_title
@@ -2663,13 +2795,39 @@ components:
           description: The device's current address, or empty when it has none.
         targetGpio:
           type: integer
-          description: The GPIO number the target hardware is wired to.
+          description: Bank A's GPIO, the same value as `banks[0].gpio`.
         targetGpioLevel:
           type: integer
           description: >-
-            The level actually on the pad, read back rather than remembered —
-            the pair with `targetGpio` distinguishes "the firmware never drove
-            it" from "something else is holding it".
+            The level actually on bank A's pad, read back rather than
+            remembered — the pair with `targetGpio` distinguishes "the firmware
+            never drove it" from "something else is holding it".
+        banks:
+          type: array
+          minItems: 1
+          maxItems: 8
+          description: >-
+            The same pair per bank, so the read-back that answers "is the
+            firmware driving what it thinks it is" works on a device with more
+            than one. Beside the two scalars rather than replacing them: a
+            client from before banks keeps reading bank A where it always did.
+          items:
+            type: object
+            required: [id, gpio, padLevel, name]
+            additionalProperties: false
+            properties:
+              id:
+                $ref: "#/components/schemas/BankLetter"
+              gpio:
+                type: integer
+                description: The GPIO this bank drives.
+              padLevel:
+                type: integer
+                description: The level actually on that pad.
+              name:
+                type: string
+                maxLength: 16
+                description: The bank's configured name, possibly empty.
         controlLockEnabled:
           type: boolean
         startupIssues:

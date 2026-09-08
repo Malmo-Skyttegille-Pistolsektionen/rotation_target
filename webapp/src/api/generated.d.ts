@@ -528,7 +528,17 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Flip the targets */
+        /**
+         * Flip the targets
+         * @description With a `banks` list, each named bank flips independently of the others.
+         *
+         *     Without one, the device needs a single answer for banks that may not
+         *     agree, and takes the one an operator reaching for a single button
+         *     means: **if every bank is shown, hide them all; otherwise show them
+         *     all.** So a mixed strip resolves to all-shown on the first press and
+         *     all-hidden on the second, rather than staying mixed for ever. On a
+         *     one-bank device this is the flip it has always been.
+         */
         post: operations["toggleTargets"];
         delete?: never;
         options?: never;
@@ -910,6 +920,22 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * @description A target bank, addressed by the letter its position gives it: `A` is `banks[0]`. Upper case only — one spelling per bank keeps the device from having to decide whether `a` and `A` are the same request.
+         * @example B
+         */
+        BankLetter: string;
+        BankSelection: {
+            /** @description The banks to move. Unique, because naming a bank twice says nothing a single mention does not. */
+            banks: components["schemas"]["BankLetter"][];
+        };
+        /** @description One independently driven target group: one GPIO, one polarity, one name. Which letter it answers to is its position in `banks`, not anything stored here. */
+        TargetBank: {
+            gpio: components["schemas"]["HardwareConfig"]["targetGpio"];
+            activeLow: components["schemas"]["HardwareConfig"]["targetActiveLow"];
+            /** @description What operators call this bank — `Vänster`, `Bana 3`. Display only, and may be empty, in which case a client shows the letter alone. It lives in the hardware configuration and never in a program, so renaming a bank cannot re-aim one. */
+            name: string;
+        };
+        /**
          * @description What a device can be told about its own hardware without rebuilding it
          *     (#144).
          *
@@ -920,18 +946,35 @@ export interface components {
          *     `targetsShownAtBoot` is here but read-only: it is configurable, because
          *     which resting position is safe is a property of the target system, but
          *     only from the serial console (D-31). A safety default a remote UI can
-         *     switch off is not one.
+         *     switch off is not one. It is one setting for every bank — where the
+         *     targets rest at boot is a property of the range, not of a bank.
          *
-         *     Bank count is absent for the same reason it is fixed at one: banks are
-         *     a contract change (D-08, D-20), not a configuration key.
+         *     **Bank count is `banks.length`** (D-41). A device drives one to eight
+         *     target banks, lettered by position: `banks[0]` is bank A. `targetGpio`
+         *     and `targetActiveLow` stay required and describe bank A, so a client
+         *     that predates banks sees the device it always saw.
          */
         HardwareConfig: {
             /**
+             * @description The target banks, in letter order: `banks[0]` is bank A, `banks[1]`
+             *     bank B, up to H. The letter is the position — there is no id field,
+             *     because a stored id and an array index are two answers to the same
+             *     question and they drift.
+             *
+             *     Eight is a firmware constant, not a protocol limit; raising it later
+             *     is additive.
+             *
+             *     Optional in a response only so a client reading a firmware from
+             *     before this field degrades to `targetGpio`/`targetActiveLow`. This
+             *     firmware always sends it, with at least one entry.
+             */
+            banks?: components["schemas"]["TargetBank"][];
+            /**
              * Format: int32
-             * @description The GPIO driving the target circuit. 22-25 do not exist on this chip and 26-32 are the module's own flash and PSRAM; both are refused, because driving one stops the device booting rather than merely failing to move a target.
+             * @description Bank A's GPIO, the same value as `banks[0].gpio`. 22-25 do not exist on this chip, 26-32 are the module's own flash and PSRAM, 35-37 are the octal PSRAM's extra data lines on the modules we ship, and 43-44 are the UART0 console; all are refused, because driving one stops the device booting — or takes away the way back from a bad configuration — rather than merely failing to move a target.
              */
             targetGpio: number;
-            /** @description Whether a low level shows the targets. The prototype drives a BC547B whose low state opens the connection; a board that buffers or inverts the signal wants `false`. */
+            /** @description Whether a low level shows bank A, the same value as `banks[0].activeLow`. The prototype drives a BC547B whose low state opens the connection; a board that buffers or inverts the signal wants `false`. */
             targetActiveLow: boolean;
             /** @description mDNS name and the setup access point's SSID prefix, so `<hostname>.local` reaches the device and the portal appears as `<hostname>-setup-XXXX`. Two clubs on one network need two names. Bounded at 20 because the SSID suffix has to fit in 32. */
             hostname: string;
@@ -1056,6 +1099,18 @@ export interface components {
          *     added to one and not the other stops compiling.
          */
         HardwareConfigPatch: {
+            /**
+             * @description The whole bank array, replacing what is stored — it is a list whose
+             *     order carries meaning, so there is no useful way to merge one
+             *     partially.
+             *
+             *     Sending it alongside `targetGpio`/`targetActiveLow` is allowed but
+             *     they must agree with `banks[0]`, otherwise the write is refused with
+             *     `/problems/hardware_config_invalid`; there is no rule for deciding
+             *     which of two contradictory values the operator meant. Sending only
+             *     the scalars edits bank A and leaves every other bank alone.
+             */
+            banks?: components["schemas"]["HardwareConfig"]["banks"];
             targetGpio?: components["schemas"]["HardwareConfig"]["targetGpio"];
             targetActiveLow?: components["schemas"]["HardwareConfig"]["targetActiveLow"];
             hostname?: components["schemas"]["HardwareConfig"]["hostname"];
@@ -1184,7 +1239,7 @@ export interface components {
              *     `program_invalid` `backend_issue` code in `asyncapi.yaml`.
              * @enum {string}
              */
-            type: "/problems/control_lock_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/control_lock_already_enabled" | "/problems/control_lock_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/wifi_unavailable" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/ota_image_refused" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/hardware_config_invalid" | "/problems/hardware_config_serial_only" | "/problems/hardware_config_window_closed" | "/problems/wifi_credentials_invalid" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed" | "/problems/wifi_store_failed";
+            type: "/problems/control_lock_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/control_lock_already_enabled" | "/problems/control_lock_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/wifi_unavailable" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/ota_image_refused" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/hardware_config_invalid" | "/problems/hardware_config_serial_only" | "/problems/hardware_config_window_closed" | "/problems/wifi_credentials_invalid" | "/problems/bank_unavailable" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed" | "/problems/wifi_store_failed";
             /**
              * @description A short summary of the type, identical for every occurrence of it. Not for display — it does not describe this occurrence.
              * @example Program is read-only
@@ -1377,10 +1432,20 @@ export interface components {
             audioCount: number;
             /** @description The device's current address, or empty when it has none. */
             ipAddress: string;
-            /** @description The GPIO number the target hardware is wired to. */
+            /** @description Bank A's GPIO, the same value as `banks[0].gpio`. */
             targetGpio: number;
-            /** @description The level actually on the pad, read back rather than remembered — the pair with `targetGpio` distinguishes "the firmware never drove it" from "something else is holding it". */
+            /** @description The level actually on bank A's pad, read back rather than remembered — the pair with `targetGpio` distinguishes "the firmware never drove it" from "something else is holding it". */
             targetGpioLevel: number;
+            /** @description The same pair per bank, so the read-back that answers "is the firmware driving what it thinks it is" works on a device with more than one. Beside the two scalars rather than replacing them: a client from before banks keeps reading bank A where it always did. */
+            banks?: {
+                id: components["schemas"]["BankLetter"];
+                /** @description The GPIO this bank drives. */
+                gpio: number;
+                /** @description The level actually on that pad. */
+                padLevel: number;
+                /** @description The bank's configured name, possibly empty. */
+                name: string;
+            }[];
             controlLockEnabled: boolean;
             /**
              * @description The `backend_issue` events raised during boot, before the HTTP
@@ -1437,6 +1502,20 @@ export interface components {
     };
     responses: {
         /**
+         * @description - `/problems/bank_unavailable` — a letter in `banks` names a bank this
+         *       device does not have. `detail` names the letter and the range the
+         *       device does have. Nothing moved: the list is applied as a whole, so a
+         *       typo cannot half-work.
+         */
+        BankUnavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /**
          * @description - `/problems/control_lock_credentials_required` — the control lock is on
          *       and no
          *       valid token was presented.
@@ -1470,7 +1549,14 @@ export interface components {
         /** @description Audio clip id. Must be a plain decimal integer within `int32`. */
         AudioId: number;
     };
-    requestBodies: never;
+    requestBodies: {
+        /** @description Which target banks to move. **Omit the body entirely to move every bank** — that is what every client did before banks existed and what a one-bank device is always asked. */
+        BankSelection: {
+            content: {
+                "application/json": components["schemas"]["BankSelection"];
+            };
+        };
+    };
     headers: never;
     pathItems: never;
 }
@@ -2189,9 +2275,9 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: components["requestBodies"]["BankSelection"];
         responses: {
-            /** @description Targets shown. */
+            /** @description The banks that moved, named in `message` — `Targets shown` on a device with one bank, `Banks B and C shown` on one with more. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2200,6 +2286,7 @@ export interface operations {
                     "application/json": components["schemas"]["Message"];
                 };
             };
+            400: components["responses"]["BankUnavailable"];
             401: components["responses"]["Unauthorized"];
         };
     };
@@ -2210,9 +2297,9 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: components["requestBodies"]["BankSelection"];
         responses: {
-            /** @description Targets hidden. */
+            /** @description The banks that moved, named in `message`. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2221,6 +2308,7 @@ export interface operations {
                     "application/json": components["schemas"]["Message"];
                 };
             };
+            400: components["responses"]["BankUnavailable"];
             401: components["responses"]["Unauthorized"];
         };
     };
@@ -2231,9 +2319,9 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: components["requestBodies"]["BankSelection"];
         responses: {
-            /** @description The resulting state, as `Targets shown` or `Targets hidden`. */
+            /** @description The resulting state, as `Targets shown` or `Targets hidden` on a one-bank device, naming the banks that moved on a device with more. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2242,6 +2330,7 @@ export interface operations {
                     "application/json": components["schemas"]["Message"];
                 };
             };
+            400: components["responses"]["BankUnavailable"];
             401: components["responses"]["Unauthorized"];
         };
     };

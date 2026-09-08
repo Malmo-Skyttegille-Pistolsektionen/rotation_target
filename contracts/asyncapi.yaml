@@ -153,7 +153,9 @@ components:
         $ref: "#/components/schemas/StateUpdate"
       examples:
         - name: running
-          summary: A program part-way through its first series.
+          summary: >-
+            A program part-way through its first series, on a one-bank device:
+            no `targetBanks`.
           payload:
             loadedProgramId: 1
             programState:
@@ -179,6 +181,22 @@ components:
             loadedProgramId: null
             programState: null
             targetStatus: hidden
+        - name: three-banks-mixed
+          summary: >-
+            A three-bank device with B hidden. `targetStatus` reports `A`, so a
+            client that ignores `targetBanks` still reads a true value.
+          payload:
+            loadedProgramId: 1
+            programState:
+              running: true
+              currentSeriesIndex: 0
+              currentEventIndex: 2
+              tickerMs: 7480
+            targetStatus: shown
+            targetBanks:
+              A: shown
+              B: hidden
+              C: shown
 
     heartbeat:
       name: heartbeat
@@ -257,6 +275,17 @@ components:
             message: An uploaded program's id collides with a shipped one; the shipped program was kept
             context:
               file: /storage/uploads/programs/1001.json
+        - name: bank-does-not-follow
+          summary: >-
+            Bank C was driven low and read back high. Specified here so a
+            client can render it; the firmware does not sample the pads yet.
+          payload:
+            code: target_bank_fault
+            message: Bank C did not follow the level it was driven to
+            context:
+              bank: C
+              expected: "0"
+              actual: "1"
 
     libraryChanged:
       name: libraryChanged
@@ -395,8 +424,24 @@ components:
           type: string
           enum: [shown, hidden]
           description: >-
-            Where the targets are. Always present, including when nothing is
-            loaded: the targets can be moved outside a program run.
+            Where **bank A** is (D-41). Always present, including when nothing
+            is loaded: the targets can be moved outside a program run. Truthful
+            and partial on a device with several banks — the alternative,
+            "shown if any is", would invent a meaning no client asked for.
+        targetBanks:
+          type: object
+          propertyNames:
+            pattern: "^[A-H]$"
+          additionalProperties:
+            type: string
+            enum: [shown, hidden]
+          description: >-
+            Where every bank is, keyed by letter. Present when the device has
+            more than one bank, and then it carries **exactly one key per
+            bank** — `A`..`H` contiguous from `A`, so a client can read the
+            bank count off it. Absent on a one-bank device, where
+            `targetStatus` already says everything there is to say. `A` here
+            and `targetStatus` never disagree.
 
     ProgramState:
       type: object
@@ -491,6 +536,12 @@ components:
               `program_id_collision`: an uploaded clip's id already belongs to
               a shipped one, the shipped clip is kept, and the uploaded entry
               is left unloaded.
+            - `target_bank_fault` — a bank's pad was read back and did not
+              carry the level the firmware drove it to. Something external is
+              holding the line, or the pin is not the one that bank is wired
+              to. The run is unaffected and the device keeps driving the bank;
+              this exists because with several banks a single stuck one is
+              otherwise invisible until somebody walks downrange.
 
             `program_invalid` is also a REST problem type,
             `/problems/program_invalid` in `openapi.yaml` — one failure, one
@@ -501,6 +552,7 @@ components:
             - program_invalid
             - program_id_collision
             - audio_id_collision
+            - target_bank_fault
         message:
           type: string
           description: >-
@@ -528,6 +580,22 @@ components:
                 file's path on the device filesystem. `audio_id_collision`:
                 the audio index's path instead, since the collision is a
                 shipped/uploaded id pair rather than one bad file.
+            bank:
+              type: string
+              pattern: "^[A-H]$"
+              description: "`target_bank_fault`: the bank's letter."
+            expected:
+              type: string
+              enum: ["0", "1"]
+              description: >-
+                `target_bank_fault`: the pad level the firmware drove, as a
+                digit. A string like every other value here — `context` is a
+                map of strings, so a client shows it rather than computing with
+                it.
+            actual:
+              type: string
+              enum: ["0", "1"]
+              description: "`target_bank_fault`: the level read back instead."
 
     LibraryChanged:
       type: object
