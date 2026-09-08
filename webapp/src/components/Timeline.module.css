@@ -510,3 +510,226 @@
   color: #b45309;
   white-space: nowrap;
 }
+
+/* --- Per-bank glyph on a card ----------------------------------------------
+   Drawn only when the device has more than one bank. The letters carry the
+   state the event leaves each bank in - not what it commanded - so a card is
+   read the same way whether the state came from this event or the last one.
+   A cell the event drove is solid; a carried one is tinted, which is the
+   second channel beside the letter itself (WCAG 1.4.1).
+
+   Solid green is go (#15803d), not #16a34a: white on green-600 measures 3.3:1
+   and fails AA, and these letters are 0.6rem. The Readable Signal Rule. */
+.glyph {
+  display: grid;
+  gap: 2px;
+  margin: 2px auto 0;
+  width: 100%;
+  max-width: 72px;
+}
+
+.glyphCell {
+  height: 16px;
+  line-height: 16px;
+  border-radius: 2px;
+  border: 1px solid #d1d5db;
+  background-color: #f3f4f6;
+  color: #6b7280;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.glyphCell.bankShown {
+  background-color: #dcfce7;
+  border-color: #16a34a;
+  color: #14532d;
+}
+
+.glyphCell.bankHidden {
+  background-color: #fee2e2;
+  border-color: #fca5a5;
+  color: #7f1d1d;
+}
+
+.glyphCell.addressed.bankShown {
+  background-color: #15803d;
+  border-color: #15803d;
+  color: #fff;
+}
+
+.glyphCell.addressed.bankHidden {
+  background-color: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+
+/* --- Time-scaled view, one lane per bank ------------------------------------
+   The single-bank view is untouched; this is what replaces it once a device
+   has banks. A sequence - A, then B, then C - reads as a staircase here, which
+   is what makes a multi-bank program reviewable before anyone walks downrange. */
+.lanes {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 8px;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding: 0.75rem;
+  background-color: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.laneLabel {
+  font-size: 0.85rem;
+  color: #4b5563;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.laneLetter {
+  font-weight: 600;
+  color: #111827;
+}
+
+.lane {
+  position: relative;
+  height: 22px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background-color: #f3f4f6;
+  overflow: hidden;
+}
+
+.laneSegment {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.laneSegment.bankShown {
+  background-color: #16a34a;
+}
+
+.laneSegment.bankHidden {
+  background-color: #dc2626;
+}
+
+/* Where this bank's state actually changes. A boundary between two events that
+   left it alone is not a boundary as far as the steel is concerned, so only
+   the ones that moved get an edge. */
+.laneSegment.edge {
+  border-left: 2px solid #fff;
+}
+
+.laneSegment.active {
+  box-shadow: inset 0 0 0 2px #4338ca;
+}
+
+.laneCursor {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 3px;
+  margin-left: -1.5px;
+  background-color: #e53935;
+  border-radius: 2px;
+  z-index: 3;
+  pointer-events: none;
+  transition: left 0.1s linear;
+}
+
+.audioLane {
+  position: relative;
+  height: 16px;
+}
+
+.audioMark {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  color: #6b7280;
+}
+
+.laneAxis {
+  position: relative;
+  height: 18px;
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.laneAxis span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.laneAxis span:first-child {
+  transform: none;
+}
+
+.laneAxis span:last-child {
+  transform: translateX(-100%);
+}
+
+/* Every bank, its state, and whether this event is what put it there. */
+.bankList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+}
+
+.bankList span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.bankSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  display: inline-block;
+}
+
+.bankSwatch.bankShown {
+  background-color: #16a34a;
+}
+
+.bankSwatch.bankHidden {
+  background-color: #dc2626;
+}
+
+.bankSwatch.carried.bankShown {
+  background-color: #dcfce7;
+  border-color: #16a34a;
+}
+
+.bankSwatch.carried.bankHidden {
+  background-color: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.bankCarried {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+/* The 768px breakpoint, again: a phone fits five cards across, and the glyph
+   has to shrink with the card rather than setting its width. */
+@media (max-width: 768px) {
+  .glyph {
+    max-width: 56px;
+  }
+
+  .glyphCell {
+    height: 14px;
+    line-height: 14px;
+  }
+
+  .laneLabel small {
+    display: none;
+  }
+}

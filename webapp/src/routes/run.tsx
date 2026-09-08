@@ -264,6 +264,9 @@ export function RunView(): React.ReactNode {
   const currentEventIndex = state?.programState?.currentEventIndex;
   const tickerMs = state?.programState?.tickerMs;
   const isRunning = state?.programState?.running ?? false;
+  // How many banks the device drives, from the first SSE frame. Absent - a
+  // one-bank device, or a firmware older than banks - means one.
+  const bankCount = Object.keys(state?.targetBanks ?? {}).length || 1;
 
   const { data: loadedProgram } = useQuery({
     queryKey: ['program', loadedProgramId],
@@ -724,6 +727,7 @@ export function RunView(): React.ReactNode {
           currentEventIndex={currentEventIndex ?? null}
           tickerMs={tickerMs ?? null}
           mode={timelineMode}
+          bankCount={bankCount}
           audioTitles={audioTitles}
           // Absent while a run is in progress: Skip is for the pause between
           // series, not for cutting one short - that is what Pause is for.

@@ -14,6 +14,7 @@ type Position = {
   tickerMs?: number | null;
   mode?: 'auto' | 'default' | 'field';
   audioTitles?: Record<number, string>;
+  bankCount?: number;
 };
 
 function renderTimeline(program: Program, position: Position = {}) {
@@ -24,6 +25,7 @@ function renderTimeline(program: Program, position: Position = {}) {
       currentEventIndex={position.currentEventIndex ?? null}
       tickerMs={position.tickerMs ?? null}
       mode={position.mode}
+      bankCount={position.bankCount}
       audioTitles={position.audioTitles}
     />,
   );
@@ -521,5 +523,139 @@ describe('the timer anchor (#126)', () => {
 
     renderTimeline(anchored(undefined, true), { mode: 'default' });
     expect(screen.queryByTestId('timeline-anchor-0')).toBeNull();
+  });
+});
+
+/**
+ * A four-bank program in the shape the example ships: a baseline that hides
+ * everything, one letter shown per event, and a pause that names nothing.
+ */
+const BANKED: Program = {
+  id: 41,
+  title: 'Fältträning, 4 mål',
+  description: '',
+  readonly: false,
+  series: [
+    {
+      name: 'Station 1',
+      optional: false,
+      events: [
+        { duration: 7000, command: 'hide', audio_ids: [26] },
+        { duration: 4000, banks: { A: 'show' } },
+        { duration: 4000, command: 'hide', banks: { B: 'show' } },
+        { duration: 3000, command: 'hide' },
+        { duration: 4000 },
+      ],
+    },
+  ],
+};
+
+describe('target banks', () => {
+  // The property the whole feature is built around: a device with one bank
+  // renders what it always rendered. Asserted on the markup rather than on a
+  // handful of selectors, so nothing about the banked path can leak in.
+  it('renders byte-for-byte what it did before when the device has one bank', () => {
+    const explicit = render(
+      <Timeline
+        program={PROGRAM_FALT_TRANING}
+        currentSeriesIndex={0}
+        currentEventIndex={2}
+        tickerMs={9000}
+        bankCount={1}
+      />,
+    ).container.innerHTML;
+    cleanup();
+
+    const defaulted = render(
+      <Timeline program={PROGRAM_FALT_TRANING} currentSeriesIndex={0} currentEventIndex={2} tickerMs={9000} />,
+    ).container.innerHTML;
+
+    expect(explicit).toBe(defaulted);
+    expect(defaulted).not.toContain('glyph');
+  });
+
+  it('draws a lettered cell per bank on each card', () => {
+    renderTimeline(BANKED, { mode: 'default', bankCount: 4 });
+
+    const glyph = screen.getByTestId('timeline-event-0-1').querySelector('.glyph');
+    expect(Array.from(glyph?.children ?? []).map((cell) => cell.textContent)).toEqual(['A', 'B', 'C', 'D']);
+  });
+
+  it('shows the resulting state of every bank, carried from the previous event', () => {
+    renderTimeline(BANKED, { mode: 'default', bankCount: 4 });
+
+    // `hide` with `{A: show}` on top: A shown and addressed, B-D hidden and
+    // addressed by the baseline.
+    const cells = screen.getByTestId('timeline-event-0-1').querySelectorAll('.glyph > *');
+    expect(cells[0].className).toContain('bankShown');
+    expect(cells[1].className).toContain('bankHidden');
+
+    // The pause names nothing, so every cell carries the previous state and
+    // none of them is solid.
+    const carried = screen.getByTestId('timeline-event-0-4').querySelectorAll('.glyph > *');
+    expect(Array.from(carried).every((cell) => !cell.className.includes('addressed'))).toBe(true);
+  });
+
+  it('tints a card only when every bank agrees', () => {
+    renderTimeline(BANKED, { mode: 'default', bankCount: 4 });
+
+    // Every bank hidden.
+    expect(screen.getByTestId('timeline-event-0-0').className).toContain('hide');
+    // A shown, the rest hidden.
+    const mixed = screen.getByTestId('timeline-event-0-1').className;
+    expect(mixed).not.toContain('hide');
+    expect(mixed).not.toContain('show');
+  });
+
+  it('drops the command icon on an event that names a bank, and keeps it otherwise', () => {
+    renderTimeline(BANKED, { mode: 'default', bankCount: 4 });
+
+    expect(screen.getByTestId('timeline-event-0-2').querySelector('svg[aria-label="Targets hidden"]')).toBeNull();
+    expect(screen.getByTestId('timeline-event-0-3').querySelector('svg[aria-label="Targets hidden"]')).toBeTruthy();
+  });
+
+  it('draws one lane per bank in the time-scaled view, plus the cursor', () => {
+    renderTimeline(BANKED, { mode: 'field', bankCount: 4, currentSeriesIndex: 0, tickerMs: 9000 });
+
+    expect(document.querySelectorAll('.lane')).toHaveLength(4);
+    expect(screen.getByTestId('timeline-lane-0-C')).toBeTruthy();
+    expect(screen.getByTestId('timeline-cursor')).toBeTruthy();
+    // One segment per event, per lane.
+    expect(screen.getByTestId('timeline-lane-0-A').querySelectorAll('.laneSegment')).toHaveLength(5);
+  });
+
+  it('marks the lane edge only where that bank actually moved', () => {
+    renderTimeline(BANKED, { mode: 'field', bankCount: 4 });
+
+    const laneA = screen.getByTestId('timeline-lane-0-A').querySelectorAll('.laneSegment');
+    // A: hidden, shown, hidden, hidden, hidden - edges at events 1 and 2 only.
+    expect(Array.from(laneA).map((segment) => segment.className.includes('edge'))).toEqual([
+      false,
+      true,
+      true,
+      false,
+      false,
+    ]);
+  });
+
+  it('keeps the single-lane time-scaled view on a one-bank device', () => {
+    renderTimeline(PROGRAM_FALT_TRANING, { mode: 'field' });
+    expect(document.querySelectorAll('.lane')).toHaveLength(0);
+    expect(document.querySelector('.fieldContainer')).toBeTruthy();
+  });
+
+  it('lists every bank in the detail panel, naming the ones the event left alone', () => {
+    renderTimeline(BANKED, { mode: 'default', bankCount: 4 });
+    fireEvent.click(screen.getByTestId('timeline-event-0-1'));
+
+    const targets = detailRow('Targets');
+    expect(targets).toContain('A shown');
+    expect(targets).toContain('B hidden');
+    expect(targets).not.toContain('A shown (unchanged)');
+
+    cleanup();
+    renderTimeline(BANKED, { mode: 'default', bankCount: 4 });
+    fireEvent.click(screen.getByTestId('timeline-event-0-4'));
+    expect(detailRow('Targets')).toContain('D hidden (unchanged)');
   });
 });
