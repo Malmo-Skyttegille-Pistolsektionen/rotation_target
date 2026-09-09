@@ -1686,8 +1686,8 @@ components:
       description: |
         Which target banks to move.
 
-        - **No body, or `{}`** — every bank. That is what every client did
-          before banks existed and what a one-bank device is always asked.
+        - **No body, or `{}`** — every bank. That is what a one-bank device is
+          always asked, and what the button on the device means.
         - **`banks` present** — those banks, and only if the device has every
           one of them.
 
@@ -1827,13 +1827,12 @@ components:
         targets rest at boot is a property of the range, not of a bank.
 
         **Bank count is `banks.length`** (D-41). A device drives one to eight
-        target banks, lettered by position: `banks[0]` is bank A. `targetGpio`
-        and `targetActiveLow` stay required and describe bank A, so a client
-        that predates banks sees the device it always saw.
+        target banks, lettered by position: `banks[0]` is bank A. The array is
+        the only description of the targets — there are no scalars beside it to
+        keep in agreement.
       required:
         [
-          targetGpio,
-          targetActiveLow,
+          banks,
           hostname,
           displayName,
           targetsShownAtBoot,
@@ -1859,25 +1858,8 @@ components:
 
             Eight is a firmware constant, not a protocol limit; raising it later
             is additive.
-
-            Optional in a response only so a client reading a firmware from
-            before this field degrades to `targetGpio`/`targetActiveLow`. This
-            firmware always sends it, with at least one entry.
           items:
             $ref: "#/components/schemas/TargetBank"
-        # Bare `$ref`s with a sibling `description` (legal in 3.1), not `allOf`:
-        # the breaking-change check runs without flattening, where an `allOf`
-        # wrapper reads as the type going from integer to "any".
-        targetGpio:
-          $ref: "#/components/schemas/TargetBankGpio"
-          description: >-
-            Bank A's GPIO — the same value as `banks[0].gpio`, kept beside the
-            array so a client from before banks reads the field it always read.
-        targetActiveLow:
-          $ref: "#/components/schemas/TargetBankActiveLow"
-          description: >-
-            Whether a low level shows bank A — the same value as
-            `banks[0].activeLow`.
         hostname:
           type: string
           minLength: 1
@@ -2046,17 +2028,9 @@ components:
           description: |
             The whole bank array, replacing what is stored — it is a list whose
             order carries meaning, so there is no useful way to merge one
-            partially.
-
-            Sending it alongside `targetGpio`/`targetActiveLow` is allowed but
-            they must agree with `banks[0]`, otherwise the write is refused with
-            `/problems/hardware_config_invalid`; there is no rule for deciding
-            which of two contradictory values the operator meant. Sending only
-            the scalars edits bank A and leaves every other bank alone.
-        targetGpio:
-          $ref: "#/components/schemas/HardwareConfig/properties/targetGpio"
-        targetActiveLow:
-          $ref: "#/components/schemas/HardwareConfig/properties/targetActiveLow"
+            partially. Editing one bank means sending them all, which is also
+            what makes a two-bank device's `banks` unambiguous when a form was
+            opened against a one-bank one.
         hostname:
           $ref: "#/components/schemas/HardwareConfig/properties/hostname"
         displayName:
@@ -2763,8 +2737,7 @@ components:
         - programCount
         - audioCount
         - ipAddress
-        - targetGpio
-        - targetGpioLevel
+        - banks
         - controlLockEnabled
         - startupIssues
       properties:
@@ -2857,24 +2830,15 @@ components:
         ipAddress:
           type: string
           description: The device's current address, or empty when it has none.
-        targetGpio:
-          type: integer
-          description: Bank A's GPIO, the same value as `banks[0].gpio`.
-        targetGpioLevel:
-          type: integer
-          description: >-
-            The level actually on bank A's pad, read back rather than
-            remembered — the pair with `targetGpio` distinguishes "the firmware
-            never drove it" from "something else is holding it".
         banks:
           type: array
           minItems: 1
           maxItems: 8
           description: >-
-            The same pair per bank, so the read-back that answers "is the
-            firmware driving what it thinks it is" works on a device with more
-            than one. Beside the two scalars rather than replacing them: a
-            client from before banks keeps reading bank A where it always did.
+            A GPIO and its read-back level per bank, which is what answers "is
+            the firmware driving what it thinks it is". `padLevel` is read from
+            the pad rather than remembered, so it tells "the firmware never
+            drove it" apart from "something else is holding it".
           items:
             type: object
             required: [id, gpio, padLevel, name]
