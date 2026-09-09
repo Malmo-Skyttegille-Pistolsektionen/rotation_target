@@ -371,7 +371,43 @@ jobs:
           assert i is not None, "no stateUpdate frame arrived on /sse/v2 within 5s"
           data = next(ln for ln in lines[i + 1:] if ln.startswith("data: "))
           state = json.loads(data[len("data: "):])
-          assert "targetStatus" in state, f"stateUpdate carries no targetStatus: {state}"
+          banks = state.get("targetBanks")
+          assert isinstance(banks, dict) and banks, f"stateUpdate carries no targetBanks: {state}"
+          # One key per bank, contiguous from A - which is what lets a client
+          # read the bank count off the key count.
+          letters = sorted(banks)
+          expected = [chr(ord("A") + n) for n in range(len(letters))]
+          assert letters == expected, f"targetBanks keys are not contiguous from A: {letters}"
+          EOF
+
+      - name: GET /api/v2/config/hardware
+        shell: bash
+        run: |
+          curl -sSf http://127.0.0.1:8080/api/v2/config/hardware -o hardware.json
+          python3 - hardware.json <<'EOF'
+          import json, sys
+          d = json.load(open(sys.argv[1]))
+          # hardware_config_json() has no host test behind it, so this is the
+          # only place the serialiser itself is exercised (#207 stage 4).
+          for view in ("active", "saved", "defaults"):
+              banks = d[view].get("banks")
+              assert isinstance(banks, list) and banks, f"{view}.banks is empty or absent: {d[view]}"
+              assert "targetGpio" not in d[view], f"{view} still carries targetGpio: {d[view]}"
+              assert "targetActiveLow" not in d[view], f"{view} still carries targetActiveLow: {d[view]}"
+          print(f"{len(d['active']['banks'])} bank(s) active")
+          EOF
+
+      - name: GET /api/v2/diagnostics/info
+        shell: bash
+        run: |
+          curl -sSf http://127.0.0.1:8080/api/v2/diagnostics/info -o info.json
+          python3 - info.json <<'EOF'
+          import json, sys
+          d = json.load(open(sys.argv[1]))
+          banks = d.get("banks")
+          assert isinstance(banks, list) and banks, f"diagnostics/info carries no banks: {d}"
+          for key in ("targetGpio", "targetGpioLevel"):
+              assert key not in d, f"diagnostics/info still carries {key}: {d}"
           EOF
 
       - name: GET / is the API-only 404
