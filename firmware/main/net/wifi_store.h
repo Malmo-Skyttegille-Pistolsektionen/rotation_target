@@ -48,4 +48,15 @@ bool forget();
 // Whether credentials have ever been saved. False on an out-of-box device.
 bool provisioned();
 
+// Whether save() has succeeded since this device booted, i.e. NVS holds
+// credentials the station is not using - the WiFi half of the restart the
+// `GET /api/v2/wifi` response reports.
+//
+// A flag rather than a comparison of the stored SSID against the joined one:
+// after a restart the store may legitimately have fallen back to a compiled
+// seed, which is a device running what it was told rather than one waiting to
+// be restarted, and a comparison would also miss a password corrected on the
+// same SSID. Set inside save(), so no future writer can forget to.
+bool saved_since_boot();
+
 }  // namespace wifi_store

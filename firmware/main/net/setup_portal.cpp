@@ -15,12 +15,12 @@
 // to upstream, so the ordering is fixed here rather than there.
 #include "dns_server.h"
 #include "ssid_choice.h"
-#include "esp_system.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "json_util.h"
 #include "boot_button.h"
+#include "restart.h"
 #include "rgb_led.h"
 #include "wifi_scan.h"
 #include "wifi_store.h"
@@ -305,10 +305,12 @@ esp_err_t save(httpd_req_t *req) {
   httpd_resp_send(req, "<p>Saved. The device is restarting and will join that network.</p>",
                   HTTPD_RESP_USE_STRLEN);
 
-  // Long enough for the response to leave the socket before the reset.
-  vTaskDelay(pdMS_TO_TICKS(1500));
-  ESP_LOGI(TAG, "Credentials saved - restarting");
-  esp_restart();
+  // The portal is the one place a save still restarts on its own. Everywhere
+  // else the operator decides when (POST /api/v2/system/restart) - here there
+  // is nothing else to decide: the device is serving its own access point and
+  // joining the network that was just typed is the only thing left to do.
+  device_restart::schedule("credentials saved at the setup portal");
+  return ESP_OK;
 }
 
 void start_ap() {

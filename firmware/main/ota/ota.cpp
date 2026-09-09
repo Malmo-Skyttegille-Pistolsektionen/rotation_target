@@ -6,14 +6,11 @@
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
-#include "esp_system.h"
-#include "esp_timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 
 #include "ota_policy.h"
 #include "problem.h"
 #include "program_executor.h"
+#include "restart.h"
 #include "sse_hub.h"
 
 namespace ota {
@@ -25,8 +22,8 @@ const esp_partition_t *s_partition = nullptr;
 volatile bool s_in_progress = false;
 uint64_t s_written = 0;
 
-// Set when the image is accepted; the reboot happens from its own task so the
-// HTTP response is actually delivered before the chip restarts.
+// Set when the image is accepted; device_restart::schedule leaves long enough
+// for the HTTP response to be delivered before the chip restarts.
 volatile bool s_reboot_pending = false;
 
 // Why the last upload was refused, so onRequest can answer with the status the
@@ -48,13 +45,6 @@ void abort_upload(const char *why) {
   ESP_LOGE(TAG, "Aborting: %s", why);
   if (s_handle != 0) esp_ota_abort(s_handle);
   clear();
-}
-
-void reboot_task(void *) {
-  // Long enough for the 200 to reach the client and the socket to drain.
-  vTaskDelay(pdMS_TO_TICKS(1500));
-  ESP_LOGW(TAG, "Restarting into the new firmware");
-  esp_restart();
 }
 
 void raise(rt::ota::Refusal refusal) {
@@ -159,7 +149,7 @@ void register_routes(PsychicHttpServer &server) {
              written.version);
     clear();
     s_reboot_pending = true;
-    xTaskCreate(reboot_task, "ota_reboot", 2048, nullptr, 5, nullptr);
+    device_restart::schedule("into the new firmware");
     return ESP_OK;
   });
 
