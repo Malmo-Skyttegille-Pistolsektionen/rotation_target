@@ -236,6 +236,12 @@
   font-size: 1rem;
   font-weight: 700;
   color: #111827;
+  /* The letter and its "changed" pill on one line, so a row does not grow
+     taller than its inputs when the pill appears. */
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
 }
 
 .gpioInput {

@@ -41,6 +41,14 @@ type NumericField = {
   hint: React.ReactNode;
 };
 
+/**
+ * A bank row with no pin typed yet. Not 0, which is a real GPIO the device
+ * refuses (BOOT/strapping), and not `null`, which the contract has no room
+ * for - so it never leaves this component: Save is disabled until every row
+ * carries a pin.
+ */
+const NO_PIN = Number.NaN;
+
 /** `rt::kMaxTargetBanks` and `rt::kMaxBankNameLength`. */
 const MAX_BANKS = 8;
 const MAX_BANK_NAME = 16;
@@ -172,6 +180,7 @@ export function HardwareSection(): React.ReactNode {
   };
 
   const savedBanks = banksOf(saved);
+  const defaultBanks = banksOf(state.defaults);
   const banks: TargetBank[] = draft?.banks ?? savedBanks;
 
   const setBanks = (next: TargetBank[]): void => {
@@ -203,6 +212,9 @@ export function HardwareSection(): React.ReactNode {
   }
   const dirty = Object.keys(patch).length > 0;
   const busy = save.isPending || reset.isPending;
+  // A row still waiting for its pin is not a configuration the device could
+  // accept, so Save waits rather than sending a body that comes back 400.
+  const bankPinMissing = banks.some((bank) => !Number.isFinite(bank.gpio));
 
   /** Marks a field whose stored value is not the compiled default. */
   const overridden = (key: keyof HardwareConfig): boolean => saved[key] !== state.defaults[key];
@@ -281,15 +293,29 @@ export function HardwareSection(): React.ReactNode {
                   <tbody>
                     {banks.map((bank, index) => {
                       const letter = BANK_LETTERS[index];
-                      // Only the last bank goes, so the letters cannot gap:
-                      // removing B on a four-bank device would silently re-aim
-                      // C and D.
+                      // Only the last bank goes: the letter is the position,
+                      // so a gap re-aims the banks after it. Why, in
+                      // `docs/site/expert-mode.md`.
                       const removable = index > 0 && index === banks.length - 1;
+                      // Same "changed" marker every other field carries, so
+                      // "Reset to defaults" says what it would undo. A bank the
+                      // compiled defaults do not have is changed by existing.
+                      const asShipped = defaultBanks[index];
+                      const changed =
+                        asShipped === undefined ||
+                        asShipped.gpio !== bank.gpio ||
+                        asShipped.activeLow !== bank.activeLow ||
+                        asShipped.name !== bank.name;
                       const pad = diagnostics?.banks?.[index]?.padLevel ?? (index === 0 ? diagnostics?.targetGpioLevel : undefined);
                       return (
                         <tr key={index} data-testid={`hardware-bank-row-${letter}`}>
                           <th scope='row' className={styles.bankLetter}>
                             {letter}
+                            {changed && (
+                              <span className={styles.badge} data-testid={`hardware-bank-changed-${letter}`}>
+                                changed
+                              </span>
+                            )}
                           </th>
                           <td>
                             <input
@@ -313,9 +339,15 @@ export function HardwareSection(): React.ReactNode {
                               aria-label={`Bank ${letter} GPIO`}
                               data-testid={`hardware-bank-gpio-${letter}`}
                               disabled={!canManage || busy}
-                              value={String(bank.gpio)}
+                              value={Number.isFinite(bank.gpio) ? String(bank.gpio) : ''}
                               onChange={(e) => {
-                                editBank(index, { gpio: Number(e.target.value) });
+                                // An empty or non-numeric field is "not typed
+                                // yet", never 0 - `Number('')` is 0, which is a
+                                // pin, and the row would silently claim it.
+                                const typed = e.target.value.trim();
+                                editBank(index, {
+                                  gpio: /^\d+$/.test(typed) ? Number(typed) : NO_PIN,
+                                });
                               }}
                             />
                           </td>
@@ -365,6 +397,12 @@ export function HardwareSection(): React.ReactNode {
                 </table>
               </div>
 
+              {bankPinMissing && (
+                <span className={styles.hint} data-testid='hardware-bank-pin-missing'>
+                  Every bank needs a GPIO before this can be saved.
+                </span>
+              )}
+
               <div className={styles.bankActions}>
                 {banks.length < MAX_BANKS ? (
                   <button
@@ -373,9 +411,12 @@ export function HardwareSection(): React.ReactNode {
                     data-testid='hardware-bank-add'
                     disabled={!canManage || busy}
                     onClick={() => {
-                      // Copies the last bank's polarity, which is nearly always
-                      // right: banks on one device are wired the same way.
-                      setBanks([...banks, { gpio: 0, activeLow: banks[banks.length - 1].activeLow, name: '' }]);
+                      // No pin, not 0: GPIO0 is the BOOT strapping pin and is
+                      // always refused, so seeding it would mean a new row is
+                      // born holding a value the device will not take. The
+                      // polarity copies the last bank's, which is nearly always
+                      // right - banks on one device are wired the same way.
+                      setBanks([...banks, { gpio: NO_PIN, activeLow: banks[banks.length - 1].activeLow, name: '' }]);
                     }}
                   >
                     Add bank {BANK_LETTERS[banks.length]}
@@ -468,7 +509,7 @@ export function HardwareSection(): React.ReactNode {
             <button
               className={clsx(styles.button, styles.buttonPrimary)}
               data-testid='hardware-save'
-              disabled={!canManage || !dirty || busy}
+              disabled={!canManage || !dirty || busy || bankPinMissing}
               onClick={() => {
                 save.mutate(patch);
               }}

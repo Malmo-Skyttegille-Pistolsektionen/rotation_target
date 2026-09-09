@@ -309,6 +309,60 @@ describe('the hardware section', () => {
     expect(screen.queryByTestId('hardware-bank-row-C')).toBeNull();
   });
 
+  // GPIO0 is the BOOT strapping pin and always refused, so a new row seeded
+  // with 0 would be born holding a value the device will not take.
+  it('adds a bank with no pin, and waits for one before saving', async () => {
+    await device();
+    renderSection();
+    await open();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('hardware-bank-add'));
+    });
+
+    expect(field('hardware-bank-gpio-B').value).toBe('');
+    expect((screen.getByTestId('hardware-save') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId('hardware-bank-pin-missing')).toBeTruthy();
+
+    await type('hardware-bank-gpio-B', '6');
+    expect((screen.getByTestId('hardware-save') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  // `Number('')` is 0, which is a pin: an emptied field must not silently claim
+  // it, nor serialise as null, which the contract has no room for.
+  it('does not turn an emptied pin into GPIO 0', async () => {
+    await device();
+    renderSection();
+    await open();
+
+    await type('hardware-bank-gpio-A', '');
+
+    expect(field('hardware-bank-gpio-A').value).toBe('');
+    expect((screen.getByTestId('hardware-save') as HTMLButtonElement).disabled).toBe(true);
+
+    await type('hardware-bank-gpio-A', 'seven');
+    expect(field('hardware-bank-gpio-A').value).toBe('');
+  });
+
+  // The same marker every other field carries, so "Reset to defaults" says what
+  // it would undo rather than being a button with unknown consequences.
+  it('marks a bank that differs from the compiled defaults', async () => {
+    await device();
+    renderSection();
+    await open();
+
+    expect(screen.queryByTestId('hardware-bank-changed-A')).toBeNull();
+
+    await type('hardware-bank-name-A', 'Vänster');
+    expect(screen.getByTestId('hardware-bank-changed-A')).toBeTruthy();
+
+    // A bank the defaults do not have is changed by existing.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('hardware-bank-add'));
+    });
+    expect(screen.getByTestId('hardware-bank-changed-B')).toBeTruthy();
+  });
+
   it('stops offering another bank at eight', async () => {
     await device();
     renderSection();
