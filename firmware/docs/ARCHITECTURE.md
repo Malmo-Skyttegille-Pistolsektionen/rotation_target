@@ -61,9 +61,8 @@ endpoints) and from inside the executor's own locked section.
 **Target state is per bank** (D-41). `ProgramState::bank_shown` is one flag per
 bank in letter order, sized at `executor::init()` from `targets::count()`;
 `rt::Effects::set_targets()` takes a bank mask, and `rt::kAllBanksMask` is what
-both an event's `command` and the `/targets/*` endpoints use. `targetStatus` on
-the wire is bank A. On a one-bank device — every device today — none of that is
-observable from outside.
+both an event's `command` and the `/targets/*` endpoints use. `targetBanks` on
+the wire is one key per bank and the only thing the wire says about them.
 
 **SSE broadcasts happen outside that lock.** `rt::Effects::state_changed()`
 only sets a flag; the payload is serialized under the lock and sent after

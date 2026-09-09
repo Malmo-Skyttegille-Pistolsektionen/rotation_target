@@ -1709,7 +1709,28 @@ discipline, per-bank executor state, and the validator gap closed. (2) The
 contract additions, the Expert-mode bank table, the run-page strip, and the
 mock server's per-bank state machine in the same PR as the executor change.
 (3) `Event.banks`, `banksRequired`, the start refusal, the webapp's
-`bank-state.ts` mirror, the timeline lanes and the editor.
+`bank-state.ts` mirror, the timeline lanes and the editor. (4) The removal
+below.
+
+**Amended in stage 4 (2026-09-09): there is no compatibility layer.**
+`targetStatus`, `HardwareConfig.targetGpio`/`targetActiveLow` and
+`DiagnosticsInfo.targetGpio`/`targetGpioLevel` are removed, `banks` and
+`targetBanks` become required, and the pre-bank `hw_tgt_*` NVS keys go with
+them. Same path prefix, no `/api/v3`.
+
+**Why the bullet above no longer holds.** It protects a deployed client, and
+there is none: `git tag` is empty and no release has been cut — the basis D-40
+took the `control-lock` rename on, and D-16, D-19, D-23 and D-27 before it.
+What the layer costs is a rule, "`banks[0]` must agree with the scalars", whose
+only purpose is to stop two representations of one thing drifting apart. That
+rule is a refusal an operator hits by editing one field and not the other, and
+it exists solely because there are two. One representation cannot disagree with
+itself. Keeping the pair past 1.0.0 would mean keeping the rule for the life of
+the major, which is the trade this repository has consistently declined to
+enter while it is still free to leave.
+
+The `breaking change detection` job fails on this, which is the correct
+outcome: it means a human decided on purpose (D-40).
 
 **Rejected:**
 

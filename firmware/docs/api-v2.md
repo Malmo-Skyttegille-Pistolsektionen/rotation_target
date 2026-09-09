@@ -86,7 +86,6 @@ immediately, and receives it again after every change.
     "currentEventIndex": 2,
     "tickerMs": 7480           // milliseconds elapsed in the current series
   },
-  "targetStatus": "shown",     // "shown" | "hidden" - bank A
   "targetBanks": {             // always sent; one key per bank
     "A": "shown",
     "B": "hidden"
@@ -102,15 +101,12 @@ event, so a paused run resumes at whatever event `tickerMs` lands in.
 A device drives one to eight independently controlled **banks**, lettered by
 position: `A` is `banks[0]` in the hardware configuration (#207, D-41).
 
-`targetStatus` stays required and reports **bank A** — truthful and partial for
-a client that predates banks. It is deliberately not "shown if any bank is",
-which would invent a meaning for a field deployed clients already read one way.
-`targetBanks` beside it carries every bank and is **always sent**, including by
-a device with a single bank, where it is `{"A": …}`. Exactly one key per bank,
-contiguous from `A`, so a client reads the bank count off a key count in the
-first frame it receives — rather than inferring "one" from an absence, which is
-also what firmware from before banks looks like. **Absent means old firmware,
-and nothing else.**
+`targetBanks` carries every bank and is **always sent**, including by a device
+with a single bank, where it is `{"A": …}`. Exactly one key per bank,
+contiguous from `A`, so a client reads the bank count off the key count in the
+first frame it receives. There is no device-wide summary of the banks beside
+it: "shown if any is" is a meaning no client asked for, and one representation
+cannot disagree with itself.
 
 `POST /targets/{show,hide,toggle}` take an optional body naming the banks to
 move:
@@ -170,13 +166,11 @@ same file runs on the four-bank device next door — and a device never clamps a
 letter to the nearest bank it happens to drive.
 
 A bank's name lives in the hardware configuration and never in a program, so
-renaming a bank cannot re-aim one. `GET /config/hardware` reports `banks`
-alongside `targetGpio`/`targetActiveLow`, which are bank A's copy of the same
-two values; a `PUT` sending both is refused with
-`/problems/hardware_config_invalid` unless they agree, since there is no rule
-for choosing between two contradictory values. A `PUT` carrying only the
-scalars edits bank A and leaves every other bank alone. `banks` replaces the
-whole array — it is an ordered list, and a partial merge of one has no meaning.
+renaming a bank cannot re-aim one. `GET /config/hardware` reports `banks`, and
+that array is the whole description of the targets — there is nothing beside it
+to keep in agreement. A `PUT` carrying `banks` replaces the whole array, since
+it is an ordered list and a partial merge of one has no meaning; editing one
+bank therefore means sending them all.
 
 `GET /diagnostics/info` reports `banks` too: `id`, `gpio`, `padLevel` and
 `name` per bank, so the read-back that answers "is the firmware driving what it
@@ -358,7 +352,9 @@ incident is diagnosable without a USB cable:
   "storageTotalBytes": 10223616, "storageUsedBytes": 7812096,
   "programCount": 7, "audioCount": 77,
   "ipAddress": "192.168.1.42",
-  "targetGpio": 5, "targetGpioLevel": 1,
+  "banks": [                        // one entry per bank, lettered by position
+    { "id": "A", "gpio": 5, "padLevel": 1, "name": "Vänster" }
+  ],
   "controlLockEnabled": false,
   "startupIssues": [                // empty on a clean boot
     {
@@ -372,8 +368,8 @@ incident is diagnosable without a USB cable:
 
 It is public, like every other `GET`: it carries no credential and no program
 data. `minFreeHeapBytes` is the low-water mark since boot — a leak that has
-already been reclaimed is invisible in the current figure. `targetGpioLevel` is
-read back off the pad rather than remembered, so the pair with `targetGpio`
+already been reclaimed is invisible in the current figure. A bank's `padLevel`
+is read back off the pad rather than remembered, so the pair with its `gpio`
 distinguishes "the firmware never drove it" from "something else is holding it".
 
 **The coredump is not in this response and never will be.** It is a raw RAM

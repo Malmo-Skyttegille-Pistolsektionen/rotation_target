@@ -15,7 +15,7 @@ Rotation Target is a system for controlling rotation targets at a shooting club.
 │  │                    STATE (source of truth)              │    │
 │  │  - loadedProgram (id, series, events)                   │    │
 │  │  - programState (running, seriesIdx, eventIdx, ticker)  │    │
-│  │  - targetStatus (shown/hidden)                          │    │
+│  │  - targetBanks (per bank: shown/hidden)                 │    │
 │  └─────────────────────────────────────────────────────────┘    │
 │                            │                                    │
 │         ┌──────────────────┼──────────────────┐                 │

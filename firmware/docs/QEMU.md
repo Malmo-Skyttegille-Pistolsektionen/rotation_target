@@ -55,8 +55,8 @@ budget — exactly as the board has it.
   and `main/io/rgb_led.cpp` takes its no-op path.
 - **GPIO writes are discarded.** The target pin is driven exactly as on the
   board, but nothing in the emulator observes it and a pad readback does not
-  reflect a write. Target status as the API reports it comes from the executor,
-  not from the pin — `diagnostics/info` shows `targetGpioLevel: 0` throughout.
+  reflect a write. Where the API says the banks are comes from the executor,
+  not from the pin — `diagnostics/info` shows `banks[].padLevel: 0` throughout.
 - **mDNS is not reachable from the host.** The responder runs and answers
   inside the guest, but SLIRP does not carry multicast to the host — use
   `localhost:8080`, never `rotation-target.local`.
