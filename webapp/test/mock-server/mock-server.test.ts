@@ -927,17 +927,19 @@ describe('hardware configuration', () => {
     expect(state).toMatchObject({ saved: { targetGpio: 9, displayName: 'Bana 1' } });
   });
 
-  // 26-32 are the module's own flash and PSRAM; driving one does not fail to
-  // move a target, it stops the device booting.
+  // 26-32 are the module's own flash and PSRAM, 35-37 the octal PSRAM's extra
+  // data lines on this board, 43/44 the serial console. Driving one does not
+  // fail to move a target, it stops the device booting or takes away the way
+  // back in (D-41).
   it('refuses a GPIO that would stop the device booting, without storing anything', async () => {
-    for (const gpio of [26, 30, 32, 22, 25]) {
+    for (const gpio of [26, 30, 32, 22, 25, 35, 36, 37, 43, 44]) {
       const refused = await put({ targetGpio: gpio });
       await expectProblem(refused, {
         type: '/problems/hardware_config_invalid',
         title: 'Invalid hardware configuration',
         status: 400,
         detail:
-          "That GPIO is wired to the module's flash or PSRAM, or does not exist on this chip. Driving it stops the device booting.",
+          "That GPIO is wired to the module's flash or PSRAM (26-32, and 35-37 for this board's octal PSRAM), carries the serial console on UART0 (43, 44), or does not exist on this chip (22-25). Driving it stops the device booting or takes away the way back in.",
       });
     }
     expect(await read()).toMatchObject({ saved: HARDWARE_DEFAULTS, overridden: false });

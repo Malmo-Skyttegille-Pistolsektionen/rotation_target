@@ -15,9 +15,8 @@
 // somebody who has never seen a toolchain. It is the pattern `wifi_store`
 // already uses for credentials, generalised rather than reinvented.
 //
-// Bank count is fixed at one. Banks are a contract change (D-08, D-20), not a
-// configuration key, and #144 says to genericise first so they have somewhere
-// to be configured when they arrive.
+// The bank count is a configuration key like any other, stored as `hw_bank_cnt`
+// with the per-bank pins beside it (D-41, superseding D-08).
 namespace hardware_store {
 
 // Which optional peripherals this firmware was built with. Compile-time facts,
@@ -53,7 +52,9 @@ bool overridden();
 // Takes effect at the next boot. Nothing here re-drives a pin or renames mDNS
 // in place: a target GPIO that moves while a program is loaded would leave the
 // old pin latched in whatever state it was last driven to.
-rt::ConfigRefusal save(const rt::HardwareConfig &config);
+// `detail` is filled in where the refusal alone cannot say which fields were
+// at fault - a pin collision between two banks names them.
+rt::ConfigRefusal save(const rt::HardwareConfig &config, rt::ValidationDetail *detail = nullptr);
 
 // The one setting `save()` cannot touch (D-31, #144). Which position is safe at
 // rest is a property of the target system - another system may be the opposite

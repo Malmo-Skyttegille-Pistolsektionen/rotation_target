@@ -606,10 +606,12 @@ std::string diagnostics_info_json() {
   // What the target pin is configured as, and what is actually on the pad -
   // the pair that distinguishes "the firmware never drove it" from
   // "something else is holding it".
+  // Bank A. `banks` beside these is stage 2 of #207; the wire does not change
+  // here.
   out += ",\"targetGpio\":";
-  out += std::to_string(targets::pin());
+  out += std::to_string(targets::pin(0));
   out += ",\"targetGpioLevel\":";
-  out += std::to_string(targets::level());
+  out += std::to_string(targets::level(0));
   out += ",\"controlLockEnabled\":";
   out += s_control_lock.enabled() ? "true" : "false";
   // The backend_issues raised before this server existed, which is the only
@@ -801,19 +803,19 @@ void register_diagnostics_routes() {
 void register_target_routes() {
   s_server.on("/api/v2/targets/show", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
     if (!require_control_lock(req, res)) return ESP_OK;
-    executor::set_targets(true);
+    executor::set_targets(rt::kAllBanksMask, true);
     return send_message(res, "Targets shown");
   });
 
   s_server.on("/api/v2/targets/hide", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
     if (!require_control_lock(req, res)) return ESP_OK;
-    executor::set_targets(false);
+    executor::set_targets(rt::kAllBanksMask, false);
     return send_message(res, "Targets hidden");
   });
 
   s_server.on("/api/v2/targets/toggle", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
     if (!require_control_lock(req, res)) return ESP_OK;
-    const bool shown = executor::toggle_targets();
+    const bool shown = executor::toggle_targets(rt::kAllBanksMask);
     return send_message(res, shown ? "Targets shown" : "Targets hidden");
   });
 }
@@ -1027,10 +1029,12 @@ bool s_webapp_bundled = false;
 // The three views the contract promises, plus the two booleans a client needs
 // to say anything useful about them.
 std::string hardware_config_json(const rt::HardwareConfig &config) {
+  // `targetGpio`/`targetActiveLow` are bank A, which is all this stage of #207
+  // puts on the wire.
   std::string out = "{\"targetGpio\":";
-  out += std::to_string(config.target_gpio);
+  out += std::to_string(config.banks[0].gpio);
   out += ",\"targetActiveLow\":";
-  out += config.target_active_low ? "true" : "false";
+  out += config.banks[0].active_low ? "true" : "false";
   out += ",\"hostname\":";
   out += rt::json_quote(config.hostname);
   out += ",\"displayName\":";
@@ -1059,8 +1063,7 @@ bool same_config(const rt::HardwareConfig &a, const rt::HardwareConfig &b) {
   // targets_shown_at_boot included even though HTTP cannot change it: the
   // serial console can, and that needs a restart to take effect too. Leaving it
   // out would report restartRequired false right after `boot-targets hidden`.
-  return a.target_gpio == b.target_gpio && a.target_active_low == b.target_active_low &&
-         a.hostname == b.hostname && a.display_name == b.display_name &&
+  return a.banks == b.banks && a.hostname == b.hostname && a.display_name == b.display_name &&
          a.targets_shown_at_boot == b.targets_shown_at_boot;
 }
 
@@ -1146,9 +1149,11 @@ void register_config_routes() {
     }
 
     rt::HardwareConfig config = hardware_store::saved();
-    if (!doc["targetGpio"].isNull()) config.target_gpio = doc["targetGpio"] | config.target_gpio;
+    // Bank A: `saved()` never returns a configuration without one.
+    rt::TargetBank &bank_a = config.banks[0];
+    if (!doc["targetGpio"].isNull()) bank_a.gpio = doc["targetGpio"] | bank_a.gpio;
     if (!doc["targetActiveLow"].isNull())
-      config.target_active_low = doc["targetActiveLow"] | config.target_active_low;
+      bank_a.active_low = doc["targetActiveLow"] | bank_a.active_low;
     if (!doc["hostname"].isNull()) config.hostname = doc["hostname"] | config.hostname;
     if (!doc["displayName"].isNull())
       config.display_name = doc["displayName"] | config.display_name;
@@ -1162,9 +1167,11 @@ void register_config_routes() {
     if (!doc["wifiMaxRetries"].isNull())
       config.wifi_max_retries = doc["wifiMaxRetries"] | config.wifi_max_retries;
 
-    const rt::ConfigRefusal refusal = hardware_store::save(config);
+    rt::ValidationDetail detail;
+    const rt::ConfigRefusal refusal = hardware_store::save(config, &detail);
     if (refusal != rt::ConfigRefusal::kNone) {
-      return send_problem(res, rt::problem::kHardwareConfigInvalid, rt::refusal_message(refusal));
+      return send_problem(res, rt::problem::kHardwareConfigInvalid,
+                          rt::refusal_message(refusal, detail));
     }
     return send_message(res, "Hardware configuration saved - restart the device to apply it");
   });

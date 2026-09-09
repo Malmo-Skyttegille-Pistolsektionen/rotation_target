@@ -1,5 +1,7 @@
 #include "hardware_config.h"
 
+#include <vector>
+
 namespace rt {
 
 ConfigRefusal validate_hostname(const std::string &hostname) {
@@ -34,22 +36,38 @@ ConfigRefusal validate_pin(int32_t gpio) {
 
 }  // namespace
 
-ConfigRefusal validate(const HardwareConfig &config, Peripherals present) {
-  // The target pin first: it is the one whose recovery needs a cable.
-  const ConfigRefusal target = validate_pin(config.target_gpio);
-  if (target != ConfigRefusal::kNone) return target;
+ConfigRefusal validate(const HardwareConfig &config, Peripherals present,
+                       ValidationDetail *detail) {
+  if (detail != nullptr) *detail = ValidationDetail{};
+
+  if (config.banks.empty() || config.banks.size() > kMaxTargetBanks) {
+    return ConfigRefusal::kBankCountOutOfRange;
+  }
+
+  // Every pin in use, with the bank that owns it, so a collision can say which
+  // two banks are on it. Grown rather than a fixed array: the count is now the
+  // bank count plus the LED plus the three I2S lines.
+  struct PinUse {
+    int32_t gpio;
+    size_t bank;  // kNoBank for the LED and the audio pins.
+  };
+  std::vector<PinUse> in_use;
+  in_use.reserve(config.banks.size() + 4);
+
+  // The bank pins first: they are the ones whose recovery needs a cable.
+  for (size_t i = 0; i < config.banks.size(); i++) {
+    const ConfigRefusal pin = validate_pin(config.banks[i].gpio);
+    if (pin != ConfigRefusal::kNone) return pin;
+    in_use.push_back({config.banks[i].gpio, i});
+  }
 
   // Pins belonging to a peripheral this build does not have are not checked.
   // They are carried so the value survives, but an unused field cannot make a
   // device unreachable and should not be able to refuse a save.
-  int32_t in_use[4];
-  size_t used = 0;
-  in_use[used++] = config.target_gpio;
-
   if (present.led) {
     const ConfigRefusal led = validate_pin(config.led_gpio);
     if (led != ConfigRefusal::kNone) return led;
-    in_use[used++] = config.led_gpio;
+    in_use.push_back({config.led_gpio, ValidationDetail::kNoBank});
   }
 
   if (present.audio) {
@@ -58,26 +76,28 @@ ConfigRefusal validate(const HardwareConfig &config, Peripherals present) {
     for (const int32_t gpio : {config.i2s_bck_gpio, config.i2s_ws_gpio, config.i2s_dout_gpio}) {
       const ConfigRefusal pin = validate_pin(gpio);
       if (pin != ConfigRefusal::kNone) return pin;
+      in_use.push_back({gpio, ValidationDetail::kNoBank});
     }
   }
 
-  // Two peripherals on one pin is a configuration that passes every check above
-  // and still does not work: whichever is initialised last wins the pad, and
-  // the other silently does nothing.
-  const int32_t i2s[3] = {config.i2s_bck_gpio, config.i2s_ws_gpio, config.i2s_dout_gpio};
-  for (size_t i = 0; i < used; i++) {
-    for (size_t j = i + 1; j < used; j++) {
-      if (in_use[i] == in_use[j]) return ConfigRefusal::kPinCollision;
-    }
-    if (present.audio) {
-      for (const int32_t pin : i2s) {
-        if (in_use[i] == pin) return ConfigRefusal::kPinCollision;
+  // Two outputs on one pin is a configuration that passes every check above and
+  // still does not work: whichever is initialised last wins the pad, and the
+  // other silently does nothing.
+  for (size_t i = 0; i < in_use.size(); i++) {
+    for (size_t j = i + 1; j < in_use.size(); j++) {
+      if (in_use[i].gpio != in_use[j].gpio) continue;
+      if (detail != nullptr) {
+        // In insertion order, so the lower letter is named first.
+        detail->bank_a = in_use[i].bank;
+        detail->bank_b = in_use[j].bank;
+        detail->gpio = in_use[i].gpio;
       }
+      return ConfigRefusal::kPinCollision;
     }
   }
-  if (present.audio) {
-    if (i2s[0] == i2s[1] || i2s[0] == i2s[2] || i2s[1] == i2s[2])
-      return ConfigRefusal::kPinCollision;
+
+  for (const TargetBank &bank : config.banks) {
+    if (bank.name.size() > kMaxBankNameLength) return ConfigRefusal::kBankNameTooLong;
   }
 
   const ConfigRefusal hostname = validate_hostname(config.hostname);
@@ -95,17 +115,19 @@ ConfigRefusal validate(const HardwareConfig &config, Peripherals present) {
   return ConfigRefusal::kNone;
 }
 
-const char *refusal_message(ConfigRefusal refusal) {
+std::string refusal_message(ConfigRefusal refusal, const ValidationDetail &detail) {
   switch (refusal) {
     case ConfigRefusal::kNone:
       return "";
     case ConfigRefusal::kGpioOutOfRange:
-      return "The target GPIO must be between 0 and 48.";
+      return "A target GPIO must be between 0 and 48.";
     case ConfigRefusal::kGpioNotOutputCapable:
       return "That GPIO cannot drive an output on this chip.";
     case ConfigRefusal::kGpioReserved:
-      return "That GPIO is wired to the module's flash or PSRAM, or does not exist on this chip. "
-             "Driving it stops the device booting.";
+      return "That GPIO is wired to the module's flash or PSRAM (26-32, and 35-37 for this "
+             "board's octal PSRAM), carries the serial console on UART0 (43, 44), or does not "
+             "exist on this chip (22-25). Driving it stops the device booting or takes away the "
+             "way back in.";
     case ConfigRefusal::kHostnameEmpty:
       return "The hostname cannot be empty - it is how the device is reached.";
     case ConfigRefusal::kHostnameTooLong:
@@ -128,10 +150,26 @@ const char *refusal_message(ConfigRefusal refusal) {
       return "The HTTP port must be between 1 and 65535.";
     case ConfigRefusal::kWifiRetriesOutOfRange:
       return "WiFi attempts must be between 1 and 60 - each takes about 2.4 seconds.";
+    case ConfigRefusal::kBankCountOutOfRange:
+      return "A device drives between 1 and 8 target banks, called A to H.";
+    case ConfigRefusal::kBankNameTooLong:
+      return "A bank name is at most 16 characters.";
     case ConfigRefusal::kPinCollision:
-      return "Two of these are on the same GPIO. The target, the status LED and the three audio "
-             "pins each need one of their own, or whichever is set up last takes the pad and the "
-             "other silently stops working.";
+      // Two banks are named, because with eight of them the generic sentence
+      // no longer tells the operator which field to change.
+      if (detail.names_two_banks()) {
+        std::string out = "Bank ";
+        out += bank_letter(detail.bank_a);
+        out += " and bank ";
+        out += bank_letter(detail.bank_b);
+        out += " are both on GPIO ";
+        out += std::to_string(detail.gpio);
+        out += ". Each bank needs a pin of its own.";
+        return out;
+      }
+      return "Two of these are on the same GPIO. The target banks, the status LED and the three "
+             "audio pins each need one of their own, or whichever is set up last takes the pad "
+             "and the other silently stops working.";
   }
   return "";
 }

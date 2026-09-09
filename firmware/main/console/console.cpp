@@ -113,9 +113,10 @@ std::string status_text() {
   }
 
   // Both halves: what the firmware drove, and what is actually on the pad.
+  // Bank A; the per-bank table is stage 2 of #207.
   snprintf(line, sizeof(line), "targets    %s (gpio %d, level %d)\r\n",
-           targets::level() == targets::level_shown() ? "shown" : "hidden", targets::pin(),
-           targets::level());
+           targets::level(0) == targets::level_shown(0) ? "shown" : "hidden", targets::pin(0),
+           targets::level(0));
   out += line;
 
   snprintf(line, sizeof(line), "programs   %u\r\naudio      %u clips\r\n",

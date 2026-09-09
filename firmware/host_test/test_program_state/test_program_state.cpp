@@ -30,7 +30,7 @@ void test_a_loaded_program_serializes_its_position() {
   s.current_series_index.set(0);
   s.current_event_index.set(2);
   s.ticker_ms.set(7480);
-  s.target_status_shown = true;
+  s.bank_shown = {true};
 
   TEST_ASSERT_EQUAL_STRING(
       "{\"loadedProgramId\":42,\"programState\":{\"running\":true,\"currentSeriesIndex\":0,"
@@ -57,14 +57,31 @@ void test_unload_clears_everything_but_the_target_status() {
   s.ticker_ms.set(3000);
   // The targets do not move just because the program was unloaded, so the
   // published status must survive it.
-  s.target_status_shown = true;
+  s.bank_shown = {true};
 
   s.unload();
 
   TEST_ASSERT_FALSE(s.is_loaded());
   TEST_ASSERT_FALSE(s.running);
   TEST_ASSERT_FALSE(s.ticker_ms.has_value);
-  TEST_ASSERT_TRUE(s.target_status_shown);
+  TEST_ASSERT_TRUE(s.target_status_shown());
+  TEST_ASSERT_EQUAL_STRING(
+      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"shown\"}",
+      rt::state_update_json(s).c_str());
+}
+
+// #207/D-41: `targetStatus` is bank A, not "shown if any". Truthful and
+// partial for a client that predates banks; `targetBanks` beside it is stage 2.
+void test_target_status_reports_bank_a_and_not_the_others() {
+  rt::ProgramState s;
+  s.init_banks(4, false);
+  s.bank_shown[2] = true;
+
+  TEST_ASSERT_EQUAL_STRING(
+      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"hidden\"}",
+      rt::state_update_json(s).c_str());
+
+  s.bank_shown[0] = true;
   TEST_ASSERT_EQUAL_STRING(
       "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"shown\"}",
       rt::state_update_json(s).c_str());
@@ -73,6 +90,7 @@ void test_unload_clears_everything_but_the_target_status() {
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_nothing_loaded_serializes_as_nulls);
+  RUN_TEST(test_target_status_reports_bank_a_and_not_the_others);
   RUN_TEST(test_a_loaded_program_serializes_its_position);
   RUN_TEST(test_an_unset_ticker_serializes_as_null);
   RUN_TEST(test_unload_clears_everything_but_the_target_status);

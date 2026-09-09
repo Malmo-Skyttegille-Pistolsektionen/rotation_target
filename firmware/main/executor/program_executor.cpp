@@ -25,7 +25,7 @@ class EspClock : public rt::Clock {
 
 class DeviceEffects : public rt::Effects {
  public:
-  void set_targets(bool shown) override { targets::set(shown); }
+  void set_targets(rt::BankMask bank_mask, bool shown) override { targets::set(bank_mask, shown); }
 
   void play_audios(const std::vector<int32_t> &audio_ids) override {
     // Resolved here rather than in the run loop's caller so a missing id is a
@@ -102,15 +102,15 @@ void init(bool targets_shown) {
   s_lock = xSemaphoreCreateRecursiveMutex();
   configASSERT(s_lock != nullptr);
 
-  // Adopt the state targets::init() already drove onto the pin, so the run
-  // state and the hardware agree from the first moment a client can ask. This
-  // used to hardcode hidden, from when hidden was the boot state; D-31 changed
-  // that and the correction was bolted on in app_main() instead, which pulsed
-  // the line hidden and back on every boot (#145). Writing the level it is
-  // already at is a register write with no edge.
+  // Adopt the bank count and the state targets::init() already drove onto the
+  // pins, so the run state and the hardware agree from the first moment a
+  // client can ask. This used to hardcode hidden, from when hidden was the boot
+  // state; D-31 changed that and the correction was bolted on in app_main()
+  // instead, which pulsed the line hidden and back on every boot (#145).
+  // Writing the level it is already at is a register write with no edge.
   {
     Lock lock;
-    s_executor.set_targets(targets_shown);
+    s_executor.init_banks(targets::count(), targets_shown);
     s_effects.pending_broadcast = false;
   }
 
@@ -178,20 +178,20 @@ SkipOutcome skip_to_series(int32_t series_index, int32_t expected_program_id) {
   return outcome;
 }
 
-void set_targets(bool shown) {
+void set_targets(rt::BankMask bank_mask, bool shown) {
   {
     Lock lock;
-    s_executor.set_targets(shown);
+    s_executor.set_targets(bank_mask, shown);
     s_effects.pending_broadcast = true;
   }
   flush(false);
 }
 
-bool toggle_targets() {
+bool toggle_targets(rt::BankMask bank_mask) {
   bool shown = false;
   {
     Lock lock;
-    shown = s_executor.toggle_targets();
+    shown = s_executor.toggle_targets(bank_mask);
     s_effects.pending_broadcast = true;
   }
   flush(false);
