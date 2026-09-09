@@ -127,7 +127,8 @@ void test_the_summary_form_omits_the_series() {
   p.series.push_back(rt::Series{});
 
   TEST_ASSERT_EQUAL_STRING(
-      "{\"id\":3,\"title\":\"Title\",\"description\":\"Desc\",\"banksRequired\":1,\"readonly\":true}",
+      "{\"id\":3,\"title\":\"Title\",\"description\":\"Desc\",\"banksRequired\":1,\"readonly\":"
+      "true}",
       rt::program_summary_json(p).c_str());
 }
 
@@ -453,8 +454,10 @@ void test_banks_absent_null_and_empty_are_the_same_event() {
   TEST_ASSERT_TRUE(banks_parse("{}", empty_banks));
 
   const std::string expected = rt::event_json(absent.series[0].events[0]);
-  TEST_ASSERT_EQUAL_STRING(expected.c_str(), rt::event_json(null_banks.series[0].events[0]).c_str());
-  TEST_ASSERT_EQUAL_STRING(expected.c_str(), rt::event_json(empty_banks.series[0].events[0]).c_str());
+  TEST_ASSERT_EQUAL_STRING(expected.c_str(),
+                           rt::event_json(null_banks.series[0].events[0]).c_str());
+  TEST_ASSERT_EQUAL_STRING(expected.c_str(),
+                           rt::event_json(empty_banks.series[0].events[0]).c_str());
 }
 
 void test_an_event_emits_banks_in_letter_order() {
@@ -464,7 +467,8 @@ void test_an_event_emits_banks_in_letter_order() {
   e.show_banks = rt::bank_bit(3) | rt::bank_bit(1);
   e.hide_banks = rt::bank_bit(2);
   TEST_ASSERT_EQUAL_STRING(
-      "{\"duration\":100,\"command\":\"hide\",\"banks\":{\"B\":\"show\",\"C\":\"hide\",\"D\":\"show\"}}",
+      "{\"duration\":100,\"command\":\"hide\",\"banks\":{\"B\":\"show\",\"C\":\"hide\",\"D\":"
+      "\"show\"}}",
       rt::event_json(e).c_str());
 }
 
@@ -520,7 +524,8 @@ void test_banks_required_is_the_highest_letter_named() {
 
 void test_banks_required_is_one_for_a_program_that_names_none() {
   rt::Program p;
-  const char *doc = "{\"id\":1,\"series\":[{\"events\":[{\"duration\":100,\"command\":\"show\"}]}]}";
+  const char *doc =
+      "{\"id\":1,\"series\":[{\"events\":[{\"duration\":100,\"command\":\"show\"}]}]}";
   TEST_ASSERT_TRUE(rt::parse_program(doc, strlen(doc), false, p));
   TEST_ASSERT_EQUAL_UINT32(1u, rt::banks_required(p));
 }

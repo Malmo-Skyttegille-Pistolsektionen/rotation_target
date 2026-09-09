@@ -43,7 +43,8 @@ bool parse_banks(JsonVariantConst src, Event &e) {
 
   for (JsonPairConst entry : src.as<JsonObjectConst>()) {
     const char *key = entry.key().c_str();
-    if (key == nullptr || key[0] < 'A' || key[0] > 'A' + static_cast<char>(kMaxTargetBanks) - 1) return false;
+    if (key == nullptr || key[0] < 'A' || key[0] > 'A' + static_cast<char>(kMaxTargetBanks) - 1)
+      return false;
     if (key[1] != '\0') return false;  // "AA" is not a bank.
 
     JsonVariantConst value = entry.value();
