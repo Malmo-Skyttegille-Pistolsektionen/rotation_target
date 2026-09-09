@@ -1324,6 +1324,10 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       }
 
       const patch = parsed as Partial<HardwareConfig>;
+      // `null` is absent, as `doc["banks"].isNull()` makes it on the device -
+      // so a client clearing a field it does not understand keeps the stored
+      // array rather than being refused.
+      if (patch.banks === null) delete patch.banks;
       // The two shape refusals the firmware answers before it can read a bank
       // at all (`web_server.cpp`). Without them a malformed body threw here,
       // which is a 500 the device never sends.
@@ -1340,6 +1344,14 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
           );
           return;
         }
+        // Each field falls back the way ArduinoJson's `entry["gpio"] | 0` does,
+        // so a half-written entry reaches validation as GPIO 0 and is refused
+        // there - one refusal, from the same place every other bad pin gets it.
+        patch.banks = patch.banks.map((bank: Partial<HardwareConfig['banks'][number]>) => ({
+          gpio: typeof bank.gpio === 'number' ? bank.gpio : 0,
+          activeLow: typeof bank.activeLow === 'boolean' ? bank.activeLow : true,
+          name: typeof bank.name === 'string' ? bank.name : '',
+        }));
       }
 
       const candidate: HardwareConfig = {
@@ -1354,9 +1366,6 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         problemResponse(res, '/problems/hardware_config_invalid', refusal);
         return;
       }
-      // Only once it is valid, so an empty `banks` is refused rather than
-      // reconciled into bank A. A GET never reports a bank A at odds with
-      // itself.
       savedHardware = candidate;
       jsonResponse(res, 200, { message: 'Hardware configuration saved - restart the device to apply it' });
       return;

@@ -133,6 +133,23 @@ describe('a loaded program that needs banks this device does not have', () => {
     expect(startButton().disabled).toBe(true);
   });
 
+  // The guard that stands behind the one above: a program is loaded and the
+  // frame carries no `targetBanks`. The contract says every frame does, so
+  // this is a frame no device sends - and the page must still refuse nothing
+  // rather than read the absence as "one bank" and block a program that would
+  // run. The cast is the point: the type says required, the runtime does not.
+  it('claims no bank count from a frame that omits the map', async () => {
+    queryClient.setQueryData(['state'], {
+      loadedProgramId: BANKED.id,
+      programState: { running: false, currentSeriesIndex: 0, currentEventIndex: 0, tickerMs: 0 },
+    } as unknown as StateUpdatePayload);
+    renderView();
+    await waitFor(() => expect(screen.getByTestId('timeline')).toBeTruthy());
+
+    expect(screen.queryByTestId('run-banks-notice')).toBeNull();
+    expect(startButton().disabled).toBe(false);
+  });
+
   it('refuses it on a one-bank device, which reports itself with one key', async () => {
     await renderRun({ A: 'shown' });
 

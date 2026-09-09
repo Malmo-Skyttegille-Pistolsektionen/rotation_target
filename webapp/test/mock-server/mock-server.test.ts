@@ -1496,7 +1496,41 @@ describe('target banks', () => {
     }
   });
 
-  it('refuses an empty banks array rather than falling back to the scalars', async () => {
+  // `doc["banks"].isNull()` on the device: absent and null are the same body.
+  // A client that clears a field it does not understand keeps what is stored.
+  it('reads a null banks as absent, not as a refusal', async () => {
+    const res = await api('/config/hardware', {
+      method: 'PUT',
+      body: JSON.stringify({ banks: null, displayName: 'Bana 1' }),
+    });
+
+    expect(res.status).toBe(200);
+    const state = (await (await api('/config/hardware')).json()) as {
+      saved: { banks: unknown[]; displayName: string };
+    };
+    expect(state.saved.banks).toEqual(HARDWARE_DEFAULTS.banks);
+    expect(state.saved.displayName).toBe('Bana 1');
+  });
+
+  // The device reads each field with a default (`entry["gpio"] | 0`), so a
+  // half-written entry arrives at validation as GPIO 0 and is refused there -
+  // never as a 500, which is what the mock used to answer.
+  it('refuses a bank entry missing its pin, the way the device does', async () => {
+    const res = await api('/config/hardware', {
+      method: 'PUT',
+      body: JSON.stringify({ banks: [{ name: 'Vänster' }] }),
+    });
+
+    await expectProblem(res, {
+      type: '/problems/hardware_config_invalid',
+      title: 'Invalid hardware configuration',
+      status: 400,
+      detail:
+        'GPIO 0, 3 and 45 are read at reset to decide how the chip boots. Driving one can stop the device starting at all.',
+    });
+  });
+
+  it('refuses an empty banks array rather than reading it as a default', async () => {
     const res = await api('/config/hardware', { method: 'PUT', body: JSON.stringify({ banks: [] }) });
 
     expect(res.status).toBe(400);
