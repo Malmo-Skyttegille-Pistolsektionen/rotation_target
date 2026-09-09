@@ -139,6 +139,36 @@ bank the two rules are the same flip they have always been.
 The `message` names what moved: `Targets shown` when every bank went the same
 way, `Bank B shown` or `Banks B and D shown, bank C hidden` otherwise.
 
+#### A program that names banks
+
+An `Event` takes an optional `banks` object beside `command`, keyed by letter:
+
+```jsonc
+{ "duration": 4000, "command": "hide", "banks": { "B": "show" } }
+```
+
+`command` is the **baseline** — it applies to every bank `banks` does not name;
+`banks` sets the ones it does; a bank named by neither is left where it is. So
+"hide everything except B" is one event rather than two, and a sequential
+exposure never needs 1 ms filler events. Omitted, `null` and `{}` are all "no
+overrides", which is why **no existing program needs migrating**: with no
+`banks` key, `command` still means every bank.
+
+The vocabulary is closed the way `command`'s is (D-20): a key that is not a
+single letter `A`–`H`, or a value that is not exactly `"show"` or `"hide"`,
+refuses the whole program with `400 /problems/program_invalid`. A bank that
+silently never turns is the failure this prevents.
+
+`GET /programs` reports `banksRequired` per program — the highest letter it
+names, or 1. The device derives it; the document never asserts it.
+
+A program naming a bank this device lacks **uploads and loads normally** and is
+refused at `POST /programs/start` with
+`409 /problems/program_banks_unavailable`, whose `detail` names both sides:
+`Program needs banks A-D; this device has A-B`. The library is a library — the
+same file runs on the four-bank device next door — and a device never clamps a
+letter to the nearest bank it happens to drive.
+
 A bank's name lives in the hardware configuration and never in a program, so
 renaming a bank cannot re-aim one. `GET /config/hardware` reports `banks`
 alongside `targetGpio`/`targetActiveLow`, which are bank A's copy of the same

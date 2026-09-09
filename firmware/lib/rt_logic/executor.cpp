@@ -92,6 +92,13 @@ StartResult Executor::start(int32_t expected_program_id) {
   // wrong program is never answered "fine, it is running".
   if (state_.program->id != expected_program_id) return StartResult::kMismatch;
 
+  // Checked here, in the same locked section as the selection and for the same
+  // reason D-27 gives: between a client's last frame and its start arriving,
+  // any other client can load something else.
+  if (banks_required(*state_.program) > state_.bank_count()) {
+    return StartResult::kBanksUnavailable;
+  }
+
   // Already running is success, not an error - a second start is a no-op the
   // caller does not need to distinguish.
   if (state_.running) return StartResult::kStarted;
@@ -183,13 +190,25 @@ void Executor::force_unload() {
 void Executor::enter_event(int32_t index, const Event &event, bool play_audio) {
   state_.current_event_index.set(index);
 
-  // Every bank, in unison. A per-bank `banks` override on the event is stage 3
-  // of #207; until then a program means what it has always meant.
+  // The resolution rule is stated once, on `banks` in
+  // contracts/program.schema.json.
+  //
+  // Two calls at most - the banks to show and the banks to hide - because the
+  // pins are driven a set at a time, so a sequential program costs no more
+  // than the unison one it replaced.
+  BankMask show = event.show_banks;
+  BankMask hide = event.hide_banks;
   if (event.command == "show") {
-    set_targets(kAllBanksMask, true);
+    show |= ~event.named_banks();
   } else if (event.command == "hide") {
-    set_targets(kAllBanksMask, false);
+    hide |= ~event.named_banks();
   }
+
+  // Unbounded on purpose: `~named_banks()` sets every bit above the device's
+  // count too. set_targets() and the pin driver iterate the banks that exist,
+  // so the bound belongs there rather than in every caller.
+  if (show != 0) set_targets(show, true);
+  if (hide != 0) set_targets(hide, false);
 
   if (play_audio && !event.audio_ids.empty()) effects_.play_audios(event.audio_ids);
 }

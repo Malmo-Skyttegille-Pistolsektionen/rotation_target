@@ -86,6 +86,20 @@
             "hide"
           ]
         },
+        "banks": {
+          "type": "object",
+          "description": "Per-bank overrides of `command`, keyed by bank letter. On entering the event `command` applies to every bank not named here, `banks` sets the ones it does name, and a bank named by neither is left where it is. Omitted or `{}` mean no overrides, so a program without this field is unchanged - `{\"command\": \"show\"}` still turns every bank. The firmware additionally accepts `null` on upload as a spelling of omission, the way it does for `command`; it never writes one, so no stored file carries it and this schema does not allow it. A letter the device does not have is refused at start (`/problems/program_banks_unavailable`, 409), never at upload: the library is a library, and the same file runs on the device next door that has the bank.",
+          "propertyNames": {
+            "pattern": "^[A-H]$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "show",
+              "hide"
+            ]
+          }
+        },
         "audio_ids": {
           "type": "array",
           "items": {

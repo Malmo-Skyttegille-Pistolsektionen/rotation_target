@@ -12,6 +12,12 @@ check-jsonschema --check-metaschema program.schema.json || status=1
 # Every shipped program must validate against the schema.
 check-jsonschema --schemafile program.schema.json ../resources/programs/files/*.json || status=1
 
+# The problem vocabulary is written down three times - here, in the firmware's
+# registry and in the mock server - and only the webapp's copy was checked (by
+# `satisfies Record<ProblemType, ...>` at compile time). python3 only, no new
+# dependency.
+python3 ./check_problem_types.py || status=1
+
 # Pinned: an unpinned CLI can turn main red from an upstream rule change with
 # no commit of ours behind it. redocly.yaml configures the rules.
 # renovate: datasource=npm depName=@redocly/cli

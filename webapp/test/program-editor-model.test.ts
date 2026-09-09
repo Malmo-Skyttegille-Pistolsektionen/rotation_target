@@ -12,6 +12,7 @@ import type { Program } from '../src/api/types';
 import { authoringIssues, authoringRegressions, parseProgramDocument } from '../src/lib/program-document';
 import {
   createEditorState,
+  describeEvent,
   durationMs,
   editorReducer,
   isDirty,
@@ -19,6 +20,7 @@ import {
   toDocument,
   toJson,
   toPreviewProgram,
+  type DraftEvent,
   type EditorAction,
   type EditorState,
 } from '../src/lib/program-editor';
@@ -491,5 +493,152 @@ describe('the timer anchor in the editor (#196)', () => {
     expect(toDocument(state.draft)).toMatchObject({
       series: [{ timer_start_index: 2 }, { timer_start_index: 2 }],
     });
+  });
+});
+
+describe('target banks', () => {
+  const BANKED: Program = {
+    id: 41,
+    title: 'Banked',
+    description: '',
+    readonly: false,
+    series: [
+      {
+        name: 'S',
+        optional: false,
+        events: [
+          { duration: 4000, command: 'hide', banks: { B: 'show' } },
+          { duration: 4000, command: 'hide', banks: { D: 'show' } },
+        ],
+      },
+    ],
+  };
+
+  const eventBanks = (state: EditorState, index = 0) => state.draft.series[0].events[index].banks;
+
+  it('opens at the banks the document needs, and at one for a new program', () => {
+    expect(createEditorState(BANKED).bankCount).toBe(4);
+    expect(createEditorState(PROGRAM_FALT_TRANING).bankCount).toBe(1);
+    expect(createEditorState(null).bankCount).toBe(1);
+  });
+
+  it('sets and clears one bank without touching the others', () => {
+    const state = run(
+      createEditorState(BANKED),
+      { type: 'setEventBankOverride', series: 0, event: 0, letter: 'C', value: 'hide' },
+      { type: 'setEventBankOverride', series: 0, event: 0, letter: 'B', value: null },
+    );
+    expect(eventBanks(state)).toEqual({ C: 'hide' });
+  });
+
+  it('keys the document in letter order however the buttons were pressed', () => {
+    const state = run(
+      createEditorState(BANKED),
+      { type: 'setEventBankOverride', series: 0, event: 0, letter: 'D', value: 'hide' },
+      { type: 'setEventBankOverride', series: 0, event: 0, letter: 'A', value: 'show' },
+    );
+    const event = (toDocument(state.draft).series as { events: { banks: object }[] }[])[0].events[0];
+    expect(Object.keys(event.banks)).toEqual(['A', 'B', 'D']);
+  });
+
+  it('omits banks from the document when the event names none', () => {
+    const state = run(createEditorState(BANKED), {
+      type: 'setEventBankOverride',
+      series: 0,
+      event: 0,
+      letter: 'B',
+      value: null,
+    });
+    const event = (toDocument(state.draft).series as { events: Record<string, unknown>[] }[])[0].events[0];
+    expect(event).not.toHaveProperty('banks');
+    expect(toPreviewProgram(state.draft).series[0].events[0].banks).toBeUndefined();
+  });
+
+  it('drops the overrides above the count when the stepper is lowered', () => {
+    const state = run(createEditorState(BANKED), { type: 'setBankCount', value: 2 });
+    expect(state.bankCount).toBe(2);
+    expect(eventBanks(state, 0)).toEqual({ B: 'show' });
+    expect(eventBanks(state, 1)).toEqual({});
+    // Dropping an override changes the document, so the session is dirty.
+    expect(isDirty(state)).toBe(true);
+  });
+
+  it('is not an edit to widen the stepper', () => {
+    expect(isDirty(run(createEditorState(BANKED), { type: 'setBankCount', value: 8 }))).toBe(false);
+  });
+
+  it('clamps the stepper to 1…8', () => {
+    const state = createEditorState(BANKED);
+    expect(run(state, { type: 'setBankCount', value: 0 }).bankCount).toBe(1);
+    expect(run(state, { type: 'setBankCount', value: 99 }).bankCount).toBe(8);
+  });
+
+  it('never narrows below what a replacement document needs', () => {
+    const state = run(createEditorState(PROGRAM_FALT_TRANING), { type: 'replaceDocument', program: BANKED });
+    expect(state.bankCount).toBe(4);
+  });
+
+  it('round-trips a banked document through the JSON view unchanged', () => {
+    const result = parseProgramDocument(toJson(createEditorState(BANKED).draft));
+    if (!result.ok) throw new Error('the validator refused the editor’s own output');
+    expect(result.program.series).toEqual(BANKED.series);
+  });
+});
+
+describe('describeEvent', () => {
+  const event = (patch: Partial<DraftEvent> = {}): DraftEvent => ({
+    key: 'k1',
+    duration: '4000',
+    command: 'hide',
+    banks: {},
+    audioIds: [],
+    ...patch,
+  });
+
+  it('says what one bank does, without mentioning banks', () => {
+    expect(describeEvent(event(), 1)).toBe('Hide for 4 s.');
+    expect(describeEvent(event({ command: 'none' }), 1)).toBe('Leave the targets where they are for 4 s.');
+  });
+
+  it('separates the exceptions from the baseline', () => {
+    expect(describeEvent(event({ banks: { B: 'show' } }), 4)).toBe('On entry: show B; hide A, C, D. Hold 4 s.');
+  });
+
+  it('says the rest are left alone when there is no baseline', () => {
+    expect(describeEvent(event({ command: 'none', banks: { A: 'show' } }), 3)).toBe(
+      'On entry: show A; leave B, C as they are. Hold 4 s.',
+    );
+  });
+
+  it('does not invent a duration while one is being typed', () => {
+    expect(describeEvent(event({ duration: '' }), 2)).toContain('Hold its duration.');
+  });
+});
+
+describe('an override on bank A alone', () => {
+  // banksRequired stays 1 - correct for the device, which needs only bank A -
+  // but the editor still has to show the instruction the file carries.
+  const ONLY_A: Program = {
+    id: 42,
+    title: 'Only A',
+    description: '',
+    readonly: false,
+    series: [{ name: 'S', optional: false, events: [{ duration: 4000, command: 'show', banks: { A: 'hide' } }] }],
+  };
+
+  it('needs one bank', () => {
+    expect(createEditorState(ONLY_A).bankCount).toBe(1);
+  });
+
+  it('is still described, rather than silently dropped from the sentence', () => {
+    const event = createEditorState(ONLY_A).draft.series[0].events[0];
+    expect(describeEvent(event, 1)).toBe('On entry: hide A. Hold 4 s.');
+  });
+
+  it('survives a round trip through the document', () => {
+    const state = createEditorState(ONLY_A);
+    const result = parseProgramDocument(toJson(state.draft));
+    if (!result.ok) throw new Error('the validator refused the editor’s own output');
+    expect(result.program.series[0].events[0].banks).toEqual({ A: 'hide' });
   });
 });

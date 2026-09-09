@@ -37,6 +37,11 @@ enum class StartResult {
   // both leave nothing to run, and the contract answers one `400` for them.
   kNotLoaded,
   kMismatch,
+  // The program names a bank this device does not have (#207, D-41). Refused
+  // here and nowhere earlier: uploading and loading such a program are both
+  // fine - the library is a library - and a device never clamps a letter to
+  // the nearest bank it happens to drive.
+  kBanksUnavailable,
 };
 
 // What a client-driven skip_to did. Same shape as StartResult, and for the

@@ -116,6 +116,12 @@ export const DIVERGENCES = {
     firmware:
       '`out.title = root["title"] | ""` parses fine, but an untitled program is unidentifiable in the list the device serves — refused at authoring time rather than uploaded.',
   },
+  'null-banks-ignored': {
+    schema: '`type: object` refuses `null`.',
+    validator: 'Reads `banks: null` as no overrides at all, the way it reads `id: null` as no id.',
+    firmware:
+      'parse_event treats an absent key, an explicit null and an empty object alike - there is nothing to override - and event_json omits `banks` when the map is empty, so neither spelling round-trips back out.',
+  },
   'empty-series-refused': {
     schema: '`type: array` with no `minItems`, so `[]` validates.',
     validator: 'Refuses a program with no series.',
@@ -312,6 +318,62 @@ const CASES: Case[] = [
   {
     name: 'a command that is not text',
     doc: withEvent(anEvent({ command: 5 })),
+    schema: 'refused',
+    validator: 'refused',
+  },
+
+  // --- banks ---------------------------------------------------------------
+  { name: 'no banks', doc: withEvent(without(anEvent(), 'banks')), schema: 'accepted', validator: 'accepted' },
+  {
+    name: 'banks naming one letter',
+    doc: withEvent(anEvent({ banks: { B: 'hide' } })),
+    schema: 'accepted',
+    validator: 'accepted',
+  },
+  {
+    name: 'banks naming every letter',
+    doc: withEvent(
+      anEvent({
+        banks: { A: 'show', B: 'hide', C: 'show', D: 'hide', E: 'show', F: 'hide', G: 'show', H: 'hide' },
+      }),
+    ),
+    schema: 'accepted',
+    validator: 'accepted',
+  },
+  {
+    name: 'empty banks',
+    doc: withEvent(anEvent({ banks: {} })),
+    schema: 'accepted',
+    validator: 'accepted',
+  },
+  {
+    name: 'null banks',
+    doc: withEvent(anEvent({ banks: null })),
+    schema: 'refused',
+    validator: 'accepted',
+    divergence: 'null-banks-ignored',
+  },
+  {
+    name: 'a bank letter past H',
+    doc: withEvent(anEvent({ banks: { I: 'show' } })),
+    schema: 'refused',
+    validator: 'refused',
+  },
+  {
+    name: 'a lower-case bank letter',
+    doc: withEvent(anEvent({ banks: { a: 'show' } })),
+    schema: 'refused',
+    validator: 'refused',
+  },
+  {
+    name: 'an unrecognised bank command',
+    doc: withEvent(anEvent({ banks: { A: 'toggle' } })),
+    schema: 'refused',
+    validator: 'refused',
+  },
+  {
+    name: 'banks that is not an object',
+    doc: withEvent(anEvent({ banks: ['A'] })),
     schema: 'refused',
     validator: 'refused',
   },
@@ -518,7 +580,7 @@ describe('the hand-written validator against contracts/program.schema.json', () 
 });
 
 describe('every shipped program, against both descriptions', () => {
-  const files = ['1.json', '2.json', '20.json', '40.json', '50.json', '100.json', '101.json'];
+  const files = ['1.json', '2.json', '20.json', '40.json', '41.json', '50.json', '100.json', '101.json'];
 
   it.each(files)('%s', (name) => {
     const text = readFileSync(new URL(name, PROGRAMS_DIR), 'utf8');

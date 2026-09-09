@@ -60,6 +60,8 @@ struct ProblemType {
   X(kAudioReadonly, "audio_readonly", "Audio is read-only", 409)                                \
   X(kAudioInUse, "audio_in_use", "Audio is used by the loaded program", 409)                    \
   X(kAudioPlaying, "audio_playing", "Audio is currently playing", 409)                          \
+  X(kProgramBanksUnavailable, "program_banks_unavailable",                                      \
+    "The program needs banks this device does not have", 409)                                   \
   X(kWifiUnavailable, "wifi_unavailable", "This device has no WiFi radio", 409)                 \
   /* firmware update */                                                                         \
   X(kOtaImageRefused, "ota_image_refused", "Firmware image refused", 400)                       \

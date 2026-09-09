@@ -58,7 +58,7 @@ test('a miss that is not navigation keeps its own 404', async ({ request }) => {
   });
 });
 
-test('the program list is the seven shipped programs', async ({ page, request }) => {
+test('the program list is the eight shipped programs', async ({ page, request }) => {
   const fromApi = (await (await request.get('/api/v2/programs')).json()) as { id: number; title: string }[];
   expect(fromApi.map((p) => p.id).sort((a, b) => a - b)).toEqual(SHIPPED_PROGRAM_IDS);
 

@@ -44,7 +44,7 @@ test.beforeEach(async ({ request }) => {
 });
 
 // Per test, not once at the end: the device is shared with every other spec,
-// and `load.spec.ts` asserts the program list is exactly the shipped seven.
+// and `load.spec.ts` asserts the program list is exactly the shipped eight.
 test.afterEach(async ({ request }) => {
   await removeUploads(request);
 });

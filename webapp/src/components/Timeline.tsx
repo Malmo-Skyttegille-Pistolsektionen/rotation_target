@@ -1,6 +1,8 @@
 import clsx from 'clsx';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Program, Series, Event } from '../api/types';
+import { aggregateBankState, simulateBanks, type EventBankState } from '../lib/bank-state';
+import { BANK_LETTERS } from '../lib/program-document';
 import { seriesTotalMs } from '../lib/run-position';
 import styles from './Timeline.module.css';
 
@@ -10,6 +12,12 @@ type TimelineProps = {
   currentEventIndex: number | null;
   tickerMs: number | null; // Total milliseconds elapsed in current series
   mode?: 'auto' | 'default' | 'field';
+  /**
+   * How many target banks the device drives. 1 - the default, and every device
+   * before banks existed - renders exactly what this always rendered: no
+   * glyphs, no lanes, one command icon per card.
+   */
+  bankCount?: number;
   /**
    * Clip id to title, for naming the audio an event plays. Optional: without
    * it the detail panel falls back to ids, which is still better than the
@@ -35,9 +43,13 @@ export function Timeline({
   currentEventIndex,
   tickerMs,
   mode = 'auto',
+  bankCount = 1,
   audioTitles,
   onSkipSeries,
 }: TimelineProps): React.ReactNode {
+  // Null on a one-bank device, so nothing downstream has to ask twice whether
+  // this is the multi-bank rendering.
+  const bankStates = useMemo(() => (bankCount > 1 ? simulateBanks(program, bankCount) : null), [program, bankCount]);
   // Two levels, because the chips were introduced for narrow screens and there
   // is no hover on a phone. Pointing at an event previews it; tapping or
   // clicking pins it so it survives the pointer leaving - which is the only
@@ -167,16 +179,26 @@ export function Timeline({
                 activeEventIndex={isCurrentSeries ? currentEventIndex : null}
                 seriesIndex={sIdx}
                 selected={shown}
+                bankStates={bankStates?.[sIdx] ?? null}
                 onPreview={setPreviewed}
                 onTogglePin={togglePin}
               />
-            ) : (
+            ) : bankStates === null ? (
               <FieldTimelineSeries
                 series={series}
                 seriesIndex={sIdx}
                 activeEventIndex={isCurrentSeries ? currentEventIndex : null}
                 elapsedMs={elapsedMs}
                 showCursor={isCurrentSeries}
+              />
+            ) : (
+              <BankLaneSeries
+                series={series}
+                seriesIndex={sIdx}
+                activeEventIndex={isCurrentSeries ? currentEventIndex : null}
+                elapsedMs={elapsedMs}
+                showCursor={isCurrentSeries}
+                bankStates={bankStates[sIdx]}
               />
             )}
             {/* Inside the series, not after the timeline: a program can be
@@ -188,6 +210,7 @@ export function Timeline({
                 reference={shown}
                 pinned={pinned !== null}
                 audioTitles={audioTitles}
+                bankState={bankStates?.[shown.seriesIndex]?.[shown.eventIndex] ?? null}
                 onDismiss={() => {
                   setPinned(null);
                   setPreviewed(null);
@@ -206,6 +229,8 @@ type DefaultTimelineSeriesProps = {
   activeEventIndex: number | null;
   seriesIndex: number;
   selected: EventRef | null;
+  /** One entry per event on a multi-bank device; null when the device has one bank. */
+  bankStates: EventBankState[] | null;
   onPreview: (reference: EventRef | null) => void;
   onTogglePin: (reference: EventRef) => void;
 };
@@ -215,6 +240,7 @@ function DefaultTimelineSeries({
   activeEventIndex,
   seriesIndex,
   selected,
+  bankStates,
   onPreview,
   onTogglePin,
 }: DefaultTimelineSeriesProps): React.ReactNode {
@@ -239,6 +265,12 @@ function DefaultTimelineSeries({
 
         const isSelected = selected?.seriesIndex === seriesIndex && selected.eventIndex === eIdx;
         const reference = { seriesIndex, eventIndex: eIdx };
+        const banks = bankStates?.[eIdx] ?? null;
+        // With banks the tint is the *resulting* state of every bank, so a card
+        // where they disagree carries neither hue - green and red mean "the
+        // target is shown" and "the target is hidden", and on a mixed card
+        // neither is true. Without banks it is the command, exactly as before.
+        const tint = banks === null ? event.command : aggregateBankState(banks.state);
 
         return (
           // A button, not a div with a title attribute. The native tooltip it
@@ -253,8 +285,8 @@ function DefaultTimelineSeries({
               isActive && styles.active,
               isAnchor && styles.anchor,
               isSelected && styles.selected,
-              event.command === 'show' && styles.show,
-              event.command === 'hide' && styles.hide,
+              (tint === 'show' || tint === 'shown') && styles.show,
+              (tint === 'hide' || tint === 'hidden') && styles.hide,
             )}
             aria-pressed={isSelected}
             data-testid={`timeline-event-${String(seriesIndex)}-${String(eIdx)}`}
@@ -277,9 +309,13 @@ function DefaultTimelineSeries({
             <span className={styles.duration}>{Math.round(event.duration / 1000)}</span>
 
             <span className={styles.symbol}>
-              <CommandIcon command={event.command} />
+              {/* Suppressed once the event names a bank: the icon would be
+                  saying "show" for a baseline the glyph below contradicts on
+                  the very banks the event singled out. */}
+              <CommandIcon command={banks !== null && event.banks !== undefined ? undefined : event.command} />
               {hasAudio(event) && <AudioIcon />}
             </span>
+            {banks !== null && <BankGlyph banks={banks} />}
             <span
               className={styles.accumulated}
               data-testid={`timeline-cumulative-${String(seriesIndex)}-${String(eIdx)}`}
@@ -307,6 +343,8 @@ type EventDetailProps = {
   reference: EventRef;
   pinned: boolean;
   audioTitles?: Record<number, string>;
+  /** This event's per-bank result; null when the device has one bank. */
+  bankState: EventBankState | null;
   onDismiss: () => void;
 };
 
@@ -321,7 +359,7 @@ type EventDetailProps = {
  * clipped by the viewport, and is legible at arm's length, which is how this
  * page is read.
  */
-function EventDetail({ program, reference, pinned, audioTitles, onDismiss }: EventDetailProps): ReactNode {
+function EventDetail({ program, reference, pinned, audioTitles, bankState, onDismiss }: EventDetailProps): ReactNode {
   const series = program.series?.[reference.seriesIndex];
   const event = series?.events[reference.eventIndex];
   if (series === undefined || event === undefined) return null;
@@ -347,7 +385,7 @@ function EventDetail({ program, reference, pinned, audioTitles, onDismiss }: Eve
 
       <dl className={styles.detailRows}>
         <dt>Targets</dt>
-        <dd>{commandDescription(event.command)}</dd>
+        <dd>{bankState === null ? commandDescription(event.command) : <BankList banks={bankState} />}</dd>
 
         <dt>Duration</dt>
         <dd>{formatSeconds(event.duration)}</dd>
@@ -377,6 +415,168 @@ function EventDetail({ program, reference, pinned, audioTitles, onDismiss }: Eve
           )}
         </dd>
       </dl>
+    </div>
+  );
+}
+
+/**
+ * The state every bank is left in after this event, as a grid of lettered
+ * cells. Four columns at most, so eight banks read as two rows of four rather
+ * than one strip too narrow to letter.
+ *
+ * Decorative for assistive technology: the detail panel says the same thing in
+ * words, and a card announcing eight bank states on focus would bury the
+ * duration and the audio that are the reason to focus it.
+ */
+function BankGlyph({ banks }: { banks: EventBankState }): ReactNode {
+  const columns = Math.min(banks.state.length, 4);
+
+  return (
+    <span
+      className={styles.glyph}
+      style={{ gridTemplateColumns: `repeat(${String(columns)}, 1fr)` }}
+      aria-hidden='true'
+    >
+      {banks.state.map((state, index) => (
+        <span
+          key={BANK_LETTERS[index]}
+          className={clsx(
+            styles.glyphCell,
+            state === 'shown' ? styles.bankShown : styles.bankHidden,
+            banks.addressed[index] && styles.addressed,
+          )}
+        >
+          {BANK_LETTERS[index]}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** The same information in words, for the detail panel. */
+function BankList({ banks }: { banks: EventBankState }): ReactNode {
+  return (
+    <div className={styles.bankList} data-testid='timeline-event-banks'>
+      {banks.state.map((state, index) => (
+        <span key={BANK_LETTERS[index]}>
+          <i
+            className={clsx(
+              styles.bankSwatch,
+              state === 'shown' ? styles.bankShown : styles.bankHidden,
+              !banks.addressed[index] && styles.carried,
+            )}
+            aria-hidden='true'
+          />
+          {BANK_LETTERS[index]} {state}
+          {!banks.addressed[index] && <span className={styles.bankCarried}> (unchanged)</span>}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+type BankLaneSeriesProps = {
+  series: Series;
+  seriesIndex: number;
+  activeEventIndex: number | null;
+  elapsedMs: number;
+  showCursor: boolean;
+  bankStates: EventBankState[];
+};
+
+/**
+ * The time-scaled view on a device with banks: one lane per bank, drawn to
+ * scale, so "A, then B, then C" is a staircase rather than something to infer
+ * from a row of card glyphs. The audio keeps a row of its own - a clip is a
+ * moment, not a state, and drawing it on a bank lane would claim otherwise.
+ *
+ * Replaces `FieldTimelineSeries` rather than extending it: that view stacks
+ * shown and hidden at different heights, which is a second channel for one
+ * bank and has nowhere to go for eight.
+ */
+function BankLaneSeries({
+  series,
+  seriesIndex,
+  activeEventIndex,
+  elapsedMs,
+  showCursor,
+  bankStates,
+}: BankLaneSeriesProps): ReactNode {
+  const totalMs = seriesTotalMs(series);
+  if (totalMs === 0) return null;
+
+  // Series-relative start of each event, so a segment can be placed by percentage.
+  const starts = series.events.reduce<number[]>(
+    (acc, _event, index) => [...acc, (acc[index - 1] ?? 0) + (series.events[index - 1]?.duration ?? 0)],
+    [],
+  );
+
+  const cursorPercent = (elapsedMs / totalMs) * 100;
+  const bankCount = bankStates[0]?.state.length ?? 1;
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+
+  return (
+    <div className={styles.lanes} data-testid={`timeline-lanes-${String(seriesIndex)}`}>
+      {Array.from({ length: bankCount }, (_, bank) => (
+        <Fragment key={BANK_LETTERS[bank]}>
+          <div className={styles.laneLabel}>
+            <span className={styles.laneLetter}>{BANK_LETTERS[bank]}</span>
+          </div>
+          <div className={styles.lane} data-testid={`timeline-lane-${String(seriesIndex)}-${BANK_LETTERS[bank]}`}>
+            {series.events.map((event, index) => {
+              const state = bankStates[index].state[bank];
+              const previous = index === 0 ? null : bankStates[index - 1].state[bank];
+              return (
+                <span
+                  key={index}
+                  className={clsx(
+                    styles.laneSegment,
+                    state === 'shown' ? styles.bankShown : styles.bankHidden,
+                    previous !== null && previous !== state && styles.edge,
+                    index === activeEventIndex && styles.active,
+                  )}
+                  style={{
+                    left: `${String((starts[index] / totalMs) * 100)}%`,
+                    width: `${String((event.duration / totalMs) * 100)}%`,
+                  }}
+                  title={`${BANK_LETTERS[bank]} ${state} · ${String(Math.round(event.duration / 1000))}s`}
+                />
+              );
+            })}
+            {showCursor && (
+              <span
+                className={styles.laneCursor}
+                style={{ left: `${String(cursorPercent)}%` }}
+                data-testid={bank === 0 ? 'timeline-cursor' : undefined}
+              />
+            )}
+          </div>
+        </Fragment>
+      ))}
+
+      <div className={styles.laneLabel}>audio</div>
+      <div className={styles.audioLane}>
+        {series.events.map((event, index) =>
+          hasAudio(event) ? (
+            <span
+              key={index}
+              className={styles.audioMark}
+              style={{ left: `${String((starts[index] / totalMs) * 100)}%` }}
+            >
+              <AudioIcon />
+            </span>
+          ) : null,
+        )}
+      </div>
+
+      <div />
+      <div className={styles.laneAxis}>
+        {ticks.map((fraction) => (
+          <span key={fraction} style={{ left: `${String(fraction * 100)}%` }}>
+            {anchorRelativeSeconds(series, fraction * totalMs)}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

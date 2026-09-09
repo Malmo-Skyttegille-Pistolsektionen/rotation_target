@@ -128,6 +128,14 @@ void test_utf8_in_the_detail_passes_through_untouched() {
 
 // --- the vocabulary --------------------------------------------------------
 
+// #207, D-41. A 409 like the other "the device cannot do that right now"
+// refusals, and deliberately not a 400: the document is valid, this device is
+// simply not the one it runs on.
+void test_the_bank_refusal_is_a_conflict() {
+  TEST_ASSERT_EQUAL_STRING("program_banks_unavailable", rt::problem::kProgramBanksUnavailable.slug);
+  TEST_ASSERT_EQUAL_INT(409, rt::problem::kProgramBanksUnavailable.status);
+}
+
 void test_every_slug_is_unique() {
   std::set<std::string> seen;
   for (const rt::ProblemType *type : rt::kProblemTypes) {
@@ -176,6 +184,7 @@ int main() {
   RUN_TEST(test_a_control_character_uses_the_u_escape);
   RUN_TEST(test_utf8_in_the_detail_passes_through_untouched);
 
+  RUN_TEST(test_the_bank_refusal_is_a_conflict);
   RUN_TEST(test_every_slug_is_unique);
   RUN_TEST(test_every_type_has_a_title_and_a_plausible_status);
   RUN_TEST(test_slugs_are_lowercase_snake_case);

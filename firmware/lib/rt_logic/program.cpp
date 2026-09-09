@@ -27,6 +27,43 @@ bool parse_command(JsonVariantConst src, std::string &out) {
   return true;
 }
 
+// `banks` names individual banks and overrides `command` for them. Absent, JSON
+// `null` and `{}` all mean "no overrides", so every program written before
+// banks existed means exactly what it always did.
+//
+// Strict for the same reason `command` is (D-20): a key that is not a single
+// upper-case letter A..H, or a value that is not exactly "show" or "hide",
+// fails the whole program rather than becoming a bank that silently never
+// turns. Letters beyond the banks *this* device has are accepted here and
+// refused at start - the library is a library, and the same file runs on the
+// four-bank device next door (D-41).
+bool parse_banks(JsonVariantConst src, Event &e) {
+  if (src.isNull()) return true;
+  if (!src.is<JsonObjectConst>()) return false;
+
+  for (JsonPairConst entry : src.as<JsonObjectConst>()) {
+    const char *key = entry.key().c_str();
+    if (key == nullptr || key[0] < 'A' || key[0] > 'A' + static_cast<char>(kMaxTargetBanks) - 1)
+      return false;
+    if (key[1] != '\0') return false;  // "AA" is not a bank.
+
+    JsonVariantConst value = entry.value();
+    if (!value.is<const char *>()) return false;
+    const char *what = value.as<const char *>();
+    if (what == nullptr) return false;
+
+    const BankMask bit = bank_bit(static_cast<size_t>(key[0] - 'A'));
+    if (strcmp(what, "show") == 0) {
+      e.show_banks |= bit;
+    } else if (strcmp(what, "hide") == 0) {
+      e.hide_banks |= bit;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool parse_event(JsonObjectConst src, Event &e) {
   // Clamped, not merely read: `duration` is attacker-controlled via program
   // upload, and Series::total_ms() sums these into an int32. Unbounded values
@@ -40,6 +77,7 @@ bool parse_event(JsonObjectConst src, Event &e) {
       duration < kMinEventMs ? kMinEventMs : (duration > kMaxEventMs ? kMaxEventMs : duration);
   e.duration_ms = static_cast<int32_t>(clamped);
   if (!parse_command(src["command"], e.command)) return false;
+  if (!parse_banks(src["banks"], e)) return false;
 
   JsonArrayConst ids = src["audio_ids"];
   for (JsonVariantConst id : ids) {

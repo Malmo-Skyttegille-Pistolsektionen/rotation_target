@@ -14,6 +14,7 @@ import {
 } from '../lib/program-document';
 import {
   createEditorState,
+  describeEvent,
   durationMs,
   editorReducer,
   isDirty,
@@ -25,6 +26,7 @@ import {
   type DraftSeries,
   type EditorAction,
 } from '../lib/program-editor';
+import { BANK_LETTERS, type BankLetter } from '../lib/program-document';
 import {
   failureNotice,
   isGoneFromDevice,
@@ -428,6 +430,7 @@ function ProgramEditorForm({
             )}
           </p>
         </div>
+        <BankCountStepper count={state.bankCount} dispatch={dispatch} />
         <div className={styles.headerActions}>
           <div className={styles.tabs} role='tablist'>
             <button
@@ -600,7 +603,7 @@ interface StructuredEditorProps {
 }
 
 function StructuredEditor({ state, dispatch, audios }: StructuredEditorProps): React.ReactNode {
-  const { draft, collapsed, selection } = state;
+  const { draft, collapsed, selection, bankCount } = state;
 
   return (
     <div className={styles.form}>
@@ -675,6 +678,7 @@ function StructuredEditor({ state, dispatch, audios }: StructuredEditorProps): R
           collapsed={collapsed.includes(series.key)}
           selection={selection}
           audios={audios}
+          bankCount={bankCount}
           dispatch={dispatch}
         />
       ))}
@@ -689,6 +693,7 @@ interface SeriesCardProps {
   collapsed: boolean;
   selection: string[];
   audios: AudioFile[];
+  bankCount: number;
   dispatch: React.Dispatch<EditorAction>;
 }
 
@@ -699,6 +704,7 @@ function SeriesCard({
   collapsed,
   selection,
   audios,
+  bankCount,
   dispatch,
 }: SeriesCardProps): React.ReactNode {
   const seconds = Math.round(seriesMs(series) / 100) / 10;
@@ -763,6 +769,7 @@ function SeriesCard({
               selected={selection.includes(event.key)}
               timerStart={series.timerStartKey === event.key}
               audios={audios}
+              bankCount={bankCount}
               dispatch={dispatch}
             />
           ))}
@@ -794,6 +801,8 @@ interface EventRowProps {
   /** Whether the run clock starts on this event (#126). */
   timerStart: boolean;
   audios: AudioFile[];
+  /** How many banks the editor offers. 1 is exactly the row this always was. */
+  bankCount: number;
   dispatch: React.Dispatch<EditorAction>;
 }
 
@@ -805,10 +814,17 @@ function EventRow({
   selected,
   timerStart,
   audios,
+  bankCount,
   dispatch,
 }: EventRowProps): React.ReactNode {
   const testId = `editor-event-${seriesIndex}-${eventIndex}`;
   const ms = durationMs(event);
+  // An override on bank A alone leaves `banksRequired` - and so the stepper -
+  // at 1. The controls still have to show it, or the editor would hide an
+  // instruction the file carries and the device obeys.
+  const named = BANK_LETTERS.filter((letter) => event.banks[letter] !== undefined);
+  const letterCount = Math.max(bankCount, named.length === 0 ? 0 : BANK_LETTERS.indexOf(named[named.length - 1]) + 1);
+  const showBanks = letterCount > 1 || named.length > 0;
 
   return (
     <div className={styles.event} data-testid={testId}>
@@ -856,7 +872,8 @@ function EventRow({
       </label>
 
       <fieldset className={styles.commands}>
-        <legend className={styles.label}>Targets</legend>
+        {/* The radio is the baseline the Except row overrides, so it stops being the whole answer. */}
+        <legend className={styles.label}>{showBanks ? 'All banks' : 'Targets'}</legend>
         {COMMANDS.map((command) => (
           <label key={command.value} className={styles.checkbox}>
             <input
@@ -872,6 +889,23 @@ function EventRow({
           </label>
         ))}
       </fieldset>
+
+      {showBanks && (
+        <fieldset className={styles.banks}>
+          <legend className={styles.label}>Except</legend>
+          {BANK_LETTERS.slice(0, letterCount).map((letter) => (
+            <BankOverrideButton
+              key={letter}
+              testId={testId}
+              letter={letter}
+              value={event.banks[letter]}
+              onCycle={(value) =>
+                dispatch({ type: 'setEventBankOverride', series: seriesIndex, event: eventIndex, letter, value })
+              }
+            />
+          ))}
+        </fieldset>
+      )}
 
       {/* A per-event control even though the field lives on the series: an
           author picks the moment the clock starts, and "which event" is how
@@ -914,6 +948,96 @@ function EventRow({
         onDuplicate={() => dispatch({ type: 'duplicateEvent', series: seriesIndex, event: eventIndex })}
         onDelete={() => dispatch({ type: 'removeEvent', series: seriesIndex, event: eventIndex })}
       />
+
+      {/* The three controls above say it in pieces; this says it as one thing,
+          which is what catches "hide everything except B" written the other
+          way round. Only where there is something to get wrong. */}
+      {showBanks && (
+        <p className={styles.eventSummary} aria-live='polite' data-testid={`${testId}-summary`}>
+          {describeEvent(event, letterCount)}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One letter, cycling – → show → hide → –.
+ *
+ * A button rather than a select: eight selects on a row is a wall, and the
+ * three states are a cycle an author works through by tapping. The label
+ * carries the current value in words, because the fill is a colour and the
+ * dash is a glyph, and neither survives being read out.
+ */
+function BankOverrideButton({
+  testId,
+  letter,
+  value,
+  onCycle,
+}: {
+  testId: string;
+  letter: BankLetter;
+  value?: 'show' | 'hide';
+  onCycle: (value: 'show' | 'hide' | null) => void;
+}): React.ReactNode {
+  const next = value === undefined ? 'show' : value === 'show' ? 'hide' : null;
+
+  return (
+    <button
+      type='button'
+      className={clsx(styles.bankButton, value === 'show' && styles.bankShow, value === 'hide' && styles.bankHide)}
+      data-testid={`${testId}-bank-${letter}`}
+      aria-label={`Bank ${letter}: ${value ?? 'follows all banks'}. Press to set ${next ?? 'follows all banks'}.`}
+      onClick={() => onCycle(next)}
+    >
+      <span className={styles.bankLetter}>{letter}</span>
+      <span className={styles.bankValue}>{value ?? '–'}</span>
+    </button>
+  );
+}
+
+/**
+ * How many banks this program uses, 1…8. Derived from the document on load and
+ * never stored in one: it decides what the editor offers, not what the device
+ * is asked to do.
+ */
+function BankCountStepper({
+  count,
+  dispatch,
+}: {
+  count: number;
+  dispatch: React.Dispatch<EditorAction>;
+}): React.ReactNode {
+  return (
+    <div className={styles.bankStepper} role='group' aria-labelledby='editor-banks-label'>
+      <span className={styles.label} id='editor-banks-label'>
+        Banks this program uses
+      </span>
+      <span className={styles.stepper}>
+        <button
+          type='button'
+          className={styles.stepperButton}
+          data-testid='editor-banks-fewer'
+          aria-label='Fewer banks'
+          disabled={count <= 1}
+          onClick={() => dispatch({ type: 'setBankCount', value: count - 1 })}
+        >
+          −
+        </button>
+        <span className={styles.stepperValue} aria-live='polite' data-testid='editor-banks-count'>
+          {count === 1 ? '1 (A)' : `A–${BANK_LETTERS[count - 1]}`}
+        </span>
+        <button
+          type='button'
+          className={styles.stepperButton}
+          data-testid='editor-banks-more'
+          aria-label='More banks'
+          disabled={count >= BANK_LETTERS.length}
+          onClick={() => dispatch({ type: 'setBankCount', value: count + 1 })}
+        >
+          +
+        </button>
+      </span>
     </div>
   );
 }

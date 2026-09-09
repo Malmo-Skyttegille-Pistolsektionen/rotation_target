@@ -199,6 +199,28 @@
   color: #1e40af;
 }
 
+/* How many banks a program needs. Neutral while the device can run it - this
+   is a property of the program, not a state of the range - and amber when it
+   cannot, which is the advisory register: nothing is wrong, and nothing here
+   will start. */
+.badgeBanks {
+  background: #f3f4f6;
+  color: #374151;
+  font-variant-numeric: tabular-nums;
+}
+
+.badgeUnavailable {
+  background: #fef3c7;
+  color: #92400e;
+  font-variant-numeric: tabular-nums;
+}
+
+.unrunnable {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: #92400e;
+}
+
 /* --- Phone -----------------------------------------------------------------
    Five columns and up to five buttons a row: on a phone the Actions column was
    off-screen entirely. Each row becomes a labelled block, with the actions

@@ -311,6 +311,23 @@ void register_program_routes() {
                             "Start refused: the device has program " +
                                 std::to_string(outcome.loaded_program_id) +
                                 " loaded, not program " + std::to_string(expected_id));
+      case rt::StartResult::kBanksUnavailable: {
+        // Names both, the way the mismatch above does: the operator needs to
+        // know what the program wants and what this device has to decide what
+        // to do about it. Loading it was fine; only the start is refused.
+        const size_t needed = outcome.banks_required;
+        const size_t have = outcome.bank_count;
+        std::string detail = "Program needs banks A-";
+        detail += rt::bank_letter(needed - 1);
+        detail += "; this device has ";
+        if (have == 1) {
+          detail += "one bank (A)";
+        } else {
+          detail += "A-";
+          detail += rt::bank_letter(have - 1);
+        }
+        return send_problem(res, rt::problem::kProgramBanksUnavailable, detail);
+      }
       case rt::StartResult::kStarted:
         break;
     }

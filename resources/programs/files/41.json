@@ -1,0 +1,106 @@
+{
+  "id": 41,
+  "title": "Fältträning, 4 mål",
+  "description": "Station 1 visar ett mål i taget; station 2 visar par. Kräver bank A–D.",
+  "readonly": false,
+  "series": [
+    {
+      "name": "Station 1: ett mål i taget",
+      "optional": false,
+      "timer_start_index": 1,
+      "events": [
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            26
+          ]
+        },
+        {
+          "duration": 4000,
+          "banks": {
+            "A": "show"
+          }
+        },
+        {
+          "duration": 4000,
+          "command": "hide",
+          "banks": {
+            "B": "show"
+          }
+        },
+        {
+          "duration": 4000,
+          "command": "hide",
+          "banks": {
+            "C": "show"
+          }
+        },
+        {
+          "duration": 4000,
+          "command": "hide",
+          "banks": {
+            "D": "show"
+          }
+        },
+        {
+          "duration": 3000,
+          "command": "hide",
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Station 2: par",
+      "optional": true,
+      "timer_start_index": 1,
+      "events": [
+        {
+          "duration": 7000,
+          "command": "hide",
+          "audio_ids": [
+            26
+          ]
+        },
+        {
+          "duration": 6000,
+          "banks": {
+            "A": "show",
+            "B": "show"
+          }
+        },
+        {
+          "duration": 6000,
+          "command": "hide",
+          "banks": {
+            "C": "show",
+            "D": "show"
+          }
+        },
+        {
+          "duration": 3000,
+          "command": "hide",
+          "audio_ids": [
+            34
+          ]
+        },
+        {
+          "duration": 1000,
+          "command": "show",
+          "audio_ids": [
+            37
+          ]
+        }
+      ]
+    }
+  ]
+}
