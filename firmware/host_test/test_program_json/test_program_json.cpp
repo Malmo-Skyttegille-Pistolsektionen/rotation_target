@@ -127,7 +127,7 @@ void test_the_summary_form_omits_the_series() {
   p.series.push_back(rt::Series{});
 
   TEST_ASSERT_EQUAL_STRING(
-      "{\"id\":3,\"title\":\"Title\",\"description\":\"Desc\",\"readonly\":true}",
+      "{\"id\":3,\"title\":\"Title\",\"description\":\"Desc\",\"banksRequired\":1,\"readonly\":true}",
       rt::program_summary_json(p).c_str());
 }
 
@@ -160,7 +160,7 @@ void test_titles_are_escaped() {
 
   TEST_ASSERT_EQUAL_STRING(
       "{\"id\":1,\"title\":\"He said \\\"go\\\"\\\\now\",\"description\":\"line\\nbreak\","
-      "\"readonly\":false}",
+      "\"banksRequired\":1,\"readonly\":false}",
       rt::program_summary_json(p).c_str());
 }
 
@@ -418,6 +418,131 @@ void test_an_empty_program_uses_nothing() {
   TEST_ASSERT_FALSE(rt::program_uses_audio(p, 1));
 }
 
+// --- Per-bank overrides (#207, D-41) ---------------------------------------
+
+// One event whose `banks` is `body`, as a whole program document.
+static std::string banked_doc(const char *body) {
+  std::string doc = "{\"id\":1,\"series\":[{\"events\":[{\"duration\":100,\"banks\":";
+  doc += body;
+  doc += "}]}]}";
+  return doc;
+}
+
+static bool banks_parse(const char *body, rt::Program &p) {
+  const std::string doc = banked_doc(body);
+  return rt::parse_program(doc.c_str(), doc.size(), false, p);
+}
+
+void test_banks_name_individual_banks() {
+  rt::Program p;
+  TEST_ASSERT_TRUE(banks_parse("{\"A\":\"show\",\"D\":\"hide\"}", p));
+  const rt::Event &e = p.series[0].events[0];
+  TEST_ASSERT_EQUAL_UINT32(rt::bank_bit(0), e.show_banks);
+  TEST_ASSERT_EQUAL_UINT32(rt::bank_bit(3), e.hide_banks);
+}
+
+void test_banks_absent_null_and_empty_are_the_same_event() {
+  // Every program written before banks existed means exactly what it did.
+  rt::Program absent;
+  const char *doc = "{\"id\":1,\"series\":[{\"events\":[{\"duration\":100}]}]}";
+  TEST_ASSERT_TRUE(rt::parse_program(doc, strlen(doc), false, absent));
+
+  rt::Program null_banks;
+  TEST_ASSERT_TRUE(banks_parse("null", null_banks));
+  rt::Program empty_banks;
+  TEST_ASSERT_TRUE(banks_parse("{}", empty_banks));
+
+  const std::string expected = rt::event_json(absent.series[0].events[0]);
+  TEST_ASSERT_EQUAL_STRING(expected.c_str(), rt::event_json(null_banks.series[0].events[0]).c_str());
+  TEST_ASSERT_EQUAL_STRING(expected.c_str(), rt::event_json(empty_banks.series[0].events[0]).c_str());
+}
+
+void test_an_event_emits_banks_in_letter_order() {
+  rt::Event e;
+  e.duration_ms = 100;
+  e.command = "hide";
+  e.show_banks = rt::bank_bit(3) | rt::bank_bit(1);
+  e.hide_banks = rt::bank_bit(2);
+  TEST_ASSERT_EQUAL_STRING(
+      "{\"duration\":100,\"command\":\"hide\",\"banks\":{\"B\":\"show\",\"C\":\"hide\",\"D\":\"show\"}}",
+      rt::event_json(e).c_str());
+}
+
+void test_a_banked_event_round_trips() {
+  rt::Program p;
+  TEST_ASSERT_TRUE(banks_parse("{\"B\":\"show\"}", p));
+  TEST_ASSERT_EQUAL_STRING("{\"duration\":100,\"banks\":{\"B\":\"show\"}}",
+                           rt::event_json(p.series[0].events[0]).c_str());
+}
+
+// Strict for the same reason `command` is (D-20): a bank that silently never
+// turns is the failure this refusal exists to prevent.
+void test_a_lower_case_bank_letter_fails_the_whole_program() {
+  rt::Program p;
+  TEST_ASSERT_FALSE(banks_parse("{\"a\":\"show\"}", p));
+}
+
+void test_a_bank_letter_past_h_fails_the_whole_program() {
+  rt::Program p;
+  TEST_ASSERT_FALSE(banks_parse("{\"I\":\"show\"}", p));
+}
+
+void test_a_two_letter_bank_key_fails_the_whole_program() {
+  rt::Program p;
+  TEST_ASSERT_FALSE(banks_parse("{\"AA\":\"show\"}", p));
+}
+
+void test_a_non_string_bank_value_fails_the_whole_program() {
+  rt::Program p;
+  TEST_ASSERT_FALSE(banks_parse("{\"A\":1}", p));
+}
+
+void test_a_bank_value_is_case_sensitive() {
+  rt::Program p;
+  TEST_ASSERT_FALSE(banks_parse("{\"A\":\"Show\"}", p));
+}
+
+void test_an_unrecognised_bank_value_fails_the_whole_program() {
+  rt::Program p;
+  TEST_ASSERT_FALSE(banks_parse("{\"A\":\"toggle\"}", p));
+}
+
+void test_banks_that_is_not_an_object_fails_the_whole_program() {
+  rt::Program p;
+  TEST_ASSERT_FALSE(banks_parse("[\"A\"]", p));
+}
+
+void test_banks_required_is_the_highest_letter_named() {
+  rt::Program p;
+  TEST_ASSERT_TRUE(banks_parse("{\"D\":\"show\"}", p));
+  TEST_ASSERT_EQUAL_UINT32(4u, rt::banks_required(p));
+}
+
+void test_banks_required_is_one_for_a_program_that_names_none() {
+  rt::Program p;
+  const char *doc = "{\"id\":1,\"series\":[{\"events\":[{\"duration\":100,\"command\":\"show\"}]}]}";
+  TEST_ASSERT_TRUE(rt::parse_program(doc, strlen(doc), false, p));
+  TEST_ASSERT_EQUAL_UINT32(1u, rt::banks_required(p));
+}
+
+// Naming bank A needs one bank, which every device has. The count is what the
+// device must have, not how many letters the document mentions.
+void test_naming_bank_a_alone_still_needs_one_bank() {
+  rt::Program p;
+  TEST_ASSERT_TRUE(banks_parse("{\"A\":\"hide\"}", p));
+  TEST_ASSERT_EQUAL_UINT32(1u, rt::banks_required(p));
+}
+
+void test_banks_required_takes_the_highest_across_every_series() {
+  rt::Program p;
+  const char *doc =
+      "{\"id\":1,\"series\":["
+      "{\"events\":[{\"duration\":100,\"banks\":{\"H\":\"show\"}}]},"
+      "{\"events\":[{\"duration\":100,\"banks\":{\"B\":\"hide\"}}]}]}";
+  TEST_ASSERT_TRUE(rt::parse_program(doc, strlen(doc), false, p));
+  TEST_ASSERT_EQUAL_UINT32(8u, rt::banks_required(p));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_a_program_round_trips_its_fields);
@@ -444,6 +569,22 @@ int main() {
   RUN_TEST(test_an_absent_command_is_accepted);
   RUN_TEST(test_an_unrecognised_command_fails_the_whole_program);
   RUN_TEST(test_a_command_is_case_sensitive);
+
+  RUN_TEST(test_banks_name_individual_banks);
+  RUN_TEST(test_banks_absent_null_and_empty_are_the_same_event);
+  RUN_TEST(test_an_event_emits_banks_in_letter_order);
+  RUN_TEST(test_a_banked_event_round_trips);
+  RUN_TEST(test_a_lower_case_bank_letter_fails_the_whole_program);
+  RUN_TEST(test_a_bank_letter_past_h_fails_the_whole_program);
+  RUN_TEST(test_a_two_letter_bank_key_fails_the_whole_program);
+  RUN_TEST(test_a_non_string_bank_value_fails_the_whole_program);
+  RUN_TEST(test_a_bank_value_is_case_sensitive);
+  RUN_TEST(test_an_unrecognised_bank_value_fails_the_whole_program);
+  RUN_TEST(test_banks_that_is_not_an_object_fails_the_whole_program);
+  RUN_TEST(test_banks_required_is_the_highest_letter_named);
+  RUN_TEST(test_banks_required_is_one_for_a_program_that_names_none);
+  RUN_TEST(test_naming_bank_a_alone_still_needs_one_bank);
+  RUN_TEST(test_banks_required_takes_the_highest_across_every_series);
   RUN_TEST(test_a_bad_command_in_a_later_series_still_fails);
   RUN_TEST(test_null_and_empty_commands_mean_no_command);
   RUN_TEST(test_a_non_string_command_is_refused);

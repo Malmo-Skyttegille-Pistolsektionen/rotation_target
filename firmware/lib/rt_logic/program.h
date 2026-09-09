@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "json_util.h"
+#include "target_bank.h"
 
 namespace rt {
 
@@ -31,8 +32,21 @@ struct Event {
   int32_t duration_ms = 0;
   // "show", "hide", or empty for "leave the targets where they are". Any other
   // value fails the parse - see parse_program().
+  //
+  // With banks it is the *baseline*: it applies to every bank the event does
+  // not name. See `banks` in contracts/program.schema.json for the whole rule.
   std::string command;
   std::vector<int32_t> audio_ids;
+  // The banks this event names, and which way. Two masks rather than a map:
+  // the executor drives a set of banks at a time, so this is already the shape
+  // it needs, and a bank cannot be in both.
+  //
+  // Last, and with initialisers, so the aggregate `Event{ms, "show", {}}` that
+  // the host tests are written with still compiles unchanged.
+  BankMask show_banks = 0;
+  BankMask hide_banks = 0;
+
+  BankMask named_banks() const { return show_banks | hide_banks; }
 };
 
 struct Series {
@@ -90,6 +104,22 @@ inline bool program_uses_audio(const Program &p, int32_t audio_id) {
   return false;
 }
 
+// The banks a program needs: the highest letter any event names, plus one, or 1
+// for a program that names none. Derived, never read from the document - a
+// program cannot claim to need fewer banks than it addresses. A device with
+// fewer refuses to *start* it (D-41); it stores and loads it like any other.
+inline size_t banks_required(const Program &p) {
+  BankMask named = 0;
+  for (const Series &s : p.series) {
+    for (const Event &e : s.events) named |= e.named_banks();
+  }
+  size_t required = 1;
+  for (size_t i = 0; i < kMaxTargetBanks; i++) {
+    if (named & bank_bit(i)) required = i + 1;
+  }
+  return required;
+}
+
 // --- Serialization ---------------------------------------------------------
 //
 // Hand-rolled rather than delegated to ArduinoJson so the wire format is
@@ -104,6 +134,8 @@ inline std::string program_summary_json(const Program &p) {
   out += json_quote(p.title);
   out += ",\"description\":";
   out += json_quote(p.description);
+  out += ",\"banksRequired\":";
+  out += std::to_string(banks_required(p));
   out += ",\"readonly\":";
   out += p.readonly ? "true" : "false";
   out += "}";
@@ -118,6 +150,24 @@ inline std::string event_json(const Event &e) {
   if (!e.command.empty()) {
     out += ",\"command\":";
     out += json_quote(e.command);
+  }
+  // Only when the event names something: an empty object is what "no
+  // overrides" already means, so writing one would put a key in every file
+  // that says nothing. Letter order, so a stored document is stable.
+  if (e.named_banks() != 0) {
+    out += ",\"banks\":{";
+    bool first = true;
+    for (size_t i = 0; i < kMaxTargetBanks; i++) {
+      const bool shows = (e.show_banks & bank_bit(i)) != 0;
+      const bool hides = (e.hide_banks & bank_bit(i)) != 0;
+      if (!shows && !hides) continue;
+      if (!first) out += ',';
+      first = false;
+      out += '"';
+      out += bank_letter(i);
+      out += shows ? "\":\"show\"" : "\":\"hide\"";
+    }
+    out += '}';
   }
   if (!e.audio_ids.empty()) {
     out += ",\"audio_ids\":[";
