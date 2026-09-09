@@ -137,10 +137,12 @@ describe('the WiFi block on Settings', () => {
     const section = screen.getByTestId('wifi-section');
     expect(section.querySelectorAll('input, select, button')).toHaveLength(0);
     expect(section.textContent).toContain('Expert mode');
-    // Saving stopped restarting the device (#341), so this must not still say
-    // that it does.
-    expect(section.textContent).toContain('once-per-site decision');
-    expect(section.textContent).not.toContain('restarts');
+    // Saving stopped restarting the device (#341), so the whole sentence is
+    // pinned rather than the absence of the old claim - which "restarts" alone
+    // would let any rewording slip past.
+    expect(section.textContent).toContain(
+      'Moving the device to a different network is in Expert mode — a once-per-site decision behind the button press on the board.',
+    );
   });
 
   // No response in this feature carries a password, in any form. The stored

@@ -37,12 +37,18 @@ export function RestartToApply(): React.ReactNode {
   const running = state?.programState?.running === true;
 
   // Also written by `useSSE`. The stream dies with the device, so its return is
-  // the app's only signal that the device is back again.
+  // the app's only signal that the device is back.
+  //
+  // A live observer rather than the `enabled: false` shape used for `['state']`
+  // above: a disabled observer does not re-render on `setQueryData`, and this
+  // one has to. `staleTime: Infinity` keeps the placeholder `queryFn` from ever
+  // overwriting what the stream wrote.
   const { data: sseStatus } = useQuery<string | null>({
     queryKey: ['sse-status'],
-    queryFn: async () => null,
-    initialData: null,
-    enabled: false,
+    queryFn: () => null,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    notifyOnChangeProps: 'all',
   });
 
   const [confirming, setConfirming] = useState(false);

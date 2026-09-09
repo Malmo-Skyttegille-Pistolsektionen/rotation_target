@@ -10,6 +10,6 @@ namespace device_restart {
 // False when the task could not be created: nothing will restart, and the
 // caller must say so rather than report success. `why` is logged and must
 // outlive the call.
-bool schedule(const char *why);
+[[nodiscard]] bool schedule(const char *why);
 
 }  // namespace device_restart

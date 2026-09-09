@@ -27,9 +27,8 @@ uint64_t s_written = 0;
 volatile bool s_reboot_pending = false;
 
 // The image landed and is the boot partition, but no restart could be started.
-// A distinct state because the answer is neither "accepted and restarting" nor
-// "your image was refused": the update is installed and needs a power cycle.
-volatile bool s_install_without_restart = false;
+// Sticky until a power cycle: see the guard at the top of onUpload.
+volatile bool s_installed_awaiting_power_cycle = false;
 
 // Why the last upload was refused, so onRequest can answer with the status the
 // contract declares rather than a blanket 400.
@@ -69,9 +68,15 @@ void register_routes(PsychicHttpServer &server) {
                      size_t len, bool final) -> esp_err_t {
     if (index == 0) {
       ESP_LOGI(TAG, "Upload '%s' starting", filename == nullptr ? "(unnamed)" : filename);
-      s_refusal = rt::ota::Refusal::kNone;
-      s_reboot_pending = false;
-      s_install_without_restart = false;
+      // Nothing may be written while an installed image is waiting for a power
+      // cycle: the inactive slot is now the *boot* partition, so
+      // esp_ota_get_next_update_partition would hand back the image somebody is
+      // waiting to run and the first write would erase it. Refused before the
+      // partition is even looked up; onRequest answers off the same flag.
+      if (s_installed_awaiting_power_cycle) {
+        ESP_LOGW(TAG, "Refused: an installed image is waiting for a power cycle");
+        return ESP_FAIL;
+      }
 
       // Reclaim a handle a previous upload leaked. A client that vanishes
       // mid-transfer never delivers a final chunk, so nothing else closes it.
@@ -154,12 +159,11 @@ void register_routes(PsychicHttpServer &server) {
     ESP_LOGI(TAG, "Accepted %llu bytes, version '%s' - restarting shortly", s_written,
              written.version);
     clear();
-    // Only once the restart is on its way: onRequest answers "accepted and
-    // restarting" off this flag, and an image that will boot but never does is
-    // worse than a refusal.
+    // Only once the restart is on its way: an image that will boot but never
+    // does is worse than a refusal.
     s_reboot_pending = device_restart::schedule("into the new firmware");
     if (!s_reboot_pending) {
-      s_install_without_restart = true;
+      s_installed_awaiting_power_cycle = true;
       return ESP_FAIL;
     }
     return ESP_OK;
@@ -167,14 +171,28 @@ void register_routes(PsychicHttpServer &server) {
 
   upload.onRequest([](PsychicRequest *req, PsychicResponse *res) -> esp_err_t {
     (void)req;
-    if (s_reboot_pending) {
+
+    // Read and clear, before anything can return. onUpload resets these at its
+    // first chunk, and a body whose file part is empty or missing never gets
+    // one - MultipartProcessor guards the final callback with `if (_itemSize)`
+    // - so a request that skips onUpload entirely would otherwise answer with
+    // the previous upload's outcome.
+    const bool restarting = s_reboot_pending;
+    const rt::ota::Refusal reported = s_refusal;
+    s_reboot_pending = false;
+    s_refusal = rt::ota::Refusal::kNone;
+
+    if (restarting) {
       res->setCode(200);
       res->setContentType("application/json");
       res->setContent("{\"status\":\"accepted\",\"restarting\":true}");
       return res->send();
     }
 
-    if (s_install_without_restart) {
+    // Not read-and-cleared, unlike the two above: it holds until the device is
+    // power-cycled, so every upload attempted in the meantime gets this answer
+    // rather than the "empty image" a cleared flag would fall through to.
+    if (s_installed_awaiting_power_cycle) {
       const std::string body =
           rt::problem_json(rt::problem::kRestartFailed,
                            "The firmware was installed and is the boot partition, but the restart "
@@ -190,12 +208,12 @@ void register_routes(PsychicHttpServer &server) {
     // its own, a bad image never will. onUpload cannot answer for itself -
     // returning ESP_FAIL is how it reports - so the reason is carried here.
     const rt::ota::Refusal refusal =
-        s_refusal == rt::ota::Refusal::kNone ? rt::ota::Refusal::kEmptyImage : s_refusal;
+        reported == rt::ota::Refusal::kNone ? rt::ota::Refusal::kEmptyImage : reported;
     const auto &type = refusal == rt::ota::Refusal::kProgramRunning ? rt::problem::kProgramRunning
                                                                     : rt::problem::kOtaImageRefused;
     const std::string body = rt::problem_json(type, rt::ota::message(refusal));
     res->setCode(type.status);
-    res->setContentType("application/problem+json");
+    res->setContentType(rt::kProblemContentType);
     res->setContent(body.c_str());
     return res->send();
   });

@@ -424,9 +424,11 @@
   font-weight: 700;
   line-height: 1;
   box-sizing: border-box;
-  background-color: #f3f4f6;
-  color: #374151;
-  border: 2px solid #e5e7eb;
+  /* No background, colour or border here, deliberately. Every cell carries
+     .badgeGreen or .badgeRed - the state comes from the device - and those are
+     declared above at the same specificity, so anything set here wins on source
+     order and the whole strip paints one neutral grey however the targets
+     stand. It shipped that way: the buttons worked and looked dead. */
 }
 
 /* Dropped below 768px, where four cells and four names do not fit and the

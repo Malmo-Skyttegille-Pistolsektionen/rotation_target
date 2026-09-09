@@ -29,8 +29,12 @@ const PORT = 18100;
 let server: MockServer;
 let queryClient: QueryClient;
 
-async function device(): Promise<void> {
-  server = createMockServer({ clock: createFakeClock(), port: PORT, seed: { programs: {}, audios: [] } });
+async function device(options: { restartFails?: boolean } = {}): Promise<void> {
+  server = createMockServer({
+    clock: createFakeClock(),
+    port: PORT,
+    seed: { programs: {}, audios: [], restartFails: options.restartFails },
+  });
   await server.listen();
 }
 
@@ -198,6 +202,68 @@ describe('restart to apply (#341)', () => {
     const again = (await screen.findByTestId('restart-to-apply')) as HTMLButtonElement;
     expect(again.disabled).toBe(false);
     expect(again.textContent).toContain('Restart to apply');
+  });
+
+  // The case the effect's stream guard is actually for: a connected stream at
+  // the moment of the click must not read as "the device is back". Without the
+  // guard - clearing on `sseStatus === 'connected'` alone - the button would go
+  // pressable again while the device was still on its way down.
+  it('does not read a still-connected stream as the device already being back', async () => {
+    await device();
+    await saveHardware();
+    renderApp('/hardware');
+    await act(async () => {
+      queryClient.setQueryData(['sse-status'], 'connected');
+    });
+
+    fireEvent.click(await screen.findByTestId('restart-to-apply'));
+    await act(async () => {
+      fireEvent.click(screen.getByText('Restart'));
+    });
+
+    const button = screen.getByTestId('restart-to-apply') as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.textContent).toContain('Restarting…');
+
+    // The stream has not moved, and there is still something pending.
+    await act(async () => {
+      queryClient.setQueryData(['sse-status'], 'connected');
+    });
+    expect((screen.getByTestId('restart-to-apply') as HTMLButtonElement).disabled).toBe(true);
+
+    // Now the device actually goes: the stream drops and comes back.
+    await act(async () => {
+      queryClient.setQueryData(['sse-status'], 'error');
+    });
+    expect((screen.getByTestId('restart-to-apply') as HTMLButtonElement).disabled).toBe(true);
+
+    await act(async () => {
+      queryClient.setQueryData(['sse-status'], 'connected');
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect((screen.getByTestId('restart-to-apply') as HTMLButtonElement).disabled).toBe(false);
+    });
+    expect(screen.getByTestId('restart-to-apply').textContent).toContain('Restart to apply');
+  });
+
+  // The device can refuse: no memory for the restart task, so nothing restarted.
+  it('shows the device sentence when the restart is refused, and stays pressable', async () => {
+    await device({ restartFails: true });
+    await saveHardware();
+    renderApp('/hardware');
+
+    fireEvent.click(await screen.findByTestId('restart-to-apply'));
+    await act(async () => {
+      fireEvent.click(screen.getByText('Restart'));
+    });
+
+    // RFC 9457 (D-19): the device's own detail, shown as written.
+    expect((await screen.findByTestId('restart-notice')).textContent).toContain('out of memory');
+    const button = screen.getByTestId('restart-to-apply') as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    expect(button.textContent).toContain('Restart to apply');
   });
 
   it('is disabled while a program is running, and says why', async () => {

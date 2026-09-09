@@ -1003,16 +1003,30 @@ describe('restarting the device', () => {
   const restart = async (init?: RequestInit): Promise<Response> =>
     api('/system/restart', { method: 'POST', ...init });
 
+  // Any answer at all means the device is there - a 404 included, since what
+  // this is telling apart is "answered" from "dropped the socket".
   const unreachable = async (): Promise<boolean> => api('/version').then(() => false).catch(() => true);
 
   // The firmware answers, keeps serving for 1.5 s so the response drains, and
   // only then reboots - so a client that polls immediately still gets answers.
   it('answers the same shape as the OTA upload, drains, then goes away', async () => {
+    await api('/config/hardware', {
+      method: 'PUT',
+      body: JSON.stringify({ banks: [{ gpio: 7, activeLow: true, name: '' }] }),
+    });
+
     const res = await restart();
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: 'accepted', restarting: true });
 
     expect(await unreachable()).toBe(false);
+    // And it is still the device that has not restarted yet: what it reports
+    // during the drain is the state it has been serving all along.
+    expect(await (await api('/config/hardware')).json()).toMatchObject({
+      active: { banks: HARDWARE_DEFAULTS.banks },
+      restartRequired: true,
+    });
+
     clock.advance(1500);
     expect(await unreachable()).toBe(true);
     clock.advance(1500);
@@ -1060,6 +1074,24 @@ describe('restarting the device', () => {
     });
     clock.advance(3000);
     expect(await unreachable()).toBe(false);
+  });
+
+  it('says so rather than claiming a restart when the device cannot start one', async () => {
+    const oom = createMockServer({ clock, seed: { programs: {}, audios: [], restartFails: true } });
+    const oomBase = `http://127.0.0.1:${await oom.listen()}/api/v2`;
+    try {
+      await expectProblem(await fetch(`${oomBase}/system/restart`, { method: 'POST' }), {
+        type: '/problems/restart_failed',
+        title: 'Could not start the restart',
+        status: 500,
+        detail:
+          'Could not start the restart - the device is out of memory. Nothing has been restarted; try again, or power-cycle the device.',
+      });
+      // Nothing was restarted, so it is still there and still answering.
+      expect((await fetch(`${oomBase}/config/hardware`)).status).toBe(200);
+    } finally {
+      await oom.close();
+    }
   });
 
   it('is behind the control lock', async () => {

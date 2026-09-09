@@ -2801,6 +2801,12 @@ export interface operations {
              * @description `/problems/restart_failed` — the image was written and is the boot
              *     partition, but the restart could not be started. The update is
              *     installed; a power cycle runs it.
+             *
+             *     **Every further upload answers this too, until that power cycle.**
+             *     The slot the next upload would be written to is now the boot
+             *     partition, so a retry would erase the image somebody is waiting to
+             *     run. The device refuses before writing a byte rather than accepting
+             *     an upload it would destroy the update to serve.
              */
             500: {
                 headers: {

@@ -226,10 +226,7 @@ const FIRST_UPLOAD_ID = 100;
  */
 const PLAYBACK_DURATION = 3000;
 
-/**
- * `kDrainMs` in firmware/main/system/restart.cpp: the device answers, keeps
- * serving for this long so the response drains, and only then reboots.
- */
+/** `kDrainMs` in firmware/main/system/restart.cpp: served, then it reboots. */
 const RESTART_DRAIN_MS = 1500;
 /** How long it is then unreachable before it is serving again. */
 const RESTART_DOWN_MS = 1500;
@@ -351,6 +348,12 @@ export interface MockSeed {
    * to put a partition near full, or to leave usage unknown.
    */
   partitions?: DiagnosticsInfo['partitions'];
+  /**
+   * Make `POST /system/restart` answer `500 /problems/restart_failed` instead
+   * of restarting - the device out of memory for the restart task (#341). The
+   * only way to reach that branch, since nothing here can run out.
+   */
+  restartFails?: boolean;
 }
 
 /**
@@ -1555,22 +1558,25 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         return;
       }
 
+      if (seed.restartFails === true) {
+        problemResponse(
+          res,
+          '/problems/restart_failed',
+          'Could not start the restart - the device is out of memory. Nothing has been restarted; try again, or power-cycle the device.',
+        );
+        return;
+      }
+
       jsonResponse(res, 200, { status: 'accepted', restarting: true });
 
       // Then behave like the firmware: keep serving for the drain delay, go
       // away, and come back running what was saved. The clock is injectable, so
       // a test decides when each of those happens rather than waiting.
-      //
-      // The stream is dropped now rather than at `downFrom`. On the device it
-      // dies with the chip 1.5 s later; nothing a client does in between
-      // depends on which, and deferring it would need a one-shot timer the
-      // Clock seam does not have.
       clients.forEach((client) => {
         client.cancelHeartbeat();
         client.res.end();
       });
       clients.length = 0;
-      boot();
       downFrom = clock.now() + RESTART_DRAIN_MS;
       downUntil = downFrom + RESTART_DOWN_MS;
       return;
@@ -2119,13 +2125,16 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   function middleware(req: IncomingMessage, res: ServerResponse, next: () => void): void {
     // Mid-restart. The socket is dropped rather than answered with a status: a
     // client that receives anything at all has not lost the device, which is
-    // the state this is simulating.
+    // the state this is simulating. `boot()` happens on the way back up, not
+    // when the request arrived - during the drain the device is still the one
+    // that has not restarted yet, and still reports `restartRequired`.
     if (downFrom !== null && clock.now() >= downFrom) {
       if (clock.now() < downUntil) {
         res.destroy();
         return;
       }
       downFrom = null;
+      boot();
     }
 
     const url = new URL(req.url || '', 'http://localhost');

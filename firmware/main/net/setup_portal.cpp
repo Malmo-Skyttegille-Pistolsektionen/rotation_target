@@ -301,13 +301,19 @@ esp_err_t save(httpd_req_t *req) {
     return ESP_FAIL;
   }
 
-  httpd_resp_set_type(req, "text/html");
-  httpd_resp_send(req, "<p>Saved. The device is restarting and will join that network.</p>",
-                  HTTPD_RESP_USE_STRLEN);
-
   // The one place a save still restarts on its own (D-42): on the setup AP
-  // there is nothing else the operator could be doing.
-  (void)device_restart::schedule("credentials saved at the setup portal");
+  // there is nothing else the operator could be doing. Scheduled before the
+  // page is written, so the page cannot promise a restart that was refused -
+  // the credentials are saved either way, and a power cycle applies them.
+  const bool restarting = device_restart::schedule("credentials saved at the setup portal");
+
+  httpd_resp_set_type(req, "text/html");
+  httpd_resp_send(req,
+                  restarting
+                      ? "<p>Saved. The device is restarting and will join that network.</p>"
+                      : "<p>Saved, but the device could not restart itself. Switch it off and on "
+                        "again to join that network.</p>",
+                  HTTPD_RESP_USE_STRLEN);
   return ESP_OK;
 }
 
