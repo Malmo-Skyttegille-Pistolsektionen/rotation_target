@@ -38,9 +38,8 @@ const BANK_LETTERS = 'ABCDEFGH';
  * the same reading, and the last time two copies of a status existed here they
  * drifted.
  *
- * As buttons, each cell toggles its own bank - which is what the letters are
- * for. `names` come from the hardware configuration and are dropped below
- * 768px, where the letter alone has to carry it.
+ * `names` come from the hardware configuration and are dropped below 768px,
+ * where the letter alone has to carry it.
  */
 function TargetStrip({
   banks,
@@ -55,7 +54,19 @@ function TargetStrip({
   statusTestId?: string;
   onToggle?: (letter: string) => void;
 }): React.ReactNode {
-  if (banks.length <= 1) {
+  // No frame yet: neutral and "-", never a red "hidden". Claiming a position
+  // the device has not reported is the one thing this badge must not do -
+  // somebody reads it before walking downrange.
+  if (banks.length === 0) {
+    return (
+      <div className={styles.infoBadge}>
+        <span className={styles.badgeLabel}>Targets:</span>
+        <strong data-testid={statusTestId}>-</strong>
+      </div>
+    );
+  }
+
+  if (banks.length === 1) {
     const status = banks[0];
     return (
       <div
@@ -65,7 +76,7 @@ function TargetStrip({
         })}
       >
         <span className={styles.badgeLabel}>Targets:</span>
-        <strong data-testid={statusTestId}>{status ?? '-'}</strong>
+        <strong data-testid={statusTestId}>{status}</strong>
       </div>
     );
   }
@@ -228,8 +239,10 @@ export function RunView(): React.ReactNode {
         .sort()
         .map((letter) => targetBanks[letter]);
     }
-    return [state?.targetStatus ?? 'hidden'];
-  }, [targetBanks, state?.targetStatus]);
+    // `targetStatus` alone is firmware from before banks: one bank, and its
+    // state. Empty until the first frame arrives, so nothing is claimed.
+    return state ? [state.targetStatus] : [];
+  }, [targetBanks, state]);
   const bankCount = bankStates.length;
 
   // Names, for the cells at >=768px. The hardware configuration is already
@@ -626,10 +639,9 @@ export function RunView(): React.ReactNode {
                   Unload
                 </button>
 
-                {/* One bank keeps the single button it has always had. With
-                    more, the letters are the control: a cell toggles its own
-                    bank, and the two "all" buttons are the single button the
-                    strip replaced. */}
+                {/* One bank keeps the single button it has always had; with
+                    more, the letters are the control. The two rules a toggle
+                    follows are in `firmware/docs/api-v2.md`. */}
                 {bankCount <= 1 ? (
                   <button className={clsx(styles.button, styles.buttonSecondary)} onClick={handleToggleTargets}>
                     Toggle Targets

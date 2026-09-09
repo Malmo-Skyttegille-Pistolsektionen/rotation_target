@@ -442,9 +442,20 @@
   }
 }
 
+/* A control beside controls: the same height as `.button` next to it, square so
+   a lettered cell is a tap target rather than a letter (44px under
+   `pointer: coarse`, via the token). The read-only strip in the header stays
+   smaller - it is a reading, not something to hit. */
 .bankButton {
   cursor: pointer;
   font-family: inherit;
+  min-height: var(--rt-control-height);
+  min-width: var(--rt-control-height);
+}
+
+.bankButton:focus-visible {
+  outline: 2px solid #4338ca;
+  outline-offset: 2px;
 }
 
 /* The cells, then a divider's worth of gap, then the two "all" buttons - one

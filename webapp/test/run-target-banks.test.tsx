@@ -135,31 +135,32 @@ describe('the target bank strip', () => {
   it('a cell toggles its own bank and leaves the others alone', async () => {
     renderRun();
     await until(() => screen.queryByTestId('run-bank-toggle-B') !== null, 'the bank buttons');
-    expect(isShown('A')).toBe(false);
-    expect(isShown('B')).toBe(false);
+    // The device booted with every bank shown (D-31).
+    expect(isShown('A')).toBe(true);
+    expect(isShown('B')).toBe(true);
 
     await act(async () => {
       fireEvent.click(screen.getByTestId('run-bank-toggle-B'));
     });
-    await until(() => isShown('B'), 'bank B to come on');
+    await until(() => !isShown('B'), 'bank B to go off');
 
-    expect(isShown('A')).toBe(false);
-    expect(isShown('C')).toBe(false);
+    expect(isShown('A')).toBe(true);
+    expect(isShown('C')).toBe(true);
   });
 
   it('Show all and Hide all move every bank', async () => {
     renderRun();
-    await until(() => screen.queryByTestId('run-targets-show-all') !== null, 'the all buttons');
-
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('run-targets-show-all'));
-    });
-    await until(() => isShown('A') && isShown('B') && isShown('C'), 'every bank to come on');
+    await until(() => screen.queryByTestId('run-targets-hide-all') !== null, 'the all buttons');
 
     await act(async () => {
       fireEvent.click(screen.getByTestId('run-targets-hide-all'));
     });
     await until(() => !isShown('A') && !isShown('B') && !isShown('C'), 'every bank to go off');
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('run-targets-show-all'));
+    });
+    await until(() => isShown('A') && isShown('B') && isShown('C'), 'every bank to come on');
   });
 
   // The strip replaces the single button, so the single button must be gone -
@@ -214,14 +215,26 @@ describe('a device with one bank', () => {
     await oneServer.close();
   });
 
+  // Before the first frame the device has told us nothing, and the badge must
+  // not claim a position: neutral and "-", never a red "hidden". Somebody reads
+  // this before walking downrange.
+  it('says nothing until the device has spoken', () => {
+    renderRun();
+
+    const badge = screen.getByTestId('run-target-status');
+    expect(badge.textContent).toBe('-');
+    expect(badge.parentElement?.className).not.toContain('badgeRed');
+    expect(badge.parentElement?.className).not.toContain('badgeGreen');
+  });
+
   it('renders the badge unchanged, with no letters and no strip', async () => {
     renderRun();
-    await until(() => screen.queryByTestId('run-target-status') !== null, 'the badge');
+    await until(() => screen.getByTestId('run-target-status').textContent !== '-', 'the first frame');
 
     const badge = screen.getByTestId('run-target-status');
     expect(badge.tagName).toBe('STRONG');
-    expect(badge.textContent).toBe('hidden');
-    expect(badge.parentElement?.textContent).toBe('Targets:hidden');
+    expect(badge.textContent).toBe('shown');
+    expect(badge.parentElement?.textContent).toBe('Targets:shown');
     expect(screen.queryByTestId('run-bank-A')).toBeNull();
     expect(screen.queryByTestId('run-target-group')).toBeNull();
     expect(screen.getByRole('button', { name: 'Toggle Targets' })).toBeTruthy();
