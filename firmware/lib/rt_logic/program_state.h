@@ -67,8 +67,8 @@ struct ProgramState {
 
   size_t bank_count() const { return bank_shown.size(); }
 
-  // Bank A alone. Nothing on the wire carries it any more; it is the answer a
-  // toggle that named no bank this device has falls back to.
+  // Bank A alone. Nothing on the wire carries it; its one use is the fallback
+  // answer in Executor::toggle_targets, whose comment says why that exists.
   bool bank_a_shown() const { return !bank_shown.empty() && bank_shown[0]; }
 
   // Adopt the device's bank count and the level the pins were already latched

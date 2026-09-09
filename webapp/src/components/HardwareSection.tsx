@@ -358,7 +358,8 @@ export function HardwareSection(): React.ReactNode {
                         </td>
                         {/* Read back through the input buffer, so a pin that
                               is not moving says so without a multimeter. Blank
-                              on firmware from before `banks`. */}
+                              until diagnostics have been fetched, and for a
+                              draft row past the last bank the device has. */}
                         <td className={styles.padCell} data-testid={`hardware-bank-pad-${letter}`}>
                           {pad === undefined ? '—' : pad === 1 ? 'high' : 'low'}
                         </td>

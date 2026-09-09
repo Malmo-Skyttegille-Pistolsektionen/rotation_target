@@ -387,9 +387,9 @@ describe('the hardware section', () => {
     expect(screen.getByTestId('hardware-bank-limit').textContent).toContain('Eight is the most');
   });
 
-  // The device refuses a body whose scalars disagree with `banks[0]`, so the
-  // table sends the array and nothing else.
-  it('saves the whole bank array and no legacy scalars', async () => {
+  // The array is ordered, so there is no partial merge of one: editing a bank
+  // means sending them all.
+  it('saves the whole bank array', async () => {
     await device();
     renderSection();
     await open();

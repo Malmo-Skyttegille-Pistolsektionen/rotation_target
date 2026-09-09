@@ -1655,10 +1655,15 @@ follows from that:
 
   *Amended in stage 2:* **`targetBanks` is sent on every `stateUpdate`,
   including a one-bank device's** (`{"A": …}`), rather than only above one
-  bank. Omitting it there made a client infer the bank count from an absence,
-  which collides with the other thing an absence means — firmware from before
-  banks. Sending it always keeps those two apart, gives a client the count in
-  the first frame it receives, and costs twelve bytes.
+  bank. Omitting it there made a client infer the bank count from an absence;
+  sending it always puts the count in the first frame a client receives, for
+  twelve bytes.
+
+  *Amended in stage 4 — this bullet no longer holds.* `targetStatus` is
+  **removed**, and `targetBanks` is required. What the bullet protects is a
+  deployed client, and there is none; what it costs is a second representation
+  of where the steel is, kept in agreement by hand. The long-form reasoning is
+  below.
 - **Toggle hides everything if every bank is shown, and otherwise shows
   everything.** On one bank that is a plain flip, which is what it has always
   been. One button must not produce a half-turned strip.
@@ -1718,10 +1723,10 @@ below.
 `targetBanks` become required, and the pre-bank `hw_tgt_*` NVS keys go with
 them. Same path prefix, no `/api/v3`.
 
-**Why the bullet above no longer holds.** It protects a deployed client, and
-there is none: `git tag` is empty and no release has been cut — the basis D-40
-took the `control-lock` rename on, and D-16, D-19, D-23 and D-27 before it.
-What the layer costs is a rule, "`banks[0]` must agree with the scalars", whose
+**Why.** The compatibility layer protects a deployed client, and there is none:
+`git tag` is empty and no release has been cut — the basis D-40 took the
+`control-lock` rename on, and D-16, D-19, D-23 and D-27 before it. What the
+layer costs is a rule, "`banks[0]` must agree with the scalars", whose
 only purpose is to stop two representations of one thing drifting apart. That
 rule is a refusal an operator hits by editing one field and not the other, and
 it exists solely because there are two. One representation cannot disagree with
@@ -1743,8 +1748,11 @@ outcome: it means a human decided on purpose (D-40).
 - **A program-level bank count field.** Derived by the device from the highest
   letter a program names (`banksRequired`), never asserted by the file: a count
   the uploader writes is a count that can disagree with the events under it.
-- **`targetStatus` meaning "shown if any bank is shown".** It invents a
-  meaning for a field deployed clients already read one way.
+- **A device-wide "shown if any bank is shown".** An aggregate answers a
+  question nobody on the range asks: what an operator needs to know is which
+  banks are showing, and any collapse of that to one flag is either false on a
+  mixed strip or true in a way that moves no decision. The strip is the truth,
+  so there is nothing for a summary to be a summary of.
 
 ## Open questions
 
