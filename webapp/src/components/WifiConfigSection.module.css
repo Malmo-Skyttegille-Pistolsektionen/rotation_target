@@ -29,6 +29,19 @@
   line-height: 1.5;
 }
 
+/* Stored but not in force - the same amber as the hardware section's, because
+   it is the same fact about the device. */
+.pending {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  background-color: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
 .current {
   margin: 0;
   color: #374151;

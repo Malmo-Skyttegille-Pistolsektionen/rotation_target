@@ -996,6 +996,91 @@ describe('hardware configuration', () => {
 });
 
 /**
+ * `POST /system/restart` (#341): the one call that applies what the two
+ * configuration PUTs stored.
+ */
+describe('restarting the device', () => {
+  const restart = async (init?: RequestInit): Promise<Response> =>
+    api('/system/restart', { method: 'POST', ...init });
+
+  const unreachable = async (): Promise<boolean> => api('/version').then(() => false).catch(() => true);
+
+  it('answers the same shape as the OTA upload, then goes away', async () => {
+    const res = await restart();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: 'accepted', restarting: true });
+
+    expect(await unreachable()).toBe(true);
+    clock.advance(1500);
+    expect(await unreachable()).toBe(false);
+  });
+
+  it('comes back running what was saved, on both subjects', async () => {
+    await api('/config/hardware', {
+      method: 'PUT',
+      body: JSON.stringify({ banks: [{ gpio: 7, activeLow: true, name: '' }] }),
+    });
+    await api('/wifi', { method: 'PUT', body: JSON.stringify({ ssid: 'Elsewhere' }) });
+
+    await restart();
+    clock.advance(1500);
+
+    expect(await (await api('/config/hardware')).json()).toMatchObject({
+      active: { banks: [{ gpio: 7 }] },
+      restartRequired: false,
+    });
+    expect(await (await api('/wifi')).json()).toMatchObject({ ssid: 'Elsewhere', restartRequired: false });
+  });
+
+  // The stream is the client's only view of the device, so it has to end
+  // rather than sit there looking alive.
+  it('drops the SSE stream on its way down', async () => {
+    const sse = await openSSE(server.port);
+    try {
+      await restart();
+      await flushIO();
+      expect(sse.closed()).toBe(true);
+    } finally {
+      sse.close();
+    }
+  });
+
+  it('is refused while a program is running', async () => {
+    await api('/programs/40/load', { method: 'POST' });
+    await start(40);
+    await expectProblem(await restart(), {
+      type: '/problems/program_running',
+      title: 'A program is running',
+      status: 409,
+      detail: 'A program is running - stop it before restarting the device',
+    });
+    expect(await unreachable()).toBe(false);
+  });
+
+  it('is behind the control lock', async () => {
+    expect(
+      (await api('/control-lock/enable', { method: 'POST', body: JSON.stringify({ password: 'pw' }) })).status,
+    ).toBe(200);
+
+    expect((await restart({ headers: {} })).status).toBe(401);
+  });
+
+  // Deliberately not behind the configuration window: the window authorised the
+  // save, and a lapsed one would mean walking back to the board to press a
+  // button that grants nothing new.
+  it('works while the configuration window is shut', async () => {
+    const shut = createMockServer({ clock, seed: { programs: {}, audios: [], configWindowOpen: false } });
+    const shutBase = `http://127.0.0.1:${await shut.listen()}/api/v2`;
+    try {
+      expect((await fetch(`${shutBase}/config/hardware`, { method: 'PUT', body: '{}' })).status).toBe(403);
+      expect((await fetch(`${shutBase}/system/restart`, { method: 'POST' })).status).toBe(200);
+    } finally {
+      await shut.close();
+    }
+  });
+});
+
+/**
  * Where the targets rest at boot changes only from the serial console (D-31,
  * #144). Pinned in the mock because the webapp will grow a form for the rest of
  * this configuration, and the one field that form must not offer is this one.
@@ -1078,18 +1163,33 @@ describe('WiFi (#263)', () => {
     expect(new Set(networks.map((n) => n.ssid)).size).toBe(networks.length);
   });
 
-  it('saves credentials and moves the device onto the network', async () => {
+  // #341: the PUT stores and stops there, so the device is still on the network
+  // this request arrived over afterwards.
+  it('stores credentials and stays on the network until the restart adopts them', async () => {
+    const before = (await (await api('/wifi')).json()) as { ssid: string };
+
     const saved = await api('/wifi', {
       method: 'PUT',
       body: JSON.stringify({ ssid: 'Elsewhere', password: 'hunter22' }),
     });
     expect(saved.status).toBe(200);
 
-    const status = (await (await api('/wifi')).json()) as { ssid: string; provisioned: boolean };
-    expect(status.ssid).toBe('Elsewhere');
+    const status = (await (await api('/wifi')).json()) as {
+      ssid: string;
+      provisioned: boolean;
+      restartRequired: boolean;
+    };
+    expect(status.ssid).toBe(before.ssid);
+    expect(status.restartRequired).toBe(true);
     // On a real device this is the marker a factory reset had cleared: saving
-    // lifts the suppression, so the compiled seeds come back as fallbacks.
+    // lifts the suppression, so the compiled seeds come back as fallbacks. It
+    // is a property of NVS, so it is true before the restart.
     expect(status.provisioned).toBe(true);
+
+    server.restart();
+    const after = (await (await api('/wifi')).json()) as { ssid: string; restartRequired: boolean };
+    expect(after.ssid).toBe('Elsewhere');
+    expect(after.restartRequired).toBe(false);
   });
 
   it('refuses a nameless network rather than storing one', async () => {

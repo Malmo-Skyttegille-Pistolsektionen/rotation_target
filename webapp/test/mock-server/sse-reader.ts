@@ -14,6 +14,8 @@ export interface SSEReader {
   frames: SSEFrame[];
   /** Frames of one type, parsed as JSON. */
   payloads<T>(event: string): T[];
+  /** Whether the device ended the stream - what a restart does to it (#341). */
+  closed(): boolean;
   close(): void;
 }
 
@@ -22,8 +24,12 @@ export function openSSE(port: number, path = '/sse/v2'): Promise<SSEReader> {
     const frames: SSEFrame[] = [];
     let buffer = '';
 
+    let ended = false;
+
     const req = http.get({ host: '127.0.0.1', port, path }, (res) => {
       res.setEncoding('utf-8');
+      res.on('end', () => (ended = true));
+      res.on('close', () => (ended = true));
       res.on('data', (chunk: string) => {
         buffer += chunk;
         let split: number;
@@ -42,6 +48,7 @@ export function openSSE(port: number, path = '/sse/v2'): Promise<SSEReader> {
         payloads<T>(event: string): T[] {
           return frames.filter((f) => f.event === event).map((f) => JSON.parse(f.data) as T);
         },
+        closed: () => ended,
         close: () => req.destroy(),
       });
     });

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useWifiApi } from '../api/wifi';
 import { useSettings } from '../context/SettingsContext';
@@ -22,16 +22,18 @@ import styles from './WifiConfigSection.module.css';
  * being on the network proves nothing, so what has to be established is that
  * somebody is standing at the device. Three presses of BOOT is that proof.
  *
- * The part worth stating loudly, and the reason for the confirmation step: this
- * is the one control in the app that **deliberately takes the device away from
- * the browser using it**. A page that simply stops responding looks like a
- * crash, so it is described before it happens rather than explained afterwards
- * — afterwards there is no page to explain it on.
+ * Saving stores and nothing more (#341). The confirmation step stays, because
+ * what it is really confirming is the network the device will look for after
+ * the next restart — the failure it guards against is somebody moving a device
+ * off a working network by accident, and that is unchanged. What it no longer
+ * says is that the page is about to go: "Restart to apply" at the top of the
+ * page does that, when the operator chooses.
  */
 export function WifiConfigSection(): React.ReactNode {
   const { controlLockToken } = useSettings();
   const { controlLockEnabled } = useControlLockStatus();
   const wifiApi = useWifiApi();
+  const queryClient = useQueryClient();
 
   // Same rule as the rest of the app: the lock off means anyone may manage.
   const canManage = !controlLockEnabled || controlLockToken !== null;
@@ -65,10 +67,14 @@ export function WifiConfigSection(): React.ReactNode {
 
   const save = useMutation({
     mutationFn: () => wifiApi.save({ ssid, password: password === '' ? undefined : password }),
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       setConfirming(false);
       setPassword('');
       setNotice(result.message);
+      // The device is still here to ask, now that saving does not take it away,
+      // and the answer carries the `restartRequired` the page's restart button
+      // is driven by.
+      await queryClient.invalidateQueries({ queryKey: ['wifi'] });
     },
     // RFC 9457 (D-19): the device's `detail` is the sentence written for this
     // situation — including the one that says how to open the window.
@@ -92,10 +98,16 @@ export function WifiConfigSection(): React.ReactNode {
       <h2 className={styles.sectionTitle}>WiFi</h2>
 
       <p className={styles.explain}>
-        Which network this device joins.{' '}
-        <strong>Saving restarts it</strong>, so this page will lose contact with the device for as long as it takes to
-        come back on the new network.
+        Which network this device joins. Saving stores the credentials; the device stays on the network it is on until
+        it restarts, so a network, a hostname and a pin can all be corrected before <strong>Restart to apply</strong>{' '}
+        at the top of this page.
       </p>
+
+      {status?.restartRequired === true && (
+        <p className={styles.pending} data-testid='wifi-restart-required'>
+          Saved, but <strong>not yet in use</strong> — the device is still on the network it started with.
+        </p>
+      )}
 
       {current !== null && (
         <p className={styles.current} data-testid='wifi-config-current'>
@@ -204,17 +216,18 @@ export function WifiConfigSection(): React.ReactNode {
       </div>
 
       {/* Two steps rather than one, and the only place in this app with a
-          confirmation on a save. Every other refusal here is recoverable from
-          the page that caused it; this one takes the page away. */}
+          confirmation on a save. Saving no longer takes the page away, but it
+          still decides where the device will be after the next restart, and by
+          then there is no page to explain it on. */}
       {confirming ? (
         <div className={styles.confirm} data-testid='wifi-config-confirm'>
           <p className={styles.confirmText}>
-            Save <strong>{ssid}</strong> and restart the device?
+            Save <strong>{ssid}</strong> as the network to join?
           </p>
           <p className={styles.confirmText}>
-            This page will stop responding. If the device joins, it comes back at the same name — if it cannot, it
-            raises its setup network (<code>&lt;hostname&gt;-setup-XXXX</code>) and waits there, which is the way back
-            rather than a fault.
+            Nothing moves until the device restarts. When it does, this page stops responding: if the device joins, it
+            comes back at the same name — if it cannot, it raises its setup network (
+            <code>&lt;hostname&gt;-setup-XXXX</code>) and waits there, which is the way back rather than a fault.
           </p>
           <div className={styles.actions}>
             <button
@@ -225,7 +238,7 @@ export function WifiConfigSection(): React.ReactNode {
                 save.mutate();
               }}
             >
-              {busy ? 'Saving…' : 'Save and restart'}
+              {busy ? 'Saving…' : 'Save'}
             </button>
             <button
               className={styles.button}
@@ -250,7 +263,7 @@ export function WifiConfigSection(): React.ReactNode {
               setConfirming(true);
             }}
           >
-            Save and restart
+            Save
           </button>
         </div>
       )}

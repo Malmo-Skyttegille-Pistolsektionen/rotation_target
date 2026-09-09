@@ -224,6 +224,13 @@ const FIRST_UPLOAD_ID = 100;
  */
 const PLAYBACK_DURATION = 3000;
 
+/**
+ * How long the device stays unreachable after `POST /system/restart`. The
+ * firmware answers, waits 1.5 s for the response to drain and then reboots, so
+ * a client loses it for at least that long.
+ */
+const RESTART_MS = 1500;
+
 /** `kMaxStartupIssues` in firmware/main/config.h: the ring is bounded, oldest dropped. */
 const MAX_STARTUP_ISSUES = 8;
 
@@ -264,6 +271,7 @@ const DEFAULT_WIFI: WifiStatus = {
   ipAddress: '127.0.0.1',
   macAddress: '30:ed:a0:a8:ab:78',
   provisioned: true,
+  restartRequired: false,
 };
 
 // A small, plausible site: two networks a club might see, one of them the one
@@ -548,6 +556,12 @@ export interface MockServer {
    * something can clear it.
    */
   restart(): void;
+  /**
+   * Open or shut the button window without a button. The firmware's lapses
+   * after five minutes, which is a thing a page has to survive - so a test
+   * needs to be able to shut one that was open (#341).
+   */
+  setConfigWindow(open: boolean): void;
   /** Bind a real socket (for tests that want to speak HTTP). Resolves to the bound port. */
   listen(): Promise<number>;
   /** Stop timers, drop SSE clients, close the socket if one was opened. */
@@ -602,12 +616,21 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   // The firmware opens this with a button press and reports it so the app can
   // decide whether to offer the settings at all. There is no button here, so a
   // test drives it directly; open by default, matching a build with no button.
-  const configWindowOpen = seed.configWindowOpen ?? true;
+  let configWindowOpen = seed.configWindowOpen ?? true;
 
-  // Mutable: a save moves the device onto the network it was given, which is
-  // what a test asserts on. The firmware gets there by restarting; the mock has
-  // no restart, so the change is simply visible on the next GET.
+  // The same two copies as the hardware configuration, for the same reason: a
+  // save stores, and the station keeps the association it booted with until
+  // restart() adopts what was stored (#341).
   let wifi: WifiStatus = { ...DEFAULT_WIFI, ...(seed.wifi ?? {}) };
+  let savedWifiSsid: string | null = null;
+  // Mirrors `wifi_store::saved_since_boot()`, not a comparison against the
+  // joined SSID - see WifiStatus.restartRequired in contracts/openapi.yaml for
+  // why the device cannot derive it that way either.
+  let wifiSavedSinceBoot = false;
+  // Non-null while the device is down for a restart it was asked to make: every
+  // request is dropped on the floor until the clock passes it, which is what a
+  // rebooting device does to a client that keeps polling.
+  let downUntil: number | null = null;
   const wifiNetworks: WifiNetwork[] = seed.wifiNetworks ?? DEFAULT_WIFI_NETWORKS;
   /** The banks this device booted on; the array's length is the count. */
   const bankCount = (): number => activeHardware.banks.length;
@@ -621,6 +644,23 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
    * would be accepted.
    */
   const hardwareWritable = (): boolean => configWindowOpen && !isRunning();
+
+  /**
+   * What a reboot does: adopt everything that was saved. One function, called
+   * both by the `restart()` handle a test drives directly and by
+   * `POST /system/restart` (#341).
+   */
+  function boot(): void {
+    activeHardware = { ...savedHardware };
+    // The bank count is adopted at boot, exactly as targets::init() does -
+    // which is why adding a bank in Expert mode needs a restart to appear. A
+    // bank that did not exist before comes up at the boot level (D-31).
+    state.bankShown = activeHardware.banks.map(
+      (_, index) => state.bankShown[index] ?? activeHardware.targetsShownAtBoot,
+    );
+    if (savedWifiSsid !== null) wifi = { ...wifi, ssid: savedWifiSsid };
+    wifiSavedSinceBoot = false;
+  }
 
   const state: ServerState = {
     loadedProgram: null,
@@ -1400,7 +1440,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
 
     // Public, like every other GET, and it carries no password in any form.
     if (endpoint === '/wifi' && req.method === 'GET') {
-      jsonResponse(res, 200, wifi);
+      jsonResponse(res, 200, { ...wifi, restartRequired: wifiSavedSinceBoot });
       return;
     }
 
@@ -1454,13 +1494,13 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       }
 
       // Before the window: "stop the run" is the more useful instruction, and
-      // this endpoint does not merely take effect at the next restart, it
-      // causes one.
+      // the same rule as the hardware PUT - reconfiguring the machine and
+      // operating it are different activities.
       if (isRunning()) {
         problemResponse(
           res,
           '/problems/program_running',
-          'A program is running - stop it before moving the device to another network, because saving restarts the device',
+          'A program is running - stop it before changing which network the device joins',
         );
         return;
       }
@@ -1488,13 +1528,43 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         return;
       }
 
-      // The device restarts onto the new network. Nothing here reboots, so the
-      // state simply moves - and `provisioned` becomes true, which on a real
-      // device is the marker a factory reset had cleared.
-      wifi = { ...wifi, ssid, provisioned: true };
+      // Stored, not joined: the association only moves at the next restart.
+      // `provisioned` becomes true straight away, which on a real device is the
+      // marker a factory reset had cleared and is a property of NVS, not of the
+      // link.
+      savedWifiSsid = ssid;
+      wifiSavedSinceBoot = true;
+      wifi = { ...wifi, provisioned: true };
       jsonResponse(res, 200, {
-        message: `Saved. The device is restarting to join "${ssid}" - this page will lose contact with it.`,
+        message: `Saved. The device joins "${ssid}" when it restarts - it stays on this network until then.`,
       });
+      return;
+    }
+
+    // The one call that applies what the two PUTs stored (#341). Behind the
+    // control lock and refused while a program runs, but deliberately NOT
+    // behind the configuration window - the window authorised the save.
+    if (endpoint === '/system/restart' && req.method === 'POST') {
+      if (!checkControlLockAuth(req, res)) return;
+
+      if (isRunning()) {
+        problemResponse(res, '/problems/program_running', 'A program is running - stop it before restarting the device');
+        return;
+      }
+
+      jsonResponse(res, 200, { status: 'accepted', restarting: true });
+
+      // Then behave like a device that has gone down: the stream dies, nothing
+      // answers for a moment, and what comes back is running what was saved.
+      // The clock is injectable, so a test decides when it is back rather than
+      // waiting.
+      clients.forEach((client) => {
+        client.cancelHeartbeat();
+        client.res.end();
+      });
+      clients.length = 0;
+      boot();
+      downUntil = clock.now() + RESTART_MS;
       return;
     }
 
@@ -2039,6 +2109,17 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   }
 
   function middleware(req: IncomingMessage, res: ServerResponse, next: () => void): void {
+    // Down for a restart it was asked to make. The socket is dropped rather
+    // than answered with a status: a client that receives anything at all has
+    // not lost the device, which is the state this is simulating.
+    if (downUntil !== null) {
+      if (clock.now() < downUntil) {
+        res.destroy();
+        return;
+      }
+      downUntil = null;
+    }
+
     const url = new URL(req.url || '', 'http://localhost');
 
     if (url.pathname === SSE_PATH) {
@@ -2076,13 +2157,11 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     },
 
     restart(): void {
-      activeHardware = { ...savedHardware };
-      // The bank count is adopted at boot, exactly as targets::init() does -
-      // which is why adding a bank in Expert mode needs a restart to appear. A
-      // bank that did not exist before comes up at the boot level (D-31).
-      state.bankShown = activeHardware.banks.map(
-        (_, index) => state.bankShown[index] ?? activeHardware.targetsShownAtBoot,
-      );
+      boot();
+    },
+
+    setConfigWindow(open: boolean): void {
+      configWindowOpen = open;
     },
 
     listen(): Promise<number> {

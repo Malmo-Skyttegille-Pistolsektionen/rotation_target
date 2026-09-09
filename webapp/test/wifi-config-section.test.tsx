@@ -52,9 +52,23 @@ function renderSection(): void {
 }
 
 /** What the device would report to the next client to ask. */
-async function currentSsid(): Promise<string> {
+async function wifiStatus(): Promise<WifiStatus> {
   const { body } = await requestElsewhere(PORT, 'GET', '/api/v2/wifi');
-  return (JSON.parse(body) as WifiStatus).ssid;
+  return JSON.parse(body) as WifiStatus;
+}
+
+async function currentSsid(): Promise<string> {
+  return (await wifiStatus()).ssid;
+}
+
+/**
+ * The network the device would come up on. A save only stores it (#341), so
+ * every assertion about what was saved has to go through a restart - which is
+ * the behaviour, not test scaffolding.
+ */
+async function ssidAfterRestart(): Promise<string> {
+  server.restart();
+  return currentSsid();
 }
 
 beforeEach(() => {
@@ -123,14 +137,16 @@ describe('changing the network from Expert mode', () => {
     // Trimmed, too: a phone keyboard's trailing space saved as part of the name
     // fails the join with nothing on screen to explain why.
     await waitFor(async () => {
-      expect(await currentSsid()).toBe('Hidden-AP');
+      expect((await wifiStatus()).restartRequired).toBe(true);
     });
+    expect(await currentSsid()).toBe('Klubbnat');
+    expect(await ssidAfterRestart()).toBe('Hidden-AP');
   });
 
-  // The one control in the app that deliberately takes the device away from
-  // the browser using it, so it is described before it happens - afterwards
-  // there is no page to explain it on.
-  it('will not save without a confirmation that says the device is about to go', async () => {
+  // Saving no longer takes the page away, but it still decides where the device
+  // will be after the next restart - and by then there is no page to explain it
+  // on.
+  it('will not save without a confirmation that says what the restart will do', async () => {
     await device();
     renderSection();
 
@@ -227,7 +243,23 @@ describe('changing the network from Expert mode', () => {
     fireEvent.click(await screen.findByTestId('wifi-config-confirm-save'));
 
     await waitFor(async () => {
-      expect(await currentSsid()).toBe('OpenNet');
+      expect((await wifiStatus()).restartRequired).toBe(true);
     });
+    expect(await ssidAfterRestart()).toBe('OpenNet');
+  });
+
+  // The whole point of #341: the page is still there afterwards, so it can say
+  // that something is waiting to be applied.
+  it('stays on the network it is on and says the save is not in use yet', async () => {
+    await device({ wifi: { ssid: 'Klubbnat' } });
+    renderSection();
+
+    fireEvent.change(await screen.findByTestId('wifi-config-manual'), { target: { value: 'Elsewhere' } });
+    fireEvent.click(screen.getByTestId('wifi-config-save'));
+    fireEvent.click(await screen.findByTestId('wifi-config-confirm-save'));
+
+    expect((await screen.findByTestId('wifi-restart-required')).textContent).toContain('not yet in use');
+    // Still reachable on the network this page is served over.
+    expect((await screen.findByTestId('wifi-config-current')).textContent).toContain('Klubbnat');
   });
 });

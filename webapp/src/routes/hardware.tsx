@@ -2,6 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { HardwareSection } from '../components/HardwareSection';
 import { WifiConfigSection } from '../components/WifiConfigSection';
 import { TroubleshootingSection } from '../components/TroubleshootingSection';
+import { RestartToApply } from '../components/RestartToApply';
 import { useConfigWindow } from '../hooks/useConfigWindow';
 import styles from './settings.module.css';
 
@@ -17,7 +18,8 @@ import styles from './settings.module.css';
  *  - A wrong hostname changes mDNS, so the device stops answering to the name
  *    everybody uses to reach it. Worse than a wrong pin, which at least leaves
  *    the web app reachable to fix it from.
- *  - A wrong network takes the device off the one this page is served over.
+ *  - A wrong network takes the device off the one this page is served over,
+ *    once the restart that applies it happens.
  *
  * The membership rule is the gesture, not the subject: **if the firmware gates
  * it on the configuration window, it belongs here.** The troubleshooting bundle
@@ -29,7 +31,7 @@ export const Route = createFileRoute('/hardware')({
   component: HardwarePage,
 });
 
-function HardwarePage(): React.ReactNode {
+export function HardwarePage(): React.ReactNode {
   const { open, remainingSeconds } = useConfigWindow();
 
   return (
@@ -37,7 +39,13 @@ function HardwarePage(): React.ReactNode {
       <Link to='/settings' className={styles.backLink} data-testid='hardware-back'>
         ← Settings
       </Link>
-      <h1 className={styles.title}>Expert mode</h1>
+      {/* The restart is outside the window gate below, deliberately: a saved
+          change waiting to be applied is a fact about the device, and the five
+          minutes can lapse while somebody reads the confirmation. */}
+      <div className={styles.titleRow}>
+        <h1 className={styles.title}>Expert mode</h1>
+        <RestartToApply />
+      </div>
 
       {/* The countdown lives here rather than in the tab: it answers "how long
           have I got", which is a question asked while typing a pin number, not
