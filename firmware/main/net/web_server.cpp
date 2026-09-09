@@ -606,12 +606,29 @@ std::string diagnostics_info_json() {
   // What the target pin is configured as, and what is actually on the pad -
   // the pair that distinguishes "the firmware never drove it" from
   // "something else is holding it".
-  // Bank A. `banks` beside these is stage 2 of #207; the wire does not change
-  // here.
+  // Bank A, kept beside `banks` rather than replaced by it: a client from
+  // before banks reads the pair it always read.
   out += ",\"targetGpio\":";
   out += std::to_string(targets::pin(0));
   out += ",\"targetGpioLevel\":";
   out += std::to_string(targets::level(0));
+  // Names come from the active configuration, which is what targets::init()
+  // sized itself from - the bound is belt-and-braces, not a real disagreement.
+  const std::vector<rt::TargetBank> &active_banks = hardware_store::current().banks;
+  out += ",\"banks\":[";
+  for (size_t i = 0; i < targets::count(); ++i) {
+    if (i > 0) out += ',';
+    out += "{\"id\":\"";
+    out += rt::bank_letter(i);
+    out += "\",\"gpio\":";
+    out += std::to_string(targets::pin(i));
+    out += ",\"padLevel\":";
+    out += std::to_string(targets::level(i));
+    out += ",\"name\":";
+    out += rt::json_quote(i < active_banks.size() ? active_banks[i].name : std::string());
+    out += '}';
+  }
+  out += ']';
   out += ",\"controlLockEnabled\":";
   out += s_control_lock.enabled() ? "true" : "false";
   // The backend_issues raised before this server existed, which is the only
@@ -800,23 +817,90 @@ void register_diagnostics_routes() {
   });
 }
 
+// What a /targets/* request asked for. `named` false is the bodyless call -
+// every bank - which is what every client sent before banks existed and what a
+// one-bank device is always asked.
+struct TargetRequest {
+  bool named = false;
+  rt::BankMask mask = rt::kAllBanksMask;
+};
+
+// Reads the optional `{"banks": ["B","C"]}` body. Returns false having already
+// sent the problem; the letters themselves are parsed in rt_logic, so the rule
+// is host-tested and this only gets the strings out of the JSON.
+bool read_target_request(PsychicRequest *req, PsychicResponse *res, TargetRequest &out) {
+  const char *body = req->body();
+  if (body == nullptr || *body == '\0') return true;
+
+  const size_t bank_count = targets::count();
+  JsonDocument doc;
+  if (deserializeJson(doc, body) != DeserializationError::Ok || !doc.is<JsonObject>()) {
+    send_problem(res, rt::problem::kBankUnavailable,
+                 "Expected a JSON object like {\"banks\": [\"A\"]}, or no body at all to move "
+                 "every bank.");
+    return false;
+  }
+  // `{}` is the bodyless call written out: it names no banks, so it means all
+  // of them.
+  if (doc["banks"].isNull()) return true;
+  if (!doc["banks"].is<JsonArray>()) {
+    send_problem(res, rt::problem::kBankUnavailable,
+                 "'banks' must be an array of bank letters, like [\"A\", \"B\"].");
+    return false;
+  }
+
+  std::vector<std::string> letters;
+  for (JsonVariant entry : doc["banks"].as<JsonArray>()) {
+    // A non-string entry becomes an empty string, which parse_bank_selection
+    // refuses like any other thing that is not a letter.
+    letters.push_back(entry.is<const char *>() ? entry.as<const char *>() : "");
+  }
+
+  const rt::BankSelection selection = rt::parse_bank_selection(letters, bank_count);
+  if (!selection.ok) {
+    send_problem(res, rt::problem::kBankUnavailable,
+                 rt::bank_refusal_message(selection, bank_count));
+    return false;
+  }
+  out.named = true;
+  out.mask = selection.mask;
+  return true;
+}
+
 void register_target_routes() {
   s_server.on("/api/v2/targets/show", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
     if (!require_control_lock(req, res)) return ESP_OK;
-    executor::set_targets(rt::kAllBanksMask, true);
-    return send_message(res, "Targets shown");
+    TargetRequest want;
+    if (!read_target_request(req, res, want)) return ESP_OK;
+    executor::set_targets(want.mask, true);
+    const rt::BankMask moved = want.mask & rt::mask_for_count(targets::count());
+    return send_message(res, rt::targets_moved_message(moved, 0, targets::count()));
   });
 
   s_server.on("/api/v2/targets/hide", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
     if (!require_control_lock(req, res)) return ESP_OK;
-    executor::set_targets(rt::kAllBanksMask, false);
-    return send_message(res, "Targets hidden");
+    TargetRequest want;
+    if (!read_target_request(req, res, want)) return ESP_OK;
+    executor::set_targets(want.mask, false);
+    const rt::BankMask moved = want.mask & rt::mask_for_count(targets::count());
+    return send_message(res, rt::targets_moved_message(0, moved, targets::count()));
   });
 
   s_server.on("/api/v2/targets/toggle", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
     if (!require_control_lock(req, res)) return ESP_OK;
-    const bool shown = executor::toggle_targets(rt::kAllBanksMask);
-    return send_message(res, shown ? "Targets shown" : "Targets hidden");
+    TargetRequest want;
+    if (!read_target_request(req, res, want)) return ESP_OK;
+
+    const size_t bank_count = targets::count();
+    const rt::BankMask moved = want.mask & rt::mask_for_count(bank_count);
+    // Two rules, one per caller - see `rt::Executor::toggle_targets`.
+    if (want.named) {
+      const rt::BankMask shown = executor::flip_targets(want.mask);
+      return send_message(res, rt::targets_moved_message(shown, moved & ~shown, bank_count));
+    }
+    const bool shown = executor::toggle_targets(want.mask);
+    return send_message(
+        res, rt::targets_moved_message(shown ? moved : 0, shown ? 0 : moved, bank_count));
   });
 }
 
@@ -1029,12 +1113,24 @@ bool s_webapp_bundled = false;
 // The three views the contract promises, plus the two booleans a client needs
 // to say anything useful about them.
 std::string hardware_config_json(const rt::HardwareConfig &config) {
-  // `targetGpio`/`targetActiveLow` are bank A, which is all this stage of #207
-  // puts on the wire.
+  // `targetGpio`/`targetActiveLow` are bank A and stay required, so a client
+  // that predates banks reads the device it always read (D-41).
   std::string out = "{\"targetGpio\":";
   out += std::to_string(config.banks[0].gpio);
   out += ",\"targetActiveLow\":";
   out += config.banks[0].active_low ? "true" : "false";
+  out += ",\"banks\":[";
+  for (size_t i = 0; i < config.banks.size(); ++i) {
+    if (i > 0) out += ',';
+    out += "{\"gpio\":";
+    out += std::to_string(config.banks[i].gpio);
+    out += ",\"activeLow\":";
+    out += config.banks[i].active_low ? "true" : "false";
+    out += ",\"name\":";
+    out += rt::json_quote(config.banks[i].name);
+    out += '}';
+  }
+  out += ']';
   out += ",\"hostname\":";
   out += rt::json_quote(config.hostname);
   out += ",\"displayName\":";
@@ -1063,8 +1159,8 @@ bool same_config(const rt::HardwareConfig &a, const rt::HardwareConfig &b) {
   // targets_shown_at_boot included even though HTTP cannot change it: the
   // serial console can, and that needs a restart to take effect too. Leaving it
   // out would report restartRequired false right after `boot-targets hidden`.
-  return a.banks == b.banks && a.hostname == b.hostname && a.display_name == b.display_name &&
-         a.targets_shown_at_boot == b.targets_shown_at_boot;
+  return rt::same_wiring(a.banks, b.banks) && a.hostname == b.hostname &&
+         a.display_name == b.display_name && a.targets_shown_at_boot == b.targets_shown_at_boot;
 }
 
 void register_config_routes() {
@@ -1149,8 +1245,54 @@ void register_config_routes() {
     }
 
     rt::HardwareConfig config = hardware_store::saved();
-    // Bank A: `saved()` never returns a configuration without one.
+
+    // `banks` replaces the whole array - it is an ordered list, and a partial
+    // merge of one has no meaning. Applied before the scalars so the agreement
+    // check below sees both.
+    if (!doc["banks"].isNull()) {
+      if (!doc["banks"].is<JsonArray>()) {
+        return send_problem(res, rt::problem::kHardwareConfigInvalid,
+                            "'banks' must be an array of target banks");
+      }
+      std::vector<rt::TargetBank> banks;
+      for (JsonVariant entry : doc["banks"].as<JsonArray>()) {
+        if (!entry.is<JsonObject>()) {
+          return send_problem(res, rt::problem::kHardwareConfigInvalid,
+                              "Each entry in 'banks' must be an object with gpio, activeLow and "
+                              "name");
+        }
+        rt::TargetBank bank;
+        bank.gpio = entry["gpio"] | 0;
+        bank.active_low = entry["activeLow"] | true;
+        bank.name = entry["name"] | "";
+        banks.push_back(bank);
+      }
+      // The count is checked by validate() below, which owns every bound this
+      // struct has; an empty array reaches it and comes back kBankCountOutOfRange.
+      config.banks = banks;
+    }
+
+    // Bank A. `saved()` never returns a configuration without one, and an empty
+    // `banks` is refused by validate() rather than indexed into here.
+    if (config.banks.empty()) {
+      return send_problem(res, rt::problem::kHardwareConfigInvalid,
+                          rt::refusal_message(rt::ConfigRefusal::kBankCountOutOfRange));
+    }
     rt::TargetBank &bank_a = config.banks[0];
+    // Sending both is allowed, but they have to agree: there is no rule for
+    // deciding which of two contradictory values the operator meant.
+    if (!doc["banks"].isNull()) {
+      const bool gpio_disagrees =
+          !doc["targetGpio"].isNull() && (doc["targetGpio"] | bank_a.gpio) != bank_a.gpio;
+      const bool polarity_disagrees =
+          !doc["targetActiveLow"].isNull() &&
+          (doc["targetActiveLow"] | bank_a.active_low) != bank_a.active_low;
+      if (gpio_disagrees || polarity_disagrees) {
+        return send_problem(res, rt::problem::kHardwareConfigInvalid,
+                            "targetGpio and targetActiveLow describe bank A, so they must match "
+                            "banks[0]. Send one or the other.");
+      }
+    }
     if (!doc["targetGpio"].isNull()) bank_a.gpio = doc["targetGpio"] | bank_a.gpio;
     if (!doc["targetActiveLow"].isNull())
       bank_a.active_low = doc["targetActiveLow"] | bank_a.active_low;

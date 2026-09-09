@@ -334,9 +334,15 @@ describe('#70: the loaded program changes while the start-delay countdown runs',
     const STEP_MS = 700;
     const steps = Math.ceil((2 * START_DELAY_SECONDS * 1000) / STEP_MS);
     for (let step = 0; step < steps && startedProgramId() === null; step++) {
-      const before = screen.getByTestId('run-target-status').textContent;
+      // Wait for the frame, not for the badge to read differently: the start
+      // the countdown is racing towards publishes one too, and it can leave the
+      // targets where this toggle just put them.
+      const before = stream.payloads<StateUpdatePayload>('stateUpdate').length;
       await requestElsewhere(PORT, 'POST', '/api/v2/targets/toggle');
-      await until(() => screen.getByTestId('run-target-status').textContent !== before, 'the targets to flip');
+      await until(
+        () => stream.payloads<StateUpdatePayload>('stateUpdate').length > before,
+        'the device to publish the toggle',
+      );
 
       await act(async () => {
         vi.advanceTimersByTime(STEP_MS);

@@ -46,6 +46,7 @@ add_library(rt_logic STATIC
   "${RT_LOGIC_DIR}/hardware_overlay.cpp"
   "${RT_LOGIC_DIR}/version.cpp"
   "${RT_LOGIC_DIR}/zip_writer.cpp"
+  "${RT_LOGIC_DIR}/target_bank.cpp"
 )
 target_include_directories(rt_logic PUBLIC "${RT_LOGIC_DIR}")
 # SYSTEM: vendored, and must stay byte-identical to upstream, so its warnings

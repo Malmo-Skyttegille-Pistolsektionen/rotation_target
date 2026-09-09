@@ -198,6 +198,17 @@ bool toggle_targets(rt::BankMask bank_mask) {
   return shown;
 }
 
+rt::BankMask flip_targets(rt::BankMask bank_mask) {
+  rt::BankMask shown = 0;
+  {
+    Lock lock;
+    shown = s_executor.flip_targets(bank_mask);
+    s_effects.pending_broadcast = true;
+  }
+  flush(false);
+  return shown;
+}
+
 rt::UnloadResult unload() {
   rt::UnloadResult result = rt::UnloadResult::kNotLoaded;
   {

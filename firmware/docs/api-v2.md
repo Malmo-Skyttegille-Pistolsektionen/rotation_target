@@ -86,12 +86,71 @@ immediately, and receives it again after every change.
     "currentEventIndex": 2,
     "tickerMs": 7480           // milliseconds elapsed in the current series
   },
-  "targetStatus": "shown"      // "shown" | "hidden"
+  "targetStatus": "shown",     // "shown" | "hidden" - bank A
+  "targetBanks": {             // always sent; one key per bank
+    "A": "shown",
+    "B": "hidden"
+  }
 }
 ```
 
 `currentEventIndex` is derived from elapsed series time rather than tracked per
 event, so a paused run resumes at whatever event `tickerMs` lands in.
+
+### Target banks
+
+A device drives one to eight independently controlled **banks**, lettered by
+position: `A` is `banks[0]` in the hardware configuration (#207, D-41).
+
+`targetStatus` stays required and reports **bank A** — truthful and partial for
+a client that predates banks. It is deliberately not "shown if any bank is",
+which would invent a meaning for a field deployed clients already read one way.
+`targetBanks` beside it carries every bank and is **always sent**, including by
+a device with a single bank, where it is `{"A": …}`. Exactly one key per bank,
+contiguous from `A`, so a client reads the bank count off a key count in the
+first frame it receives — rather than inferring "one" from an absence, which is
+also what firmware from before banks looks like. **Absent means old firmware,
+and nothing else.**
+
+`POST /targets/{show,hide,toggle}` take an optional body naming the banks to
+move:
+
+```jsonc
+{ "banks": ["B", "C"] }        // omit the body entirely to move every bank
+```
+
+**No body, or `{}`**, means every bank — `{}` is the bodyless call written out.
+`banks` present but not an array of letters, or naming a letter this device does
+not have, is `400 /problems/bank_unavailable` with a `detail` saying which, and
+**nothing moves**: the list is applied whole, so a typo cannot half-work. An
+empty array is refused for the same reason it is not widened — "omitted" is what
+means every bank. A repeated letter is accepted: it asks for nothing a single
+mention does not.
+
+`toggle` has two rules, because the two callers are asking different questions.
+**With a list**, each named bank flips against its own state, so a mixed strip
+stays mixed: a named bank is a deliberate choice. **Without one**, the device
+has a single button to resolve a strip that may disagree with itself, and takes
+what an operator pressing it means — *if every bank is shown, hide them all;
+otherwise show them all*. So a mixed strip resolves to all-shown on the first
+press and all-hidden on the second, rather than staying mixed for ever. On one
+bank the two rules are the same flip they have always been.
+
+The `message` names what moved: `Targets shown` when every bank went the same
+way, `Bank B shown` or `Banks B and D shown, bank C hidden` otherwise.
+
+A bank's name lives in the hardware configuration and never in a program, so
+renaming a bank cannot re-aim one. `GET /config/hardware` reports `banks`
+alongside `targetGpio`/`targetActiveLow`, which are bank A's copy of the same
+two values; a `PUT` sending both is refused with
+`/problems/hardware_config_invalid` unless they agree, since there is no rule
+for choosing between two contradictory values. A `PUT` carrying only the
+scalars edits bank A and leaves every other bank alone. `banks` replaces the
+whole array — it is an ordered list, and a partial merge of one has no meaning.
+
+`GET /diagnostics/info` reports `banks` too: `id`, `gpio`, `padLevel` and
+`name` per bank, so the read-back that answers "is the firmware driving what it
+thinks it is" works on a device with more than one line.
 
 `heartbeat` (`{"id": n}`) is emitted every 10 seconds.
 
@@ -101,6 +160,12 @@ on its own, where no request exists to answer with an error. Today that is a
 clip that would not play (`audio_playback_failed`, raised from the playback
 task) and a stored program file that would not parse (`program_invalid`, raised
 by the boot scan).
+
+There is **no code for a target-bank fault**, deliberately (D-41): nothing
+samples the pads, and an enum member no firmware emits outlives the release it
+was added in while clients branch on it. `GET /diagnostics/info`'s
+`banks[].padLevel` is where a pad is read today; the code arrives with the
+sampling.
 
 It is fire-and-forget by design. Nothing is buffered for a client that connects
 later and nothing is replayed on reconnect, so the event is a notification and

@@ -1652,13 +1652,29 @@ follows from that:
   Truthful and partial beats invented: "shown if any" is a meaning no client
   ever asked for, and no new client reads `targetStatus` once `targetBanks`
   exists.
+
+  *Amended in stage 2:* **`targetBanks` is sent on every `stateUpdate`,
+  including a one-bank device's** (`{"A": …}`), rather than only above one
+  bank. Omitting it there made a client infer the bank count from an absence,
+  which collides with the other thing an absence means — firmware from before
+  banks. Sending it always keeps those two apart, gives a client the count in
+  the first frame it receives, and costs twelve bytes.
 - **Toggle hides everything if every bank is shown, and otherwise shows
   everything.** On one bank that is a plain flip, which is what it has always
   been. One button must not produce a half-turned strip.
-- **A pad read-back fault is reported, never acted on.** `backend_issue` with
-  code `target_bank_fault` and context `{bank, expected, actual}`; the run does
-  not stop and new starts are not blocked. Stopping moves no steel and takes
-  the decision away from the person on the range.
+
+  *Stage 2 added the other half:* a `toggle` that **names** banks flips each
+  against its own state, because a named bank is a deliberate choice and a
+  mixed strip is exactly what the operator asked for. The bodyless call keeps
+  the rule above, since one button has to resolve a strip that may disagree
+  with itself.
+- **A pad read-back fault would be reported, never acted on:** the run would
+  not stop and new starts would not be blocked, because stopping moves no steel
+  and takes the decision away from the person on the range. **No code samples
+  the pads, so no fault code exists** — an unimplemented enum member outlives
+  the release it was added in, and a client would branch on something nothing
+  emits. `GET /diagnostics/info`'s `banks[].padLevel` is where a pad is read
+  today; the `backend_issue` code is added in the change that starts sampling.
 - **Refuse rather than clamp, everywhere.** A bank count outside 1–8, a name
   over 16 characters, two banks on one pin — each is a refusal naming what to
   change, not a silently corrected value. Silence moves steel nobody asked to

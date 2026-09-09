@@ -5,7 +5,7 @@
 idf_component_register(
     SRCS "program.cpp" "executor.cpp" "wav_header.cpp" "console_command.cpp"
          "hardware_config.cpp" "hardware_overlay.cpp" "version.cpp" "ima_adpcm.cpp"
-         "zip_writer.cpp"
+         "zip_writer.cpp" "target_bank.cpp"
     INCLUDE_DIRS "."
     REQUIRES arduinojson
 )

@@ -153,7 +153,9 @@ components:
         $ref: "#/components/schemas/StateUpdate"
       examples:
         - name: running
-          summary: A program part-way through its first series.
+          summary: >-
+            A program part-way through its first series, on a one-bank device:
+            `targetBanks` carries the single key `A`.
           payload:
             loadedProgramId: 1
             programState:
@@ -162,6 +164,8 @@ components:
               currentEventIndex: 2
               tickerMs: 7480
             targetStatus: shown
+            targetBanks:
+              A: shown
         - name: loaded-not-started
           summary: >-
             Just after `load`: series and event selected, ticker still unset.
@@ -173,12 +177,32 @@ components:
               currentEventIndex: 0
               tickerMs: null
             targetStatus: hidden
+            targetBanks:
+              A: hidden
         - name: nothing-loaded
           summary: The state at boot, and after the loaded program is deleted.
           payload:
             loadedProgramId: null
             programState: null
             targetStatus: hidden
+            targetBanks:
+              A: hidden
+        - name: three-banks-mixed
+          summary: >-
+            A three-bank device with B hidden. `targetStatus` reports `A`, so a
+            client that ignores `targetBanks` still reads a true value.
+          payload:
+            loadedProgramId: 1
+            programState:
+              running: true
+              currentSeriesIndex: 0
+              currentEventIndex: 2
+              tickerMs: 7480
+            targetStatus: shown
+            targetBanks:
+              A: shown
+              B: hidden
+              C: shown
 
     heartbeat:
       name: heartbeat
@@ -395,8 +419,25 @@ components:
           type: string
           enum: [shown, hidden]
           description: >-
-            Where the targets are. Always present, including when nothing is
-            loaded: the targets can be moved outside a program run.
+            Where **bank A** is (D-41). Always present, including when nothing
+            is loaded: the targets can be moved outside a program run. Truthful
+            and partial on a device with several banks — the alternative,
+            "shown if any is", would invent a meaning no client asked for.
+        targetBanks:
+          type: object
+          propertyNames:
+            pattern: "^[A-H]$"
+          additionalProperties:
+            type: string
+            enum: [shown, hidden]
+          description: >-
+            Where every bank is, keyed by letter. **Always sent**, including by
+            a device with a single bank, where it is `{"A": …}` — so a client
+            knows the bank count from the first frame it receives rather than
+            having to infer "one" from an absence, and **absent means firmware
+            from before banks** rather than a one-bank device. Exactly one key
+            per bank, `A`..`H` contiguous from `A`. `A` here and `targetStatus`
+            never disagree.
 
     ProgramState:
       type: object

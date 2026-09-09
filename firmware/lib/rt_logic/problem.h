@@ -75,6 +75,7 @@ struct ProblemType {
   X(kHardwareConfigWindowClosed, "hardware_config_window_closed",                               \
     "The configuration window is closed", 403)                                                  \
   X(kWifiCredentialsInvalid, "wifi_credentials_invalid", "Invalid WiFi credentials", 400)       \
+  X(kBankUnavailable, "bank_unavailable", "No such target bank", 400)                           \
   /* upload */                                                                                  \
   X(kUploadMissingFile, "upload_missing_file", "No file uploaded", 400)                         \
   X(kUploadMissingTitle, "upload_missing_title", "Missing title", 400)                          \

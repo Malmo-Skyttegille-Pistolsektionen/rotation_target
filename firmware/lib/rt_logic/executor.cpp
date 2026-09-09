@@ -30,9 +30,6 @@ void Executor::set_targets(BankMask bank_mask, bool shown) {
 }
 
 bool Executor::toggle_targets(BankMask bank_mask) {
-  // "All shown, so hide" rather than per-bank flipping: a strip of half-turned
-  // targets is not a state an operator asks for by pressing one button, and on
-  // one bank the two rules are the same thing.
   bool all_shown = true;
   bool matched = false;
   for (size_t i = 0; i < state_.bank_shown.size(); i++) {
@@ -48,6 +45,27 @@ bool Executor::toggle_targets(BankMask bank_mask) {
 
   set_targets(bank_mask, !all_shown);
   return !all_shown;
+}
+
+BankMask Executor::flip_targets(BankMask bank_mask) {
+  BankMask now_shown = 0;
+  // One effects_.set_targets per direction rather than per bank: the pin driver
+  // takes a mask, and two calls keep a split flip from stepping the strip
+  // through an intermediate state.
+  BankMask to_show = 0;
+  BankMask to_hide = 0;
+  for (size_t i = 0; i < state_.bank_shown.size(); i++) {
+    if ((bank_mask & bank_bit(i)) == 0) continue;
+    if (state_.bank_shown[i]) {
+      to_hide |= bank_bit(i);
+    } else {
+      to_show |= bank_bit(i);
+      now_shown |= bank_bit(i);
+    }
+  }
+  if (to_show != 0) set_targets(to_show, true);
+  if (to_hide != 0) set_targets(to_hide, false);
+  return now_shown;
 }
 
 bool Executor::load(const Program *program) {

@@ -58,13 +58,38 @@ the same way should work.
 | Be actuated by a **contact closure** — two terminals shorted together | That is the entire interface. A system expecting a serial protocol, a proprietary bus or a mains signal needs hardware in between |
 | Be **level-driven**, not pulse-driven | The firmware holds the line in one state for the length of an event. A system that toggles on each pulse would move on both edges |
 | Have **two positions** — face-on and edge-on | The program vocabulary is show and hide. There is no intermediate angle to command |
-| Take **one control line for all targets** | One line drives every target together. Independently controlled banks are not supported yet ([#144](https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target/issues/144)) |
+| Take **one control line per group of targets you want to move together** | Each line is a *bank*. A bank is one contact closure and moves as one; a device drives up to eight |
 | Be safe sitting **face-on** with no power | The targets rest face-on and stay there at boot, deliberately: somebody may be downrange when a board is powered, and a target that turns on its own can injure them |
 
-Which level *shows* the targets — and the rest of the pin assignment — is a
-firmware build setting, not something the web app or this page can change; it
-is decided when a device is set up, not per range day. Full wiring detail,
-including the supported boards and their `menuconfig` options, is in
+## Target banks
+
+A **bank** is one control line: one GPIO, one transistor, one DB9 circuit,
+moving every target wired to it together. A device drives between one and
+eight of them, lettered by position — **A, B, C…** — and A is the one the
+diagram above shows. A club with one line of targets has bank A and nothing
+else, which is what every device shipped so far is.
+
+Banks exist so a range can be exposed a lane at a time: three lanes on three
+banks can be shown one after another from a single program, where one line can
+only turn all three at once.
+
+Each bank is separate hardware. It needs **its own GPIO** and its own
+transistor, and it carries **its own polarity** — whether a low level shows it —
+because the resting state that has to be safe is a property of that bank's
+wiring, not of the device. Adding one is therefore soldering first and
+configuration second: wire the line, then add the bank in
+[Expert mode](expert-mode.md) with the pin you wired it to, a name your
+operators will recognise (`Vänster`, `Bana 3`), and the polarity that leaves it
+resting where it should. The device adopts a new bank at its next restart.
+
+Where the targets rest at boot is **one setting for every bank**, changed on
+the serial console only: it protects somebody standing downrange, and that is
+not a per-bank question.
+
+Which level shows the targets, and the rest of the pin assignment, is a
+configuration setting rather than a build setting now — but it is still decided
+when a device is set up, not per range day. Full wiring detail, including the
+supported boards and their `menuconfig` options, is in
 [`firmware/docs/HARDWARE.md`](https://github.com/Malmo-Skyttegille-Pistolsektionen/rotation_target/blob/main/firmware/docs/HARDWARE.md)
 in the repository.
 

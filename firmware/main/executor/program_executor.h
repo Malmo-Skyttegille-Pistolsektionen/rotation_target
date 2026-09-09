@@ -56,6 +56,8 @@ SkipOutcome skip_to_series(int32_t series_index, int32_t expected_program_id);
 void set_targets(rt::BankMask bank_mask, bool shown);
 // Returns the resulting state.
 bool toggle_targets(rt::BankMask bank_mask);
+// Flips each named bank on its own; returns which of them ended up shown.
+rt::BankMask flip_targets(rt::BankMask bank_mask);
 
 // Clears the selection on behalf of POST /programs/unload. Refused while a run
 // is in progress; nothing loaded is a no-op that publishes nothing.
