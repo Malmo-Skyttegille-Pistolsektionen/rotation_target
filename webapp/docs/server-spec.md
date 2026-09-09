@@ -81,7 +81,7 @@ interface StateUpdatePayload {
     currentEventIndex: number | null;
     tickerMs: number | null;
   } | null;
-  targetStatus: 'shown' | 'hidden';
+  targetBanks: Record<string, 'shown' | 'hidden'>;
 }
 ```
 
@@ -93,6 +93,9 @@ Rules:
   precision at a one-second frame cadence (D-16). Whole seconds are
   `Math.floor(tickerMs / 1000)`.
 - `currentEventIndex` is derived from elapsed series time.
+- `targetBanks` carries one key per bank, lettered contiguously from `A`, and
+  is on every frame — a one-bank device sends `{A: …}`. Its key count is the
+  bank count, so an absent map means no frame has arrived yet and nothing else.
 - Program structure is fetched separately with `GET /api/v2/programs/{id}`.
 
 ### `libraryChanged`

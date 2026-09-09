@@ -197,7 +197,11 @@ describe('unloading (D-22)', () => {
   async function loadedOnDevice(id: number): Promise<void> {
     await requestElsewhere(PORT, 'POST', `/api/v2/programs/${id}/load`);
     await act(async () => {
-      queryClient.setQueryData(['state'], { loadedProgramId: id, programState: null, targetStatus: 'hidden' });
+      queryClient.setQueryData(['state'], {
+        loadedProgramId: id,
+        programState: null,
+        targetBanks: { A: 'hidden' },
+      });
     });
     // The badge is the page's own proof that it has taken the state in.
     await waitFor(() => expect(within(screen.getByTestId(`program-row-${id}`)).getByText('Loaded')).toBeTruthy());
@@ -379,7 +383,7 @@ describe('replacing a program', () => {
       queryClient.setQueryData(['state'], {
         loadedProgramId: UPLOADED.id,
         programState: null,
-        targetStatus: 'hidden',
+        targetBanks: { A: 'hidden' },
       });
     });
 
@@ -435,7 +439,6 @@ describe('a program that needs banks', () => {
       queryClient.setQueryData(['state'], {
         loadedProgramId: null,
         programState: null,
-        targetStatus: 'shown',
         targetBanks: banks,
       });
     renderPrograms();

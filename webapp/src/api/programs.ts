@@ -11,14 +11,11 @@ function withoutId({ title, description, readonly, series }: Program): ProgramUp
 }
 
 /**
- * The optional `{"banks": ["B"]}` body. Omitting it moves every bank, which is
- * what every call did before banks existed - so no list means no body at all,
- * not an empty array (the device refuses that).
+ * The optional `{"banks": ["B"]}` body. Omitting it moves every bank - so no
+ * list means no body at all, not an empty array (the device refuses that).
  */
 function bankBody(banks?: string[]): RequestInit {
-  return banks && banks.length > 0
-    ? { method: 'POST', body: JSON.stringify({ banks }) }
-    : { method: 'POST' };
+  return banks && banks.length > 0 ? { method: 'POST', body: JSON.stringify({ banks }) } : { method: 'POST' };
 }
 
 export function useProgramsApi() {
@@ -45,8 +42,7 @@ export function useProgramsApi() {
     remove: (id: number) => client.request<void>(`/programs/${id}/delete`, { method: 'DELETE' }),
     // The id is required (D-27): the device refuses with 409 when it holds a
     // different program, which is the only check that cannot be raced.
-    start: (id: number) =>
-      client.request<void>('/programs/start', { method: 'POST', body: JSON.stringify({ id }) }),
+    start: (id: number) => client.request<void>('/programs/start', { method: 'POST', body: JSON.stringify({ id }) }),
     stop: () => client.request<void>('/programs/stop', { method: 'POST' }),
     reset: () => client.request<void>('/programs/reset', { method: 'POST' }),
     // The id is required (D-27, #105): the device refuses with 409 when it

@@ -82,7 +82,7 @@ beforeAll(async () => {
     seed: {
       programs: { [FALT.id]: FALT },
       audios: [],
-      hardware: { ...HARDWARE_DEFAULTS, targetGpio: 5, banks: BANKS },
+      hardware: { ...HARDWARE_DEFAULTS, banks: BANKS },
     },
   });
   await server.listen();

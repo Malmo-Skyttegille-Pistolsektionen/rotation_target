@@ -41,20 +41,11 @@ bool overlay_config(ConfigReader &reader, HardwareConfig &out) {
   const bool has_banks = reader.read_i32(hw_key::kBankCount, bank_count) && bank_count >= 1 &&
                          bank_count <= static_cast<int32_t>(kMaxTargetBanks);
 
+  // No usable count means nothing has configured the banks, so `out` keeps the
+  // single compiled bank the caller filled it with.
   if (has_banks) {
     found = true;
     overlay_banks(reader, out, static_cast<size_t>(bank_count));
-  } else {
-    // No usable count: a device configured before #207, or one that has never
-    // been configured at all. Bank A comes from the pre-bank keys, per key,
-    // exactly as it did - so an upgrade keeps the pin the club typed in.
-    int32_t gpio = 0;
-    if (reader.read_i32(hw_key::kLegacyGpio, gpio)) {
-      out.banks[0].gpio = gpio;
-      found = true;
-    }
-
-    if (reader.read_bool(hw_key::kLegacyActiveLow, out.banks[0].active_low)) found = true;
   }
 
   std::string text;

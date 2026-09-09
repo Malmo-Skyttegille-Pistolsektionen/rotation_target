@@ -16,7 +16,7 @@ export const CONTROL_LOCK_PASSWORD = 'e2e-secret';
  * Program 40 "Fältträning": the shortest shipped program, and the only one
  * whose first event boundary lands inside a test's patience. Series 1 is
  * `hide` for 7 s and then `show` for 4 s, so a start is observable as
- * `tickerSeconds` climbing from 0 and `targetStatus` flipping hidden -> shown
+ * `tickerSeconds` climbing from 0 and bank A flipping hidden -> shown
  * at t=7 s. Everything else ships a 5 s+ lead-in followed by minute-long
  * series.
  */

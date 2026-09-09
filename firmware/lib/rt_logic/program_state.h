@@ -67,9 +67,9 @@ struct ProgramState {
 
   size_t bank_count() const { return bank_shown.size(); }
 
-  // `targetStatus` on the wire is bank A (D-41): truthful and partial for a
-  // client that predates banks, where "shown if any" would invent a meaning.
-  bool target_status_shown() const { return !bank_shown.empty() && bank_shown[0]; }
+  // Bank A alone. Nothing on the wire carries it; its one use is the fallback
+  // answer in Executor::toggle_targets, whose comment says why that exists.
+  bool bank_a_shown() const { return !bank_shown.empty() && bank_shown[0]; }
 
   // Adopt the device's bank count and the level the pins were already latched
   // to at boot (D-31).
@@ -131,12 +131,8 @@ inline std::string state_update_json(const ProgramState &s) {
   } else {
     out += "null";
   }
-  out += ",\"targetStatus\":";
-  out += s.target_status_shown() ? "\"shown\"" : "\"hidden\"";
-  // Always, one-bank devices included, where it is `{"A": ...}` (D-41). A count
-  // read off a key count is unambiguous; a count inferred from an absence
-  // collides with the other thing an absence means, which is firmware from
-  // before banks.
+  // Always, one-bank devices included, where it is `{"A": ...}` (D-41): a
+  // client reads the bank count off the key count in the first frame it gets.
   out += ",\"targetBanks\":{";
   for (size_t i = 0; i < s.bank_count() && i < kMaxTargetBanks; ++i) {
     if (i > 0) out += ',';

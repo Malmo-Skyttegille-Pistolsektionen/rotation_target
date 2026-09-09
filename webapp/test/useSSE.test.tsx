@@ -12,7 +12,7 @@ import { FakeEventSource } from './fake-event-source';
 const RUNNING_STATE: StateUpdatePayload = {
   loadedProgramId: 40,
   programState: { running: true, currentSeriesIndex: 0, currentEventIndex: 3, tickerMs: 17480 },
-  targetStatus: 'shown',
+  targetBanks: { A: 'shown' },
 };
 
 let queryClient: QueryClient;

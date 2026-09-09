@@ -44,10 +44,9 @@ std::string state(const char *running, const char *series, const char *event, co
                   const char *target) {
   return std::string("{\"loadedProgramId\":900,\"programState\":{\"running\":") + running +
          ",\"currentSeriesIndex\":" + series + ",\"currentEventIndex\":" + event +
-         ",\"tickerMs\":" + ticker + "},\"targetStatus\":\"" + target +
-         // One bank in this harness, so `targetBanks` is `{"A": ...}` and says
-         // the same thing as `targetStatus` (D-41).
-         "\",\"targetBanks\":{\"A\":\"" + target + "\"}}";
+         ",\"tickerMs\":" + ticker +
+         // One bank in this harness, so `targetBanks` is `{"A": ...}`.
+         "},\"targetBanks\":{\"A\":\"" + target + "\"}}";
 }
 
 rt::Program g_program;
@@ -97,7 +96,7 @@ void test_start_enters_the_first_event() {
   TEST_ASSERT_TRUE(h->state.running);
   TEST_ASSERT_EQUAL_INT32(0, h->state.current_event_index.value);
   TEST_ASSERT_EQUAL_INT32(0, h->state.ticker_ms.value);
-  TEST_ASSERT_TRUE(h->state.target_status_shown());
+  TEST_ASSERT_TRUE(h->state.bank_a_shown());
   TEST_ASSERT_EQUAL_size_t(1, h->effects.target_history.size());
   TEST_ASSERT_TRUE(h->effects.target_history[0].shown);
 }
@@ -475,11 +474,11 @@ void test_reset_leaves_the_targets_where_they_are() {
   h->executor.load(&g_program);
   h->executor.start(kFixtureId);  // event 0 is "show"
 
-  TEST_ASSERT_TRUE(h->state.target_status_shown());
+  TEST_ASSERT_TRUE(h->state.bank_a_shown());
 
   h->executor.reset();
 
-  TEST_ASSERT_TRUE(h->state.target_status_shown());
+  TEST_ASSERT_TRUE(h->state.bank_a_shown());
   TEST_ASSERT_EQUAL_STRING(state("false", "0", "0", "null", "shown").c_str(),
                            h->effects.broadcasts.back().c_str());
 }
@@ -493,7 +492,7 @@ void test_unloading_clears_the_published_state() {
 
   TEST_ASSERT_FALSE(h->state.is_loaded());
   TEST_ASSERT_EQUAL_STRING(
-      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"hidden\","
+      "{\"loadedProgramId\":null,\"programState\":null,"
       "\"targetBanks\":{\"A\":\"hidden\"}}",
       h->effects.broadcasts.back().c_str());
 }
@@ -510,7 +509,7 @@ void test_unload_while_running_is_refused() {
   // targets, and no client is told anything happened.
   TEST_ASSERT_TRUE(h->state.is_loaded());
   TEST_ASSERT_TRUE(h->state.running);
-  TEST_ASSERT_TRUE(h->state.target_status_shown());
+  TEST_ASSERT_TRUE(h->state.bank_a_shown());
   TEST_ASSERT_EQUAL_size_t(0, h->effects.broadcasts.size());
 }
 
@@ -529,7 +528,7 @@ void test_unload_after_a_stop_is_allowed() {
   TEST_ASSERT_EQUAL_size_t(1, h->effects.broadcasts.size());
   // The targets stay where the run left them; unloading moves no hardware.
   TEST_ASSERT_EQUAL_STRING(
-      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"shown\","
+      "{\"loadedProgramId\":null,\"programState\":null,"
       "\"targetBanks\":{\"A\":\"shown\"}}",
       h->effects.broadcasts.back().c_str());
 }
@@ -589,7 +588,7 @@ void test_completing_a_series_leaves_the_targets_where_the_last_event_left_them(
   TEST_ASSERT_EQUAL_INT32(1, h->state.current_series_index.value);
   TEST_ASSERT_EQUAL_INT32(0, h->state.current_event_index.value);
   TEST_ASSERT_FALSE(h->state.running);
-  TEST_ASSERT_TRUE(h->state.target_status_shown());
+  TEST_ASSERT_TRUE(h->state.bank_a_shown());
   TEST_ASSERT_EQUAL_STRING(state("false", "1", "0", "null", "shown").c_str(),
                            h->effects.broadcasts.back().c_str());
 
@@ -601,10 +600,10 @@ void test_completing_a_series_leaves_the_targets_where_the_last_event_left_them(
 
 void test_toggle_targets_flips_the_published_flag_and_the_pin() {
   TEST_ASSERT_TRUE(h->executor.toggle_targets(rt::kAllBanksMask));
-  TEST_ASSERT_TRUE(h->state.target_status_shown());
+  TEST_ASSERT_TRUE(h->state.bank_a_shown());
 
   TEST_ASSERT_FALSE(h->executor.toggle_targets(rt::kAllBanksMask));
-  TEST_ASSERT_FALSE(h->state.target_status_shown());
+  TEST_ASSERT_FALSE(h->state.bank_a_shown());
 
   TEST_ASSERT_EQUAL_size_t(2, h->effects.target_history.size());
   TEST_ASSERT_TRUE(h->effects.target_history[0].shown);
@@ -702,7 +701,7 @@ void test_flipping_no_banks_does_nothing() {
   TEST_ASSERT_EQUAL_size_t(0, four.effects.target_history.size());
 }
 
-// Only the named banks move, and `targetStatus` keeps reporting bank A.
+// Only the named banks move.
 void test_setting_one_bank_leaves_the_others_alone() {
   Harness four(4);
 
@@ -712,10 +711,10 @@ void test_setting_one_bank_leaves_the_others_alone() {
   TEST_ASSERT_FALSE(four.state.bank_shown[1]);
   TEST_ASSERT_TRUE(four.state.bank_shown[2]);
   TEST_ASSERT_FALSE(four.state.bank_shown[3]);
-  TEST_ASSERT_FALSE(four.state.target_status_shown());
+  TEST_ASSERT_FALSE(four.state.bank_a_shown());
 
   four.executor.set_targets(rt::bank_bit(0), true);
-  TEST_ASSERT_TRUE(four.state.target_status_shown());
+  TEST_ASSERT_TRUE(four.state.bank_a_shown());
 }
 
 // init_banks adopts what targets::init() already latched, so the first

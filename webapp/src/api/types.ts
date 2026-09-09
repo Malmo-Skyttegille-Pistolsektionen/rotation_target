@@ -109,15 +109,10 @@ export interface LibraryChangedPayload {
 export interface StateUpdatePayload {
   loadedProgramId: number | null;
   programState: ProgramState | null;
-  /** Bank A (D-41), for a client that predates banks. Never disagrees with `targetBanks.A`. */
-  targetStatus: 'shown' | 'hidden';
   /**
    * Every bank, keyed by letter — `contracts/asyncapi.yaml`'s
    * `StateUpdate.targetBanks`. Exactly one contiguous key per bank, so its key
    * count is the bank count, and sent by a one-bank device too (`{A: …}`).
-   *
-   * Optional here only because **absent means firmware from before banks**,
-   * which the app has to degrade for.
    */
-  targetBanks?: Record<string, 'shown' | 'hidden'>;
+  targetBanks: Record<string, 'shown' | 'hidden'>;
 }

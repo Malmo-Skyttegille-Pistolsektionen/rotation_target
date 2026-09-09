@@ -21,9 +21,9 @@ const PORT = 18091;
  * query the SSE hook writes - the same door a real frame comes through - so
  * these cases are reachable without standing up a stream and a device for each.
  *
- * `targetBanks` is on every frame, one key per bank, so seeding it absent is
- * the genuine "nothing known yet" case: no frame, or firmware from before
- * banks. It is never how a one-bank device reports itself.
+ * `targetBanks` is on every frame, one key per bank, so the only way to know
+ * no bank count is to have had no frame at all - which is `null`, not a frame
+ * with the map left out. A one-bank device reports itself as `{A: ...}`.
  */
 const BANKED: Program = {
   id: 141,
@@ -45,18 +45,18 @@ const BANKED: Program = {
 let server: MockServer;
 let queryClient: QueryClient;
 
-function seedState(targetBanks?: Record<string, 'shown' | 'hidden'>): void {
-  const state: StateUpdatePayload = {
-    loadedProgramId: BANKED.id,
-    programState: { running: false, currentSeriesIndex: 0, currentEventIndex: 0, tickerMs: 0 },
-    targetStatus: 'shown',
-    ...(targetBanks ? { targetBanks } : {}),
-  };
+function seedState(targetBanks: Record<string, 'shown' | 'hidden'> | null): void {
+  const state: StateUpdatePayload | null = targetBanks
+    ? {
+        loadedProgramId: BANKED.id,
+        programState: { running: false, currentSeriesIndex: 0, currentEventIndex: 0, tickerMs: 0 },
+        targetBanks,
+      }
+    : null;
   queryClient.setQueryData(['state'], state);
 }
 
-async function renderRun(targetBanks?: Record<string, 'shown' | 'hidden'>): Promise<void> {
-  seedState(targetBanks);
+function renderView(): void {
   render(
     <QueryClientProvider client={queryClient}>
       <SettingsProvider>
@@ -64,6 +64,11 @@ async function renderRun(targetBanks?: Record<string, 'shown' | 'hidden'>): Prom
       </SettingsProvider>
     </QueryClientProvider>,
   );
+}
+
+async function renderRun(targetBanks: Record<string, 'shown' | 'hidden'>): Promise<void> {
+  seedState(targetBanks);
+  renderView();
   await waitFor(() => expect(screen.getByTestId('timeline')).toBeTruthy());
 }
 
@@ -114,10 +119,32 @@ describe('a loaded program that needs banks this device does not have', () => {
     expect(document.querySelectorAll('.lane')).toHaveLength(4);
   });
 
-  // No frame yet, or firmware older than banks. Not a one-bank device: that
-  // sends `{A: ...}`, which is the case below.
-  it('says nothing and refuses nothing while the bank count is unknown', async () => {
-    await renderRun(undefined);
+  // Before the first frame the device has said neither what it drives nor what
+  // it has loaded, so there is nothing to refuse and nothing to say. Not a
+  // one-bank device: that sends `{A: ...}`, which is the case below.
+  it('says nothing while no frame has arrived', async () => {
+    seedState(null);
+    renderView();
+    await waitFor(() => expect(screen.getByTestId('run-target-status')).toBeTruthy());
+
+    expect(screen.queryByTestId('run-banks-notice')).toBeNull();
+    // Disabled because nothing is loaded - not because a bank count was
+    // guessed out of an absence.
+    expect(startButton().disabled).toBe(true);
+  });
+
+  // The guard that stands behind the one above: a program is loaded and the
+  // frame carries no `targetBanks`. The contract says every frame does, so
+  // this is a frame no device sends - and the page must still refuse nothing
+  // rather than read the absence as "one bank" and block a program that would
+  // run. The cast is the point: the type says required, the runtime does not.
+  it('claims no bank count from a frame that omits the map', async () => {
+    queryClient.setQueryData(['state'], {
+      loadedProgramId: BANKED.id,
+      programState: { running: false, currentSeriesIndex: 0, currentEventIndex: 0, tickerMs: 0 },
+    } as unknown as StateUpdatePayload);
+    renderView();
+    await waitFor(() => expect(screen.getByTestId('timeline')).toBeTruthy());
 
     expect(screen.queryByTestId('run-banks-notice')).toBeNull();
     expect(startButton().disabled).toBe(false);

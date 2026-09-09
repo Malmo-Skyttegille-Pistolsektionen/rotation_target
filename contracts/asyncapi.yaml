@@ -163,7 +163,6 @@ components:
               currentSeriesIndex: 0
               currentEventIndex: 2
               tickerMs: 7480
-            targetStatus: shown
             targetBanks:
               A: shown
         - name: loaded-not-started
@@ -176,7 +175,6 @@ components:
               currentSeriesIndex: 0
               currentEventIndex: 0
               tickerMs: null
-            targetStatus: hidden
             targetBanks:
               A: hidden
         - name: nothing-loaded
@@ -184,13 +182,10 @@ components:
           payload:
             loadedProgramId: null
             programState: null
-            targetStatus: hidden
             targetBanks:
               A: hidden
         - name: three-banks-mixed
-          summary: >-
-            A three-bank device with B hidden. `targetStatus` reports `A`, so a
-            client that ignores `targetBanks` still reads a true value.
+          summary: A three-bank device with B hidden.
           payload:
             loadedProgramId: 1
             programState:
@@ -198,7 +193,6 @@ components:
               currentSeriesIndex: 0
               currentEventIndex: 2
               tickerMs: 7480
-            targetStatus: shown
             targetBanks:
               A: shown
               B: hidden
@@ -401,7 +395,7 @@ components:
   schemas:
     StateUpdate:
       type: object
-      required: [loadedProgramId, programState, targetStatus]
+      required: [loadedProgramId, programState, targetBanks]
       additionalProperties: false
       properties:
         loadedProgramId:
@@ -415,14 +409,6 @@ components:
           oneOf:
             - $ref: "#/components/schemas/ProgramState"
             - type: "null"
-        targetStatus:
-          type: string
-          enum: [shown, hidden]
-          description: >-
-            Where **bank A** is (D-41). Always present, including when nothing
-            is loaded: the targets can be moved outside a program run. Truthful
-            and partial on a device with several banks — the alternative,
-            "shown if any is", would invent a meaning no client asked for.
         targetBanks:
           type: object
           propertyNames:
@@ -431,13 +417,11 @@ components:
             type: string
             enum: [shown, hidden]
           description: >-
-            Where every bank is, keyed by letter. **Always sent**, including by
-            a device with a single bank, where it is `{"A": …}` — so a client
-            knows the bank count from the first frame it receives rather than
-            having to infer "one" from an absence, and **absent means firmware
-            from before banks** rather than a one-bank device. Exactly one key
-            per bank, `A`..`H` contiguous from `A`. `A` here and `targetStatus`
-            never disagree.
+            Where every bank is, keyed by letter. Always present, including
+            when nothing is loaded — the targets can be moved outside a program
+            run — and on a device with a single bank, where it is `{"A": …}`,
+            so a client reads the bank count out of the first frame it
+            receives. Exactly one key per bank, `A`..`H` contiguous from `A`.
 
     ProgramState:
       type: object

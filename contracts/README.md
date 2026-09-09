@@ -51,21 +51,28 @@ client could break on — a removed field, a narrowed type, a changed status cod
 — is a new `/api/v3` prefix, which means a deliberate migration for the webapp
 and every other client, not a quiet edit here.
 
-**Recorded exceptions, D-16, D-23, D-27 and D-19:** `tickerSeconds` was
-replaced by `tickerMs` in the `stateUpdate` payload without moving to
-`/sse/v3`; `DELETE` on a read-only program or clip changed from `404` to `409`;
-`POST /programs/start` grew a **required** body; and every error body changed
-from `{"error": "prose"}` to an RFC 9457 problem detail served as
-`application/problem+json` — the last three without moving to `/api/v3`
-The webapp ships inside the firmware
-image, so client and server are deployed atomically and there is no deployed
-client to break; no release has ever been cut. See
-`docs/DECISIONS.md`. The rule stands for everything after this — the exceptions
-exist because the only client is in this repository, and they stop being
-available the moment a firmware is released.
+**Recorded exceptions, D-16, D-23, D-27, D-19, D-40 and D-41 (stage 4):**
+`tickerSeconds` was replaced by `tickerMs` in the `stateUpdate` payload without
+moving to `/sse/v3`; `DELETE` on a read-only program or clip changed from `404`
+to `409`; `POST /programs/start` grew a **required** body; every error body
+changed from `{"error": "prose"}` to an RFC 9457 problem detail served as
+`application/problem+json`; the control lock's route segment, problem slugs,
+response field, security schemes and cookie were all renamed; and the
+single-target fields (`targetStatus`, `HardwareConfig.targetGpio` /
+`targetActiveLow`, `DiagnosticsInfo.targetGpio` / `targetGpioLevel`) were
+removed in favour of `banks` and `targetBanks` — none of them moving to
+`/api/v3`. The webapp ships inside the firmware image, so client and server are
+deployed atomically and there is no deployed client to break; no release has
+ever been cut. See `docs/DECISIONS.md`.
 
-D-19 is the last of them by design: it is the closer of the work programme
-these exceptions were opened for.
+The rule is not "no more exceptions after this one". It is: **an exception is
+available only while no release has been cut, and each one is a decision record
+naming what it breaks and why it is affordable now.** They stop being available
+the moment a firmware is released, because from then on there is a deployed
+client — which is also when a removal starts costing an `/api/v3`. The
+`breaking change detection` job fails on every one of them, and that is the
+point: it means a human decided on purpose rather than a field going missing
+unnoticed.
 
 `GET /api/v2/version` reports the *firmware* version, not this one. A client
 that needs to know whether a firmware is new enough for a particular endpoint

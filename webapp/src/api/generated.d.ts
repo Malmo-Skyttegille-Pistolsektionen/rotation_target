@@ -957,9 +957,9 @@ export interface components {
          *     targets rest at boot is a property of the range, not of a bank.
          *
          *     **Bank count is `banks.length`** (D-41). A device drives one to eight
-         *     target banks, lettered by position: `banks[0]` is bank A. `targetGpio`
-         *     and `targetActiveLow` stay required and describe bank A, so a client
-         *     that predates banks sees the device it always saw.
+         *     target banks, lettered by position: `banks[0]` is bank A. The array is
+         *     the only description of the targets — there are no scalars beside it to
+         *     keep in agreement.
          */
         HardwareConfig: {
             /**
@@ -970,16 +970,8 @@ export interface components {
              *
              *     Eight is a firmware constant, not a protocol limit; raising it later
              *     is additive.
-             *
-             *     Optional in a response only so a client reading a firmware from
-             *     before this field degrades to `targetGpio`/`targetActiveLow`. This
-             *     firmware always sends it, with at least one entry.
              */
-            banks?: components["schemas"]["TargetBank"][];
-            /** @description Bank A's GPIO — the same value as `banks[0].gpio`, kept beside the array so a client from before banks reads the field it always read. */
-            targetGpio: components["schemas"]["TargetBankGpio"];
-            /** @description Whether a low level shows bank A — the same value as `banks[0].activeLow`. */
-            targetActiveLow: components["schemas"]["TargetBankActiveLow"];
+            banks: components["schemas"]["TargetBank"][];
             /** @description mDNS name and the setup access point's SSID prefix, so `<hostname>.local` reaches the device and the portal appears as `<hostname>-setup-XXXX`. Two clubs on one network need two names. Bounded at 20 because the SSID suffix has to fit in 32. */
             hostname: string;
             /** @description Free text shown in the web app. Cosmetic, and the only field here that cannot break anything - hence no format rule beyond a length. Empty on a device that has never been named. */
@@ -1106,17 +1098,11 @@ export interface components {
             /**
              * @description The whole bank array, replacing what is stored — it is a list whose
              *     order carries meaning, so there is no useful way to merge one
-             *     partially.
-             *
-             *     Sending it alongside `targetGpio`/`targetActiveLow` is allowed but
-             *     they must agree with `banks[0]`, otherwise the write is refused with
-             *     `/problems/hardware_config_invalid`; there is no rule for deciding
-             *     which of two contradictory values the operator meant. Sending only
-             *     the scalars edits bank A and leaves every other bank alone.
+             *     partially. Editing one bank means sending them all, which is also
+             *     what makes a two-bank device's `banks` unambiguous when a form was
+             *     opened against a one-bank one.
              */
             banks?: components["schemas"]["HardwareConfig"]["banks"];
-            targetGpio?: components["schemas"]["HardwareConfig"]["targetGpio"];
-            targetActiveLow?: components["schemas"]["HardwareConfig"]["targetActiveLow"];
             hostname?: components["schemas"]["HardwareConfig"]["hostname"];
             displayName?: components["schemas"]["HardwareConfig"]["displayName"];
             ledGpio?: components["schemas"]["HardwareConfig"]["ledGpio"];
@@ -1460,12 +1446,8 @@ export interface components {
             audioCount: number;
             /** @description The device's current address, or empty when it has none. */
             ipAddress: string;
-            /** @description Bank A's GPIO, the same value as `banks[0].gpio`. */
-            targetGpio: number;
-            /** @description The level actually on bank A's pad, read back rather than remembered — the pair with `targetGpio` distinguishes "the firmware never drove it" from "something else is holding it". */
-            targetGpioLevel: number;
-            /** @description The same pair per bank, so the read-back that answers "is the firmware driving what it thinks it is" works on a device with more than one. Beside the two scalars rather than replacing them: a client from before banks keeps reading bank A where it always did. */
-            banks?: {
+            /** @description A GPIO and its read-back level per bank, which is what answers "is the firmware driving what it thinks it is". `padLevel` is read from the pad rather than remembered, so it tells "the firmware never drove it" apart from "something else is holding it". */
+            banks: {
                 id: components["schemas"]["BankLetter"];
                 /** @description The GPIO this bank drives. */
                 gpio: number;
@@ -1581,8 +1563,8 @@ export interface components {
         /**
          * @description Which target banks to move.
          *
-         *     - **No body, or `{}`** — every bank. That is what every client did
-         *       before banks existed and what a one-bank device is always asked.
+         *     - **No body, or `{}`** — every bank. That is what a one-bank device is
+         *       always asked, and what the button on the device means.
          *     - **`banks` present** — those banks, and only if the device has every
          *       one of them.
          *

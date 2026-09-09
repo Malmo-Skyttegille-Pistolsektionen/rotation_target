@@ -42,7 +42,10 @@ async function open(): Promise<void> {
 }
 
 /** The testid a field is rendered with, to the config key it edits. */
-const TESTID_TO_KEY: Record<string, 'ledGpio' | 'i2sPort' | 'i2sBckGpio' | 'i2sWsGpio' | 'i2sDoutGpio' | 'httpPort' | 'wifiMaxRetries'> = {
+const TESTID_TO_KEY: Record<
+  string,
+  'ledGpio' | 'i2sPort' | 'i2sBckGpio' | 'i2sWsGpio' | 'i2sDoutGpio' | 'httpPort' | 'wifiMaxRetries'
+> = {
   'hardware-led-gpio': 'ledGpio',
   'hardware-i2s-port': 'i2sPort',
   'hardware-i2s-bck': 'i2sBckGpio',
@@ -93,9 +96,9 @@ describe('the hardware section', () => {
     renderSection();
     await open();
 
-    expect(field('hardware-bank-gpio-A').value).toBe(String(HARDWARE_DEFAULTS.targetGpio));
+    expect(field('hardware-bank-gpio-A').value).toBe(String(HARDWARE_DEFAULTS.banks[0].gpio));
     expect(field('hardware-hostname').value).toBe(HARDWARE_DEFAULTS.hostname);
-    expect(field('hardware-bank-active-low-A').checked).toBe(HARDWARE_DEFAULTS.targetActiveLow);
+    expect(field('hardware-bank-active-low-A').checked).toBe(HARDWARE_DEFAULTS.banks[0].activeLow);
   });
 
   // Save sends only what changed, so a form left open does not overwrite a
@@ -113,10 +116,10 @@ describe('the hardware section', () => {
     await waitFor(() => expect(screen.getByTestId('hardware-notice')).toBeTruthy());
 
     const state = (await (await fetch(`http://127.0.0.1:${String(PORT)}/api/v2/config/hardware`)).json()) as {
-      saved: { displayName: string; targetGpio: number };
+      saved: { displayName: string; banks: { gpio: number }[] };
     };
     expect(state.saved.displayName).toBe('Bana 1');
-    expect(state.saved.targetGpio).toBe(HARDWARE_DEFAULTS.targetGpio);
+    expect(state.saved.banks[0].gpio).toBe(HARDWARE_DEFAULTS.banks[0].gpio);
   });
 
   // The device's RFC 9457 `detail` is the sentence written for the situation -
@@ -210,7 +213,12 @@ describe('the hardware section', () => {
       expect(field(testId).value).toBe(String(HARDWARE_DEFAULTS[TESTID_TO_KEY[testId]]));
     }
 
-    for (const group of ['hardware-group-targets', 'hardware-group-led', 'hardware-group-audio', 'hardware-group-network']) {
+    for (const group of [
+      'hardware-group-targets',
+      'hardware-group-led',
+      'hardware-group-audio',
+      'hardware-group-network',
+    ]) {
       expect(screen.getByTestId(group)).toBeTruthy();
     }
   });
@@ -379,9 +387,9 @@ describe('the hardware section', () => {
     expect(screen.getByTestId('hardware-bank-limit').textContent).toContain('Eight is the most');
   });
 
-  // The device refuses a body whose scalars disagree with `banks[0]`, so the
-  // table sends the array and nothing else.
-  it('saves the whole bank array and no legacy scalars', async () => {
+  // The array is ordered, so there is no partial merge of one: editing a bank
+  // means sending them all.
+  it('saves the whole bank array', async () => {
     await device();
     renderSection();
     await open();
@@ -397,14 +405,12 @@ describe('the hardware section', () => {
 
     await waitFor(() => expect(screen.getByTestId('hardware-notice')).toBeTruthy());
     const state = (await (await fetch(`http://127.0.0.1:${String(PORT)}/api/v2/config/hardware`)).json()) as {
-      saved: { banks: { gpio: number; activeLow: boolean; name: string }[]; targetGpio: number };
+      saved: { banks: { gpio: number; activeLow: boolean; name: string }[] };
     };
     expect(state.saved.banks).toEqual([
-      { gpio: HARDWARE_DEFAULTS.targetGpio, activeLow: true, name: '' },
+      { gpio: HARDWARE_DEFAULTS.banks[0].gpio, activeLow: true, name: '' },
       { gpio: 6, activeLow: true, name: 'Höger' },
     ]);
-    // Bank A's scalars follow the array, which is the device's own rule.
-    expect(state.saved.targetGpio).toBe(HARDWARE_DEFAULTS.targetGpio);
   });
 
   // Two banks on one pad passes every per-pin check and still does not work.
@@ -416,7 +422,7 @@ describe('the hardware section', () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId('hardware-bank-add'));
     });
-    await type('hardware-bank-gpio-B', String(HARDWARE_DEFAULTS.targetGpio));
+    await type('hardware-bank-gpio-B', String(HARDWARE_DEFAULTS.banks[0].gpio));
     await act(async () => {
       fireEvent.click(screen.getByTestId('hardware-save'));
     });

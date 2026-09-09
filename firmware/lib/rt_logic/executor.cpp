@@ -38,10 +38,13 @@ bool Executor::toggle_targets(BankMask bank_mask) {
     if (!state_.bank_shown[i]) all_shown = false;
   }
 
-  // A mask naming no bank this device has moves nothing, so it must not report
-  // that it did: "all of an empty set is shown" would answer `hidden` and
-  // publish a flag no pin backs. Bank A's state is what the answer means.
-  if (!matched) return state_.target_status_shown();
+  // Falling through would make "all of an empty set is shown" hide everything,
+  // and would drive the pins with a mask backing no bank. Unreachable from
+  // today's callers - a named mask goes to flip_targets, the bodyless call
+  // uses kAllBanksMask, and validate() refuses a device with no banks - so it
+  // guards the next caller rather than a live path. Nothing moved, so the
+  // answer is the state that already stood.
+  if (!matched) return state_.bank_a_shown();
 
   set_targets(bank_mask, !all_shown);
   return !all_shown;

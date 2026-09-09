@@ -494,7 +494,11 @@ describe('D-24: the library changes under an open page', () => {
       FakeEventSource.latest.emit('libraryChanged', { kind: 'program' });
       // Nor does run state touch it: load, start, stop and unload are
       // stateUpdates, and none of them changes what the device stores.
-      FakeEventSource.latest.emit('stateUpdate', { loadedProgramId: null, programState: null, targetStatus: 'hidden' });
+      FakeEventSource.latest.emit('stateUpdate', {
+        loadedProgramId: null,
+        programState: null,
+        targetBanks: { A: 'hidden' },
+      });
     });
 
     // A render pass to be wrong in, and then nothing was re-read.

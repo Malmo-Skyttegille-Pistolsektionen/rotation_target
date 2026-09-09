@@ -18,12 +18,6 @@ namespace rt {
 // than spelled out. Here rather than beside the store so the overlay and the
 // writer cannot drift apart over a key name.
 namespace hw_key {
-// The pre-bank layout (#144). Nothing writes these any more; they are read
-// once, to build bank A on a device configured before #207, and erased by the
-// next save.
-constexpr const char *kLegacyGpio = "hw_tgt_gpio";
-constexpr const char *kLegacyActiveLow = "hw_tgt_alow";
-
 constexpr const char *kBankCount = "hw_bank_cnt";
 constexpr const char *kHostname = "hw_hostname";
 constexpr const char *kDisplayName = "hw_disp_name";

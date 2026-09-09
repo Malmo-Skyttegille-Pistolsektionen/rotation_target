@@ -19,7 +19,7 @@ void test_nothing_loaded_serializes_as_nulls() {
   rt::ProgramState s;
 
   TEST_ASSERT_EQUAL_STRING(
-      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"hidden\","
+      "{\"loadedProgramId\":null,\"programState\":null,"
       "\"targetBanks\":{\"A\":\"hidden\"}}",
       rt::state_update_json(s).c_str());
 }
@@ -35,7 +35,7 @@ void test_a_loaded_program_serializes_its_position() {
 
   TEST_ASSERT_EQUAL_STRING(
       "{\"loadedProgramId\":42,\"programState\":{\"running\":true,\"currentSeriesIndex\":0,"
-      "\"currentEventIndex\":2,\"tickerMs\":7480},\"targetStatus\":\"shown\","
+      "\"currentEventIndex\":2,\"tickerMs\":7480},"
       "\"targetBanks\":{\"A\":\"shown\"}}",
       rt::state_update_json(s).c_str());
 }
@@ -48,12 +48,12 @@ void test_an_unset_ticker_serializes_as_null() {
 
   TEST_ASSERT_EQUAL_STRING(
       "{\"loadedProgramId\":42,\"programState\":{\"running\":false,\"currentSeriesIndex\":1,"
-      "\"currentEventIndex\":0,\"tickerMs\":null},\"targetStatus\":\"hidden\","
+      "\"currentEventIndex\":0,\"tickerMs\":null},"
       "\"targetBanks\":{\"A\":\"hidden\"}}",
       rt::state_update_json(s).c_str());
 }
 
-void test_unload_clears_everything_but_the_target_status() {
+void test_unload_clears_everything_but_where_the_banks_sit() {
   rt::ProgramState s;
   s.program = &g_program;
   s.running = true;
@@ -67,41 +67,39 @@ void test_unload_clears_everything_but_the_target_status() {
   TEST_ASSERT_FALSE(s.is_loaded());
   TEST_ASSERT_FALSE(s.running);
   TEST_ASSERT_FALSE(s.ticker_ms.has_value);
-  TEST_ASSERT_TRUE(s.target_status_shown());
+  TEST_ASSERT_TRUE(s.bank_a_shown());
   TEST_ASSERT_EQUAL_STRING(
-      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"shown\","
+      "{\"loadedProgramId\":null,\"programState\":null,"
       "\"targetBanks\":{\"A\":\"shown\"}}",
       rt::state_update_json(s).c_str());
 }
 
-// #207/D-41: `targetStatus` is bank A, not "shown if any". Truthful and
-// partial for a client that predates banks; `targetBanks` carries the rest.
-void test_target_status_reports_bank_a_and_not_the_others() {
+// Each bank reports its own state; there is no device-wide summary of them.
+void test_each_bank_reports_itself() {
   rt::ProgramState s;
   s.init_banks(4, false);
   s.bank_shown[2] = true;
 
   TEST_ASSERT_EQUAL_STRING(
-      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"hidden\","
+      "{\"loadedProgramId\":null,\"programState\":null,"
       "\"targetBanks\":{\"A\":\"hidden\",\"B\":\"hidden\",\"C\":\"shown\",\"D\":\"hidden\"}}",
       rt::state_update_json(s).c_str());
 
   s.bank_shown[0] = true;
   TEST_ASSERT_EQUAL_STRING(
-      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"shown\","
+      "{\"loadedProgramId\":null,\"programState\":null,"
       "\"targetBanks\":{\"A\":\"shown\",\"B\":\"hidden\",\"C\":\"shown\",\"D\":\"hidden\"}}",
       rt::state_update_json(s).c_str());
 }
 
-// A one-bank device sends `targetBanks` too, with the single key `A` (D-41).
-// A client then reads the bank count off a key count rather than inferring
-// "one" from an absence that also means firmware from before banks.
+// A one-bank device sends `targetBanks` too, with the single key `A` (D-41),
+// so a client reads the bank count off the key count.
 void test_one_bank_still_publishes_its_single_letter() {
   rt::ProgramState s;
   s.init_banks(1, true);
 
   TEST_ASSERT_EQUAL_STRING(
-      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"shown\","
+      "{\"loadedProgramId\":null,\"programState\":null,"
       "\"targetBanks\":{\"A\":\"shown\"}}",
       rt::state_update_json(s).c_str());
 }
@@ -118,7 +116,7 @@ void test_two_banks_publish_both_letters() {
 
   TEST_ASSERT_EQUAL_STRING(
       "{\"loadedProgramId\":42,\"programState\":{\"running\":true,\"currentSeriesIndex\":0,"
-      "\"currentEventIndex\":1,\"tickerMs\":1500},\"targetStatus\":\"shown\","
+      "\"currentEventIndex\":1,\"tickerMs\":1500},"
       "\"targetBanks\":{\"A\":\"shown\",\"B\":\"hidden\"}}",
       rt::state_update_json(s).c_str());
 }
@@ -130,7 +128,7 @@ void test_eight_banks_run_a_through_h() {
   s.bank_shown[7] = true;
 
   TEST_ASSERT_EQUAL_STRING(
-      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"hidden\","
+      "{\"loadedProgramId\":null,\"programState\":null,"
       "\"targetBanks\":{\"A\":\"hidden\",\"B\":\"hidden\",\"C\":\"hidden\",\"D\":\"hidden\","
       "\"E\":\"hidden\",\"F\":\"hidden\",\"G\":\"hidden\",\"H\":\"shown\"}}",
       rt::state_update_json(s).c_str());
@@ -139,12 +137,12 @@ void test_eight_banks_run_a_through_h() {
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_nothing_loaded_serializes_as_nulls);
-  RUN_TEST(test_target_status_reports_bank_a_and_not_the_others);
+  RUN_TEST(test_each_bank_reports_itself);
   RUN_TEST(test_one_bank_still_publishes_its_single_letter);
   RUN_TEST(test_two_banks_publish_both_letters);
   RUN_TEST(test_eight_banks_run_a_through_h);
   RUN_TEST(test_a_loaded_program_serializes_its_position);
   RUN_TEST(test_an_unset_ticker_serializes_as_null);
-  RUN_TEST(test_unload_clears_everything_but_the_target_status);
+  RUN_TEST(test_unload_clears_everything_but_where_the_banks_sit);
   return UNITY_END();
 }
