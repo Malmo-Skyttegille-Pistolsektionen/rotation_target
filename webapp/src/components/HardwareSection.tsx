@@ -35,7 +35,8 @@ import styles from './HardwareSection.module.css';
 
 /** Every numeric field is a GPIO or a port, and they behave identically. */
 type NumericField = {
-  key: keyof HardwareConfigPatch & ('ledGpio' | 'i2sPort' | 'i2sBckGpio' | 'i2sWsGpio' | 'i2sDoutGpio' | 'httpPort' | 'wifiMaxRetries');
+  key: keyof HardwareConfigPatch &
+    ('ledGpio' | 'i2sPort' | 'i2sBckGpio' | 'i2sWsGpio' | 'i2sDoutGpio' | 'httpPort' | 'wifiMaxRetries');
   testId: string;
   label: string;
   hint: React.ReactNode;
@@ -83,7 +84,12 @@ const AUDIO_FIELDS: NumericField[] = [
     label: 'I2S port',
     hint: 'Which of the chip’s two I2S peripherals drives the DAC. 0 or 1 — a peripheral, not a pin.',
   },
-  { key: 'i2sBckGpio', testId: 'hardware-i2s-bck', label: 'I2S bit clock (BCK)', hint: 'To BCLK on the amplifier board.' },
+  {
+    key: 'i2sBckGpio',
+    testId: 'hardware-i2s-bck',
+    label: 'I2S bit clock (BCK)',
+    hint: 'To BCLK on the amplifier board.',
+  },
   {
     key: 'i2sWsGpio',
     testId: 'hardware-i2s-ws',
@@ -267,285 +273,284 @@ export function HardwareSection(): React.ReactNode {
       )}
 
       <>
-          {group(
-            'Targets',
-            'hardware-group-targets',
-            <>
-              {/* A table rather than a repeated field group: every bank has the
+        {group(
+          'Targets',
+          'hardware-group-targets',
+          <>
+            {/* A table rather than a repeated field group: every bank has the
                   same four values, and the question somebody has here is "which
                   pin is bank C on", which reads off a column. */}
-              <div className={styles.tableScroll}>
-                <table className={styles.bankTable} data-testid='hardware-bank-table'>
-                  <thead>
-                    <tr>
-                      <th scope='col'>Bank</th>
-                      <th scope='col'>
-                        Name <span className={styles.thHint}>(shown to operators)</span>
-                      </th>
-                      <th scope='col'>GPIO</th>
-                      <th scope='col'>Shown when low</th>
-                      <th scope='col'>Pad now</th>
-                      <th scope='col'>
-                        <span className={styles.srOnly}>Remove</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {banks.map((bank, index) => {
-                      const letter = BANK_LETTERS[index];
-                      // Only the last bank goes: the letter is the position,
-                      // so a gap re-aims the banks after it. Why, in
-                      // `docs/site/expert-mode.md`.
-                      const removable = index > 0 && index === banks.length - 1;
-                      // Same "changed" marker every other field carries, so
-                      // "Reset to defaults" says what it would undo. A bank the
-                      // compiled defaults do not have is changed by existing.
-                      const asShipped = defaultBanks[index];
-                      const changed =
-                        asShipped === undefined ||
-                        asShipped.gpio !== bank.gpio ||
-                        asShipped.activeLow !== bank.activeLow ||
-                        asShipped.name !== bank.name;
-                      const pad = diagnostics?.banks?.[index]?.padLevel ?? (index === 0 ? diagnostics?.targetGpioLevel : undefined);
-                      return (
-                        <tr key={index} data-testid={`hardware-bank-row-${letter}`}>
-                          <th scope='row' className={styles.bankLetter}>
-                            {letter}
-                            {changed && (
-                              <span className={styles.badge} data-testid={`hardware-bank-changed-${letter}`}>
-                                changed
-                              </span>
-                            )}
-                          </th>
-                          <td>
-                            <input
-                              className={styles.input}
-                              type='text'
-                              maxLength={MAX_BANK_NAME}
-                              aria-label={`Bank ${letter} name`}
-                              data-testid={`hardware-bank-name-${letter}`}
-                              disabled={!canManage || busy}
-                              value={bank.name}
-                              onChange={(e) => {
-                                editBank(index, { name: e.target.value });
-                              }}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              className={clsx(styles.input, styles.gpioInput)}
-                              type='text'
-                              inputMode='numeric'
-                              aria-label={`Bank ${letter} GPIO`}
-                              data-testid={`hardware-bank-gpio-${letter}`}
-                              disabled={!canManage || busy}
-                              value={Number.isFinite(bank.gpio) ? String(bank.gpio) : ''}
-                              onChange={(e) => {
-                                // An empty or non-numeric field is "not typed
-                                // yet", never 0 - `Number('')` is 0, which is a
-                                // pin, and the row would silently claim it.
-                                const typed = e.target.value.trim();
-                                editBank(index, {
-                                  gpio: /^\d+$/.test(typed) ? Number(typed) : NO_PIN,
-                                });
-                              }}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type='checkbox'
-                              aria-label={`Bank ${letter} shown when low`}
-                              data-testid={`hardware-bank-active-low-${letter}`}
-                              disabled={!canManage || busy}
-                              checked={bank.activeLow}
-                              onChange={(e) => {
-                                editBank(index, { activeLow: e.target.checked });
-                              }}
-                            />
-                          </td>
-                          {/* Read back through the input buffer, so a pin that
+            <div className={styles.tableScroll}>
+              <table className={styles.bankTable} data-testid='hardware-bank-table'>
+                <thead>
+                  <tr>
+                    <th scope='col'>Bank</th>
+                    <th scope='col'>
+                      Name <span className={styles.thHint}>(shown to operators)</span>
+                    </th>
+                    <th scope='col'>GPIO</th>
+                    <th scope='col'>Shown when low</th>
+                    <th scope='col'>Pad now</th>
+                    <th scope='col'>
+                      <span className={styles.srOnly}>Remove</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {banks.map((bank, index) => {
+                    const letter = BANK_LETTERS[index];
+                    // Only the last bank goes: the letter is the position,
+                    // so a gap re-aims the banks after it. Why, in
+                    // `docs/site/expert-mode.md`.
+                    const removable = index > 0 && index === banks.length - 1;
+                    // Same "changed" marker every other field carries, so
+                    // "Reset to defaults" says what it would undo. A bank the
+                    // compiled defaults do not have is changed by existing.
+                    const asShipped = defaultBanks[index];
+                    const changed =
+                      asShipped === undefined ||
+                      asShipped.gpio !== bank.gpio ||
+                      asShipped.activeLow !== bank.activeLow ||
+                      asShipped.name !== bank.name;
+                    const pad =
+                      diagnostics?.banks?.[index]?.padLevel ?? (index === 0 ? diagnostics?.targetGpioLevel : undefined);
+                    return (
+                      <tr key={index} data-testid={`hardware-bank-row-${letter}`}>
+                        <th scope='row' className={styles.bankLetter}>
+                          {letter}
+                          {changed && (
+                            <span className={styles.badge} data-testid={`hardware-bank-changed-${letter}`}>
+                              changed
+                            </span>
+                          )}
+                        </th>
+                        <td>
+                          <input
+                            className={styles.input}
+                            type='text'
+                            maxLength={MAX_BANK_NAME}
+                            aria-label={`Bank ${letter} name`}
+                            data-testid={`hardware-bank-name-${letter}`}
+                            disabled={!canManage || busy}
+                            value={bank.name}
+                            onChange={(e) => {
+                              editBank(index, { name: e.target.value });
+                            }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className={clsx(styles.input, styles.gpioInput)}
+                            type='text'
+                            inputMode='numeric'
+                            aria-label={`Bank ${letter} GPIO`}
+                            data-testid={`hardware-bank-gpio-${letter}`}
+                            disabled={!canManage || busy}
+                            value={Number.isFinite(bank.gpio) ? String(bank.gpio) : ''}
+                            onChange={(e) => {
+                              // An empty or non-numeric field is "not typed
+                              // yet", never 0 - `Number('')` is 0, which is a
+                              // pin, and the row would silently claim it.
+                              const typed = e.target.value.trim();
+                              editBank(index, {
+                                gpio: /^\d+$/.test(typed) ? Number(typed) : NO_PIN,
+                              });
+                            }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type='checkbox'
+                            aria-label={`Bank ${letter} shown when low`}
+                            data-testid={`hardware-bank-active-low-${letter}`}
+                            disabled={!canManage || busy}
+                            checked={bank.activeLow}
+                            onChange={(e) => {
+                              editBank(index, { activeLow: e.target.checked });
+                            }}
+                          />
+                        </td>
+                        {/* Read back through the input buffer, so a pin that
                               is not moving says so without a multimeter. Blank
                               on firmware from before `banks`. */}
-                          <td className={styles.padCell} data-testid={`hardware-bank-pad-${letter}`}>
-                            {pad === undefined ? '—' : pad === 1 ? 'high' : 'low'}
-                          </td>
-                          <td>
-                            <button
-                              className={styles.removeBank}
-                              type='button'
-                              data-testid={`hardware-bank-remove-${letter}`}
-                              disabled={!canManage || busy || !removable}
-                              title={
-                                index === 0
-                                  ? 'Bank A cannot be removed'
-                                  : removable
-                                    ? `Remove bank ${letter}`
-                                    : 'Remove the last bank first: the letters cannot have gaps'
-                              }
-                              aria-label={`Remove bank ${letter}`}
-                              onClick={() => {
-                                setBanks(banks.slice(0, -1));
-                              }}
-                            >
-                              ×
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                        <td className={styles.padCell} data-testid={`hardware-bank-pad-${letter}`}>
+                          {pad === undefined ? '—' : pad === 1 ? 'high' : 'low'}
+                        </td>
+                        <td>
+                          <button
+                            className={styles.removeBank}
+                            type='button'
+                            data-testid={`hardware-bank-remove-${letter}`}
+                            disabled={!canManage || busy || !removable}
+                            title={
+                              index === 0
+                                ? 'Bank A cannot be removed'
+                                : removable
+                                  ? `Remove bank ${letter}`
+                                  : 'Remove the last bank first: the letters cannot have gaps'
+                            }
+                            aria-label={`Remove bank ${letter}`}
+                            onClick={() => {
+                              setBanks(banks.slice(0, -1));
+                            }}
+                          >
+                            ×
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-              {bankPinMissing && (
-                <span className={styles.hint} data-testid='hardware-bank-pin-missing'>
-                  Every bank needs a GPIO before this can be saved.
+            {bankPinMissing && (
+              <span className={styles.hint} data-testid='hardware-bank-pin-missing'>
+                Every bank needs a GPIO before this can be saved.
+              </span>
+            )}
+
+            <div className={styles.bankActions}>
+              {banks.length < MAX_BANKS ? (
+                <button
+                  className={styles.button}
+                  type='button'
+                  data-testid='hardware-bank-add'
+                  disabled={!canManage || busy}
+                  onClick={() => {
+                    // No pin, not 0: GPIO0 is the BOOT strapping pin and is
+                    // always refused, so seeding it would mean a new row is
+                    // born holding a value the device will not take. The
+                    // polarity copies the last bank's, which is nearly always
+                    // right - banks on one device are wired the same way.
+                    setBanks([...banks, { gpio: NO_PIN, activeLow: banks[banks.length - 1].activeLow, name: '' }]);
+                  }}
+                >
+                  Add bank {BANK_LETTERS[banks.length]}
+                </button>
+              ) : (
+                <span className={styles.hint} data-testid='hardware-bank-limit'>
+                  Eight is the most this firmware drives.
                 </span>
               )}
+            </div>
 
-              <div className={styles.bankActions}>
-                {banks.length < MAX_BANKS ? (
-                  <button
-                    className={styles.button}
-                    type='button'
-                    data-testid='hardware-bank-add'
-                    disabled={!canManage || busy}
-                    onClick={() => {
-                      // No pin, not 0: GPIO0 is the BOOT strapping pin and is
-                      // always refused, so seeding it would mean a new row is
-                      // born holding a value the device will not take. The
-                      // polarity copies the last bank's, which is nearly always
-                      // right - banks on one device are wired the same way.
-                      setBanks([...banks, { gpio: NO_PIN, activeLow: banks[banks.length - 1].activeLow, name: '' }]);
-                    }}
-                  >
-                    Add bank {BANK_LETTERS[banks.length]}
-                  </button>
-                ) : (
-                  <span className={styles.hint} data-testid='hardware-bank-limit'>
-                    Eight is the most this firmware drives.
-                  </span>
-                )}
-              </div>
+            <span className={styles.hint}>
+              One contact closure per bank. Each needs its own pin: 22&ndash;32 and 35&ndash;37 are refused &mdash; they
+              are absent from this chip or belong to its flash and PSRAM, and driving one stops the device booting
+              &mdash; and so are 43&ndash;44, which carry the serial console.
+            </span>
 
-              <span className={styles.hint}>
-                One contact closure per bank. Each needs its own pin: 22&ndash;32 and 35&ndash;37 are refused
-                &mdash; they are absent from this chip or belong to its flash and PSRAM, and driving one stops the
-                device booting &mdash; and so are 43&ndash;44, which carry the serial console.
-              </span>
-
-              {/* Shown, not editable. An operator needs to know where the
+            {/* Shown, not editable. An operator needs to know where the
                   targets rest at boot; changing it needs physical access,
                   because it is what protects somebody standing downrange
                   (D-31). */}
-              <div className={styles.field}>
-                <span className={styles.label}>Targets at boot</span>
-                <p className={styles.readOnlyValue} data-testid='hardware-boot-targets'>
-                  {state.active.targetsShownAtBoot ? 'Shown' : 'Hidden'}
-                </p>
-                <span className={styles.hint}>
-                  One setting for every bank, set from the serial console only &mdash; <code>boot-targets shown</code>{' '}
-                  or <code>boot-targets hidden</code>. It decides what the targets do while somebody may be downrange,
-                  so changing it needs a cable rather than a web page.
-                </span>
-              </div>
-            </>,
-          )}
+            <div className={styles.field}>
+              <span className={styles.label}>Targets at boot</span>
+              <p className={styles.readOnlyValue} data-testid='hardware-boot-targets'>
+                {state.active.targetsShownAtBoot ? 'Shown' : 'Hidden'}
+              </p>
+              <span className={styles.hint}>
+                One setting for every bank, set from the serial console only &mdash; <code>boot-targets shown</code> or{' '}
+                <code>boot-targets hidden</code>. It decides what the targets do while somebody may be downrange, so
+                changing it needs a cable rather than a web page.
+              </span>
+            </div>
+          </>,
+        )}
 
-          {group('Status LED', 'hardware-group-led', LED_FIELDS.map(numeric))}
+        {group('Status LED', 'hardware-group-led', LED_FIELDS.map(numeric))}
 
-          {group('Audio', 'hardware-group-audio', AUDIO_FIELDS.map(numeric))}
+        {group('Audio', 'hardware-group-audio', AUDIO_FIELDS.map(numeric))}
 
-          {group(
-            'Network',
-            'hardware-group-network',
-            <>
-              <label className={styles.field}>
-                <span className={styles.label}>
-                  Hostname
-                  {overridden('hostname') && <span className={styles.badge}>changed</span>}
-                </span>
-                <input
-                  className={styles.input}
-                  type='text'
-                  data-testid='hardware-hostname'
-                  disabled={!canManage || busy}
-                  value={value('hostname')}
-                  onChange={(e) => {
-                    set('hostname', e.target.value);
-                  }}
-                />
-                <span className={styles.hint}>
-                  Reached at <code>{value('hostname') || '…'}.local</code>, and the setup network appears as{' '}
-                  <code>{value('hostname') || '…'}-setup-XXXX</code>. Lower-case letters, digits and hyphens.
-                </span>
-              </label>
+        {group(
+          'Network',
+          'hardware-group-network',
+          <>
+            <label className={styles.field}>
+              <span className={styles.label}>
+                Hostname
+                {overridden('hostname') && <span className={styles.badge}>changed</span>}
+              </span>
+              <input
+                className={styles.input}
+                type='text'
+                data-testid='hardware-hostname'
+                disabled={!canManage || busy}
+                value={value('hostname')}
+                onChange={(e) => {
+                  set('hostname', e.target.value);
+                }}
+              />
+              <span className={styles.hint}>
+                Reached at <code>{value('hostname') || '…'}.local</code>, and the setup network appears as{' '}
+                <code>{value('hostname') || '…'}-setup-XXXX</code>. Lower-case letters, digits and hyphens.
+              </span>
+            </label>
 
-              <label className={styles.field}>
-                <span className={styles.label}>
-                  Display name
-                  {overridden('displayName') && <span className={styles.badge}>changed</span>}
-                </span>
-                <input
-                  className={styles.input}
-                  type='text'
-                  data-testid='hardware-display-name'
-                  disabled={!canManage || busy}
-                  value={value('displayName')}
-                  onChange={(e) => {
-                    set('displayName', e.target.value);
-                  }}
-                />
-                <span className={styles.hint}>
-                  What to call this device — “Bana 1”. Cosmetic; nothing depends on it.
-                </span>
-              </label>
+            <label className={styles.field}>
+              <span className={styles.label}>
+                Display name
+                {overridden('displayName') && <span className={styles.badge}>changed</span>}
+              </span>
+              <input
+                className={styles.input}
+                type='text'
+                data-testid='hardware-display-name'
+                disabled={!canManage || busy}
+                value={value('displayName')}
+                onChange={(e) => {
+                  set('displayName', e.target.value);
+                }}
+              />
+              <span className={styles.hint}>What to call this device — “Bana 1”. Cosmetic; nothing depends on it.</span>
+            </label>
 
-              {NETWORK_FIELDS.map(numeric)}
-            </>,
-          )}
+            {NETWORK_FIELDS.map(numeric)}
+          </>,
+        )}
 
-          <div className={styles.actions}>
-            <button
-              className={clsx(styles.button, styles.buttonPrimary)}
-              data-testid='hardware-save'
-              disabled={!canManage || !dirty || busy || bankPinMissing}
-              onClick={() => {
-                save.mutate(patch);
-              }}
-            >
-              Save
-            </button>
-            <button
-              className={styles.button}
-              data-testid='hardware-revert'
-              disabled={!dirty || busy}
-              onClick={() => {
-                setDraft(null);
-                setNotice(null);
-              }}
-            >
-              Discard changes
-            </button>
-            <button
-              className={clsx(styles.button, styles.buttonDanger)}
-              data-testid='hardware-reset'
-              disabled={!canManage || !state.overridden || busy}
-              onClick={() => {
-                reset.mutate();
-              }}
-            >
-              Reset to defaults
-            </button>
-          </div>
+        <div className={styles.actions}>
+          <button
+            className={clsx(styles.button, styles.buttonPrimary)}
+            data-testid='hardware-save'
+            disabled={!canManage || !dirty || busy || bankPinMissing}
+            onClick={() => {
+              save.mutate(patch);
+            }}
+          >
+            Save
+          </button>
+          <button
+            className={styles.button}
+            data-testid='hardware-revert'
+            disabled={!dirty || busy}
+            onClick={() => {
+              setDraft(null);
+              setNotice(null);
+            }}
+          >
+            Discard changes
+          </button>
+          <button
+            className={clsx(styles.button, styles.buttonDanger)}
+            data-testid='hardware-reset'
+            disabled={!canManage || !state.overridden || busy}
+            onClick={() => {
+              reset.mutate();
+            }}
+          >
+            Reset to defaults
+          </button>
+        </div>
 
-          {!canManage && (
-            <p className={styles.hint} data-testid='hardware-locked'>
-              The controls are locked — log in to change these.
-            </p>
-          )}
+        {!canManage && (
+          <p className={styles.hint} data-testid='hardware-locked'>
+            The controls are locked — log in to change these.
+          </p>
+        )}
 
-          <p className={styles.hint}>Nothing here takes effect until the device restarts.</p>
+        <p className={styles.hint}>Nothing here takes effect until the device restarts.</p>
       </>
 
       {notice && (
