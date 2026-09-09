@@ -1355,9 +1355,7 @@ std::string wifi_status_json(bool radio, const std::string &ssid, int rssi, int 
   out += rt::json_quote(net_mgr::mac_address());
   out += ",\"provisioned\":";
   out += provisioned ? "true" : "false";
-  // The WiFi sibling of HardwareConfigState.restartRequired. Both say the same
-  // thing - stored, not yet in force - so Expert mode can offer one restart
-  // for whatever was saved rather than one per section.
+  // The WiFi sibling of HardwareConfigState.restartRequired (D-42).
   out += ",\"restartRequired\":";
   out += restart_required ? "true" : "false";
   out += "}";
@@ -1507,11 +1505,12 @@ void register_system_routes() {
                           "A program is running - stop it before restarting the device");
     }
 
-    // No configuration window guard, deliberately. The window authorises the
-    // save; this only adopts what was already authorised in it, and requiring
-    // a fresh one would send whoever saved back to the board to press a button
-    // that grants nothing new. Every other guard the writes have is here.
-    device_restart::schedule("requested over POST /api/v2/system/restart");
+    // No configuration window guard, deliberately - D-42.
+    if (!device_restart::schedule("requested over POST /api/v2/system/restart")) {
+      return send_problem(res, rt::problem::kRestartFailed,
+                          "Could not start the restart - the device is out of memory. Nothing has "
+                          "been restarted; try again, or power-cycle the device.");
+    }
     return send_json(res, 200, "{\"status\":\"accepted\",\"restarting\":true}");
   });
 }

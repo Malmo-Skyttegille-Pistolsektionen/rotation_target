@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSystemApi } from '../api/system';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -16,9 +16,8 @@ import styles from './RestartToApply.module.css';
  * Save button is for.
  *
  * Rendered beside the Expert mode heading rather than inside a section, and
- * outside the configuration window's gate: a pending restart is a fact about
- * the device, so it survives the five minutes lapsing. The endpoint is not
- * window-gated either, for the same reason.
+ * outside the configuration window's gate — D-42 for why that, and why the
+ * endpoint is not window-gated either.
  */
 export function RestartToApply(): React.ReactNode {
   const { controlLockToken } = useSettings();
@@ -37,9 +36,36 @@ export function RestartToApply(): React.ReactNode {
   });
   const running = state?.programState?.running === true;
 
+  // Also written by `useSSE`. The stream dies with the device, so its return is
+  // the app's only signal that the device is back again.
+  const { data: sseStatus } = useQuery<string | null>({
+    queryKey: ['sse-status'],
+    queryFn: async () => null,
+    initialData: null,
+    enabled: false,
+  });
+
   const [confirming, setConfirming] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const streamDroppedRef = useRef(false);
+
+  // Cleared when the device is observed back, or this is a one-way door: the
+  // Settings notice keeps pointing at a button that says "Restarting…" and
+  // refuses to be pressed for the rest of the session.
+  useEffect(() => {
+    if (!restarting) {
+      streamDroppedRef.current = false;
+      return;
+    }
+    if (sseStatus !== 'connected') {
+      streamDroppedRef.current = true;
+      return;
+    }
+    // Back: the stream reconnected after dropping, or the reads it invalidates
+    // on the way in have already said there is nothing left to apply.
+    if (streamDroppedRef.current || !pending) setRestarting(false);
+  }, [restarting, sseStatus, pending]);
 
   // Kept on screen while restarting even though the device stops answering:
   // the notice below is the only thing telling the operator what happened.

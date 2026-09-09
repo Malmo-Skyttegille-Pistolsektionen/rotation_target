@@ -21,11 +21,16 @@ void restart_task(void *why) {
 
 }  // namespace
 
-void schedule(const char *why) {
+bool schedule(const char *why) {
   // const_cast only to cross xTaskCreate's void* parameter; restart_task reads
   // it back as const.
-  xTaskCreate(restart_task, "restart", 2048, const_cast<char *>(why == nullptr ? "" : why), 5,
-              nullptr);
+  const BaseType_t created = xTaskCreate(restart_task, "restart", 2048,
+                                         const_cast<char *>(why == nullptr ? "" : why), 5, nullptr);
+  if (created != pdPASS) {
+    ESP_LOGE(TAG, "Could not create the restart task - not restarting");
+    return false;
+  }
+  return true;
 }
 
 }  // namespace device_restart

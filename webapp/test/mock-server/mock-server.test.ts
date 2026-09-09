@@ -1005,11 +1005,15 @@ describe('restarting the device', () => {
 
   const unreachable = async (): Promise<boolean> => api('/version').then(() => false).catch(() => true);
 
-  it('answers the same shape as the OTA upload, then goes away', async () => {
+  // The firmware answers, keeps serving for 1.5 s so the response drains, and
+  // only then reboots - so a client that polls immediately still gets answers.
+  it('answers the same shape as the OTA upload, drains, then goes away', async () => {
     const res = await restart();
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: 'accepted', restarting: true });
 
+    expect(await unreachable()).toBe(false);
+    clock.advance(1500);
     expect(await unreachable()).toBe(true);
     clock.advance(1500);
     expect(await unreachable()).toBe(false);
@@ -1023,7 +1027,7 @@ describe('restarting the device', () => {
     await api('/wifi', { method: 'PUT', body: JSON.stringify({ ssid: 'Elsewhere' }) });
 
     await restart();
-    clock.advance(1500);
+    clock.advance(3000);
 
     expect(await (await api('/config/hardware')).json()).toMatchObject({
       active: { banks: [{ gpio: 7 }] },
@@ -1054,6 +1058,7 @@ describe('restarting the device', () => {
       status: 409,
       detail: 'A program is running - stop it before restarting the device',
     });
+    clock.advance(3000);
     expect(await unreachable()).toBe(false);
   });
 
@@ -1065,9 +1070,7 @@ describe('restarting the device', () => {
     expect((await restart({ headers: {} })).status).toBe(401);
   });
 
-  // Deliberately not behind the configuration window: the window authorised the
-  // save, and a lapsed one would mean walking back to the board to press a
-  // button that grants nothing new.
+  // Deliberately not behind the configuration window (D-42).
   it('works while the configuration window is shut', async () => {
     const shut = createMockServer({ clock, seed: { programs: {}, audios: [], configWindowOpen: false } });
     const shutBase = `http://127.0.0.1:${await shut.listen()}/api/v2`;

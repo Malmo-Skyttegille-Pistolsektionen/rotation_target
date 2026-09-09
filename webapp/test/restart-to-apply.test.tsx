@@ -72,9 +72,9 @@ function renderApp(at: '/hardware' | '/settings'): void {
 }
 
 /** Save something the device will not be running until it restarts. */
-async function saveHardware(): Promise<void> {
+async function saveHardware(gpio = 7): Promise<void> {
   const { status } = await requestElsewhere(PORT, 'PUT', '/api/v2/config/hardware', {
-    banks: [{ gpio: 7, activeLow: true, name: '' }],
+    banks: [{ gpio, activeLow: true, name: '' }],
   });
   expect(status).toBe(200);
 }
@@ -133,9 +133,7 @@ describe('restart to apply (#341)', () => {
     );
   });
 
-  // A pending restart is a fact about the device, not about the window: the
-  // five minutes can lapse while somebody reads the confirmation, and the
-  // endpoint is not window-gated either.
+  // A pending restart is a fact about the device, not about the window (D-42).
   it('survives the configuration window lapsing, unlike the sections', async () => {
     await device();
     await saveHardware();
@@ -164,6 +162,42 @@ describe('restart to apply (#341)', () => {
 
     expect((await screen.findByTestId('restart-notice')).textContent).toContain('unreachable');
     expect((screen.getByTestId('restart-to-apply') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  // The dead end this closes: `restarting` used to be cleared only by a failed
+  // request, so one successful restart left the button saying "Restarting…" and
+  // refusing to be pressed - while the Settings notice kept pointing at it.
+  it('is pressable again once the device is back and something else is saved', async () => {
+    await device();
+    await saveHardware();
+    renderApp('/hardware');
+
+    fireEvent.click(await screen.findByTestId('restart-to-apply'));
+    await act(async () => {
+      fireEvent.click(screen.getByText('Restart'));
+    });
+    expect((screen.getByTestId('restart-to-apply') as HTMLButtonElement).disabled).toBe(true);
+
+    // The device comes back running what it was told, and the stream returns -
+    // which is what `useSSE` does on reconnect.
+    server.restart();
+    await act(async () => {
+      queryClient.setQueryData(['sse-status'], 'connected');
+      await queryClient.invalidateQueries({ queryKey: ['hardware-config'] });
+    });
+
+    // Nothing pending, so nothing offered.
+    await waitFor(() => expect(screen.queryByTestId('restart-to-apply')).toBeNull());
+
+    // And the next change - a different pin, or there would be nothing pending -
+    // gets a working button rather than a stuck one.
+    await saveHardware(8);
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ['hardware-config'] });
+    });
+    const again = (await screen.findByTestId('restart-to-apply')) as HTMLButtonElement;
+    expect(again.disabled).toBe(false);
+    expect(again.textContent).toContain('Restart to apply');
   });
 
   it('is disabled while a program is running, and says why', async () => {

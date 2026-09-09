@@ -85,7 +85,8 @@ struct ProblemType {
   /* internal */                                                                                \
   X(kProgramStoreFailed, "program_store_failed", "Could not store program", 500)                \
   X(kAudioStoreFailed, "audio_store_failed", "Could not store audio", 500)                      \
-  X(kWifiStoreFailed, "wifi_store_failed", "Could not store WiFi credentials", 500)
+  X(kWifiStoreFailed, "wifi_store_failed", "Could not store WiFi credentials", 500)             \
+  X(kRestartFailed, "restart_failed", "Could not start the restart", 500)
 
 namespace problem {
 #define RT_PROBLEM_DEFINE(name, slug, title, status) \

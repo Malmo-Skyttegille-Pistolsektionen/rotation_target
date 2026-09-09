@@ -101,6 +101,8 @@ const PROBLEMS = {
   '/problems/program_store_failed': { title: 'Could not store program', status: 500 },
   '/problems/audio_store_failed': { title: 'Could not store audio', status: 500 },
   '/problems/wifi_store_failed': { title: 'Could not store WiFi credentials', status: 500 },
+  // Out of memory for the restart task on the device; the mock never runs out.
+  '/problems/restart_failed': { title: 'Could not start the restart', status: 500 },
 } satisfies Record<ProblemType, { title: string; status: number }>;
 
 /**
@@ -225,11 +227,12 @@ const FIRST_UPLOAD_ID = 100;
 const PLAYBACK_DURATION = 3000;
 
 /**
- * How long the device stays unreachable after `POST /system/restart`. The
- * firmware answers, waits 1.5 s for the response to drain and then reboots, so
- * a client loses it for at least that long.
+ * `kDrainMs` in firmware/main/system/restart.cpp: the device answers, keeps
+ * serving for this long so the response drains, and only then reboots.
  */
-const RESTART_MS = 1500;
+const RESTART_DRAIN_MS = 1500;
+/** How long it is then unreachable before it is serving again. */
+const RESTART_DOWN_MS = 1500;
 
 /** `kMaxStartupIssues` in firmware/main/config.h: the ring is bounded, oldest dropped. */
 const MAX_STARTUP_ISSUES = 8;
@@ -623,14 +626,14 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   // restart() adopts what was stored (#341).
   let wifi: WifiStatus = { ...DEFAULT_WIFI, ...(seed.wifi ?? {}) };
   let savedWifiSsid: string | null = null;
-  // Mirrors `wifi_store::saved_since_boot()`, not a comparison against the
-  // joined SSID - see WifiStatus.restartRequired in contracts/openapi.yaml for
-  // why the device cannot derive it that way either.
+  /** Mirrors `wifi_store::saved_since_boot()`; why a flag is D-42. */
   let wifiSavedSinceBoot = false;
-  // Non-null while the device is down for a restart it was asked to make: every
-  // request is dropped on the floor until the clock passes it, which is what a
-  // rebooting device does to a client that keeps polling.
-  let downUntil: number | null = null;
+  // The restart in progress, or null. The device keeps answering until
+  // `downFrom` - the firmware's drain delay - and then drops every request on
+  // the floor until `downUntil`, which is what a rebooting device does to a
+  // client that keeps polling.
+  let downFrom: number | null = null;
+  let downUntil = 0;
   const wifiNetworks: WifiNetwork[] = seed.wifiNetworks ?? DEFAULT_WIFI_NETWORKS;
   /** The banks this device booted on; the array's length is the count. */
   const bankCount = (): number => activeHardware.banks.length;
@@ -1541,9 +1544,9 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       return;
     }
 
-    // The one call that applies what the two PUTs stored (#341). Behind the
-    // control lock and refused while a program runs, but deliberately NOT
-    // behind the configuration window - the window authorised the save.
+    // The one call that applies what the two PUTs stored: behind the control
+    // lock, refused while a program runs, and deliberately not behind the
+    // configuration window (D-42).
     if (endpoint === '/system/restart' && req.method === 'POST') {
       if (!checkControlLockAuth(req, res)) return;
 
@@ -1554,17 +1557,22 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
 
       jsonResponse(res, 200, { status: 'accepted', restarting: true });
 
-      // Then behave like a device that has gone down: the stream dies, nothing
-      // answers for a moment, and what comes back is running what was saved.
-      // The clock is injectable, so a test decides when it is back rather than
-      // waiting.
+      // Then behave like the firmware: keep serving for the drain delay, go
+      // away, and come back running what was saved. The clock is injectable, so
+      // a test decides when each of those happens rather than waiting.
+      //
+      // The stream is dropped now rather than at `downFrom`. On the device it
+      // dies with the chip 1.5 s later; nothing a client does in between
+      // depends on which, and deferring it would need a one-shot timer the
+      // Clock seam does not have.
       clients.forEach((client) => {
         client.cancelHeartbeat();
         client.res.end();
       });
       clients.length = 0;
       boot();
-      downUntil = clock.now() + RESTART_MS;
+      downFrom = clock.now() + RESTART_DRAIN_MS;
+      downUntil = downFrom + RESTART_DOWN_MS;
       return;
     }
 
@@ -2109,15 +2117,15 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   }
 
   function middleware(req: IncomingMessage, res: ServerResponse, next: () => void): void {
-    // Down for a restart it was asked to make. The socket is dropped rather
-    // than answered with a status: a client that receives anything at all has
-    // not lost the device, which is the state this is simulating.
-    if (downUntil !== null) {
+    // Mid-restart. The socket is dropped rather than answered with a status: a
+    // client that receives anything at all has not lost the device, which is
+    // the state this is simulating.
+    if (downFrom !== null && clock.now() >= downFrom) {
       if (clock.now() < downUntil) {
         res.destroy();
         return;
       }
-      downUntil = null;
+      downFrom = null;
     }
 
     const url = new URL(req.url || '', 'http://localhost');

@@ -123,8 +123,9 @@ describe('the WiFi block on Settings', () => {
     expect(screen.queryByTestId('wifi-signal')).toBeNull();
   });
 
-  // The whole reason this section is read-only: changing the network restarts
-  // the device, and Settings is the page nothing on it can hurt you from.
+  // The whole reason this section is read-only: which network the device looks
+  // for is a once-per-site decision behind the button press on the board, and
+  // Settings is the page nothing on it can hurt you from.
   it('offers no way to change anything, and says where the change lives', async () => {
     await device();
     renderSection();
@@ -136,6 +137,10 @@ describe('the WiFi block on Settings', () => {
     const section = screen.getByTestId('wifi-section');
     expect(section.querySelectorAll('input, select, button')).toHaveLength(0);
     expect(section.textContent).toContain('Expert mode');
+    // Saving stopped restarting the device (#341), so this must not still say
+    // that it does.
+    expect(section.textContent).toContain('once-per-site decision');
+    expect(section.textContent).not.toContain('restarts');
   });
 
   // No response in this feature carries a password, in any form. The stored

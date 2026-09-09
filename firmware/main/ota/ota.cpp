@@ -26,6 +26,11 @@ uint64_t s_written = 0;
 // for the HTTP response to be delivered before the chip restarts.
 volatile bool s_reboot_pending = false;
 
+// The image landed and is the boot partition, but no restart could be started.
+// A distinct state because the answer is neither "accepted and restarting" nor
+// "your image was refused": the update is installed and needs a power cycle.
+volatile bool s_install_without_restart = false;
+
 // Why the last upload was refused, so onRequest can answer with the status the
 // contract declares rather than a blanket 400.
 rt::ota::Refusal s_refusal = rt::ota::Refusal::kNone;
@@ -66,6 +71,7 @@ void register_routes(PsychicHttpServer &server) {
       ESP_LOGI(TAG, "Upload '%s' starting", filename == nullptr ? "(unnamed)" : filename);
       s_refusal = rt::ota::Refusal::kNone;
       s_reboot_pending = false;
+      s_install_without_restart = false;
 
       // Reclaim a handle a previous upload leaked. A client that vanishes
       // mid-transfer never delivers a final chunk, so nothing else closes it.
@@ -148,8 +154,14 @@ void register_routes(PsychicHttpServer &server) {
     ESP_LOGI(TAG, "Accepted %llu bytes, version '%s' - restarting shortly", s_written,
              written.version);
     clear();
-    s_reboot_pending = true;
-    device_restart::schedule("into the new firmware");
+    // Only once the restart is on its way: onRequest answers "accepted and
+    // restarting" off this flag, and an image that will boot but never does is
+    // worse than a refusal.
+    s_reboot_pending = device_restart::schedule("into the new firmware");
+    if (!s_reboot_pending) {
+      s_install_without_restart = true;
+      return ESP_FAIL;
+    }
     return ESP_OK;
   });
 
@@ -159,6 +171,17 @@ void register_routes(PsychicHttpServer &server) {
       res->setCode(200);
       res->setContentType("application/json");
       res->setContent("{\"status\":\"accepted\",\"restarting\":true}");
+      return res->send();
+    }
+
+    if (s_install_without_restart) {
+      const std::string body =
+          rt::problem_json(rt::problem::kRestartFailed,
+                           "The firmware was installed and is the boot partition, but the restart "
+                           "could not be started. Power-cycle the device to run it.");
+      res->setCode(rt::problem::kRestartFailed.status);
+      res->setContentType(rt::kProblemContentType);
+      res->setContent(body.c_str());
       return res->send();
     }
 

@@ -78,6 +78,22 @@ describe('connection', () => {
     expect(queryClient.getQueryData(['sse-status'])).toBe('error');
   });
 
+  // The stream carries change notifications and sends no snapshot on connect,
+  // so whatever moved while it was down was published to nobody. A reconnect is
+  // also exactly what a restart looks like from here, which is when
+  // `restartRequired` changes on both subjects (#341).
+  it('refetches the configuration reads on every open', () => {
+    renderSSE();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+
+    act(() => FakeEventSource.latest.open());
+
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([
+      ['hardware-config'],
+      ['wifi'],
+    ]);
+  });
+
   it('reconnects five seconds after an error, having closed the dead stream', () => {
     vi.useFakeTimers();
     renderSSE();

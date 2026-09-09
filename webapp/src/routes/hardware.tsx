@@ -39,9 +39,7 @@ export function HardwarePage(): React.ReactNode {
       <Link to='/settings' className={styles.backLink} data-testid='hardware-back'>
         ← Settings
       </Link>
-      {/* The restart is outside the window gate below, deliberately: a saved
-          change waiting to be applied is a fact about the device, and the five
-          minutes can lapse while somebody reads the confirmation. */}
+      {/* Outside the window gate below, deliberately - D-42. */}
       <div className={styles.titleRow}>
         <h1 className={styles.title}>Expert mode</h1>
         <RestartToApply />

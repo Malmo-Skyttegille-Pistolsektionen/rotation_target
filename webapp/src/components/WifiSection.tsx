@@ -103,8 +103,8 @@ export function WifiSection(): React.ReactNode {
       )}
 
       <p className={styles.note}>
-        Moving the device to a different network is in <strong>Expert mode</strong> — it restarts the device, so it
-        needs the button.
+        Moving the device to a different network is in <strong>Expert mode</strong> — a once-per-site decision behind
+        the button press on the board.
       </p>
     </section>
   );

@@ -40,8 +40,8 @@ bool seeds_suppressed() {
   return set;
 }
 
-// Cleared by the restart itself, which is what makes "since boot" the right
-// scope: the station reads its configuration at boot and nowhere else.
+// Cleared by the restart itself: the station reads its configuration at boot
+// and nowhere else.
 bool s_saved_since_boot = false;
 
 void append_unique(std::vector<Credentials> &out, const Credentials &candidate) {

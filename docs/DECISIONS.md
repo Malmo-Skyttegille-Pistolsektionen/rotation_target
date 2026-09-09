@@ -1811,6 +1811,15 @@ would report nothing pending at all. `wifi_store::saved_since_boot()` is set
 inside `save()`, so no future writer can forget it, and "since boot" is exactly
 right because the restart is what clears it.
 
+**A scheduled restart that cannot be scheduled is a refusal, not a `200`.**
+`device_restart::schedule()` returns false when the task cannot be created, and
+both callers say so: the endpoint answers `500 /problems/restart_failed`, and an
+OTA whose image is installed but whose restart never started answers the same
+type with a `detail` saying a power cycle runs it. The alternative — answering
+"accepted, restarting" and never restarting — leaves a client waiting for a
+device that is not going anywhere, which is the one failure mode this whole
+change exists to remove.
+
 **Contract impact:** additive except the `PUT /wifi` behaviour change — the
 response shape is unchanged, only what the device does afterwards. Not an
 exception to the additive rule in the sense D-16, D-19, D-23, D-27, D-40 and

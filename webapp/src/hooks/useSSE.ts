@@ -60,8 +60,10 @@ export function useSSE(): void {
         // snapshot on connect. For run state the next event is seconds away,
         // but the configuration window can sit unchanged for five minutes -
         // so a press made during a reconnect would leave the tab missing until
-        // somebody reloaded the page.
+        // somebody reloaded the page. `wifi` for the same reason: a stream that
+        // was down across a restart is exactly when `restartRequired` changed.
         void queryClient.invalidateQueries({ queryKey: ['hardware-config'] });
+        void queryClient.invalidateQueries({ queryKey: ['wifi'] });
       };
 
       eventSource.onerror = (err): void => {

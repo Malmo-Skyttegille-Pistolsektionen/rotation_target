@@ -46,12 +46,10 @@ the same sitting, and the device goes down once instead of three times.
     that one, it raises its own setup network (`…-setup-XXXX`) and waits there,
     which is [the way back](connecting.md#the-setup-portal) rather than a fault.
 
-The button stays after the five-minute window lapses, and the sections do not.
-That is deliberate: a saved setting waiting to be applied is a fact about the
-device, not about the window, and walking back to the board to press a button
-that authorises nothing new would be a way to leave devices half-configured.
-**Settings** says the same thing in one line, so somebody who did not make the
-change still finds out about it.
+The button stays after the five-minute window lapses, and the sections do not:
+what the window authorises is the *change*, and this only applies one already
+made. **Settings** says the same thing in one line, so somebody who did not make
+the change still finds out about it.
 
 It will not restart during a run. Stop the program first.
 
