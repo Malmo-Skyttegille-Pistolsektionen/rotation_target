@@ -49,6 +49,14 @@ size_t popcount(BankMask mask, size_t bank_count) {
 
 }  // namespace
 
+bool same_wiring(const std::vector<TargetBank> &a, const std::vector<TargetBank> &b) {
+  if (a.size() != b.size()) return false;
+  for (size_t i = 0; i < a.size(); ++i) {
+    if (a[i].gpio != b[i].gpio || a[i].active_low != b[i].active_low) return false;
+  }
+  return true;
+}
+
 BankSelection parse_bank_selection(const std::vector<std::string> &letters, size_t bank_count) {
   BankSelection selection;
   if (letters.empty()) return selection;

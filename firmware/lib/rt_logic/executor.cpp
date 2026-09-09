@@ -30,9 +30,6 @@ void Executor::set_targets(BankMask bank_mask, bool shown) {
 }
 
 bool Executor::toggle_targets(BankMask bank_mask) {
-  // "All shown, so hide" rather than per-bank flipping: a strip of half-turned
-  // targets is not a state an operator asks for by pressing one button, and on
-  // one bank the two rules are the same thing.
   bool all_shown = true;
   bool matched = false;
   for (size_t i = 0; i < state_.bank_shown.size(); i++) {

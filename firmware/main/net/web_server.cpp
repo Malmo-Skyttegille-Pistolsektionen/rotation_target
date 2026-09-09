@@ -834,21 +834,26 @@ bool read_target_request(PsychicRequest *req, PsychicResponse *res, TargetReques
 
   const size_t bank_count = targets::count();
   JsonDocument doc;
-  std::vector<std::string> letters;
-  if (deserializeJson(doc, body) == DeserializationError::Ok && doc.is<JsonObject>() &&
-      doc["banks"].is<JsonArray>()) {
-    for (JsonVariant entry : doc["banks"].as<JsonArray>()) {
-      // A non-string entry becomes an empty string, which parse_bank_selection
-      // refuses like any other thing that is not a letter.
-      letters.push_back(entry.is<const char *>() ? entry.as<const char *>() : "");
-    }
-  } else {
-    // A body that is not `{"banks": [...]}` names no bank this device has,
-    // which is the same refusal as a letter it does not have.
+  if (deserializeJson(doc, body) != DeserializationError::Ok || !doc.is<JsonObject>()) {
     send_problem(res, rt::problem::kBankUnavailable,
                  "Expected a JSON object like {\"banks\": [\"A\"]}, or no body at all to move "
                  "every bank.");
     return false;
+  }
+  // `{}` is the bodyless call written out: it names no banks, so it means all
+  // of them.
+  if (doc["banks"].isNull()) return true;
+  if (!doc["banks"].is<JsonArray>()) {
+    send_problem(res, rt::problem::kBankUnavailable,
+                 "'banks' must be an array of bank letters, like [\"A\", \"B\"].");
+    return false;
+  }
+
+  std::vector<std::string> letters;
+  for (JsonVariant entry : doc["banks"].as<JsonArray>()) {
+    // A non-string entry becomes an empty string, which parse_bank_selection
+    // refuses like any other thing that is not a letter.
+    letters.push_back(entry.is<const char *>() ? entry.as<const char *>() : "");
   }
 
   const rt::BankSelection selection = rt::parse_bank_selection(letters, bank_count);
@@ -888,8 +893,7 @@ void register_target_routes() {
 
     const size_t bank_count = targets::count();
     const rt::BankMask moved = want.mask & rt::mask_for_count(bank_count);
-    // Named banks flip one by one; the bodyless call has one button to resolve
-    // a strip that may disagree with itself, so it goes all-or-nothing.
+    // Two rules, one per caller - see `rt::Executor::toggle_targets`.
     if (want.named) {
       const rt::BankMask shown = executor::flip_targets(want.mask);
       return send_message(res, rt::targets_moved_message(shown, moved & ~shown, bank_count));
@@ -1155,8 +1159,8 @@ bool same_config(const rt::HardwareConfig &a, const rt::HardwareConfig &b) {
   // targets_shown_at_boot included even though HTTP cannot change it: the
   // serial console can, and that needs a restart to take effect too. Leaving it
   // out would report restartRequired false right after `boot-targets hidden`.
-  return a.banks == b.banks && a.hostname == b.hostname && a.display_name == b.display_name &&
-         a.targets_shown_at_boot == b.targets_shown_at_boot;
+  return rt::same_wiring(a.banks, b.banks) && a.hostname == b.hostname &&
+         a.display_name == b.display_name && a.targets_shown_at_boot == b.targets_shown_at_boot;
 }
 
 void register_config_routes() {

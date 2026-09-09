@@ -133,19 +133,18 @@ inline std::string state_update_json(const ProgramState &s) {
   }
   out += ",\"targetStatus\":";
   out += s.target_status_shown() ? "\"shown\"" : "\"hidden\"";
-  // Omitted on a one-bank device, where `targetStatus` already says everything
-  // there is to say - and where every device shipped so far sits, so the frame
-  // they see is byte-identical to the one before banks existed.
-  if (s.bank_count() > 1) {
-    out += ",\"targetBanks\":{";
-    for (size_t i = 0; i < s.bank_count() && i < kMaxTargetBanks; ++i) {
-      if (i > 0) out += ',';
-      out += '"';
-      out += bank_letter(i);
-      out += s.bank_shown[i] ? "\":\"shown\"" : "\":\"hidden\"";
-    }
-    out += '}';
+  // Always, one-bank devices included, where it is `{"A": ...}` (D-41). A count
+  // read off a key count is unambiguous; a count inferred from an absence
+  // collides with the other thing an absence means, which is firmware from
+  // before banks.
+  out += ",\"targetBanks\":{";
+  for (size_t i = 0; i < s.bank_count() && i < kMaxTargetBanks; ++i) {
+    if (i > 0) out += ',';
+    out += '"';
+    out += bank_letter(i);
+    out += s.bank_shown[i] ? "\":\"shown\"" : "\":\"hidden\"";
   }
+  out += '}';
   out += '}';
   return out;
 }

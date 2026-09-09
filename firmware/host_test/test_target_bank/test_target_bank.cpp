@@ -2,6 +2,8 @@
 //  Reading the `banks` list off a /targets/* body, and the prose that goes
 //  back. Both live in rt_logic so they are testable without an HTTP server.
 // ============================================================================
+#include <vector>
+
 #include "target_bank.h"
 #include "unity.h"
 
@@ -115,8 +117,27 @@ void test_a_split_toggle_reports_both_directions() {
                            rt::targets_moved_message(rt::bank_bit(1), rt::bank_bit(2), 4).c_str());
 }
 
+// `restartRequired` says "the device is still running something else". A name
+// is display only and nothing latches it, so renaming a bank is not that.
+void test_renaming_a_bank_is_not_a_restart() {
+  const std::vector<rt::TargetBank> before{{5, true, "Vänster"}, {6, true, "Höger"}};
+  const std::vector<rt::TargetBank> renamed{{5, true, "Bana 1"}, {6, true, "Bana 2"}};
+
+  TEST_ASSERT_TRUE(rt::same_wiring(before, renamed));
+}
+
+void test_a_moved_pin_or_flipped_polarity_is_a_restart() {
+  const std::vector<rt::TargetBank> before{{5, true, "A"}};
+
+  TEST_ASSERT_FALSE(rt::same_wiring(before, {{6, true, "A"}}));
+  TEST_ASSERT_FALSE(rt::same_wiring(before, {{5, false, "A"}}));
+  TEST_ASSERT_FALSE(rt::same_wiring(before, {{5, true, "A"}, {6, true, "B"}}));
+}
+
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(test_renaming_a_bank_is_not_a_restart);
+  RUN_TEST(test_a_moved_pin_or_flipped_polarity_is_a_restart);
   RUN_TEST(test_letters_become_bits_in_position_order);
   RUN_TEST(test_a_letter_beyond_the_device_is_refused);
   RUN_TEST(test_letters_outside_a_to_h_are_refused);

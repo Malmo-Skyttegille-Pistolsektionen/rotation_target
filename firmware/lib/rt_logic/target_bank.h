@@ -31,6 +31,11 @@ inline bool operator!=(const TargetBank &a, const TargetBank &b) {
   return !(a == b);
 }
 
+// Whether two bank lists differ in a way a restart would change - the pin and
+// the polarity, which `targets::init()` latches. `name` is display only and
+// nothing latches it, so renaming a bank must not report `restartRequired`.
+bool same_wiring(const std::vector<TargetBank> &a, const std::vector<TargetBank> &b);
+
 // A..H. A firmware constant rather than a contract limit; raising it later is
 // additive (D-41).
 constexpr size_t kMaxTargetBanks = 8;

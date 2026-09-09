@@ -19,7 +19,8 @@ void test_nothing_loaded_serializes_as_nulls() {
   rt::ProgramState s;
 
   TEST_ASSERT_EQUAL_STRING(
-      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"hidden\"}",
+      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"hidden\","
+      "\"targetBanks\":{\"A\":\"hidden\"}}",
       rt::state_update_json(s).c_str());
 }
 
@@ -34,7 +35,8 @@ void test_a_loaded_program_serializes_its_position() {
 
   TEST_ASSERT_EQUAL_STRING(
       "{\"loadedProgramId\":42,\"programState\":{\"running\":true,\"currentSeriesIndex\":0,"
-      "\"currentEventIndex\":2,\"tickerMs\":7480},\"targetStatus\":\"shown\"}",
+      "\"currentEventIndex\":2,\"tickerMs\":7480},\"targetStatus\":\"shown\","
+      "\"targetBanks\":{\"A\":\"shown\"}}",
       rt::state_update_json(s).c_str());
 }
 
@@ -46,7 +48,8 @@ void test_an_unset_ticker_serializes_as_null() {
 
   TEST_ASSERT_EQUAL_STRING(
       "{\"loadedProgramId\":42,\"programState\":{\"running\":false,\"currentSeriesIndex\":1,"
-      "\"currentEventIndex\":0,\"tickerMs\":null},\"targetStatus\":\"hidden\"}",
+      "\"currentEventIndex\":0,\"tickerMs\":null},\"targetStatus\":\"hidden\","
+      "\"targetBanks\":{\"A\":\"hidden\"}}",
       rt::state_update_json(s).c_str());
 }
 
@@ -66,7 +69,8 @@ void test_unload_clears_everything_but_the_target_status() {
   TEST_ASSERT_FALSE(s.ticker_ms.has_value);
   TEST_ASSERT_TRUE(s.target_status_shown());
   TEST_ASSERT_EQUAL_STRING(
-      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"shown\"}",
+      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"shown\","
+      "\"targetBanks\":{\"A\":\"shown\"}}",
       rt::state_update_json(s).c_str());
 }
 
@@ -89,15 +93,16 @@ void test_target_status_reports_bank_a_and_not_the_others() {
       rt::state_update_json(s).c_str());
 }
 
-// The frame a one-bank device sends is the one it sent before banks existed -
-// which is every device shipped so far, so this is the compatibility assertion,
-// not a formatting one.
-void test_one_bank_omits_target_banks_entirely() {
+// A one-bank device sends `targetBanks` too, with the single key `A` (D-41).
+// A client then reads the bank count off a key count rather than inferring
+// "one" from an absence that also means firmware from before banks.
+void test_one_bank_still_publishes_its_single_letter() {
   rt::ProgramState s;
   s.init_banks(1, true);
 
   TEST_ASSERT_EQUAL_STRING(
-      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"shown\"}",
+      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"shown\","
+      "\"targetBanks\":{\"A\":\"shown\"}}",
       rt::state_update_json(s).c_str());
 }
 
@@ -135,7 +140,7 @@ int main() {
   UNITY_BEGIN();
   RUN_TEST(test_nothing_loaded_serializes_as_nulls);
   RUN_TEST(test_target_status_reports_bank_a_and_not_the_others);
-  RUN_TEST(test_one_bank_omits_target_banks_entirely);
+  RUN_TEST(test_one_bank_still_publishes_its_single_letter);
   RUN_TEST(test_two_banks_publish_both_letters);
   RUN_TEST(test_eight_banks_run_a_through_h);
   RUN_TEST(test_a_loaded_program_serializes_its_position);

@@ -117,21 +117,17 @@ class Executor {
   // Target control for the /targets/* endpoints. Keeps the published flags and
   // the pins in step; the caller broadcasts.
   void set_targets(BankMask bank_mask, bool shown);
-  // Hides the named banks if every one of them is shown, otherwise shows them
-  // all. On one bank that is a plain flip, which is what it has always been.
-  // Returns the resulting state.
+  // The two `POST /targets/toggle` rules, one per caller. A bodyless call has
+  // one button to resolve a strip that may disagree with itself, so it goes
+  // all-or-nothing; a call naming banks flips each against its own state,
+  // because a named bank is a deliberate choice. Why, in
+  // `firmware/docs/api-v2.md` and `contracts/openapi.yaml`; on one bank the two
+  // are the same flip.
   //
-  // This is what a bodyless `POST /targets/toggle` does: one button has to
-  // resolve a strip that may disagree with itself, and all-shown-then-all-
-  // hidden is what an operator pressing it means.
+  // `toggle_targets` returns the resulting state; `flip_targets` returns which
+  // of the named banks ended up shown, so the caller can say which way each
+  // moved without reading the state back.
   bool toggle_targets(BankMask bank_mask);
-
-  // Flips each named bank against its own state, so a mixed strip stays mixed.
-  // What `POST /targets/toggle {"banks": [...]}` does - a named bank is a
-  // deliberate choice, unlike the one button above.
-  //
-  // Returns which of the named banks ended up shown, so the caller can say
-  // which way each moved without reading the state back.
   BankMask flip_targets(BankMask bank_mask);
 
   // --- Run loop ---

@@ -44,7 +44,10 @@ std::string state(const char *running, const char *series, const char *event, co
                   const char *target) {
   return std::string("{\"loadedProgramId\":900,\"programState\":{\"running\":") + running +
          ",\"currentSeriesIndex\":" + series + ",\"currentEventIndex\":" + event +
-         ",\"tickerMs\":" + ticker + "},\"targetStatus\":\"" + target + "\"}";
+         ",\"tickerMs\":" + ticker + "},\"targetStatus\":\"" + target +
+         // One bank in this harness, so `targetBanks` is `{"A": ...}` and says
+         // the same thing as `targetStatus` (D-41).
+         "\",\"targetBanks\":{\"A\":\"" + target + "\"}}";
 }
 
 rt::Program g_program;
@@ -490,7 +493,8 @@ void test_unloading_clears_the_published_state() {
 
   TEST_ASSERT_FALSE(h->state.is_loaded());
   TEST_ASSERT_EQUAL_STRING(
-      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"hidden\"}",
+      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"hidden\","
+      "\"targetBanks\":{\"A\":\"hidden\"}}",
       h->effects.broadcasts.back().c_str());
 }
 
@@ -525,7 +529,8 @@ void test_unload_after_a_stop_is_allowed() {
   TEST_ASSERT_EQUAL_size_t(1, h->effects.broadcasts.size());
   // The targets stay where the run left them; unloading moves no hardware.
   TEST_ASSERT_EQUAL_STRING(
-      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"shown\"}",
+      "{\"loadedProgramId\":null,\"programState\":null,\"targetStatus\":\"shown\","
+      "\"targetBanks\":{\"A\":\"shown\"}}",
       h->effects.broadcasts.back().c_str());
 }
 
