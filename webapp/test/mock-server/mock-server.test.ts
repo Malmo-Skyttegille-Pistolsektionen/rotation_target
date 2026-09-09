@@ -527,7 +527,7 @@ describe('unloading (D-22)', () => {
     await api('/programs/unload', { method: 'POST' });
     const sse = await openSSE(server.port);
     await flushIO();
-    expect(sse.payloads<StateUpdatePayload>('stateUpdate')[0].targetStatus).toBe('shown');
+    expect(sse.payloads<StateUpdatePayload>('stateUpdate')[0].targetBanks).toEqual({ A: 'shown' });
 
     sse.close();
   });
@@ -767,7 +767,6 @@ describe('simulation on a fake clock', () => {
       programState: null,
       // The targets rest where the boot latched them - `targetsShownAtBoot` is
       // true on a stock device (D-31), not "hidden".
-      targetStatus: 'shown',
       targetBanks: { A: 'shown' },
     });
   });
@@ -788,7 +787,7 @@ describe('simulation on a fake clock', () => {
     expect(running.map((u) => u.programState!.tickerMs)).toEqual(Array.from({ length: 28 }, (_, i) => i * 1000));
 
     // Targets follow the events: hidden for 10 s, then alternating 3 s.
-    const shownAt = running.filter((u) => u.targetStatus === 'shown').map((u) => u.programState!.tickerMs);
+    const shownAt = running.filter((u) => u.targetBanks.A === 'shown').map((u) => u.programState!.tickerMs);
     expect(shownAt).toEqual([10_000, 11_000, 12_000, 16_000, 17_000, 18_000, 22_000, 23_000, 24_000]);
 
     // Event index is derived, not counted.
@@ -808,7 +807,7 @@ describe('simulation on a fake clock', () => {
       currentEventIndex: 0,
       tickerMs: null,
     });
-    expect(completed.targetStatus).toBe('hidden');
+    expect(completed.targetBanks).toEqual({ A: 'hidden' });
   });
 
   it('stop pauses and start resumes from the same millisecond', async () => {
@@ -884,6 +883,11 @@ describe('hardware configuration', () => {
     return api('/config/hardware', { method: 'PUT', body: JSON.stringify(body) });
   }
 
+  /** A one-bank array on `gpio`, which is how bank A's pin is now edited. */
+  async function putBankA(gpio: number): Promise<Response> {
+    return put({ banks: [{ gpio, activeLow: true, name: '' }] });
+  }
+
   async function read(): Promise<Record<string, never>> {
     return (await (await api('/config/hardware')).json()) as Record<string, never>;
   }
@@ -903,12 +907,12 @@ describe('hardware configuration', () => {
   // client must not hide: a pin change that appears to have done nothing is
   // how somebody ends up reflashing a working device.
   it('reports restartRequired between a save and the restart that adopts it', async () => {
-    expect((await put({ targetGpio: 7 })).status).toBe(200);
+    expect((await putBankA(7)).status).toBe(200);
 
     const afterSave = await read();
     expect(afterSave).toMatchObject({
-      active: { targetGpio: HARDWARE_DEFAULTS.targetGpio },
-      saved: { targetGpio: 7 },
+      active: { banks: HARDWARE_DEFAULTS.banks },
+      saved: { banks: [{ gpio: 7, activeLow: true, name: '' }] },
       overridden: true,
       restartRequired: true,
     });
@@ -916,18 +920,18 @@ describe('hardware configuration', () => {
     server.restart();
     const afterRestart = await read();
     expect(afterRestart).toMatchObject({
-      active: { targetGpio: 7 },
-      saved: { targetGpio: 7 },
+      active: { banks: [{ gpio: 7, activeLow: true, name: '' }] },
+      saved: { banks: [{ gpio: 7, activeLow: true, name: '' }] },
       restartRequired: false,
     });
   });
 
   it('keeps the fields a request does not mention', async () => {
     expect((await put({ displayName: 'Bana 1' })).status).toBe(200);
-    expect((await put({ targetGpio: 9 })).status).toBe(200);
+    expect((await putBankA(9)).status).toBe(200);
 
     const state = await read();
-    expect(state).toMatchObject({ saved: { targetGpio: 9, displayName: 'Bana 1' } });
+    expect(state).toMatchObject({ saved: { banks: [{ gpio: 9 }], displayName: 'Bana 1' } });
   });
 
   // 26-32 are the module's own flash and PSRAM, 35-37 the octal PSRAM's extra
@@ -936,7 +940,7 @@ describe('hardware configuration', () => {
   // back in (D-41).
   it('refuses a GPIO that would stop the device booting, without storing anything', async () => {
     for (const gpio of [26, 30, 32, 22, 25, 35, 36, 37, 43, 44]) {
-      const refused = await put({ targetGpio: gpio });
+      const refused = await putBankA(gpio);
       await expectProblem(refused, {
         type: '/problems/hardware_config_invalid',
         title: 'Invalid hardware configuration',
@@ -949,9 +953,9 @@ describe('hardware configuration', () => {
   });
 
   it('refuses a GPIO off the chip, and one that cannot drive an output', async () => {
-    expect((await put({ targetGpio: 49 })).status).toBe(400);
-    expect((await put({ targetGpio: -1 })).status).toBe(400);
-    expect((await put({ targetGpio: 46 })).status).toBe(400);
+    expect((await putBankA(49)).status).toBe(400);
+    expect((await putBankA(-1)).status).toBe(400);
+    expect((await putBankA(46)).status).toBe(400);
   });
 
   // The hostname is the setup AP's SSID prefix as well as the mDNS name, so a
@@ -969,7 +973,7 @@ describe('hardware configuration', () => {
   });
 
   it('resets to the compiled defaults, and says a restart is needed', async () => {
-    expect((await put({ targetGpio: 7, displayName: 'Bana 1' })).status).toBe(200);
+    expect((await put({ banks: [{ gpio: 7, activeLow: true, name: '' }], displayName: 'Bana 1' })).status).toBe(200);
     server.restart();
 
     expect((await api('/config/hardware/reset', { method: 'POST' })).status).toBe(200);
@@ -986,7 +990,7 @@ describe('hardware configuration', () => {
     ).toBe(200);
 
     expect((await api('/config/hardware')).status).toBe(200);
-    expect((await put({ targetGpio: 7 })).status).toBe(401);
+    expect((await putBankA(7)).status).toBe(401);
     expect((await api('/config/hardware/reset', { method: 'POST' })).status).toBe(401);
   });
 });
@@ -1028,12 +1032,12 @@ describe('the boot target state is serial-only', () => {
   it('takes the rest of the request down with it', async () => {
     const refused = await api('/config/hardware', {
       method: 'PUT',
-      body: JSON.stringify({ targetGpio: 7, targetsShownAtBoot: false }),
+      body: JSON.stringify({ banks: [{ gpio: 7, activeLow: true, name: '' }], targetsShownAtBoot: false }),
     });
     expect(refused.status).toBe(400);
 
-    const state = (await (await api('/config/hardware')).json()) as { saved: { targetGpio: number } };
-    expect(state.saved.targetGpio).toBe(HARDWARE_DEFAULTS.targetGpio);
+    const state = (await (await api('/config/hardware')).json()) as { saved: { banks: { gpio: number }[] } };
+    expect(state.saved.banks).toEqual(HARDWARE_DEFAULTS.banks);
   });
 });
 
@@ -1162,7 +1166,7 @@ async function withBanks(count: number): Promise<{ server: MockServer; base: str
     seed: {
       programs: { 40: PROGRAM_FALT_TRANING },
       audios: [],
-      hardware: { ...HARDWARE_DEFAULTS, targetGpio: 5, banks },
+      hardware: { ...HARDWARE_DEFAULTS, banks },
     },
   });
   const port = await banked.listen();
@@ -1176,15 +1180,13 @@ async function withBanks(count: number): Promise<{ server: MockServer; base: str
  */
 describe('target banks', () => {
   // A one-bank device sends `targetBanks` too, with the single key `A` (D-41),
-  // so a client reads the bank count off a key count rather than inferring
-  // "one" from an absence that also means firmware from before banks.
+  // so a client reads the bank count off the key count.
   it('publishes a single letter on a one-bank device', async () => {
     const sse = await openSSE(server.port);
     try {
       await api('/targets/show', { method: 'POST' });
       await flushIO();
       const update = last(sse.payloads<StateUpdatePayload>('stateUpdate'));
-      expect(update.targetStatus).toBe('shown');
       expect(update.targetBanks).toEqual({ A: 'shown' });
     } finally {
       sse.close();
@@ -1200,8 +1202,6 @@ describe('target banks', () => {
       await flushIO();
       const update = last(sse.payloads<StateUpdatePayload>('stateUpdate'));
       expect(update.targetBanks).toEqual({ A: 'hidden', B: 'shown', C: 'hidden', D: 'shown' });
-      // Bank A, not "shown if any": the field deployed clients already read.
-      expect(update.targetStatus).toBe('hidden');
     } finally {
       sse.close();
       await four.server.close();
@@ -1217,7 +1217,7 @@ describe('target banks', () => {
     // `activeLow` is true here, so hidden is the *high* pad level: the field is
     // the raw read-back, not what it means.
     const info = (await (await api('/diagnostics/info')).json()) as DiagnosticsInfo;
-    expect(info.targetGpioLevel).toBe(1);
+    expect(info.banks[0].padLevel).toBe(1);
   });
 
   it('a bodyless call moves every bank', async () => {
@@ -1321,7 +1321,7 @@ describe('target banks', () => {
         type: '/problems/bank_unavailable',
         title: 'No such target bank',
         status: 400,
-        detail: "'banks' must be an array of bank letters, like [\"A\", \"B\"].",
+        detail: '\'banks\' must be an array of bank letters, like ["A", "B"].',
       });
     }
   });
@@ -1376,13 +1376,12 @@ describe('target banks', () => {
       await fetch(`${four.base}/programs/start`, { method: 'POST', body: JSON.stringify({ id: 40 }) });
       await flushIO();
 
+      // Every bank in step, whichever way the event's `command` sent them -
+      // the point is that none was left behind by the earlier per-bank call.
       const update = last(sse.payloads<StateUpdatePayload>('stateUpdate'));
-      expect(Object.values(update.targetBanks ?? {})).toEqual([
-        update.targetStatus,
-        update.targetStatus,
-        update.targetStatus,
-        update.targetStatus,
-      ]);
+      const states = Object.values(update.targetBanks);
+      expect(states).toHaveLength(4);
+      expect(new Set(states).size).toBe(1);
     } finally {
       sse.close();
       await four.server.close();
@@ -1393,13 +1392,12 @@ describe('target banks', () => {
     const two = await withBanks(2);
     try {
       const state = (await (await fetch(`${two.base}/config/hardware`)).json()) as {
-        active: { banks: { gpio: number; activeLow: boolean; name: string }[]; targetGpio: number };
+        active: { banks: { gpio: number; activeLow: boolean; name: string }[] };
       };
       expect(state.active.banks).toEqual([
         { gpio: 5, activeLow: true, name: 'Vänster' },
         { gpio: 6, activeLow: true, name: 'Bana 2' },
       ]);
-      expect(state.active.targetGpio).toBe(5);
     } finally {
       await two.server.close();
     }
@@ -1413,13 +1411,11 @@ describe('target banks', () => {
     expect((await api('/config/hardware', { method: 'PUT', body: JSON.stringify({ banks }) })).status).toBe(200);
 
     const saved = (await (await api('/config/hardware')).json()) as {
-      saved: { banks: unknown[]; targetGpio: number };
+      saved: { banks: unknown[] };
       active: { banks: unknown[] };
       restartRequired: boolean;
     };
     expect(saved.saved.banks).toEqual(banks);
-    // The scalars follow bank A whichever way round the write came in.
-    expect(saved.saved.targetGpio).toBe(5);
     expect(saved.active.banks).toHaveLength(1);
     expect(saved.restartRequired).toBe(true);
 
@@ -1428,30 +1424,17 @@ describe('target banks', () => {
     expect(afterRestart.active.banks).toEqual(banks);
   });
 
-  it('refuses scalars that disagree with banks[0]', async () => {
-    const res = await api('/config/hardware', {
-      method: 'PUT',
-      body: JSON.stringify({ banks: [{ gpio: 6, activeLow: true, name: '' }], targetGpio: 7 }),
-    });
-
-    await expectProblem(res, {
-      type: '/problems/hardware_config_invalid',
-      title: 'Invalid hardware configuration',
-      status: 400,
-      detail: 'targetGpio and targetActiveLow describe bank A, so they must match banks[0]. Send one or the other.',
-    });
-  });
-
-  // A client that predates banks sends only the scalars; it must edit bank A
-  // and leave the rest of a multi-bank device alone.
-  it('scalars alone edit bank A and keep the other banks', async () => {
+  // The array replaces what is stored rather than merging into it: a body
+  // naming one bank leaves a three-bank device with one, which is what makes
+  // "edit a bank" mean "send them all".
+  it('a banks array replaces the whole array', async () => {
     const three = await withBanks(3);
     try {
       expect(
         (
           await fetch(`${three.base}/config/hardware`, {
             method: 'PUT',
-            body: JSON.stringify({ targetGpio: 13 }),
+            body: JSON.stringify({ banks: [{ gpio: 13, activeLow: true, name: 'Vänster' }] }),
           })
         ).status,
       ).toBe(200);
@@ -1459,30 +1442,10 @@ describe('target banks', () => {
       const saved = (await (await fetch(`${three.base}/config/hardware`)).json()) as {
         saved: { banks: { gpio: number; name: string }[] };
       };
-      expect(saved.saved.banks.map((bank) => bank.gpio)).toEqual([13, 6, 7]);
+      expect(saved.saved.banks.map((bank) => bank.gpio)).toEqual([13]);
       expect(saved.saved.banks[0].name).toBe('Vänster');
     } finally {
       await three.server.close();
-    }
-  });
-
-  // The device reads `targetGpio` *from* `banks[0]`, so it has no way to hold a
-  // bank A that disagrees with itself. A seed naming only the scalar must not
-  // create one.
-  it('reconciles a seed that names only the scalars', async () => {
-    const scalarOnly = createMockServer({
-      clock,
-      seed: { programs: {}, audios: [], hardware: { targetGpio: 12 } },
-    });
-    const port = await scalarOnly.listen();
-    try {
-      const state = (await (await fetch(`http://127.0.0.1:${String(port)}/api/v2/config/hardware`)).json()) as {
-        active: { banks: { gpio: number }[]; targetGpio: number };
-      };
-      expect(state.active.targetGpio).toBe(12);
-      expect(state.active.banks.map((bank) => bank.gpio)).toEqual([12]);
-    } finally {
-      await scalarOnly.close();
     }
   });
 

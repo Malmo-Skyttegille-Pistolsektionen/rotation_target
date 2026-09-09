@@ -232,19 +232,18 @@ export function RunView(): React.ReactNode {
   });
 
   // Where each bank is, in letter order. `targetBanks` carries exactly one
-  // contiguous key per bank, so its key count is the bank count; a device with
-  // one bank omits it entirely and `targetStatus` is the whole answer.
+  // contiguous key per bank, so its key count is the bank count. Empty only
+  // before the first frame arrives, where the strip claims nothing.
   const targetBanks = state?.targetBanks;
-  const bankStates = useMemo<('shown' | 'hidden')[]>(() => {
-    if (targetBanks) {
-      return Object.keys(targetBanks)
-        .sort()
-        .map((letter) => targetBanks[letter]);
-    }
-    // `targetStatus` alone is firmware from before banks: one bank, and its
-    // state. Empty until the first frame arrives, so nothing is claimed.
-    return state ? [state.targetStatus] : [];
-  }, [targetBanks, state]);
+  const bankStates = useMemo<('shown' | 'hidden')[]>(
+    () =>
+      targetBanks
+        ? Object.keys(targetBanks)
+            .sort()
+            .map((letter) => targetBanks[letter])
+        : [],
+    [targetBanks],
+  );
   const bankCount = bankStates.length;
 
   // Names, for the cells at >=768px. The hardware configuration is already
@@ -263,10 +262,9 @@ export function RunView(): React.ReactNode {
   const currentEventIndex = state?.programState?.currentEventIndex;
   const tickerMs = state?.programState?.tickerMs;
   const isRunning = state?.programState?.running ?? false;
-  // What the device has actually said it drives, or null when it has not said:
-  // no frame yet, or firmware from before banks. `bankCount` above is the
-  // strip's width, which always has a value so there is something to draw; a
-  // refusal needs the stronger answer.
+  // What the device has actually said it drives, or null before the first
+  // frame arrives. `bankCount` above is the strip's width, which always has a
+  // value so there is something to draw; a refusal needs the stronger answer.
   const knownBankCount = deviceBankCount(state);
 
   const { data: loadedProgram } = useQuery({

@@ -82,12 +82,11 @@ export function aggregateBankState(state: readonly BankState[]): BankState | 'mi
  * How many banks the device drives, or `null` while nothing is known.
  *
  * The count comes from `stateUpdate.targetBanks`, which every frame carries -
- * one key on a one-bank device. So an absent map means one of two things, and
- * neither is "one bank": no frame has arrived yet, or the device is running
- * firmware from before banks existed. Either way the honest answer is "not
- * known", and treating it as one would tell an operator, for the second before
- * the stream connects, that a program they can perfectly well run needs a
- * device they do not have. Callers hold off on any refusal until this answers.
+ * one key on a one-bank device. So an absent map means only "no frame has
+ * arrived yet", and the honest answer is "not known": assuming one bank would
+ * tell an operator, for the second before the stream connects, that a program
+ * they can perfectly well run needs a device they do not have. Callers hold
+ * off on any refusal until this answers.
  */
 export function deviceBankCount(state: { targetBanks?: Record<string, unknown> } | null | undefined): number | null {
   const banks = state?.targetBanks;

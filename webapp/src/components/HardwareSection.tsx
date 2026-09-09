@@ -55,18 +55,7 @@ const MAX_BANKS = 8;
 const MAX_BANK_NAME = 16;
 const BANK_LETTERS = 'ABCDEFGH';
 
-type TargetBank = NonNullable<HardwareConfig['banks']>[number];
-
-/**
- * The banks a configuration describes. Firmware from before #207 sends only
- * the two scalars, which are bank A - so a device on it renders as the
- * one-bank device it is rather than as an empty table.
- */
-function banksOf(config: HardwareConfig): TargetBank[] {
-  return config.banks && config.banks.length > 0
-    ? config.banks
-    : [{ gpio: config.targetGpio, activeLow: config.targetActiveLow, name: '' }];
-}
+type TargetBank = HardwareConfig['banks'][number];
 
 const LED_FIELDS: NumericField[] = [
   {
@@ -185,8 +174,8 @@ export function HardwareSection(): React.ReactNode {
     setDraft({ ...draft, [key]: next });
   };
 
-  const savedBanks = banksOf(saved);
-  const defaultBanks = banksOf(state.defaults);
+  const savedBanks = saved.banks;
+  const defaultBanks = state.defaults.banks;
   const banks: TargetBank[] = draft?.banks ?? savedBanks;
 
   const setBanks = (next: TargetBank[]): void => {
@@ -209,9 +198,7 @@ export function HardwareSection(): React.ReactNode {
       if (key === 'banks') continue;
       if (draft[key] !== saved[key]) (patch as Record<string, unknown>)[key] = draft[key];
     }
-    // Sent whole, and never alongside `targetGpio`/`targetActiveLow`: the
-    // device refuses a body whose scalars disagree with `banks[0]`, and the
-    // table edits bank A through the array.
+    // Sent whole: the array is ordered, so there is no partial merge of one.
     if (JSON.stringify(draft.banks ?? savedBanks) !== JSON.stringify(savedBanks)) {
       patch.banks = banks;
     }
@@ -312,8 +299,7 @@ export function HardwareSection(): React.ReactNode {
                       asShipped.gpio !== bank.gpio ||
                       asShipped.activeLow !== bank.activeLow ||
                       asShipped.name !== bank.name;
-                    const pad =
-                      diagnostics?.banks?.[index]?.padLevel ?? (index === 0 ? diagnostics?.targetGpioLevel : undefined);
+                    const pad = diagnostics?.banks?.[index]?.padLevel;
                     return (
                       <tr key={index} data-testid={`hardware-bank-row-${letter}`}>
                         <th scope='row' className={styles.bankLetter}>

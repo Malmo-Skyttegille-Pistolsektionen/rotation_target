@@ -63,7 +63,7 @@ test('a mutation with a stale control lock session fails into view-only, not a b
   await page.getByRole('link', { name: 'Run' }).click();
   await expect(page.getByRole('button', { name: 'Toggle Targets' })).toBeVisible();
 
-  const before = await targetStatus(page);
+  const before = await targetStripText(page);
 
   // Impersonate a session the device no longer honours: the cookie goes, and
   // the remembered bearer token is replaced with one the device never issued.
@@ -84,9 +84,9 @@ test('a mutation with a stale control lock session fails into view-only, not a b
   expect(await page.evaluate((key) => localStorage.getItem(key), STALE_TOKEN_KEY)).toBeNull();
 
   // And the device did not act on the rejected request.
-  expect(await targetStatus(page)).toBe(before);
+  expect(await targetStripText(page)).toBe(before);
 });
 
-async function targetStatus(page: Page): Promise<string | null> {
+async function targetStripText(page: Page): Promise<string | null> {
   return page.getByTestId('run-target-status').textContent();
 }

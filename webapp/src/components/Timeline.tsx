@@ -13,9 +13,9 @@ type TimelineProps = {
   tickerMs: number | null; // Total milliseconds elapsed in current series
   mode?: 'auto' | 'default' | 'field';
   /**
-   * How many target banks the device drives. 1 - the default, and every device
-   * before banks existed - renders exactly what this always rendered: no
-   * glyphs, no lanes, one command icon per card.
+   * How many target banks the device drives. 1, the default, renders what a
+   * one-bank device has always shown: no glyphs, no lanes, one command icon
+   * per card.
    */
   bankCount?: number;
   /**
