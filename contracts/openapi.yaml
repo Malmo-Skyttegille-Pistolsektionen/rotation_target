@@ -1677,10 +1677,18 @@ components:
   requestBodies:
     BankSelection:
       required: false
-      description: >-
-        Which target banks to move. **Omit the body entirely to move every
-        bank** — that is what every client did before banks existed and what a
-        one-bank device is always asked.
+      description: |
+        Which target banks to move.
+
+        - **No body, or `{}`** — every bank. That is what every client did
+          before banks existed and what a one-bank device is always asked.
+        - **`banks` present** — those banks, and only if the device has every
+          one of them.
+
+        `banks` present but not an array of letters, or naming a letter this
+        device does not have, is `400 /problems/bank_unavailable`, and the
+        `detail` says which. A body that is not JSON at all is refused the way
+        every other endpoint refuses one.
       content:
         application/json:
           schema:
@@ -1689,10 +1697,10 @@ components:
   responses:
     BankUnavailable:
       description: |
-        - `/problems/bank_unavailable` — a letter in `banks` names a bank this
-          device does not have. `detail` names the letter and the range the
-          device does have. Nothing moved: the list is applied as a whole, so a
-          typo cannot half-work.
+        - `/problems/bank_unavailable` — `banks` names a bank this device does
+          not have, or is not an array of letters at all. `detail` says which
+          entry, and the range the device does have. Nothing moved: the list is
+          applied as a whole, so a typo cannot half-work.
       content:
         application/problem+json:
           schema:
@@ -1738,19 +1746,19 @@ components:
 
     BankSelection:
       type: object
-      required: [banks]
       additionalProperties: false
       properties:
         banks:
           type: array
           minItems: 1
           maxItems: 8
-          uniqueItems: true
           items:
             $ref: "#/components/schemas/BankLetter"
           description: >-
-            The banks to move. Unique, because naming a bank twice says nothing
-            a single mention does not.
+            The banks to move. A repeated letter is ignored — naming a bank
+            twice asks for nothing a single mention does not — so this is not
+            `uniqueItems`; there is no reason to refuse a request the device
+            can carry out exactly as asked.
 
     TargetBank:
       type: object
@@ -1762,9 +1770,26 @@ components:
       additionalProperties: false
       properties:
         gpio:
-          $ref: "#/components/schemas/HardwareConfig/properties/targetGpio"
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 48
+          description: >-
+            The GPIO driving this bank's circuit. 22-25 do not exist on this
+            chip, 26-32 are the module's own flash and PSRAM, 35-37 are the
+            octal PSRAM's extra data lines on the modules we ship, and 43-44
+            are the UART0 console; all are refused, because driving one stops
+            the device booting — or takes away the way back from a bad
+            configuration — rather than merely failing to move a target. Every
+            bank needs its own, distinct from the LED's and the audio pins.
         activeLow:
-          $ref: "#/components/schemas/HardwareConfig/properties/targetActiveLow"
+          type: boolean
+          description: >-
+            Whether a low level shows this bank. Per bank, not per device: the
+            de-energised state of each bank's wiring is what has to be its
+            resting state. The prototype drives a BC547B whose low state opens
+            the connection; a board that buffers or inverts the signal wants
+            `false`.
         name:
           type: string
           maxLength: 16
@@ -1830,25 +1855,17 @@ components:
           items:
             $ref: "#/components/schemas/TargetBank"
         targetGpio:
-          type: integer
-          format: int32
-          minimum: 0
-          maximum: 48
+          allOf:
+            - $ref: "#/components/schemas/TargetBank/properties/gpio"
           description: >-
-            Bank A's GPIO, the same value as `banks[0].gpio`. 22-25 do not
-            exist on this chip, 26-32 are the module's own flash and PSRAM,
-            35-37 are the octal PSRAM's extra data lines on the modules we
-            ship, and 43-44 are the UART0 console; all are refused, because
-            driving one stops the device booting — or takes away the way back
-            from a bad configuration — rather than merely failing to move a
-            target.
+            Bank A's GPIO — the same value as `banks[0].gpio`, kept beside the
+            array so a client from before banks reads the field it always read.
         targetActiveLow:
-          type: boolean
+          allOf:
+            - $ref: "#/components/schemas/TargetBank/properties/activeLow"
           description: >-
-            Whether a low level shows bank A, the same value as
-            `banks[0].activeLow`. The prototype drives a BC547B whose low state
-            opens the connection; a board that buffers or inverts the signal
-            wants `false`.
+            Whether a low level shows bank A — the same value as
+            `banks[0].activeLow`.
         hostname:
           type: string
           minLength: 1

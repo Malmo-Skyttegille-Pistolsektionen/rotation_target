@@ -925,13 +925,18 @@ export interface components {
          */
         BankLetter: string;
         BankSelection: {
-            /** @description The banks to move. Unique, because naming a bank twice says nothing a single mention does not. */
-            banks: components["schemas"]["BankLetter"][];
+            /** @description The banks to move. A repeated letter is ignored — naming a bank twice asks for nothing a single mention does not — so this is not `uniqueItems`; there is no reason to refuse a request the device can carry out exactly as asked. */
+            banks?: components["schemas"]["BankLetter"][];
         };
         /** @description One independently driven target group: one GPIO, one polarity, one name. Which letter it answers to is its position in `banks`, not anything stored here. */
         TargetBank: {
-            gpio: components["schemas"]["HardwareConfig"]["targetGpio"];
-            activeLow: components["schemas"]["HardwareConfig"]["targetActiveLow"];
+            /**
+             * Format: int32
+             * @description The GPIO driving this bank's circuit. 22-25 do not exist on this chip, 26-32 are the module's own flash and PSRAM, 35-37 are the octal PSRAM's extra data lines on the modules we ship, and 43-44 are the UART0 console; all are refused, because driving one stops the device booting — or takes away the way back from a bad configuration — rather than merely failing to move a target. Every bank needs its own, distinct from the LED's and the audio pins.
+             */
+            gpio: number;
+            /** @description Whether a low level shows this bank. Per bank, not per device: the de-energised state of each bank's wiring is what has to be its resting state. The prototype drives a BC547B whose low state opens the connection; a board that buffers or inverts the signal wants `false`. */
+            activeLow: boolean;
             /** @description What operators call this bank — `Vänster`, `Bana 3`. Display only, and may be empty, in which case a client shows the letter alone. It lives in the hardware configuration and never in a program, so renaming a bank cannot re-aim one. */
             name: string;
         };
@@ -969,13 +974,10 @@ export interface components {
              *     firmware always sends it, with at least one entry.
              */
             banks?: components["schemas"]["TargetBank"][];
-            /**
-             * Format: int32
-             * @description Bank A's GPIO, the same value as `banks[0].gpio`. 22-25 do not exist on this chip, 26-32 are the module's own flash and PSRAM, 35-37 are the octal PSRAM's extra data lines on the modules we ship, and 43-44 are the UART0 console; all are refused, because driving one stops the device booting — or takes away the way back from a bad configuration — rather than merely failing to move a target.
-             */
-            targetGpio: number;
-            /** @description Whether a low level shows bank A, the same value as `banks[0].activeLow`. The prototype drives a BC547B whose low state opens the connection; a board that buffers or inverts the signal wants `false`. */
-            targetActiveLow: boolean;
+            /** @description Bank A's GPIO — the same value as `banks[0].gpio`, kept beside the array so a client from before banks reads the field it always read. */
+            targetGpio: components["schemas"]["TargetBank"]["gpio"];
+            /** @description Whether a low level shows bank A — the same value as `banks[0].activeLow`. */
+            targetActiveLow: components["schemas"]["TargetBank"]["activeLow"];
             /** @description mDNS name and the setup access point's SSID prefix, so `<hostname>.local` reaches the device and the portal appears as `<hostname>-setup-XXXX`. Two clubs on one network need two names. Bounded at 20 because the SSID suffix has to fit in 32. */
             hostname: string;
             /** @description Free text shown in the web app. Cosmetic, and the only field here that cannot break anything - hence no format rule beyond a length. Empty on a device that has never been named. */
@@ -1502,10 +1504,10 @@ export interface components {
     };
     responses: {
         /**
-         * @description - `/problems/bank_unavailable` — a letter in `banks` names a bank this
-         *       device does not have. `detail` names the letter and the range the
-         *       device does have. Nothing moved: the list is applied as a whole, so a
-         *       typo cannot half-work.
+         * @description - `/problems/bank_unavailable` — `banks` names a bank this device does
+         *       not have, or is not an array of letters at all. `detail` says which
+         *       entry, and the range the device does have. Nothing moved: the list is
+         *       applied as a whole, so a typo cannot half-work.
          */
         BankUnavailable: {
             headers: {
@@ -1550,7 +1552,19 @@ export interface components {
         AudioId: number;
     };
     requestBodies: {
-        /** @description Which target banks to move. **Omit the body entirely to move every bank** — that is what every client did before banks existed and what a one-bank device is always asked. */
+        /**
+         * @description Which target banks to move.
+         *
+         *     - **No body, or `{}`** — every bank. That is what every client did
+         *       before banks existed and what a one-bank device is always asked.
+         *     - **`banks` present** — those banks, and only if the device has every
+         *       one of them.
+         *
+         *     `banks` present but not an array of letters, or naming a letter this
+         *     device does not have, is `400 /problems/bank_unavailable`, and the
+         *     `detail` says which. A body that is not JSON at all is refused the way
+         *     every other endpoint refuses one.
+         */
         BankSelection: {
             content: {
                 "application/json": components["schemas"]["BankSelection"];

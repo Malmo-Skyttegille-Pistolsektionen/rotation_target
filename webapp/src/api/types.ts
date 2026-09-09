@@ -113,9 +113,11 @@ export interface StateUpdatePayload {
   targetStatus: 'shown' | 'hidden';
   /**
    * Every bank, keyed by letter — `contracts/asyncapi.yaml`'s
-   * `StateUpdate.targetBanks`. Present only when the device has more than one
-   * bank, and then it carries exactly one contiguous key per bank, so its key
-   * count is the bank count.
+   * `StateUpdate.targetBanks`. Exactly one contiguous key per bank, so its key
+   * count is the bank count, and sent by a one-bank device too (`{A: …}`).
+   *
+   * Optional here only because **absent means firmware from before banks**,
+   * which the app has to degrade for.
    */
   targetBanks?: Record<string, 'shown' | 'hidden'>;
 }
