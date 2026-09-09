@@ -72,7 +72,8 @@ the portal, so there is nothing to configure it through.
 
 For that, use [Expert mode](expert-mode.md#wifi) — press the device's BOOT
 button three times within ten seconds, and the web app offers the same form the
-setup portal does. The device restarts onto the new network and keeps
+setup portal does. Saving stores the network; the device moves onto it when you
+press [**Restart to apply**](expert-mode.md#restart-to-apply), and keeps
 everything else: its programs, its clips, and its hardware settings.
 
 **The ten-second hold below is the bigger hammer**, and it is now needed only

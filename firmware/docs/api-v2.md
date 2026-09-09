@@ -427,6 +427,42 @@ event where a fault matters most. It locks writing; this is a read (D-39).
 `Content-Disposition` names it `<hostname>-<version>-<resetReason>.zip`, with no
 date: the device has no clock. Served chunked, so there is no `Content-Length`.
 
+## Configuration, and the one call that applies it
+
+`PUT /api/v2/config/hardware` and `PUT /api/v2/wifi` **store and stop there**.
+Neither re-drives a pin, renames mDNS or re-associates the radio: the station's
+configuration and the target pins are read at boot and nowhere else, so a write
+that took effect in place would have to unpick a running device.
+
+Each reports the gap on its own `GET`, as `restartRequired`:
+
+- `GET /config/hardware` compares `active` (what boot latched) with `saved`.
+- `GET /wifi` reports `wifi_store::saved_since_boot()`. **Not** a comparison of
+  the stored SSID against the joined one: the store legitimately falls back to a
+  compiled seed when the provisioned network is out of range, which is a device
+  running what it was told rather than one waiting to restart, and a comparison
+  would also miss a password corrected on the same SSID.
+
+`POST /api/v2/system/restart` is what closes both. It answers
+`200 {"status":"accepted","restarting":true}` and restarts about 1.5 s later —
+the same shape and the same `device_restart::schedule()` as `POST /ota`, so the
+response drains before the chip goes down. Guards: the control lock, because
+restarting is changing the device, and `409 /problems/program_running`, because
+a restart mid-sequence drops the targets and cuts the spoken commands.
+
+**Deliberately not behind the configuration window** (D-42), unlike the two
+writes it applies. The window proves somebody was standing at the board when
+the change was authorised; this only adopts what was already authorised, and
+requiring a fresh gesture would mean walking back to press a button that grants
+nothing new. It is also what makes one restart serve several sections: a pin,
+the hostname and the network can be corrected in one sitting, and the window
+may well have lapsed by the end of it.
+
+The **setup portal is the exception** and still restarts itself after a save
+(`main/net/setup_portal.cpp`). It is not a client of this API — it runs on its
+own HTTP server, on the device's own access point, where joining the network
+that was just typed is the only thing left to do.
+
 ## Uploads
 
 `POST /api/v2/programs` takes a JSON body. The id in the document is ignored:

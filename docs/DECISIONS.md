@@ -52,6 +52,7 @@ thought at the time). Dates: "Aug 2026" = earlier sessions; exact date where kno
 | D-39 | The coredump ships in a bundle, behind the button | Decided | 2026-08-25 |
 | D-40 | "Admin mode" is renamed `control-lock`, everywhere | Decided | 2026-08-26 |
 | D-41 | Target banks: letters, baseline plus overrides, refuse rather than clamp | Decided | 2026-09-08 |
+| D-42 | A save never restarts; one restart applies everything, from the page | Decided | 2026-09-09 |
 
 ## D-01 — Merge into a monorepo *(Decided, Aug 2026)*
 
@@ -1753,6 +1754,77 @@ outcome: it means a human decided on purpose (D-40).
   banks are showing, and any collapse of that to one flag is either false on a
   mixed strip or true in a way that moves no decision. The strip is the truth,
   so there is nothing for a summary to be a summary of.
+
+## D-42 — A save never restarts; one restart applies everything, from the page *(Decided 2026-09-09)*
+
+**Decision:** every configuration write **stores and stops there**, and a
+single `POST /api/v2/system/restart` adopts what was stored. `PUT /wifi` loses
+the restart it used to do on its own; `GET /wifi` grows the `restartRequired`
+that `GET /config/hardware` already had. Expert mode's sections each end in a
+plain **Save**, and one **Restart to apply** sits beside the page heading,
+shown whenever the device reports either flag. Settings says the same thing in
+one line, so it is not invisible to the next person.
+
+**Why:** the two sections behaved differently for no reason a user could see —
+WiFi said *Save and restart*, Hardware said *Save* and then told you to restart
+it, offering no way to. Worse, WiFi's restart took the page away **and the open
+configuration window with it**, so a wrong pin and a wrong network could not be
+fixed in the same visit: you saved the network, lost the page, walked back to
+the board, pressed the button three times again. Splitting store from apply
+makes the window's five minutes enough for the whole job and takes the device
+down once instead of once per section.
+
+**Why the restart is not behind the configuration window.** Every write that
+feeds it is. The window exists to prove somebody is standing at the board when
+a change is *authorised* (#144, #208); this only adopts a change that was
+already authorised in one, and nothing new becomes possible. Requiring a fresh
+gesture would mean walking back to press a button that grants nothing — and
+since the window can lapse while somebody is reading a confirmation, it would
+regularly leave a device configured but not running its configuration, which is
+precisely the state this is trying to end. The guards that do apply are the
+ones with something to say: the control lock, because restarting *is* changing
+the device (D-40's sentence — it gates changing, never looking), and
+`409 /problems/program_running`, because a restart mid-sequence drops the
+targets and cuts the spoken commands.
+
+**Why the button is on the page and not in a section.** It applies both
+subjects, so putting it in either would be a lie about its scope. It is
+rendered whether or not the window is open — the sections are not — because a
+pending restart is a fact about the device rather than about the window, and
+the Expert tab disappears with the window, which is why the Settings notice
+links to the page rather than merely mentioning it.
+
+**Why the setup portal keeps restarting itself.** It is the one caller that is
+not a client of this API: its own HTTP server, on the device's own access
+point, reached by a browser that has nothing else to do there. Offering "and
+now choose when to restart" on a network whose only purpose is to leave it
+would be a step with no decision in it. It calls the same
+`device_restart::schedule()` the endpoint does, so there is still one restart
+path and one 1.5 s number.
+
+**Why `restartRequired` for WiFi is a flag, not a comparison.** The obvious
+derivation — stored SSID differs from the joined one — is wrong twice. The
+credential store falls back to a compiled seed when the provisioned network is
+out of range (D-33), so a device correctly running what it was told would
+report a restart pending forever; and a password corrected on the same SSID
+would report nothing pending at all. `wifi_store::saved_since_boot()` is set
+inside `save()`, so no future writer can forget it, and "since boot" is exactly
+right because the restart is what clears it.
+
+**Contract impact:** additive except the `PUT /wifi` behaviour change — the
+response shape is unchanged, only what the device does afterwards. Not an
+exception to the additive rule in the sense D-16, D-19, D-23, D-27, D-40 and
+D-41 are: no field is removed and no status code moves, so `oasdiff` sees only
+additions.
+
+**Rejected:** *a restart button per section* — three ways to do one thing, and
+the device would go down more than once for one sitting's work. *Keeping the
+WiFi restart and adding the endpoint beside it* — the endpoint exists because
+the automatic restart is the problem, not because there was no way to ask for
+one. *Driving the button from unsaved form edits* — that is what Save is for,
+and a button that lights up because a field has focus says nothing about the
+device. *Putting the restart behind the window* — see above; it is the change
+that would have made the whole feature not worth having.
 
 ## Open questions
 
