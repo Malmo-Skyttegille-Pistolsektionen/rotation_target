@@ -183,13 +183,23 @@ void Executor::force_unload() {
 void Executor::enter_event(int32_t index, const Event &event, bool play_audio) {
   state_.current_event_index.set(index);
 
-  // Every bank, in unison. A per-bank `banks` override on the event is stage 3
-  // of #207; until then a program means what it has always meant.
+  // The rule is stated once, on `banks` in contracts/program.schema.json:
+  // a bank the event names goes where it names, every other bank follows
+  // `command`, and a bank named by neither is left where it is.
+  //
+  // Two calls at most - the banks to show and the banks to hide - because the
+  // pins are driven a set at a time, so a sequential program costs no more
+  // than the unison one it replaced.
+  BankMask show = event.show_banks;
+  BankMask hide = event.hide_banks;
   if (event.command == "show") {
-    set_targets(kAllBanksMask, true);
+    show |= ~event.named_banks();
   } else if (event.command == "hide") {
-    set_targets(kAllBanksMask, false);
+    hide |= ~event.named_banks();
   }
+
+  if (show != 0) set_targets(show, true);
+  if (hide != 0) set_targets(hide, false);
 
   if (play_audio && !event.audio_ids.empty()) effects_.play_audios(event.audio_ids);
 }

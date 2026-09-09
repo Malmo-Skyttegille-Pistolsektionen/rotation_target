@@ -730,6 +730,117 @@ void test_init_banks_adopts_the_boot_state_on_every_bank() {
   TEST_ASSERT_TRUE(four.effects.target_history[0].shown);
 }
 
+// --- #207 stage 3: per-bank overrides on an event ---------------------------
+
+// An event that names a bank, with `command` as the baseline for the rest.
+static rt::Event banked_event(int32_t ms, const char *command, rt::BankMask show,
+                              rt::BankMask hide) {
+  rt::Event e{ms, command, {}};
+  e.show_banks = show;
+  e.hide_banks = hide;
+  return e;
+}
+
+static rt::Program banked_program(const std::vector<rt::Event> &events) {
+  rt::Program p;
+  p.id = kFixtureId;
+  p.title = "Banked";
+  rt::Series s;
+  s.name = "S0";
+  s.events = events;
+  p.series.push_back(s);
+  return p;
+}
+
+// The reason banks exist: "hide everything except B" is one event, so a
+// sequential exposure needs no 1 ms filler events between the two commands.
+void test_a_baseline_and_an_override_are_one_event() {
+  rt::Program p = banked_program({banked_event(200, "hide", rt::bank_bit(1), 0)});
+  Harness four(4);
+  four.executor.load(&p);
+  four.effects.clear();
+
+  four.executor.start(kFixtureId);
+
+  // Two calls at most, whatever the bank count: the shown set and the hidden set.
+  TEST_ASSERT_EQUAL_size_t(2, four.effects.target_history.size());
+  TEST_ASSERT_FALSE(four.state.bank_shown[0]);
+  TEST_ASSERT_TRUE(four.state.bank_shown[1]);
+  TEST_ASSERT_FALSE(four.state.bank_shown[2]);
+  TEST_ASSERT_FALSE(four.state.bank_shown[3]);
+}
+
+// No `command` means no baseline: the banks the event does not name are left
+// exactly where the last event put them.
+void test_banks_without_a_command_leave_the_others_alone() {
+  rt::Program p = banked_program({
+      rt::Event{200, "hide", {}},
+      banked_event(200, "", rt::bank_bit(2), 0),
+  });
+  Harness four(4);
+  four.executor.load(&p);
+  four.executor.start(kFixtureId);
+  four.effects.clear();
+
+  four.clock.advance(200);
+  four.executor.tick();
+
+  TEST_ASSERT_FALSE(four.state.bank_shown[0]);
+  TEST_ASSERT_FALSE(four.state.bank_shown[1]);
+  TEST_ASSERT_TRUE(four.state.bank_shown[2]);
+  TEST_ASSERT_FALSE(four.state.bank_shown[3]);
+  // Only the named bank was driven.
+  TEST_ASSERT_EQUAL_size_t(1, four.effects.target_history.size());
+  TEST_ASSERT_EQUAL_UINT32(rt::bank_bit(2), four.effects.target_history[0].mask);
+}
+
+// An event that names nothing and commands nothing moves nothing - it is a
+// timed pause, which is what `{}` and an absent `banks` both parse to.
+void test_an_event_naming_nothing_moves_nothing() {
+  rt::Program p = banked_program({
+      rt::Event{200, "hide", {}},
+      rt::Event{200, "", {}},
+  });
+  Harness four(4);
+  four.executor.load(&p);
+  four.executor.start(kFixtureId);
+  four.effects.clear();
+
+  four.clock.advance(200);
+  four.executor.tick();
+
+  TEST_ASSERT_EQUAL_size_t(0, four.effects.target_history.size());
+  for (size_t i = 0; i < 4; i++) TEST_ASSERT_FALSE(four.state.bank_shown[i]);
+}
+
+// Completing a series leaves the targets where the last event put them (D-31),
+// per bank as much as in unison.
+void test_per_bank_state_carries_across_a_series() {
+  rt::Program p;
+  p.id = kFixtureId;
+  rt::Series s0;
+  s0.name = "S0";
+  s0.events.push_back(banked_event(200, "hide", rt::bank_bit(1), 0));
+  rt::Series s1;
+  s1.name = "S1";
+  s1.events.push_back(rt::Event{200, "", {}});
+  p.series.push_back(s0);
+  p.series.push_back(s1);
+
+  Harness four(4);
+  four.executor.load(&p);
+  four.executor.start(kFixtureId);
+  four.clock.advance(200);
+  four.executor.tick();  // completes S0, selects S1
+  four.effects.clear();
+
+  four.executor.start(kFixtureId);
+
+  TEST_ASSERT_FALSE(four.state.bank_shown[0]);
+  TEST_ASSERT_TRUE(four.state.bank_shown[1]);
+  TEST_ASSERT_EQUAL_size_t(0, four.effects.target_history.size());
+}
+
 int main() {
   UNITY_BEGIN();
 
@@ -780,6 +891,10 @@ int main() {
   RUN_TEST(test_completing_a_series_leaves_the_targets_where_the_last_event_left_them);
   RUN_TEST(test_toggle_targets_flips_the_published_flag_and_the_pin);
   RUN_TEST(test_an_event_drives_every_bank);
+  RUN_TEST(test_a_baseline_and_an_override_are_one_event);
+  RUN_TEST(test_banks_without_a_command_leave_the_others_alone);
+  RUN_TEST(test_an_event_naming_nothing_moves_nothing);
+  RUN_TEST(test_per_bank_state_carries_across_a_series);
   RUN_TEST(test_toggle_on_four_banks_hides_only_when_every_bank_is_shown);
   RUN_TEST(test_toggling_a_bank_the_device_does_not_have_changes_nothing);
   RUN_TEST(test_flip_moves_each_named_bank_against_its_own_state);
