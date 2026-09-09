@@ -163,6 +163,10 @@ tags:
     description: >-
       Which network the device is on, and moving it to another one without
       first taking it off the one it has.
+  - name: system
+    description: >-
+      The device as a whole, rather than anything stored on it: restarting it
+      so that saved configuration is adopted.
   - name: sse
     description: The event stream carrying run state.
 
@@ -1179,25 +1183,27 @@ paths:
 
     put:
       tags: [wifi]
-      summary: Join a different network
+      summary: Store the credentials for a different network
       operationId: putWifiCredentials
       description: |
-        Saves the credentials to NVS and **restarts the device**, which is the
-        only way they take effect: the station's configuration is read at boot,
-        and re-associating in place would leave the HTTP server answering on an
-        address that no longer routes.
+        Saves the credentials to NVS. **Takes effect at the next restart**, the
+        same as `PUT /config/hardware`: the station's configuration is read at
+        boot, and re-associating in place would leave the HTTP server answering
+        on an address that no longer routes.
 
-        The `200` therefore goes out *before* the restart, and the client that
-        sent the request loses the connection a moment later — deliberately, and
-        on the network it is being moved off. A client should say so before
-        sending, because a page that simply stops responding looks like a crash
-        rather than a success.
+        **This call no longer restarts the device.** It used to, which made a
+        network change the one setting that could not be corrected alongside
+        anything else — the page went away mid-session, taking the open
+        configuration window with it. Now the device stays on the network it is
+        on, `GET /wifi` reports `restartRequired`, and `POST /system/restart`
+        applies this together with anything else that was saved.
 
-        **If the new network cannot be joined, the setup portal comes up** and
-        the device is reachable at `http://192.168.4.1` on its own access point
-        (`<hostname>-setup-XXXX`). That is the recovery path, not a failure
-        state — but it is invisible from a browser that just lost its page, so
-        it is worth telling the operator in advance.
+        **If the new network cannot be joined after that restart, the setup
+        portal comes up** and the device is reachable at `http://192.168.4.1`
+        on its own access point (`<hostname>-setup-XXXX`). That is the recovery
+        path, not a failure state — but it is invisible from a browser that
+        just lost its page, so it is worth telling the operator before they
+        restart.
 
         Saving also lifts the suppression a factory reset sets, so the compiled
         seed networks come back as fallbacks (`wifi_store::save`).
@@ -1205,8 +1211,8 @@ paths:
         ## Why both guards
 
         The control lock, because this is a write, and one operator running a
-        competition should not have another move the device off the network
-        mid-run.
+        competition should not have another change where the device will look
+        for its network.
 
         The configuration window on top of it, because of #208: the setup
         portal stopped accepting credentials on the strength of *being on the
@@ -1230,8 +1236,8 @@ paths:
       responses:
         "200":
           description: >-
-            Stored. The device restarts about a second later and this
-            connection dies with it.
+            Stored. The device stays where it is until
+            `POST /system/restart`.
           content:
             application/json:
               schema:
@@ -1262,8 +1268,9 @@ paths:
           description: |
             - `/problems/program_running` — a program is running. Checked
               before the window, because "stop the run" is the more useful
-              instruction, and taking the device off the network mid-sequence
-              would strand whoever is on the line.
+              instruction. Nothing here moves the device, but reconfiguring the
+              machine and operating it are different activities, and the same
+              guard is on `PUT /config/hardware`.
             - `/problems/wifi_unavailable` — this build has no radio
               (`CONFIG_RT_NET_OPENETH`). Permanent for this firmware, not a
               state to retry.
@@ -1321,6 +1328,63 @@ paths:
           description: |
             `/problems/wifi_unavailable` — this build has no radio
             (`CONFIG_RT_NET_OPENETH`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /system/restart:
+    post:
+      tags: [system]
+      summary: Restart the device so saved configuration takes effect
+      operationId: restartSystem
+      description: |
+        Answers `200` and **restarts about 1.5 seconds later**, the same shape
+        as `POST /ota` — long enough for this response to reach the client,
+        which should expect the connection to drop and the device to be
+        briefly unreachable before it answers again on the same name.
+
+        This is the one call that applies configuration. `PUT /config/hardware`
+        and `PUT /wifi` store and nothing else, and each reports
+        `restartRequired` on its `GET`; a pin, a hostname and a network can all
+        be corrected in one sitting and adopted by one restart.
+
+        **Not gated on the configuration window**, unlike the writes it
+        applies. The change was authorised when it was saved, in the window,
+        with somebody standing at the device — and a window that has since
+        lapsed would mean walking back to the board to press a button that
+        authorises nothing new. What it does gate on is the control lock, since
+        restarting is changing the device, and a running program, since a
+        restart mid-sequence drops the targets and cuts the spoken commands.
+
+        There is nothing to send. A body is ignored.
+      security:
+        - controlLockBearer: []
+        - controlLockCookie: []
+        - {}
+      responses:
+        "200":
+          description: |
+            Accepted. The device restarts shortly; there is no further call to
+            make.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, restarting]
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [accepted]
+                  restarting:
+                    type: boolean
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: |
+            `/problems/program_running` — a program is running. Stop it first;
+            a restart takes the targets and the audio down mid-sequence.
           content:
             application/problem+json:
               schema:
@@ -2100,7 +2164,8 @@ components:
         presence for precisely this reason. A read anyone on the network may
         make is not the second place.
       required:
-        [radioPresent, connected, ssid, rssi, bars, ipAddress, macAddress, provisioned]
+        [radioPresent, connected, ssid, rssi, bars, ipAddress, macAddress, provisioned,
+         restartRequired]
       additionalProperties: false
       properties:
         radioPresent:
@@ -2165,6 +2230,21 @@ components:
             on the networks its firmware was compiled with — worth saying,
             because those cannot be read back here or changed without a
             rebuild.
+        restartRequired:
+          type: boolean
+          description: |
+            Credentials have been saved since this device booted, so the
+            station is still associated using the ones it started with. The
+            same meaning as `HardwareConfigState.restartRequired` and for the
+            same reason — a `PUT` stores and nothing more, and a change that
+            appears to have done nothing is what sends somebody looking for a
+            cable. `POST /system/restart` is what clears it.
+
+            Not derived by comparing the stored SSID with `ssid`: after a
+            restart the store may legitimately have fallen back to a compiled
+            seed network, and that is a device running what it was told, not
+            one waiting to be restarted. It also would not see a password
+            corrected on the same SSID. Always false on the Ethernet build.
 
     WifiNetwork:
       type: object
