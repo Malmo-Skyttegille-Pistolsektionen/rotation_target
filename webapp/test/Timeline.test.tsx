@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { Timeline } from '../src/components/Timeline';
-import type { Program } from '../src/api/types';
+import type { Program, Series } from '../src/api/types';
 import { PROGRAM_FALT_TRANING, PROGRAM_MILITARY_SNABBMATCH, PROGRAM_PRECISION } from './fixtures';
 
 afterEach(cleanup);
@@ -664,6 +664,49 @@ describe('target banks', () => {
       false,
       false,
     ]);
+  });
+
+  it('labels the lane axis with round numbers and the series edges', () => {
+    // Militär Snabbmatch's Provserie: 5 + 60 + 7 + 10 + 1 + 3 + 1 = 87 s.
+    const provserie: Series = {
+      name: 'Provserie 10s',
+      optional: false,
+      events: [5000, 60000, 7000, 10000, 1000, 3000, 1000].map((duration) => ({ duration, command: 'show' })),
+    };
+    renderTimeline(
+      { id: 1, title: '', description: '', readonly: true, series: [provserie] },
+      {
+        mode: 'field',
+        bankCount: 2,
+      },
+    );
+    const labels = Array.from(screen.getByTestId('timeline-lane-axis-0').querySelectorAll('span')).map(
+      (span) => span.textContent,
+    );
+    // 87 s at a 15 s step: the quarter marks (22, 44, 65) are gone.
+    expect(labels).toEqual(['0', '15', '30', '45', '60', '75', '87 s']);
+  });
+
+  it('puts the lane axis zero where the run timer reads zero', () => {
+    const anchored: Series = {
+      name: 'Anchored',
+      optional: false,
+      timer_start_index: 1,
+      events: [5000, 60000, 7000, 10000, 1000, 3000, 1000].map((duration) => ({ duration, command: 'show' })),
+    };
+    renderTimeline(
+      { id: 1, title: '', description: '', readonly: true, series: [anchored] },
+      {
+        mode: 'field',
+        bankCount: 2,
+      },
+    );
+    const labels = Array.from(screen.getByTestId('timeline-lane-axis-0').querySelectorAll('span')).map(
+      (span) => span.textContent,
+    );
+    // The series starts 5 s before the timer's zero; that edge is too close
+    // to the zero tick to label separately, so zero takes its place.
+    expect(labels).toEqual(['0', '+15', '+30', '+45', '+60', '+75', '+82 s']);
   });
 
   it('keeps the single-lane time-scaled view on a one-bank device', () => {
