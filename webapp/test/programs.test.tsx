@@ -450,8 +450,9 @@ describe('a program that needs banks', () => {
 
     const id = 100; // the mock assigns from 100 up
     expect(screen.getByTestId(`program-banks-${String(id)}`).textContent).toBe('A–D');
+    // Letters, not counts: the same sentence the device and the run page use.
     expect(screen.getByTestId(`program-banks-refusal-${String(id)}`).textContent).toContain(
-      'Needs 4 banks; this device has 1.',
+      'Needs banks A–D; this device has one bank (A).',
     );
     expect(screen.getByTestId(`program-load-${String(id)}`).hasAttribute('disabled')).toBe(false);
   });

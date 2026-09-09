@@ -17,10 +17,13 @@ import { createMockServer, type MockServer } from './mock-server/server';
 const PORT = 18091;
 
 /**
- * The run page against a *known* device bank count, which the mock does not
- * publish yet — `stateUpdate.targetBanks` is stage 2 of #207. So the state is
- * seeded into the query the SSE hook writes, which is the same door the frame
- * comes through, and no stream is opened.
+ * The run page against a known device bank count. The state is seeded into the
+ * query the SSE hook writes - the same door a real frame comes through - so
+ * these cases are reachable without standing up a stream and a device for each.
+ *
+ * `targetBanks` is on every frame, one key per bank, so seeding it absent is
+ * the genuine "nothing known yet" case: no frame, or firmware from before
+ * banks. It is never how a one-bank device reports itself.
  */
 const BANKED: Program = {
   id: 141,
@@ -103,11 +106,6 @@ describe('a loaded program that needs banks this device does not have', () => {
     expect(startButton().disabled).toBe(true);
   });
 
-  it('names one bank in words rather than as a range', async () => {
-    await renderRun({ A: 'shown' });
-    expect(screen.getByTestId('run-banks-notice').textContent).toContain('This device has one bank (A)');
-  });
-
   // Clamping to the two banks present would drop the overrides that are the
   // reason it will not start, which is the one thing the operator is here to
   // see. The program is drawn as written.
@@ -116,11 +114,20 @@ describe('a loaded program that needs banks this device does not have', () => {
     expect(document.querySelectorAll('.lane')).toHaveLength(4);
   });
 
-  it('says nothing and refuses nothing before the first frame', async () => {
+  // No frame yet, or firmware older than banks. Not a one-bank device: that
+  // sends `{A: ...}`, which is the case below.
+  it('says nothing and refuses nothing while the bank count is unknown', async () => {
     await renderRun(undefined);
 
     expect(screen.queryByTestId('run-banks-notice')).toBeNull();
     expect(startButton().disabled).toBe(false);
+  });
+
+  it('refuses it on a one-bank device, which reports itself with one key', async () => {
+    await renderRun({ A: 'shown' });
+
+    expect(screen.getByTestId('run-banks-notice').textContent).toContain('This device has one bank (A)');
+    expect(startButton().disabled).toBe(true);
   });
 
   it('says nothing on a device that has the banks', async () => {

@@ -11,8 +11,8 @@ import { ProgramEditor, type EditorTarget } from '../components/ProgramEditor';
 import { downloadJson, programFilename } from '../lib/download';
 import { useSettings } from '../context/SettingsContext';
 import { useControlLockStatus } from '../hooks/useControlLockStatus';
-import { BANK_LETTERS, type DocumentIssue, parseProgramDocument } from '../lib/program-document';
-import { deviceBankCount } from '../lib/bank-state';
+import { type DocumentIssue, parseProgramDocument } from '../lib/program-document';
+import { bankRangeLabel, deviceBankCount } from '../lib/bank-state';
 import {
   failureNotice,
   issueLines,
@@ -329,7 +329,7 @@ export function ProgramsView(): React.ReactNode {
                 // Stored and listed like any other program; only Load is
                 // refused. The library is a library, and the same file runs on
                 // the four-bank device next door.
-                const needs = program.banksRequired ?? 1;
+                const needs = program.banksRequired;
                 // Only once the device has said what it has. Load stays
                 // available either way (D-41): loading is how a program
                 // reaches the timeline to be reviewed, and it is the start
@@ -355,13 +355,13 @@ export function ProgramsView(): React.ReactNode {
                           className={clsx(styles.badge, unrunnable ? styles.badgeUnavailable : styles.badgeBanks)}
                           data-testid={`program-banks-${String(program.id)}`}
                         >
-                          A–{BANK_LETTERS[needs - 1]}
+                          {bankRangeLabel(needs)}
                         </span>
                       )}
                       {unrunnable && (
                         <p className={styles.unrunnable} data-testid={`program-banks-refusal-${String(program.id)}`}>
-                          Needs {needs} banks; this device has {bankCount}. It stays in the library and runs on a device
-                          with banks A–{BANK_LETTERS[needs - 1]}.
+                          Needs banks {bankRangeLabel(needs)}; this device has {bankRangeLabel(bankCount)}. It stays in
+                          the library and runs on a device that has them.
                         </p>
                       )}
                     </td>

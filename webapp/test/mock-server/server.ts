@@ -1087,10 +1087,8 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   }
 
   /**
-   * `rt::Executor::enter_event`. The rule is stated once, on `banks` in
-   * `contracts/program.schema.json`: a bank the event names goes where it is
-   * named, every other bank follows `command`, and a bank named by neither is
-   * left where it is - which is also why an event with neither moves nothing.
+   * `rt::Executor::enter_event`. The resolution rule is stated once, on
+   * `banks` in `contracts/program.schema.json`.
    */
   function enterEvent(event: Event): void {
     const named = event.banks ?? {};

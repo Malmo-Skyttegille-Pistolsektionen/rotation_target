@@ -1299,7 +1299,7 @@ export interface components {
             title: string;
             description: string;
             /** @description The highest bank letter the program names, or 1. Derived by the device from the document, never taken from the file. A program whose `banksRequired` exceeds the number of banks the device has is listed and stored like any other, and refused at start. */
-            banksRequired?: number;
+            banksRequired: number;
             /** @description True for programs flashed with the firmware. Read-only programs cannot be deleted or updated. */
             readonly: boolean;
         };

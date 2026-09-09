@@ -256,19 +256,17 @@ export function RunView(): React.ReactNode {
     enabled: bankCount > 1,
     staleTime: Infinity,
   });
-  const bankNames = useMemo(
-    () => (hardware?.active.banks ?? []).map((bank) => bank.name),
-    [hardware],
-  );
+  const bankNames = useMemo(() => (hardware?.active.banks ?? []).map((bank) => bank.name), [hardware]);
 
   const loadedProgramId = state?.loadedProgramId ?? null;
   const currentSeriesIndex = state?.programState?.currentSeriesIndex;
   const currentEventIndex = state?.programState?.currentEventIndex;
   const tickerMs = state?.programState?.tickerMs;
   const isRunning = state?.programState?.running ?? false;
-  // What the device has actually said it drives - null until the first SSE
-  // frame. `bankCount` above is the strip's width, which falls back to one so
-  // there is always something to draw; a refusal needs the stronger answer.
+  // What the device has actually said it drives, or null when it has not said:
+  // no frame yet, or firmware from before banks. `bankCount` above is the
+  // strip's width, which always has a value so there is something to draw; a
+  // refusal needs the stronger answer.
   const knownBankCount = deviceBankCount(state);
 
   const { data: loadedProgram } = useQuery({
@@ -539,7 +537,8 @@ export function RunView(): React.ReactNode {
         {banksUnavailable && activeProgram !== null && knownBankCount !== null && (
           <div className={styles.banksNotice} data-testid='run-banks-notice' role='status'>
             <strong>{activeProgram.title}</strong> needs banks A–{BANK_LETTERS[banksNeeded - 1]}. This device has{' '}
-            {knownBankCount === 1 ? 'one bank (A)' : `A–${BANK_LETTERS[knownBankCount - 1]}`}, so it cannot be started here.
+            {knownBankCount === 1 ? 'one bank (A)' : `A–${BANK_LETTERS[knownBankCount - 1]}`}, so it cannot be started
+            here.
           </div>
         )}
 

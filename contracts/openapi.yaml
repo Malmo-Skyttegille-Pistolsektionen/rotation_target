@@ -2445,7 +2445,7 @@ components:
 
     ProgramSummary:
       type: object
-      required: [id, title, description, readonly]
+      required: [id, title, description, banksRequired, readonly]
       properties:
         id:
           type: integer

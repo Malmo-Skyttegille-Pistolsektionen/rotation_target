@@ -190,9 +190,8 @@ void Executor::force_unload() {
 void Executor::enter_event(int32_t index, const Event &event, bool play_audio) {
   state_.current_event_index.set(index);
 
-  // The rule is stated once, on `banks` in contracts/program.schema.json:
-  // a bank the event names goes where it names, every other bank follows
-  // `command`, and a bank named by neither is left where it is.
+  // The resolution rule is stated once, on `banks` in
+  // contracts/program.schema.json.
   //
   // Two calls at most - the banks to show and the banks to hide - because the
   // pins are driven a set at a time, so a sequential program costs no more
@@ -205,6 +204,9 @@ void Executor::enter_event(int32_t index, const Event &event, bool play_audio) {
     hide |= ~event.named_banks();
   }
 
+  // Unbounded on purpose: `~named_banks()` sets every bit above the device's
+  // count too. set_targets() and the pin driver iterate the banks that exist,
+  // so the bound belongs there rather than in every caller.
   if (show != 0) set_targets(show, true);
   if (hide != 0) set_targets(hide, false);
 

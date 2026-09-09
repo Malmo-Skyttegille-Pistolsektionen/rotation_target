@@ -81,14 +81,35 @@ export function aggregateBankState(state: readonly BankState[]): BankState | 'mi
 /**
  * How many banks the device drives, or `null` while nothing is known.
  *
- * The count comes from `stateUpdate.targetBanks`, so it is unknown until the
- * first SSE frame arrives - and "unknown" is not "one". Treating it as one
- * would tell an operator, for the second or two before the stream connects,
- * that a program they can perfectly well run needs a device they do not have.
- * Callers hold off on any refusal until this answers.
+ * The count comes from `stateUpdate.targetBanks`, which every frame carries -
+ * one key on a one-bank device. So an absent map means one of two things, and
+ * neither is "one bank": no frame has arrived yet, or the device is running
+ * firmware from before banks existed. Either way the honest answer is "not
+ * known", and treating it as one would tell an operator, for the second before
+ * the stream connects, that a program they can perfectly well run needs a
+ * device they do not have. Callers hold off on any refusal until this answers.
  */
 export function deviceBankCount(state: { targetBanks?: Record<string, unknown> } | null | undefined): number | null {
   const banks = state?.targetBanks;
   if (banks === undefined) return null;
   return Math.max(1, Object.keys(banks).length);
+}
+
+/**
+ * The banks a device or a program covers, as an operator says them: `one bank
+ * (A)`, or `A–D`.
+ *
+ * One formatter, because the same sentence is assembled on the Programs list
+ * and on the Run page and the two disagreeing about whether a device has "1
+ * bank" or "A" is exactly the drift this avoids. Letters, never counts: a
+ * letter is what the operator reads on the strip, on the card glyph and in the
+ * program file.
+ *
+ * The en-dash is typographic and deliberate. The device's own `detail` is
+ * ASCII (`A-D`) because problem details are read off a serial console as often
+ * as a screen; this is the same sentence set properly for the browser.
+ */
+export function bankRangeLabel(count: number): string {
+  if (count <= 1) return 'one bank (A)';
+  return `A–${BANK_LETTERS[Math.min(count, BANK_LETTERS.length) - 1]}`;
 }
