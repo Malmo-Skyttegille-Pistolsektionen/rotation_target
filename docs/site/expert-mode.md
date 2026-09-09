@@ -92,9 +92,17 @@ control line each, lettered by position:
 | **Pad now** | The level actually on the pin, read back rather than remembered. It answers "is the firmware driving this" without a multimeter |
 
 **Add bank B** appends the next letter, up to eight — the most this firmware
-drives. Only the **last** bank can be removed, and **bank A never can**: the
-letter is the position, so removing B on a four-bank device would silently
-re-aim C and D at the wrong lanes. Remove them from the end and add them back.
+drives. A new row starts with **no GPIO**; Save waits until every row has one,
+because GPIO 0 is a pin the device refuses and a row cannot be left holding a
+value that would come back an error.
+
+Only the **last** bank can be removed, and **bank A never can**: the letter is
+the position, so removing B on a four-bank device would silently re-aim C and D
+at the wrong lanes. Remove them from the end and add them back.
+
+A row whose values differ from the compiled defaults is marked **changed**, the
+same way every other setting on this page is, so **Reset to defaults** says
+what it would undo.
 
 A bank you add is only configuration; the line still has to be wired, and the
 device adopts the new count when it restarts.

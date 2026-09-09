@@ -50,6 +50,9 @@ The controls follow it. Instead of one **Toggle Targets** button there is a
 **Show all** / **Hide all** move every bank together. A one-bank device — which
 is most of them — keeps the single badge and the single button, unchanged.
 
+Until the device has said where the targets are, the badge reads `-` rather
+than guessing.
+
 ## The timeline
 
 ![A run in progress](img/run-running.png)

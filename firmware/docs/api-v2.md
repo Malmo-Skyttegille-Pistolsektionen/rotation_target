@@ -87,7 +87,7 @@ immediately, and receives it again after every change.
     "tickerMs": 7480           // milliseconds elapsed in the current series
   },
   "targetStatus": "shown",     // "shown" | "hidden" - bank A
-  "targetBanks": {             // omitted on a one-bank device
+  "targetBanks": {             // always sent; one key per bank
     "A": "shown",
     "B": "hidden"
   }
@@ -105,11 +105,12 @@ position: `A` is `banks[0]` in the hardware configuration (#207, D-41).
 `targetStatus` stays required and reports **bank A** — truthful and partial for
 a client that predates banks. It is deliberately not "shown if any bank is",
 which would invent a meaning for a field deployed clients already read one way.
-`targetBanks` beside it carries every bank, and is **present only when the
-device has more than one**: exactly one key per bank, contiguous from `A`, so a
-client can read the bank count off it. A one-bank device — which is every
-device shipped so far — sends the frame it sent before banks existed, key for
-key.
+`targetBanks` beside it carries every bank and is **always sent**, including by
+a device with a single bank, where it is `{"A": …}`. Exactly one key per bank,
+contiguous from `A`, so a client reads the bank count off a key count in the
+first frame it receives — rather than inferring "one" from an absence, which is
+also what firmware from before banks looks like. **Absent means old firmware,
+and nothing else.**
 
 `POST /targets/{show,hide,toggle}` take an optional body naming the banks to
 move:
@@ -118,10 +119,13 @@ move:
 { "banks": ["B", "C"] }        // omit the body entirely to move every bank
 ```
 
-A letter this device does not have is `400 /problems/bank_unavailable`, and
+**No body, or `{}`**, means every bank — `{}` is the bodyless call written out.
+`banks` present but not an array of letters, or naming a letter this device does
+not have, is `400 /problems/bank_unavailable` with a `detail` saying which, and
 **nothing moves**: the list is applied whole, so a typo cannot half-work. An
-empty array is refused for the same reason it is not widened — "omitted" is
-what means every bank.
+empty array is refused for the same reason it is not widened — "omitted" is what
+means every bank. A repeated letter is accepted: it asks for nothing a single
+mention does not.
 
 `toggle` has two rules, because the two callers are asking different questions.
 **With a list**, each named bank flips against its own state, so a mixed strip
@@ -157,11 +161,11 @@ clip that would not play (`audio_playback_failed`, raised from the playback
 task) and a stored program file that would not parse (`program_invalid`, raised
 by the boot scan).
 
-`target_bank_fault` — a bank's pad read back as a level other than the one it
-was driven to — is **specified but not emitted**: `contracts/asyncapi.yaml`
-carries its `bank`/`expected`/`actual` context so a client can render it, and
-the firmware does not sample the pads. `GET /diagnostics/info`'s `banks` array
-is where a pad level is read today.
+There is **no code for a target-bank fault**, deliberately (D-41): nothing
+samples the pads, and an enum member no firmware emits outlives the release it
+was added in while clients branch on it. `GET /diagnostics/info`'s
+`banks[].padLevel` is where a pad is read today; the code arrives with the
+sampling.
 
 It is fire-and-forget by design. Nothing is buffered for a client that connects
 later and nothing is replayed on reconnect, so the event is a notification and
