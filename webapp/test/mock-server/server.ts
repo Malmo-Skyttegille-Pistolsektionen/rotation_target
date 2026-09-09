@@ -147,9 +147,29 @@ const PIN_COLLISION =
  * `targetGpio`/`targetActiveLow` are bank A's copy of it (#207, D-41).
  */
 function banksOf(config: HardwareConfig): NonNullable<HardwareConfig['banks']> {
-  return config.banks && config.banks.length > 0
-    ? config.banks
-    : [{ gpio: config.targetGpio, activeLow: config.targetActiveLow, name: '' }];
+  // Only when `banks` is *absent*. An empty array is a configuration naming no
+  // bank, which `hardwareConfigRefusal` refuses the way `rt::validate` does
+  // (`kBankCountOutOfRange`) - substituting bank A for it here would accept a
+  // body the device rejects.
+  return config.banks ?? [{ gpio: config.targetGpio, activeLow: config.targetActiveLow, name: '' }];
+}
+
+/**
+ * A configuration whose scalars and `banks[0]` agree, for the two places that
+ * take one from outside: the seed and a `PUT`. The device has no way to hold a
+ * bank A that disagrees with itself - `targetGpio` is read *from* `banks[0]` -
+ * so a seed of `{ targetGpio: 12 }` beside a default `banks[0].gpio: 5` has to
+ * resolve rather than split.
+ */
+function reconcileBankA(config: HardwareConfig, scalarsEditBankA: boolean): HardwareConfig {
+  const banks = banksOf(config).map((bank) => ({ ...bank }));
+  if (banks.length === 0) return config;
+  // Scalars given without a `banks` array edit bank A; otherwise the array is
+  // the truth and the scalars follow it.
+  if (scalarsEditBankA) {
+    banks[0] = { ...banks[0], gpio: config.targetGpio, activeLow: config.targetActiveLow };
+  }
+  return { ...config, banks, targetGpio: banks[0].gpio, targetActiveLow: banks[0].activeLow };
 }
 
 function hardwareConfigRefusal(config: HardwareConfig): string | null {
@@ -295,8 +315,12 @@ export interface MockSeed {
   /**
    * The hardware configuration the device booted on (#144). Absent means the
    * compiled defaults and `overridden: false`, which is an out-of-box device.
+   *
+   * Partial: a seed names what it cares about. `targetGpio` on its own is
+   * reconciled into `banks[0]`, because the device reads the scalar *from* the
+   * array and cannot hold a bank A that disagrees with itself.
    */
-  hardware?: HardwareConfig;
+  hardware?: Partial<HardwareConfig>;
   /** Whether the button-opened configuration window is open (#144). */
   configWindowOpen?: boolean;
   /**
@@ -565,7 +589,19 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   // Two copies, because a save takes effect at the next boot: `active` is what
   // the device came up on, `saved` is what it has been told. `restart()` is
   // what closes the gap - the mock's stand-in for a reboot.
-  let activeHardware: HardwareConfig = { ...HARDWARE_DEFAULTS, ...(seed.hardware ?? {}) };
+  // Reconciled, so a seed naming only `targetGpio` cannot leave bank A's pin
+  // disagreeing with the scalar the device reads it from.
+  const bootConfig = (): HardwareConfig => {
+    const given: Partial<HardwareConfig> = seed.hardware ?? {};
+    // The *seed* is what decides, not the merge: HARDWARE_DEFAULTS always
+    // carries a `banks`, so the merged object always looks as if one was given.
+    return reconcileBankA(
+      { ...HARDWARE_DEFAULTS, ...given },
+      given.banks === undefined &&
+        (given.targetGpio !== undefined || given.targetActiveLow !== undefined),
+    );
+  };
+  let activeHardware: HardwareConfig = bootConfig();
   let savedHardware: HardwareConfig = { ...activeHardware };
   // The firmware opens this with a button press and reports it so the app can
   // decide whether to offer the settings at all. There is no button here, so a
@@ -591,7 +627,9 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
   const state: ServerState = {
     loadedProgram: null,
     programState: null,
-    bankShown: banksOf(activeHardware).map(() => false),
+    // Latched at boot to `targetsShownAtBoot` (D-31), as targets::init() drives
+    // the pins and executor::init() adopts them.
+    bankShown: banksOf(activeHardware).map(() => activeHardware.targetsShownAtBoot),
     controlLockPassword: null,
     controlLockTokens: new Set<string>(),
     seriesStartTime: null,
@@ -650,18 +688,12 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       // Bank A (D-41), never "shown if any": that would invent a meaning for a
       // field deployed clients already read one way.
       targetStatus: state.bankShown[0] ? 'shown' : 'hidden',
-      // Omitted on a one-bank device, where `targetStatus` says everything -
-      // so the frame such a device sends is the one it sent before banks.
-      ...(state.bankShown.length > 1
-        ? {
-            targetBanks: Object.fromEntries(
-              state.bankShown.map((shown, index) => [
-                BANK_LETTERS[index],
-                shown ? 'shown' : 'hidden',
-              ]),
-            ) as NonNullable<StateUpdatePayload['targetBanks']>,
-          }
-        : {}),
+      // Always, one-bank devices included, where it is `{A: ...}` (D-41): a
+      // count read off a key count is unambiguous, where a count inferred from
+      // an absence collides with "firmware from before banks".
+      targetBanks: Object.fromEntries(
+        state.bankShown.map((shown, index) => [BANK_LETTERS[index], shown ? 'shown' : 'hidden']),
+      ) as NonNullable<StateUpdatePayload['targetBanks']>,
     };
   }
 
@@ -679,12 +711,25 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     if (!body) return { named: false, indices: everyBank() };
 
     const parsed = parseJsonObject(body);
-    const letters = parsed?.banks;
-    if (!Array.isArray(letters)) {
+    if (parsed === null) {
       problemResponse(
         res,
         '/problems/bank_unavailable',
         'Expected a JSON object like {"banks": ["A"]}, or no body at all to move every bank.',
+      );
+      return null;
+    }
+    // `{}` is the bodyless call written out: it names no banks, so it means all
+    // of them.
+    if (parsed.banks === undefined || parsed.banks === null) {
+      return { named: false, indices: everyBank() };
+    }
+    const letters = parsed.banks;
+    if (!Array.isArray(letters)) {
+      problemResponse(
+        res,
+        '/problems/bank_unavailable',
+        '\'banks\' must be an array of bank letters, like ["A", "B"].',
       );
       return null;
     }
@@ -699,7 +744,11 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
 
     const indices: number[] = [];
     for (const letter of letters) {
-      const index = typeof letter === 'string' ? BANK_LETTERS.indexOf(letter) : -1;
+      // `length === 1` first: `''.indexOf` aside, `BANK_LETTERS.indexOf('')` is
+      // 0, so an empty entry would pass as bank A. The firmware requires
+      // exactly one character too (`entry.size() == 1`).
+      const index =
+        typeof letter === 'string' && letter.length === 1 ? BANK_LETTERS.indexOf(letter) : -1;
       // Applied whole: a typo in the second entry must not leave the first
       // already driven.
       if (index < 0 || index >= state.bankShown.length) {
@@ -741,6 +790,18 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     if (shown.length > 0) parts.push(`${phrase(shown, true)} shown`);
     if (hidden.length > 0) parts.push(`${phrase(hidden, parts.length === 0)} hidden`);
     return parts.length > 0 ? parts.join(', ') : 'No targets moved';
+  }
+
+  /**
+   * `targets::level()` - the level actually on the pad, not what it means. With
+   * `activeLow` a shown bank reads 0, which is the whole point of the field:
+   * it distinguishes "the firmware never drove it" from "something else is
+   * holding it".
+   */
+  function padLevel(index: number): number {
+    const bank = banksOf(activeHardware)[index];
+    const shown = state.bankShown[index] ?? false;
+    return shown === (bank?.activeLow ?? true) ? 0 : 1;
   }
 
   /** Mirrors `rt::Executor::set_targets`: only the named banks move. */
@@ -1130,13 +1191,13 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         audioCount: audios.length,
         ipAddress: seed.ipAddress ?? '127.0.0.1',
         targetGpio: banksOf(activeHardware)[0].gpio,
-        targetGpioLevel: state.bankShown[0] ? 1 : 0,
+        targetGpioLevel: padLevel(0),
         // The same pair per bank, so the read-back means something on a device
         // with more than one.
         banks: banksOf(activeHardware).map((bank, index) => ({
           id: BANK_LETTERS[index],
           gpio: bank.gpio,
-          padLevel: state.bankShown[index] ? 1 : 0,
+          padLevel: padLevel(index),
           name: bank.name,
         })),
         controlLockEnabled: isControlLockOn(),
@@ -1263,6 +1324,28 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       }
 
       const patch = parsed as Partial<HardwareConfig>;
+      // The two shape refusals the firmware answers before it can read a bank
+      // at all (`web_server.cpp`). Without them a malformed body threw here,
+      // which is a 500 the device never sends.
+      if (patch.banks !== undefined) {
+        if (!Array.isArray(patch.banks)) {
+          problemResponse(res, '/problems/hardware_config_invalid', "'banks' must be an array of target banks");
+          return;
+        }
+        if (
+          patch.banks.some(
+            (bank) => bank === null || typeof bank !== 'object' || Array.isArray(bank),
+          )
+        ) {
+          problemResponse(
+            res,
+            '/problems/hardware_config_invalid',
+            "Each entry in 'banks' must be an object with gpio, activeLow and name",
+          );
+          return;
+        }
+      }
+
       const candidate: HardwareConfig = {
         ...savedHardware,
         ...patch,
@@ -1296,17 +1379,15 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         };
         candidate.banks = banks;
       }
-      // Kept in step whichever way round they were sent, so a GET never reports
-      // a bank A that disagrees with itself.
-      candidate.targetGpio = banksOf(candidate)[0].gpio;
-      candidate.targetActiveLow = banksOf(candidate)[0].activeLow;
-
       const refusal = hardwareConfigRefusal(candidate);
       if (refusal !== null) {
         problemResponse(res, '/problems/hardware_config_invalid', refusal);
         return;
       }
-      savedHardware = candidate;
+      // Only once it is valid, so an empty `banks` is refused rather than
+      // reconciled into bank A. A GET never reports a bank A at odds with
+      // itself.
+      savedHardware = reconcileBankA(candidate, false);
       jsonResponse(res, 200, { message: 'Hardware configuration saved - restart the device to apply it' });
       return;
     }
@@ -1985,22 +2066,28 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
       restorePrograms();
       state.loadedProgram = null;
       state.programState = null;
-      state.bankShown = banksOf({ ...HARDWARE_DEFAULTS, ...(seed.hardware ?? {}) }).map(() => false);
+      activeHardware = bootConfig();
+      savedHardware = { ...activeHardware };
+      // Every bank at the level the pins are latched to at boot (D-31), which
+      // is what targets::init() drives and executor::init() adopts - not
+      // "hidden", which is a state no boot of a stock device produces.
+      state.bankShown = banksOf(activeHardware).map(() => activeHardware.targetsShownAtBoot);
       state.controlLockPassword = null;
       state.controlLockTokens.clear();
       state.seriesStartTime = null;
       state.playingAudioId = null;
       state.playingUntil = null;
       audios.splice(0, audios.length, ...seed.audios);
-      activeHardware = { ...HARDWARE_DEFAULTS, ...(seed.hardware ?? {}) };
-      savedHardware = { ...activeHardware };
     },
 
     restart(): void {
       activeHardware = { ...savedHardware };
       // The bank count is adopted at boot, exactly as targets::init() does -
-      // which is why adding a bank in Expert mode needs a restart to appear.
-      state.bankShown = banksOf(activeHardware).map((_, index) => state.bankShown[index] ?? false);
+      // which is why adding a bank in Expert mode needs a restart to appear. A
+      // bank that did not exist before comes up at the boot level (D-31).
+      state.bankShown = banksOf(activeHardware).map(
+        (_, index) => state.bankShown[index] ?? activeHardware.targetsShownAtBoot,
+      );
     },
 
     listen(): Promise<number> {
