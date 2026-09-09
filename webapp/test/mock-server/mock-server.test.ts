@@ -1438,8 +1438,7 @@ describe('target banks', () => {
       type: '/problems/hardware_config_invalid',
       title: 'Invalid hardware configuration',
       status: 400,
-      detail:
-        'targetGpio and targetActiveLow describe bank A, so they must match banks[0]. Send one or the other.',
+      detail: 'targetGpio and targetActiveLow describe bank A, so they must match banks[0]. Send one or the other.',
     });
   });
 
@@ -1680,6 +1679,56 @@ describe('target banks, program side', () => {
   it('uploads and loads that same program without complaint', async () => {
     const { id } = (await (await upload(BANKED)).json()) as { id: number };
     expect((await api(`/programs/${String(id)}/load`, { method: 'POST' })).status).toBe(200);
+  });
+
+  // The mirror seam: this is `rt::Executor::enter_event`, and a webapp test
+  // that drives a four-bank device is only worth anything if it matches.
+  it('drives each bank where its event names it, and leaves the rest to command', async () => {
+    const four = await withBanks(4);
+    const sse = await openSSE(four.server.port);
+    try {
+      const created = await fetch(`${four.base}/programs`, {
+        method: 'POST',
+        body: JSON.stringify({
+          title: 'Sequential',
+          description: '',
+          series: [
+            {
+              name: 'S',
+              optional: false,
+              events: [
+                { duration: 1000, command: 'hide', banks: { B: 'show' } },
+                { duration: 1000, banks: { C: 'show' } },
+                { duration: 1000 },
+              ],
+            },
+          ],
+        }),
+      });
+      const { id } = (await created.json()) as { id: number };
+      await fetch(`${four.base}/programs/${String(id)}/load`, { method: 'POST' });
+      await fetch(`${four.base}/programs/start`, { method: 'POST', body: JSON.stringify({ id }) });
+
+      const banksNow = (): Record<string, string> =>
+        last(sse.payloads<StateUpdatePayload>('stateUpdate')).targetBanks ?? {};
+
+      await flushIO();
+      // Event 0: hide is the baseline, B is the exception.
+      expect(banksNow()).toEqual({ A: 'hidden', B: 'shown', C: 'hidden', D: 'hidden' });
+
+      // Event 1 names C and carries no command, so A, B and D stay put.
+      clock.advance(1000);
+      await flushIO();
+      expect(banksNow()).toEqual({ A: 'hidden', B: 'shown', C: 'shown', D: 'hidden' });
+
+      // Event 2 names nothing and commands nothing: a timed pause moves nothing.
+      clock.advance(1000);
+      await flushIO();
+      expect(banksNow()).toEqual({ A: 'hidden', B: 'shown', C: 'shown', D: 'hidden' });
+    } finally {
+      sse.close();
+      await four.server.close();
+    }
   });
 
   it('starts it on a device that has the banks', async () => {

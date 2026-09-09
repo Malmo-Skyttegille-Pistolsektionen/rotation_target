@@ -1083,10 +1083,22 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
     if (!state.programState) return;
 
     state.programState.currentEventIndex = location.index;
-    // A program's `command` means every bank, which is what it has always meant
-    // and why no existing program needs migrating (D-41). The per-event `banks`
-    // override is stage 3 of #207.
-    setBanks(everyBank(), series.events[location.index].command === 'show');
+    enterEvent(series.events[location.index]);
+  }
+
+  /**
+   * `rt::Executor::enter_event`. The rule is stated once, on `banks` in
+   * `contracts/program.schema.json`: a bank the event names goes where it is
+   * named, every other bank follows `command`, and a bank named by neither is
+   * left where it is - which is also why an event with neither moves nothing.
+   */
+  function enterEvent(event: Event): void {
+    const named = event.banks ?? {};
+    for (const index of everyBank()) {
+      const command = named[BANK_LETTERS[index]] ?? event.command;
+      if (command === undefined) continue;
+      state.bankShown[index] = command === 'show';
+    }
   }
 
   function runSimulationTick(): void {
