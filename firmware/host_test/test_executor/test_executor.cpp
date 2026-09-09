@@ -841,6 +841,38 @@ void test_per_bank_state_carries_across_a_series() {
   TEST_ASSERT_EQUAL_size_t(0, four.effects.target_history.size());
 }
 
+// Uploading and loading a program for a bigger device are both fine; it is the
+// start that is refused, and nothing moves (D-41).
+void test_a_program_needing_more_banks_is_refused_at_start() {
+  rt::Program p = banked_program({banked_event(200, "hide", rt::bank_bit(3), 0)});
+  Harness two(2);
+  two.executor.load(&p);  // the load itself is allowed
+  two.effects.clear();
+
+  TEST_ASSERT_EQUAL(rt::StartResult::kBanksUnavailable, two.executor.start(kFixtureId));
+
+  TEST_ASSERT_FALSE(two.state.running);
+  TEST_ASSERT_EQUAL_size_t(0, two.effects.target_history.size());
+}
+
+void test_the_same_program_starts_where_the_banks_exist() {
+  rt::Program p = banked_program({banked_event(200, "hide", rt::bank_bit(3), 0)});
+  Harness four(4);
+  four.executor.load(&p);
+
+  TEST_ASSERT_EQUAL(rt::StartResult::kStarted, four.executor.start(kFixtureId));
+}
+
+// The wrong-program check outranks it: a start aimed at a program the device
+// does not hold is that, whatever banks the one it does hold needs.
+void test_a_mismatch_outranks_the_bank_refusal() {
+  rt::Program p = banked_program({banked_event(200, "hide", rt::bank_bit(3), 0)});
+  Harness two(2);
+  two.executor.load(&p);
+
+  TEST_ASSERT_EQUAL(rt::StartResult::kMismatch, two.executor.start(kFixtureId + 1));
+}
+
 int main() {
   UNITY_BEGIN();
 
@@ -895,6 +927,9 @@ int main() {
   RUN_TEST(test_banks_without_a_command_leave_the_others_alone);
   RUN_TEST(test_an_event_naming_nothing_moves_nothing);
   RUN_TEST(test_per_bank_state_carries_across_a_series);
+  RUN_TEST(test_a_program_needing_more_banks_is_refused_at_start);
+  RUN_TEST(test_the_same_program_starts_where_the_banks_exist);
+  RUN_TEST(test_a_mismatch_outranks_the_bank_refusal);
   RUN_TEST(test_toggle_on_four_banks_hides_only_when_every_bank_is_shown);
   RUN_TEST(test_toggling_a_bank_the_device_does_not_have_changes_nothing);
   RUN_TEST(test_flip_moves_each_named_bank_against_its_own_state);

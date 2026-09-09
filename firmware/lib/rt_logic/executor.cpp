@@ -92,6 +92,13 @@ StartResult Executor::start(int32_t expected_program_id) {
   // wrong program is never answered "fine, it is running".
   if (state_.program->id != expected_program_id) return StartResult::kMismatch;
 
+  // Checked here, in the same locked section as the selection and for the same
+  // reason D-27 gives: between a client's last frame and its start arriving,
+  // any other client can load something else.
+  if (banks_required(*state_.program) > state_.bank_count()) {
+    return StartResult::kBanksUnavailable;
+  }
+
   // Already running is success, not an error - a second start is a no-op the
   // caller does not need to distinguish.
   if (state_.running) return StartResult::kStarted;

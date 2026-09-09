@@ -138,7 +138,11 @@ StartOutcome start(int32_t expected_program_id) {
     // or name a program that is no longer the one that refused it.
     Lock lock;
     outcome.result = s_executor.start(expected_program_id);
-    if (s_state.program != nullptr) outcome.loaded_program_id = s_state.program->id;
+    if (s_state.program != nullptr) {
+      outcome.loaded_program_id = s_state.program->id;
+      outcome.banks_required = rt::banks_required(*s_state.program);
+    }
+    outcome.bank_count = s_state.bank_count();
   }
   flush(true);
   return outcome;

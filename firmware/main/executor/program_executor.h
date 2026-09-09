@@ -33,6 +33,10 @@ struct StartOutcome {
 
   rt::StartResult result;
   int32_t loaded_program_id;
+  // Only meaningful for `kBanksUnavailable`, and read under the same lock as
+  // the result so the refusal quotes the device it was actually refused by.
+  size_t banks_required = 1;
+  size_t bank_count = 1;
 };
 
 // Starts the loaded program, but only if it is `expected_program_id` (#95).

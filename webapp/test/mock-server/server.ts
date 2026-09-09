@@ -1799,7 +1799,7 @@ export function createMockServer(options: MockServerOptions = {}): MockServer {
         problemResponse(
           res,
           '/problems/program_banks_unavailable',
-          `Start refused: the program needs banks A-${BANK_LETTERS[required - 1]}, and this device has ` +
+          `Program needs banks A-${BANK_LETTERS[required - 1]}; this device has ` +
             `${bankCount() === 1 ? 'one bank (A)' : `A-${BANK_LETTERS[bankCount() - 1]}`}`,
         );
         return;

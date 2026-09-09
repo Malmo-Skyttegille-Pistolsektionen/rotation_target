@@ -1673,7 +1673,7 @@ describe('target banks, program side', () => {
       type: '/problems/program_banks_unavailable',
       title: 'The program needs banks this device does not have',
       status: 409,
-      detail: 'Start refused: the program needs banks A-D, and this device has one bank (A)',
+      detail: 'Program needs banks A-D; this device has one bank (A)',
     });
   });
 
