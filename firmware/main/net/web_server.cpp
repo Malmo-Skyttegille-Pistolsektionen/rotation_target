@@ -620,15 +620,9 @@ std::string diagnostics_info_json() {
   out += std::to_string(audios::all().size());
   out += ",\"ipAddress\":";
   out += rt::json_quote(net_mgr::ip_address());
-  // What the target pin is configured as, and what is actually on the pad -
+  // Per bank: what the pin is configured as, and what is actually on the pad -
   // the pair that distinguishes "the firmware never drove it" from
   // "something else is holding it".
-  // Bank A, kept beside `banks` rather than replaced by it: a client from
-  // before banks reads the pair it always read.
-  out += ",\"targetGpio\":";
-  out += std::to_string(targets::pin(0));
-  out += ",\"targetGpioLevel\":";
-  out += std::to_string(targets::level(0));
   // Names come from the active configuration, which is what targets::init()
   // sized itself from - the bound is belt-and-braces, not a real disagreement.
   const std::vector<rt::TargetBank> &active_banks = hardware_store::current().banks;
@@ -1130,13 +1124,7 @@ bool s_webapp_bundled = false;
 // The three views the contract promises, plus the two booleans a client needs
 // to say anything useful about them.
 std::string hardware_config_json(const rt::HardwareConfig &config) {
-  // `targetGpio`/`targetActiveLow` are bank A and stay required, so a client
-  // that predates banks reads the device it always read (D-41).
-  std::string out = "{\"targetGpio\":";
-  out += std::to_string(config.banks[0].gpio);
-  out += ",\"targetActiveLow\":";
-  out += config.banks[0].active_low ? "true" : "false";
-  out += ",\"banks\":[";
+  std::string out = "{\"banks\":[";
   for (size_t i = 0; i < config.banks.size(); ++i) {
     if (i > 0) out += ',';
     out += "{\"gpio\":";
@@ -1264,8 +1252,7 @@ void register_config_routes() {
     rt::HardwareConfig config = hardware_store::saved();
 
     // `banks` replaces the whole array - it is an ordered list, and a partial
-    // merge of one has no meaning. Applied before the scalars so the agreement
-    // check below sees both.
+    // merge of one has no meaning.
     if (!doc["banks"].isNull()) {
       if (!doc["banks"].is<JsonArray>()) {
         return send_problem(res, rt::problem::kHardwareConfigInvalid,
@@ -1289,30 +1276,6 @@ void register_config_routes() {
       config.banks = banks;
     }
 
-    // Bank A. `saved()` never returns a configuration without one, and an empty
-    // `banks` is refused by validate() rather than indexed into here.
-    if (config.banks.empty()) {
-      return send_problem(res, rt::problem::kHardwareConfigInvalid,
-                          rt::refusal_message(rt::ConfigRefusal::kBankCountOutOfRange));
-    }
-    rt::TargetBank &bank_a = config.banks[0];
-    // Sending both is allowed, but they have to agree: there is no rule for
-    // deciding which of two contradictory values the operator meant.
-    if (!doc["banks"].isNull()) {
-      const bool gpio_disagrees =
-          !doc["targetGpio"].isNull() && (doc["targetGpio"] | bank_a.gpio) != bank_a.gpio;
-      const bool polarity_disagrees =
-          !doc["targetActiveLow"].isNull() &&
-          (doc["targetActiveLow"] | bank_a.active_low) != bank_a.active_low;
-      if (gpio_disagrees || polarity_disagrees) {
-        return send_problem(res, rt::problem::kHardwareConfigInvalid,
-                            "targetGpio and targetActiveLow describe bank A, so they must match "
-                            "banks[0]. Send one or the other.");
-      }
-    }
-    if (!doc["targetGpio"].isNull()) bank_a.gpio = doc["targetGpio"] | bank_a.gpio;
-    if (!doc["targetActiveLow"].isNull())
-      bank_a.active_low = doc["targetActiveLow"] | bank_a.active_low;
     if (!doc["hostname"].isNull()) config.hostname = doc["hostname"] | config.hostname;
     if (!doc["displayName"].isNull())
       config.display_name = doc["displayName"] | config.display_name;

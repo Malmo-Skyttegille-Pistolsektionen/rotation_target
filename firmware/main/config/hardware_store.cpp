@@ -239,11 +239,8 @@ rt::ConfigRefusal save(const rt::HardwareConfig &config, rt::ValidationDetail *d
     nvs_set_str(handle, BankKey(i, "name").text, config.banks[i].name.c_str());
   }
 
-  // Everything this save did not write, so nothing outlives it: the pre-bank
-  // keys a migrated device still carries, and the banks a save that reduced the
-  // count left behind.
-  erase_if_present(handle, hw_key::kLegacyGpio);
-  erase_if_present(handle, hw_key::kLegacyActiveLow);
+  // The banks a save that reduced the count left behind, so nothing outlives
+  // this write.
   for (size_t i = config.banks.size(); i < rt::kMaxTargetBanks; i++) {
     erase_if_present(handle, BankKey(i, "gpio").text);
     erase_if_present(handle, BankKey(i, "alow").text);
@@ -295,9 +292,9 @@ bool reset() {
   // with wifi_store, and taking the WiFi credentials out with the pin mapping
   // would turn "undo my hardware change" into "and now find the setup portal".
   for (const char *key :
-       {hw_key::kLegacyGpio, hw_key::kLegacyActiveLow, hw_key::kBankCount, hw_key::kHostname,
-        hw_key::kDisplayName, hw_key::kBootShown, hw_key::kLedGpio, hw_key::kI2sPort,
-        hw_key::kI2sBck, hw_key::kI2sWs, hw_key::kI2sDout, hw_key::kHttpPort, hw_key::kWifiRetry}) {
+       {hw_key::kBankCount, hw_key::kHostname, hw_key::kDisplayName, hw_key::kBootShown,
+        hw_key::kLedGpio, hw_key::kI2sPort, hw_key::kI2sBck, hw_key::kI2sWs, hw_key::kI2sDout,
+        hw_key::kHttpPort, hw_key::kWifiRetry}) {
     if (!erase_if_present(handle, key)) {
       nvs_close(handle);
       return false;

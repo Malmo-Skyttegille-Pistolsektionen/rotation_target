@@ -41,7 +41,7 @@ bool Executor::toggle_targets(BankMask bank_mask) {
   // A mask naming no bank this device has moves nothing, so it must not report
   // that it did: "all of an empty set is shown" would answer `hidden` and
   // publish a flag no pin backs. Bank A's state is what the answer means.
-  if (!matched) return state_.target_status_shown();
+  if (!matched) return state_.bank_a_shown();
 
   set_targets(bank_mask, !all_shown);
   return !all_shown;
