@@ -8,7 +8,7 @@ import { useHardwareConfigApi } from '../api/hardwareConfig';
 import type { ProgramSummary, StateUpdatePayload } from '../api/types';
 import { Timeline } from '../components/Timeline';
 import { deviceBankCount } from '../lib/bank-state';
-import { BANK_LETTERS, banksRequired } from '../lib/program-document';
+import { banksRequired } from '../lib/program-document';
 import { CountdownModal } from '../components/CountdownModal';
 import { StartDelayControl } from '../components/StartDelayControl';
 import { useSettings } from '../context/SettingsContext';
@@ -266,8 +266,10 @@ export function RunView(): React.ReactNode {
   const currentEventIndex = state?.programState?.currentEventIndex;
   const tickerMs = state?.programState?.tickerMs;
   const isRunning = state?.programState?.running ?? false;
-  // Null until the first SSE frame: nothing is refused on a guess.
-  const bankCount = deviceBankCount(state);
+  // What the device has actually said it drives - null until the first SSE
+  // frame. `bankCount` above is the strip's width, which falls back to one so
+  // there is always something to draw; a refusal needs the stronger answer.
+  const knownBankCount = deviceBankCount(state);
 
   const { data: loadedProgram } = useQuery({
     queryKey: ['program', loadedProgramId],
@@ -280,11 +282,11 @@ export function RunView(): React.ReactNode {
   // What the program needs, against what the device has. Unknown until the
   // first SSE frame, and nothing is refused on a guess.
   const banksNeeded = activeProgram === null ? 1 : banksRequired(activeProgram);
-  const banksUnavailable = bankCount !== null && banksNeeded > bankCount;
+  const banksUnavailable = knownBankCount !== null && banksNeeded > knownBankCount;
   // Drawn as written, not as this device could run it: clamping to the banks
   // present would silently discard the overrides that are the reason the
   // program will not start, which is the one thing the operator is here to see.
-  const timelineBanks = Math.max(bankCount ?? 1, banksNeeded);
+  const timelineBanks = Math.max(knownBankCount ?? 1, banksNeeded);
 
   const loadMutation = useMutation({
     mutationFn: programsApi.load,
@@ -534,10 +536,10 @@ export function RunView(): React.ReactNode {
 
         {/* Loading it was fine and reviewing it here is the point; only the
             start is refused, with `/problems/program_banks_unavailable`. */}
-        {banksUnavailable && activeProgram !== null && bankCount !== null && (
+        {banksUnavailable && activeProgram !== null && knownBankCount !== null && (
           <div className={styles.banksNotice} data-testid='run-banks-notice' role='status'>
             <strong>{activeProgram.title}</strong> needs banks A–{BANK_LETTERS[banksNeeded - 1]}. This device has{' '}
-            {bankCount === 1 ? 'one bank (A)' : `A–${BANK_LETTERS[bankCount - 1]}`}, so it cannot be started here.
+            {knownBankCount === 1 ? 'one bank (A)' : `A–${BANK_LETTERS[knownBankCount - 1]}`}, so it cannot be started here.
           </div>
         )}
 
