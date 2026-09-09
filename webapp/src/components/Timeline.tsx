@@ -575,11 +575,7 @@ function BankLaneSeries({
           single-lane axis does. */}
       <div className={styles.laneAxis} data-testid={`timeline-lane-axis-${String(seriesIndex)}`}>
         {ticks.map((tick, index) => (
-          <span
-            key={tick.ms}
-            className={clsx(index === 0 && styles.laneTickFirst, index === ticks.length - 1 && styles.laneTickLast)}
-            style={{ left: `${String((tick.ms / totalMs) * 100)}%` }}
-          >
+          <span key={tick.ms} style={{ left: `${String((tick.ms / totalMs) * 100)}%` }}>
             {tick.label}
             {index === ticks.length - 1 && ' s'}
           </span>

@@ -69,12 +69,18 @@ void register_routes(PsychicHttpServer &server) {
     if (index == 0) {
       ESP_LOGI(TAG, "Upload '%s' starting", filename == nullptr ? "(unnamed)" : filename);
 
-      // Cleared here as well as in onRequest, because neither site sees every
-      // request. A raw (non-multipart) body whose onUpload returns ESP_FAIL is
-      // answered by the handler itself and never reaches onRequest, so without
-      // this the refusal it recorded would be reported to whoever asks next.
-      // The power-cycle flag deliberately survives: it is not about one
-      // request.
+      // The contract requires multipart/form-data. A raw body that is refused
+      // is answered by the upload handler itself and never reaches onRequest,
+      // so anything recorded for it would be reported to whoever asks next.
+      // Refused before anything is recorded, which is what keeps "nothing
+      // survives a request" true.
+      if (request != nullptr && !request->isMultipart()) {
+        ESP_LOGW(TAG, "Refused: not a multipart upload");
+        return ESP_FAIL;
+      }
+
+      // Per request; the power-cycle flag deliberately survives, it is not
+      // about one request.
       s_reboot_pending = false;
       s_refusal = rt::ota::Refusal::kNone;
 

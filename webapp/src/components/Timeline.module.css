@@ -665,15 +665,6 @@
   white-space: nowrap;
 }
 
-/* The edge labels hang inward so neither is clipped by the lane's box. */
-.laneAxis .laneTickFirst {
-  transform: none;
-}
-
-.laneAxis .laneTickLast {
-  transform: translateX(-100%);
-}
-
 .laneAxis span:first-child {
   transform: none;
 }
