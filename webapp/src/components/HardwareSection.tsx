@@ -255,7 +255,7 @@ export function HardwareSection(): React.ReactNode {
       {state.restartRequired && (
         <p className={styles.pending} data-testid='hardware-restart-required'>
           Saved, but <strong>not yet in use</strong> — the device is still running the configuration it started with.
-          Restart it to apply the change.
+          Use <strong>Restart to apply</strong> at the top of this page.
         </p>
       )}
 
@@ -537,7 +537,10 @@ export function HardwareSection(): React.ReactNode {
           </p>
         )}
 
-        <p className={styles.hint}>Nothing here takes effect until the device restarts.</p>
+        <p className={styles.hint}>
+          Nothing here takes effect until the device restarts, which is one button at the top of this page rather than
+          one per section.
+        </p>
       </>
 
       {notice && (

@@ -37,12 +37,11 @@
 #include "esp_random.h"
 #include "esp_system.h"
 #include "esp_timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "issue_buffer.h"
 #include "json_util.h"
 #include "net_mgr.h"
 #include "problem.h"
+#include "restart.h"
 #include "uri_path.h"
 #include "version.h"
 #include "program_executor.h"
@@ -1335,7 +1334,7 @@ void register_config_routes() {
 // endpoint is gated on physical presence for that reason. A read anybody on
 // the network may make is not the second place.
 std::string wifi_status_json(bool radio, const std::string &ssid, int rssi, int bars,
-                             bool provisioned) {
+                             bool provisioned, bool restart_required) {
   // Not `!ip_address().empty()`: the address outlives a drop, so a device
   // reconnecting would report itself connected to a network it has left.
   const bool connected = radio && !ssid.empty();
@@ -1356,6 +1355,9 @@ std::string wifi_status_json(bool radio, const std::string &ssid, int rssi, int 
   out += rt::json_quote(net_mgr::mac_address());
   out += ",\"provisioned\":";
   out += provisioned ? "true" : "false";
+  // The WiFi sibling of HardwareConfigState.restartRequired (D-42).
+  out += ",\"restartRequired\":";
+  out += restart_required ? "true" : "false";
   out += "}";
   return out;
 }
@@ -1368,7 +1370,7 @@ std::string wifi_status_json(bool radio, const std::string &ssid, int rssi, int 
 // which an absent route cannot say. The other two refuse.
 void register_wifi_routes() {
   s_server.on("/api/v2/wifi", HTTP_GET, [](PsychicRequest *, PsychicResponse *res) {
-    return send_json(res, 200, wifi_status_json(false, "", 0, 0, false));
+    return send_json(res, 200, wifi_status_json(false, "", 0, 0, false, false));
   });
 
   const auto refuse = [](PsychicRequest *, PsychicResponse *res) {
@@ -1381,16 +1383,6 @@ void register_wifi_routes() {
 
 #else
 
-// Restart on its own task so the handler can return and the 200 can drain out
-// of the socket first, the same shape as the OTA reboot. Blocking the httpd
-// task for a second and a half instead would stall every other client on the
-// device while it waited.
-void wifi_reboot_task(void *) {
-  vTaskDelay(pdMS_TO_TICKS(1500));
-  ESP_LOGW(TAG, "WiFi credentials saved - restarting to join the new network");
-  esp_restart();
-}
-
 void register_wifi_routes() {
   s_server.on("/api/v2/wifi", HTTP_GET, [](PsychicRequest *, PsychicResponse *res) {
     const std::string joined = net_mgr::ssid();
@@ -1398,7 +1390,7 @@ void register_wifi_routes() {
     return send_json(
         res, 200,
         wifi_status_json(true, joined, strength, wifi_scan::bars(static_cast<int8_t>(strength)),
-                         wifi_store::provisioned()));
+                         wifi_store::provisioned(), wifi_store::saved_since_boot()));
   });
 
   // Behind the window rather than public, unlike every other GET: a scan takes
@@ -1449,13 +1441,14 @@ void register_wifi_routes() {
     }
 
     // Before the window, because "stop the run" is the more useful of the two
-    // instructions - and this one does not merely take effect at the next
-    // restart, it *causes* the restart. Taking the device off the network
-    // mid-sequence strands whoever is on the line.
+    // instructions. This no longer takes the device off the network by itself -
+    // the restart does, and it is a separate call - but the same rule as the
+    // hardware PUT applies: reconfiguring the machine and operating it are
+    // different activities.
     if (executor::is_running()) {
       return send_problem(res, rt::problem::kProgramRunning,
-                          "A program is running - stop it before moving the device to another "
-                          "network, because saving restarts the device");
+                          "A program is running - stop it before changing which network the "
+                          "device joins");
     }
 
     // #208: being on the network proves nothing, since the setup AP's password
@@ -1494,13 +1487,33 @@ void register_wifi_routes() {
                           "network it is on");
     }
 
-    xTaskCreate(wifi_reboot_task, "wifi_reboot", 2048, nullptr, 5, nullptr);
-    return send_message(res, "Saved. The device is restarting to join \"" + ssid +
-                                 "\" - this page will lose contact with it.");
+    return send_message(res, "Saved. The device joins \"" + ssid +
+                                 "\" when it restarts - it stays on this network until then.");
   });
 }
 
 #endif  // CONFIG_RT_NET_OPENETH
+
+// --- system ----------------------------------------------------------------
+
+void register_system_routes() {
+  s_server.on("/api/v2/system/restart", HTTP_POST, [](PsychicRequest *req, PsychicResponse *res) {
+    if (!require_control_lock(req, res)) return ESP_OK;
+
+    if (executor::is_running()) {
+      return send_problem(res, rt::problem::kProgramRunning,
+                          "A program is running - stop it before restarting the device");
+    }
+
+    // No configuration window guard, deliberately - D-42.
+    if (!device_restart::schedule("requested over POST /api/v2/system/restart")) {
+      return send_problem(res, rt::problem::kRestartFailed,
+                          "Could not start the restart - the device is out of memory. Nothing has "
+                          "been restarted; try again, or power-cycle the device.");
+    }
+    return send_json(res, 200, "{\"status\":\"accepted\",\"restarting\":true}");
+  });
+}
 
 void register_static_routes() {
   // Only .gz survives the build for the text assets (firmware/CMakeLists.txt),
@@ -1594,6 +1607,7 @@ bool start() {
   register_audio_routes();
   register_config_routes();
   register_wifi_routes();
+  register_system_routes();
   // Lives in its own translation unit: the ESP-IDF OTA calls have a lifetime
   // discipline of their own (a handle that must be aborted, not ended, before
   // it is finalised) and do not belong mixed into the request handlers here.

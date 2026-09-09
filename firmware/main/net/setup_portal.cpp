@@ -15,12 +15,12 @@
 // to upstream, so the ordering is fixed here rather than there.
 #include "dns_server.h"
 #include "ssid_choice.h"
-#include "esp_system.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "json_util.h"
 #include "boot_button.h"
+#include "restart.h"
 #include "rgb_led.h"
 #include "wifi_scan.h"
 #include "wifi_store.h"
@@ -301,14 +301,20 @@ esp_err_t save(httpd_req_t *req) {
     return ESP_FAIL;
   }
 
-  httpd_resp_set_type(req, "text/html");
-  httpd_resp_send(req, "<p>Saved. The device is restarting and will join that network.</p>",
-                  HTTPD_RESP_USE_STRLEN);
+  // The one place a save still restarts on its own (D-42): on the setup AP
+  // there is nothing else the operator could be doing. Scheduled before the
+  // page is written, so the page cannot promise a restart that was refused -
+  // the credentials are saved either way, and a power cycle applies them.
+  const bool restarting = device_restart::schedule("credentials saved at the setup portal");
 
-  // Long enough for the response to leave the socket before the reset.
-  vTaskDelay(pdMS_TO_TICKS(1500));
-  ESP_LOGI(TAG, "Credentials saved - restarting");
-  esp_restart();
+  httpd_resp_set_type(req, "text/html");
+  httpd_resp_send(req,
+                  restarting
+                      ? "<p>Saved. The device is restarting and will join that network.</p>"
+                      : "<p>Saved, but the device could not restart itself. Switch it off and on "
+                        "again to join that network.</p>",
+                  HTTPD_RESP_USE_STRLEN);
+  return ESP_OK;
 }
 
 void start_ap() {

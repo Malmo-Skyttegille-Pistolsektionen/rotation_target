@@ -24,6 +24,15 @@ which network it joins, which pins it drives, and the crash dump download —
 are on [Expert mode](expert-mode.md), behind a button press on the board
 itself.
 
+**One line can appear at the top:** *Configuration saved but not applied;
+restart from Expert mode.* It means somebody changed a setting on that page and
+the device is still running what it started with. The change is not lost and
+nothing is broken — it needs
+[**Restart to apply**](expert-mode.md#restart-to-apply), which is on that page
+whether or not the five-minute window is still open. It is here so that the
+next person to pick the device up finds out, rather than being surprised by it
+at the next power cycle.
+
 **Target banks are configured there too.** How many lines this device drives,
 what each is called and which pin it is on is Expert-mode work —
 [the bank table](expert-mode.md#the-target-banks) — because a wrong pin is one
@@ -109,8 +118,9 @@ It is running on whatever network its firmware was built for, which cannot be
 read back or changed without rebuilding it — so if it is working, it is working
 by luck of being in the right building.
 
-To *change* the network, see [Expert mode](expert-mode.md#wifi). It restarts
-the device, which is why it is not on this page.
+To *change* the network, see [Expert mode](expert-mode.md#wifi). It is a
+once-per-site decision behind the button press on the board, which is why it is
+not on this page.
 
 ## About
 

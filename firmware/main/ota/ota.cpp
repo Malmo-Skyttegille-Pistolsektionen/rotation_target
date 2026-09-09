@@ -6,14 +6,11 @@
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
-#include "esp_system.h"
-#include "esp_timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 
 #include "ota_policy.h"
 #include "problem.h"
 #include "program_executor.h"
+#include "restart.h"
 #include "sse_hub.h"
 
 namespace ota {
@@ -25,9 +22,13 @@ const esp_partition_t *s_partition = nullptr;
 volatile bool s_in_progress = false;
 uint64_t s_written = 0;
 
-// Set when the image is accepted; the reboot happens from its own task so the
-// HTTP response is actually delivered before the chip restarts.
+// Set when the image is accepted; device_restart::schedule leaves long enough
+// for the HTTP response to be delivered before the chip restarts.
 volatile bool s_reboot_pending = false;
+
+// The image landed and is the boot partition, but no restart could be started.
+// Sticky until a power cycle: see the guard at the top of onUpload.
+volatile bool s_installed_awaiting_power_cycle = false;
 
 // Why the last upload was refused, so onRequest can answer with the status the
 // contract declares rather than a blanket 400.
@@ -50,13 +51,6 @@ void abort_upload(const char *why) {
   clear();
 }
 
-void reboot_task(void *) {
-  // Long enough for the 200 to reach the client and the socket to drain.
-  vTaskDelay(pdMS_TO_TICKS(1500));
-  ESP_LOGW(TAG, "Restarting into the new firmware");
-  esp_restart();
-}
-
 void raise(rt::ota::Refusal refusal) {
   sse_hub::broadcast_issue("ota_refused", rt::ota::message(refusal));
 }
@@ -74,8 +68,31 @@ void register_routes(PsychicHttpServer &server) {
                      size_t len, bool final) -> esp_err_t {
     if (index == 0) {
       ESP_LOGI(TAG, "Upload '%s' starting", filename == nullptr ? "(unnamed)" : filename);
-      s_refusal = rt::ota::Refusal::kNone;
+
+      // The contract requires multipart/form-data. A raw body that is refused
+      // is answered by the upload handler itself and never reaches onRequest,
+      // so anything recorded for it would be reported to whoever asks next.
+      // Refused before anything is recorded, which is what keeps "nothing
+      // survives a request" true.
+      if (request != nullptr && !request->isMultipart()) {
+        ESP_LOGW(TAG, "Refused: not a multipart upload");
+        return ESP_FAIL;
+      }
+
+      // Per request; the power-cycle flag deliberately survives, it is not
+      // about one request.
       s_reboot_pending = false;
+      s_refusal = rt::ota::Refusal::kNone;
+
+      // Nothing may be written while an installed image is waiting for a power
+      // cycle: the inactive slot is now the *boot* partition, so
+      // esp_ota_get_next_update_partition would hand back the image somebody is
+      // waiting to run and the first write would erase it. Refused before the
+      // partition is even looked up; onRequest answers off the same flag.
+      if (s_installed_awaiting_power_cycle) {
+        ESP_LOGW(TAG, "Refused: an installed image is waiting for a power cycle");
+        return ESP_FAIL;
+      }
 
       // Reclaim a handle a previous upload leaked. A client that vanishes
       // mid-transfer never delivers a final chunk, so nothing else closes it.
@@ -158,17 +175,47 @@ void register_routes(PsychicHttpServer &server) {
     ESP_LOGI(TAG, "Accepted %llu bytes, version '%s' - restarting shortly", s_written,
              written.version);
     clear();
-    s_reboot_pending = true;
-    xTaskCreate(reboot_task, "ota_reboot", 2048, nullptr, 5, nullptr);
+    // Only once the restart is on its way: an image that will boot but never
+    // does is worse than a refusal.
+    s_reboot_pending = device_restart::schedule("into the new firmware");
+    if (!s_reboot_pending) {
+      s_installed_awaiting_power_cycle = true;
+      return ESP_FAIL;
+    }
     return ESP_OK;
   });
 
   upload.onRequest([](PsychicRequest *req, PsychicResponse *res) -> esp_err_t {
     (void)req;
-    if (s_reboot_pending) {
+
+    // Read and clear, before anything can return. A multipart body whose file
+    // part is empty or missing never reaches onUpload at all -
+    // MultipartProcessor guards the final callback with `if (_itemSize)` - so
+    // without this a request that wrote nothing would answer with the previous
+    // upload's outcome.
+    const bool restarting = s_reboot_pending;
+    const rt::ota::Refusal reported = s_refusal;
+    s_reboot_pending = false;
+    s_refusal = rt::ota::Refusal::kNone;
+
+    if (restarting) {
       res->setCode(200);
       res->setContentType("application/json");
       res->setContent("{\"status\":\"accepted\",\"restarting\":true}");
+      return res->send();
+    }
+
+    // Not read-and-cleared, unlike the two above: it holds until the device is
+    // power-cycled, so every upload attempted in the meantime gets this answer
+    // rather than the "empty image" a cleared flag would fall through to.
+    if (s_installed_awaiting_power_cycle) {
+      const std::string body =
+          rt::problem_json(rt::problem::kRestartFailed,
+                           "The firmware was installed and is the boot partition, but the restart "
+                           "could not be started. Power-cycle the device to run it.");
+      res->setCode(rt::problem::kRestartFailed.status);
+      res->setContentType(rt::kProblemContentType);
+      res->setContent(body.c_str());
       return res->send();
     }
 
@@ -177,12 +224,12 @@ void register_routes(PsychicHttpServer &server) {
     // its own, a bad image never will. onUpload cannot answer for itself -
     // returning ESP_FAIL is how it reports - so the reason is carried here.
     const rt::ota::Refusal refusal =
-        s_refusal == rt::ota::Refusal::kNone ? rt::ota::Refusal::kEmptyImage : s_refusal;
+        reported == rt::ota::Refusal::kNone ? rt::ota::Refusal::kEmptyImage : reported;
     const auto &type = refusal == rt::ota::Refusal::kProgramRunning ? rt::problem::kProgramRunning
                                                                     : rt::problem::kOtaImageRefused;
     const std::string body = rt::problem_json(type, rt::ota::message(refusal));
     res->setCode(type.status);
-    res->setContentType("application/problem+json");
+    res->setContentType(rt::kProblemContentType);
     res->setContent(body.c_str());
     return res->send();
   });

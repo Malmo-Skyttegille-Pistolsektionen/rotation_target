@@ -40,6 +40,10 @@ bool seeds_suppressed() {
   return set;
 }
 
+// Cleared by the restart itself: the station reads its configuration at boot
+// and nowhere else.
+bool s_saved_since_boot = false;
+
 void append_unique(std::vector<Credentials> &out, const Credentials &candidate) {
   if (!is_set(candidate.ssid)) return;
   for (const auto &existing : out) {
@@ -94,6 +98,8 @@ bool save(const std::string &ssid, const std::string &password) {
             nvs_commit(handle) == ESP_OK;
   nvs_close(handle);
 
+  if (ok) s_saved_since_boot = true;
+
   ESP_LOGI(TAG, "%s network '%s'", ok ? "Saved" : "Failed to save", ssid.c_str());
   return ok;
 }
@@ -109,6 +115,10 @@ bool forget() {
 
   ESP_LOGW(TAG, "%s every stored and compiled-in network", ok ? "Forgot" : "Failed to forget");
   return ok;
+}
+
+bool saved_since_boot() {
+  return s_saved_since_boot;
 }
 
 bool provisioned() {

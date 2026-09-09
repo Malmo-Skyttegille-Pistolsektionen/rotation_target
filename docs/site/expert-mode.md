@@ -28,6 +28,31 @@ If the tab is not there, nobody has pressed the button recently. If it vanishes
 while you are typing, the five minutes ran out — press three times again and
 carry on.
 
+## Restart to apply
+
+**Nothing on this page takes effect until the device restarts**, and nothing on
+it restarts the device by itself. Each section has a plain **Save**, which
+stores the change; the device carries on doing what it was doing.
+
+**Restart to apply** appears beside the *Expert mode* heading whenever the
+device is holding a setting it is not yet running, and applying everything is
+one press of it. So a pin, the hostname and the network can all be corrected in
+the same sitting, and the device goes down once instead of three times.
+
+!!! note "The page loses contact while it restarts"
+
+    A few seconds, then reload. If a network change was among what you saved,
+    reload at the device's name on the *new* network — and if it cannot join
+    that one, it raises its own setup network (`…-setup-XXXX`) and waits there,
+    which is [the way back](connecting.md#the-setup-portal) rather than a fault.
+
+The button stays after the five-minute window lapses, and the sections do not:
+what the window authorises is the *change*, and this only applies one already
+made. **Settings** says the same thing in one line, so somebody who did not make
+the change still finds out about it.
+
+It will not restart during a run. Stop the program first.
+
 ## WiFi
 
 Which network the device joins. The same form as
@@ -41,20 +66,13 @@ the device knew and let it fall back to its setup portal — see
 [moving the device](connecting.md#moving-the-device-to-a-different-network),
 which is still the route when the board cannot reach *any* network it knows.
 
-!!! warning "Saving restarts the device"
+**Save** stores the network and nothing more: the device stays on the network
+this page is served over, so a mistake here is still fixable from the page that
+made it. It moves when you press **Restart to apply**, which is where the
+warning above about losing contact applies.
 
-    The page will stop responding, on purpose — you are taking the device off
-    the network the page is served over.
-
-    - If it joins the new network, it comes back at the same name. Reload after
-      a few seconds.
-    - **If it cannot, it raises its own setup network** (`…-setup-XXXX`) and
-      waits there, exactly like a board that has never been configured. That is
-      the way back, not a fault — [the setup portal](connecting.md#the-setup-portal)
-      has the steps.
-
-    Nothing you have uploaded is affected. Programs and clips are a separate
-    thing from which network the device is on.
+Nothing you have uploaded is affected. Programs and clips are a separate thing
+from which network the device is on.
 
 **Rescan networks** runs a fresh scan. It takes a couple of seconds during
 which the device's radio is off its own channel, so the page may pause — that
@@ -75,8 +93,9 @@ Wrong values here are the ones whose way back is a USB cable:
   which at least leaves the app up to fix it from.
 
 **Nothing here takes effect until the device restarts**, and the page says so
-when a saved value is not yet in use. A change that appears to have done
-nothing is how somebody ends up reflashing a working device.
+when a saved value is not yet in use — then **Restart to apply** at the top of
+the page. A change that appears to have done nothing is how somebody ends up
+reflashing a working device.
 
 ### The target banks
 

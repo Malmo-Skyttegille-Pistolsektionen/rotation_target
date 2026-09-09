@@ -427,6 +427,32 @@ event where a fault matters most. It locks writing; this is a read (D-39).
 `Content-Disposition` names it `<hostname>-<version>-<resetReason>.zip`, with no
 date: the device has no clock. Served chunked, so there is no `Content-Length`.
 
+## Configuration, and the one call that applies it
+
+`PUT /api/v2/config/hardware` and `PUT /api/v2/wifi` **store and stop there**.
+Neither re-drives a pin, renames mDNS or re-associates the radio: the station's
+configuration and the target pins are read at boot and nowhere else, so a write
+that took effect in place would have to unpick a running device.
+
+Each reports the gap on its own `GET`, as `restartRequired`:
+`GET /config/hardware` compares `active` (what boot latched) with `saved`;
+`GET /wifi` reports `wifi_store::saved_since_boot()`, a flag rather than an SSID
+comparison for the reasons in D-42.
+
+`POST /api/v2/system/restart` closes both. It answers
+`200 {"status":"accepted","restarting":true}` and restarts about 1.5 s later —
+the same shape and the same `device_restart::schedule()` as `POST /ota`, so the
+response drains before the chip goes down. `500 /problems/restart_failed` when
+that task cannot be created: nothing restarts, so nothing is claimed. `POST /ota`
+answers the same type when an accepted image is installed and the restart could
+not be started — a power cycle runs it.
+
+Guards: the control lock, because restarting is changing the device, and
+`409 /problems/program_running`, because a restart mid-sequence drops the
+targets and cuts the spoken commands. **Not** the configuration window, unlike
+the two writes it applies — D-42 for why, and for why the setup portal
+(`main/net/setup_portal.cpp`) still restarts itself after a save.
+
 ## Uploads
 
 `POST /api/v2/programs` takes a JSON body. The id in the document is ignored:

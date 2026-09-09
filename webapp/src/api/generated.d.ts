@@ -664,23 +664,25 @@ export interface paths {
          */
         get: operations["getWifiStatus"];
         /**
-         * Join a different network
-         * @description Saves the credentials to NVS and **restarts the device**, which is the
-         *     only way they take effect: the station's configuration is read at boot,
-         *     and re-associating in place would leave the HTTP server answering on an
-         *     address that no longer routes.
+         * Store the credentials for a different network
+         * @description Saves the credentials to NVS. **Takes effect at the next restart**, the
+         *     same as `PUT /config/hardware`: the station's configuration is read at
+         *     boot, and re-associating in place would leave the HTTP server answering
+         *     on an address that no longer routes.
          *
-         *     The `200` therefore goes out *before* the restart, and the client that
-         *     sent the request loses the connection a moment later — deliberately, and
-         *     on the network it is being moved off. A client should say so before
-         *     sending, because a page that simply stops responding looks like a crash
-         *     rather than a success.
+         *     **This call no longer restarts the device.** It used to, which made a
+         *     network change the one setting that could not be corrected alongside
+         *     anything else — the page went away mid-session, taking the open
+         *     configuration window with it. Now the device stays on the network it is
+         *     on, `GET /wifi` reports `restartRequired`, and `POST /system/restart`
+         *     applies this together with anything else that was saved.
          *
-         *     **If the new network cannot be joined, the setup portal comes up** and
-         *     the device is reachable at `http://192.168.4.1` on its own access point
-         *     (`<hostname>-setup-XXXX`). That is the recovery path, not a failure
-         *     state — but it is invisible from a browser that just lost its page, so
-         *     it is worth telling the operator in advance.
+         *     **If the new network cannot be joined after that restart, the setup
+         *     portal comes up** and the device is reachable at `http://192.168.4.1`
+         *     on its own access point (`<hostname>-setup-XXXX`). That is the recovery
+         *     path, not a failure state — but it is invisible from a browser that
+         *     just lost its page, so it is worth telling the operator before they
+         *     restart.
          *
          *     Saving also lifts the suppression a factory reset sets, so the compiled
          *     seed networks come back as fallbacks (`wifi_store::save`).
@@ -688,8 +690,8 @@ export interface paths {
          *     ## Why both guards
          *
          *     The control lock, because this is a write, and one operator running a
-         *     competition should not have another move the device off the network
-         *     mid-run.
+         *     competition should not have another change where the device will look
+         *     for its network.
          *
          *     The configuration window on top of it, because of #208: the setup
          *     portal stopped accepting credentials on the strength of *being on the
@@ -738,6 +740,44 @@ export interface paths {
         get: operations["getWifiNetworks"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restart the device so saved configuration takes effect
+         * @description Answers `200` and **restarts about 1.5 seconds later**, the same shape
+         *     as `POST /ota` — long enough for this response to reach the client,
+         *     which should expect the connection to drop and the device to be
+         *     briefly unreachable before it answers again on the same name.
+         *
+         *     This is the one call that applies configuration. `PUT /config/hardware`
+         *     and `PUT /wifi` store and nothing else, and each reports
+         *     `restartRequired` on its `GET`; a pin, a hostname and a network can all
+         *     be corrected in one sitting and adopted by one restart.
+         *
+         *     **Not gated on the configuration window**, unlike the writes it
+         *     applies. The change was authorised when it was saved, in the window,
+         *     with somebody standing at the device — and a window that has since
+         *     lapsed would mean walking back to the board to press a button that
+         *     authorises nothing new. What it does gate on is the control lock, since
+         *     restarting is changing the device, and a running program, since a
+         *     restart mid-sequence drops the targets and cuts the spoken commands.
+         *
+         *     There is nothing to send. A body is ignored.
+         */
+        post: operations["restartSystem"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1168,6 +1208,21 @@ export interface components {
             macAddress: string;
             /** @description Whether credentials have ever been saved to NVS. False out of the box and after a factory reset, in which case the device is running on the networks its firmware was compiled with — worth saying, because those cannot be read back here or changed without a rebuild. */
             provisioned: boolean;
+            /**
+             * @description Credentials have been saved since this device booted, so the
+             *     station is still associated using the ones it started with. The
+             *     same meaning as `HardwareConfigState.restartRequired` and for the
+             *     same reason — a `PUT` stores and nothing more, and a change that
+             *     appears to have done nothing is what sends somebody looking for a
+             *     cable. `POST /system/restart` is what clears it.
+             *
+             *     Not derived by comparing the stored SSID with `ssid`: after a
+             *     restart the store may legitimately have fallen back to a compiled
+             *     seed network, and that is a device running what it was told, not
+             *     one waiting to be restarted. It also would not see a password
+             *     corrected on the same SSID. Always false on the Ethernet build.
+             */
+            restartRequired: boolean;
         };
         /** @description One network the scan heard, collapsed to the strongest radio using it. */
         WifiNetwork: {
@@ -1229,7 +1284,7 @@ export interface components {
              *     `program_invalid` `backend_issue` code in `asyncapi.yaml`.
              * @enum {string}
              */
-            type: "/problems/control_lock_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/control_lock_already_enabled" | "/problems/control_lock_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/wifi_unavailable" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/program_banks_unavailable" | "/problems/ota_image_refused" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/hardware_config_invalid" | "/problems/hardware_config_serial_only" | "/problems/hardware_config_window_closed" | "/problems/wifi_credentials_invalid" | "/problems/bank_unavailable" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed" | "/problems/wifi_store_failed";
+            type: "/problems/control_lock_credentials_required" | "/problems/invalid_password" | "/problems/route_not_found" | "/problems/program_not_found" | "/problems/audio_not_found" | "/problems/control_lock_already_enabled" | "/problems/control_lock_not_enabled" | "/problems/no_program_loaded" | "/problems/program_not_running" | "/problems/program_running" | "/problems/program_loaded" | "/problems/wifi_unavailable" | "/problems/start_program_mismatch" | "/problems/skip_program_mismatch" | "/problems/program_readonly" | "/problems/audio_readonly" | "/problems/audio_in_use" | "/problems/audio_playing" | "/problems/program_banks_unavailable" | "/problems/ota_image_refused" | "/problems/program_invalid" | "/problems/program_id_mismatch" | "/problems/series_index_invalid" | "/problems/start_id_required" | "/problems/skip_id_required" | "/problems/hardware_config_invalid" | "/problems/hardware_config_serial_only" | "/problems/hardware_config_window_closed" | "/problems/wifi_credentials_invalid" | "/problems/bank_unavailable" | "/problems/upload_missing_file" | "/problems/upload_missing_title" | "/problems/audio_format_unsupported" | "/problems/program_store_failed" | "/problems/audio_store_failed" | "/problems/wifi_store_failed" | "/problems/restart_failed";
             /**
              * @description A short summary of the type, identical for every occurrence of it. Not for display — it does not describe this occurrence.
              * @example Program is read-only
@@ -2509,7 +2564,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Stored. The device restarts about a second later and this connection dies with it. */
+            /** @description Stored. The device stays where it is until `POST /system/restart`. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2550,8 +2605,9 @@ export interface operations {
             /**
              * @description - `/problems/program_running` — a program is running. Checked
              *       before the window, because "stop the run" is the more useful
-             *       instruction, and taking the device off the network mid-sequence
-             *       would strand whoever is on the line.
+             *       instruction. Nothing here moves the device, but reconfiguring the
+             *       machine and operating it are different activities, and the same
+             *       guard is on `PUT /config/hardware`.
              *     - `/problems/wifi_unavailable` — this build has no radio
              *       (`CONFIG_RT_NET_OPENETH`). Permanent for this firmware, not a
              *       state to retry.
@@ -2622,6 +2678,60 @@ export interface operations {
             };
         };
     };
+    restartSystem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Accepted. The device restarts shortly; there is no further call to
+             *     make.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "accepted";
+                        restarting: boolean;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /**
+             * @description `/problems/program_running` — a program is running. Stop it first;
+             *     a restart takes the targets and the audio down mid-sequence.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description `/problems/restart_failed` — the device could not start the task
+             *     that does the restarting, which on this firmware means it is out of
+             *     memory. Nothing was restarted, so the answer is a refusal rather
+             *     than a `200` the client would sit waiting on.
+             */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     uploadFirmware: {
         parameters: {
             query?: never;
@@ -2680,6 +2790,25 @@ export interface operations {
             };
             /** @description A program is running. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /**
+             * @description `/problems/restart_failed` — the image was written and is the boot
+             *     partition, but the restart could not be started. The update is
+             *     installed; a power cycle runs it.
+             *
+             *     **Every further upload answers this too, until that power cycle.**
+             *     The slot the next upload would be written to is now the boot
+             *     partition, so a retry would erase the image somebody is waiting to
+             *     run. The device refuses before writing a byte rather than accepting
+             *     an upload it would destroy the update to serve.
+             */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

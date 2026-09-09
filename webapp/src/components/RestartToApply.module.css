@@ -1,0 +1,33 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+}
+
+.button {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.9rem;
+  border: 1px solid #b45309;
+  border-radius: 6px;
+  background-color: #b45309;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.notice {
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  background-color: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #3730a3;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}

@@ -48,4 +48,9 @@ bool forget();
 // Whether credentials have ever been saved. False on an out-of-box device.
 bool provisioned();
 
+// Whether save() has succeeded since boot - `restartRequired` on
+// `GET /api/v2/wifi`. Set inside save(); why a flag and not an SSID
+// comparison is D-42.
+bool saved_since_boot();
+
 }  // namespace wifi_store

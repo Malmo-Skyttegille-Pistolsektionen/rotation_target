@@ -513,7 +513,7 @@ function BankLaneSeries({
 
   const cursorPercent = (elapsedMs / totalMs) * 100;
   const bankCount = bankStates[0]?.state.length ?? 1;
-  const ticks = [0, 0.25, 0.5, 0.75, 1];
+  const ticks = laneAxisTicks(series, totalMs);
 
   return (
     <div className={styles.lanes} data-testid={`timeline-lanes-${String(seriesIndex)}`}>
@@ -570,15 +570,40 @@ function BankLaneSeries({
       </div>
 
       <div />
-      <div className={styles.laneAxis}>
-        {ticks.map((fraction) => (
-          <span key={fraction} style={{ left: `${String(fraction * 100)}%` }}>
-            {anchorRelativeSeconds(series, fraction * totalMs)}
+      {/* Round numbers, like any axis; the edges of the series are always
+          labelled and the unit is stated once, on the last tick, as the
+          single-lane axis does. */}
+      <div className={styles.laneAxis} data-testid={`timeline-lane-axis-${String(seriesIndex)}`}>
+        {ticks.map((tick, index) => (
+          <span key={tick.ms} style={{ left: `${String((tick.ms / totalMs) * 100)}%` }}>
+            {tick.label}
+            {index === ticks.length - 1 && ' s'}
           </span>
         ))}
       </div>
     </div>
   );
+}
+
+/**
+ * Axis ticks for a bank-lane series: round multiples of a step chosen so no
+ * more than eight fit, measured from the series' timer anchor so "0" is where
+ * the run timer reads zero, plus the series' two edges. A label that would sit
+ * on top of another is dropped, and the zero tick always wins that contest.
+ */
+function laneAxisTicks(series: Series, totalMs: number): Array<{ ms: number; label: string }> {
+  const anchor = anchorMs(series);
+  const spanSeconds = totalMs / 1000;
+  const step = [1, 2, 5, 10, 15, 20, 30, 60, 120, 300, 600].find((s) => spanSeconds / s <= 8) ?? 600;
+  const tooClose = step * 400; // 0.4 of a step, in ms
+  const multiples: number[] = [];
+  for (let seconds = Math.ceil(-anchor / 1000 / step) * step; seconds * 1000 + anchor <= totalMs; seconds += step) {
+    multiples.push(seconds * 1000 + anchor);
+  }
+  const edges = [0, totalMs].filter((edge) => Math.abs(edge - anchor) >= tooClose || edge === anchor);
+  const kept = multiples.filter((ms) => ms === anchor || edges.every((edge) => Math.abs(ms - edge) >= tooClose));
+  const all = [...new Set([...edges, ...kept])].sort((a, b) => a - b);
+  return all.map((ms) => ({ ms, label: anchorRelativeSeconds(series, ms) }));
 }
 
 /** Said in words, because the chip says it in colour and an icon. */
