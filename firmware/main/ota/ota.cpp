@@ -68,6 +68,16 @@ void register_routes(PsychicHttpServer &server) {
                      size_t len, bool final) -> esp_err_t {
     if (index == 0) {
       ESP_LOGI(TAG, "Upload '%s' starting", filename == nullptr ? "(unnamed)" : filename);
+
+      // Cleared here as well as in onRequest, because neither site sees every
+      // request. A raw (non-multipart) body whose onUpload returns ESP_FAIL is
+      // answered by the handler itself and never reaches onRequest, so without
+      // this the refusal it recorded would be reported to whoever asks next.
+      // The power-cycle flag deliberately survives: it is not about one
+      // request.
+      s_reboot_pending = false;
+      s_refusal = rt::ota::Refusal::kNone;
+
       // Nothing may be written while an installed image is waiting for a power
       // cycle: the inactive slot is now the *boot* partition, so
       // esp_ota_get_next_update_partition would hand back the image somebody is
@@ -172,11 +182,11 @@ void register_routes(PsychicHttpServer &server) {
   upload.onRequest([](PsychicRequest *req, PsychicResponse *res) -> esp_err_t {
     (void)req;
 
-    // Read and clear, before anything can return. onUpload resets these at its
-    // first chunk, and a body whose file part is empty or missing never gets
-    // one - MultipartProcessor guards the final callback with `if (_itemSize)`
-    // - so a request that skips onUpload entirely would otherwise answer with
-    // the previous upload's outcome.
+    // Read and clear, before anything can return. A multipart body whose file
+    // part is empty or missing never reaches onUpload at all -
+    // MultipartProcessor guards the final callback with `if (_itemSize)` - so
+    // without this a request that wrote nothing would answer with the previous
+    // upload's outcome.
     const bool restarting = s_reboot_pending;
     const rt::ota::Refusal reported = s_refusal;
     s_reboot_pending = false;

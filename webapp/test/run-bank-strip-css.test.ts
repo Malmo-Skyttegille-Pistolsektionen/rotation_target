@@ -45,8 +45,17 @@ describe('the target bank strip paints the state it is given', () => {
 
   // Order is the other half of the rule: were a colouring `.bankCell` rule ever
   // added back, it would have to come after these to win - and it must not win.
+  //
+  // Matched on the rule head rather than on the bare class name, or a comment
+  // mentioning `.badgeGreen` above the strip would satisfy this without a rule
+  // being there at all.
   it('declares .badgeGreen and .badgeRed before .bankCell', () => {
-    expect(CSS.indexOf('.badgeGreen')).toBeLessThan(CSS.indexOf('.bankCell'));
-    expect(CSS.indexOf('.badgeRed')).toBeLessThan(CSS.indexOf('.bankCell'));
+    const at = (selector: string): number => {
+      const index = CSS.search(new RegExp(`^\\${selector}\\s*\\{`, 'm'));
+      expect(index, `no rule head for ${selector}`).toBeGreaterThan(-1);
+      return index;
+    };
+    expect(at('.badgeGreen')).toBeLessThan(at('.bankCell'));
+    expect(at('.badgeRed')).toBeLessThan(at('.bankCell'));
   });
 });

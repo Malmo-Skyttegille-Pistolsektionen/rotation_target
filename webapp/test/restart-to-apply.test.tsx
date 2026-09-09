@@ -232,14 +232,19 @@ describe('restart to apply (#341)', () => {
     expect((screen.getByTestId('restart-to-apply') as HTMLButtonElement).disabled).toBe(true);
 
     // Now the device actually goes: the stream drops and comes back.
+    //
+    // The macrotask is not optional. React Query notifies observers from a
+    // `setTimeout(0)` and `act(async …)` only drains microtasks, so without it
+    // the next write can land before this one has reached the component - which
+    // never then renders with 'error', and the test fails a few runs in ten.
     await act(async () => {
       queryClient.setQueryData(['sse-status'], 'error');
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect((screen.getByTestId('restart-to-apply') as HTMLButtonElement).disabled).toBe(true);
 
     await act(async () => {
       queryClient.setQueryData(['sse-status'], 'connected');
-      await Promise.resolve();
     });
 
     await waitFor(() => {
