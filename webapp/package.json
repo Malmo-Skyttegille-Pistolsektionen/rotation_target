@@ -39,7 +39,7 @@
     "@rolldown/plugin-babel": "0.2.4",
     "@tanstack/router-devtools": "1.167.1",
     "@tanstack/router-plugin": "1.168.37",
-    "@testing-library/dom": "10.4.1",
+    "@testing-library/dom": "10.4.2",
     "@testing-library/react": "16.3.3",
     "@types/node": "25.9.6",
     "@types/react": "19.2.18",
