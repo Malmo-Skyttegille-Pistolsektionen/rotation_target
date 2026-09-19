@@ -28,8 +28,8 @@
     "@tanstack/router-core": "1.171.30",
     "clsx": "2.1.1",
     "csstype": "3.2.3",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@babel/core": "8.0.5",
@@ -42,8 +42,8 @@
     "@testing-library/dom": "10.4.2",
     "@testing-library/react": "16.3.3",
     "@types/node": "25.9.7",
-    "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.7",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
     "ajv": "8.20.0",
     "babel-plugin-react-compiler": "1.0.0",
