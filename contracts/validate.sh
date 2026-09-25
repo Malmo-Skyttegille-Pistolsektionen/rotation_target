@@ -24,6 +24,6 @@ python3 ./check_problem_types.py || status=1
 npx --yes @redocly/cli@2.54.2 lint openapi.yaml || status=1
 
 # renovate: datasource=npm depName=@asyncapi/cli
-npx --yes @asyncapi/cli@6.1.0 validate asyncapi.yaml || status=1
+npx --yes @asyncapi/cli@6.2.0 validate asyncapi.yaml || status=1
 
 exit "$status"
