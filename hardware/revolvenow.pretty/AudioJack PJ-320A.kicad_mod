@@ -1,0 +1,233 @@
+(footprint "AudioJack PJ-320A"
+	(version 20241229)
+	(generator "pcbnew")
+	(generator_version "9.0")
+	(layer "F.Cu")
+	(property "Reference" "REF**"
+		(at 0 -8.5 0)
+		(unlocked yes)
+		(layer "F.SilkS")
+		(uuid "b83c7121-204a-49d7-88ba-0dc9eba478cf")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+		)
+	)
+	(property "Value" "AudioJack PJ-320A"
+		(at 0 8.5 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "dec40f65-edde-4b6d-b5f7-f05f9e2ad841")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "9bbbf743-3b97-45bc-a7fc-707c21ac9010")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "429e7e34-e937-4294-af0b-9a7b45c159d9")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd)
+	(fp_line
+		(start -3.5 -5)
+		(end -3.5 7.5)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "ea9308ee-d172-46bd-9d98-6bb9987e839b")
+	)
+	(fp_line
+		(start -3.5 7.5)
+		(end 3.5 7.5)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "094f0e1f-b09a-4654-af13-d0750be32ec2")
+	)
+	(fp_line
+		(start 3.5 -5)
+		(end -3.5 -5)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "f8ee98d2-fef2-422a-b352-bbcbf327fa9a")
+	)
+	(fp_line
+		(start 3.5 7.5)
+		(end 3.5 -5)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "c4bce4fe-a0c1-43a5-9d01-235fb98afdb9")
+	)
+	(fp_line
+		(start -3.05 -7.05)
+		(end -3.05 7.05)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "0cb785ae-8a27-4e50-9526-6979009fb3c5")
+	)
+	(fp_line
+		(start -3.05 7.05)
+		(end 3.05 7.05)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "590c5895-03df-4530-91c3-4007f2155cda")
+	)
+	(fp_line
+		(start 3.05 -7.05)
+		(end -3.05 -7.05)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "2f83e78b-735a-4a25-9923-785756e3ab6a")
+	)
+	(fp_line
+		(start 3.05 7.05)
+		(end 3.05 -7.05)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "7f11f246-eda0-45ff-8e57-0348db75a884")
+	)
+	(fp_text user "${REFERENCE}"
+		(at 0 0.5 90)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "e66cea42-3288-46ff-a3c8-5a53cca7c314")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "" np_thru_hole circle
+		(at 0 -3.35 90)
+		(size 1.4 1.4)
+		(drill 1.4)
+		(layers "*.Cu" "*.Mask")
+		(uuid "7cf9a181-be49-4620-a82a-d87cfbeb0f54")
+	)
+	(pad "" np_thru_hole circle
+		(at 0 3.65 90)
+		(size 1.4 1.4)
+		(drill 1.4)
+		(layers "*.Cu" "*.Mask")
+		(uuid "07358a2d-884d-4095-8a70-6a00210dd551")
+	)
+	(pad "R1" thru_hole roundrect
+		(at 2.2 1.1 90)
+		(size 1.9 1.1)
+		(drill oval 1.5 0.7)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(roundrect_rratio 0.15)
+		(uuid "d859ce6a-5bdd-4402-be83-9cb3e4ed35de")
+	)
+	(pad "R2" thru_hole roundrect
+		(at 2.2 -1.9 90)
+		(size 1.9 1.1)
+		(drill oval 1.5 0.7)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(roundrect_rratio 0.15)
+		(uuid "950e4a96-e836-481b-966d-a77237277374")
+	)
+	(pad "S" thru_hole roundrect
+		(at -2.2 6.45 90)
+		(size 1.9 1.1)
+		(drill oval 1.5 0.7)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(roundrect_rratio 0.15)
+		(uuid "e5a93a6a-55fe-49ea-bcfa-4f899dfe6a68")
+	)
+	(pad "T" thru_hole roundrect
+		(at 2.2 5.1 90)
+		(size 1.9 1.1)
+		(drill oval 1.5 0.7)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(roundrect_rratio 0.15)
+		(uuid "506ad479-265f-40ec-9e68-1308df796960")
+	)
+	(zone
+		(net 0)
+		(net_name "")
+		(layer "F.Cu")
+		(uuid "5263b027-3e11-4736-ad22-e3c80dfcc8d2")
+		(name "Connector protrusion")
+		(hatch edge 0.5)
+		(connect_pads
+			(clearance 0)
+		)
+		(min_thickness 0.25)
+		(filled_areas_thickness no)
+		(keepout
+			(tracks not_allowed)
+			(vias not_allowed)
+			(pads not_allowed)
+			(copperpour not_allowed)
+			(footprints allowed)
+		)
+		(placement
+			(enabled no)
+			(sheetname "")
+		)
+		(fill
+			(thermal_gap 0.5)
+			(thermal_bridge_width 0.5)
+		)
+		(polygon
+			(pts
+				(xy -3.5 -7.5) (xy -3.5 -5) (xy 3.5 -5) (xy 3.5 -7.5)
+			)
+		)
+	)
+	(embedded_fonts no)
+)
